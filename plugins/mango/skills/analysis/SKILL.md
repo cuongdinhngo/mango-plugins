@@ -49,7 +49,12 @@ count, and the requirements matrix.
 8. **Blast radius.** Identify the handler/entry point, the blast radius (callers, dependents), and
    which of `config.repos` are touched. **Fan-out (cost knob):** on the **full** tier you may fan
    out read-only Explore agents to investigate, but only if `config.explore_fanout` is true
-   (default true). The **lite** tier always skips fan-out.
+   (default true). The **lite** tier always skips fan-out. **Model delegation** (see
+   `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): keep the judgment work of this phase — decomposition, AC
+   validation, root-cause/gap, scope — on the strong model; delegate only **bulk read-and-extract**
+   (reading many files to pull facts) to the Haiku `extractor` worker, more so when
+   `config.cost_tier` is `economy`. Run grep/test/lint via the Bash tool directly — never spawn a
+   model for a one-line shell command.
 9. **Scope.** Declare `SCOPE: S|M|L`.
 10. **Tier.** After SCOPE, declare `TIER: lite | full`. Choose **lite** only when ALL hold:
     `SCOPE=S`, a single file / single requirement row, no universal ("all/every/no") requirement,

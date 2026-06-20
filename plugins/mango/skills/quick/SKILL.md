@@ -12,7 +12,8 @@ drops the ceremony that a trivial ticket does not need.
 `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. Use only on a ticket that qualifies for
 `TIER: lite` (SCOPE=S, single file / single requirement row, no universal "all/every/no"
 requirement, not security-tagged). If it does not qualify, route to `solve` (full tier) instead.
-**The lite lane always skips fan-out** regardless of `config.explore_fanout`.
+**The lite lane always skips fan-out** regardless of `config.explore_fanout`, and **runs on a single
+model** — no delegation overhead (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`).
 
 ## Steps
 

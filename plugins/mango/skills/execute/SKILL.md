@@ -11,6 +11,11 @@ changes) via the verification sweep and the diff ⊆ approved-list check.
 `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. This phase is autonomous — it does not stop at
 a gate — but it implements ONLY what Gate 2 approved.
 
+**Model delegation** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): implementing the approved change
+list and drafting the PR body are **execute** work — Sonnet. Bulk read-and-extract may go to the
+Haiku `extractor` worker. Run the verification sweep's grep / tests / lint via the Bash tool
+directly — never spawn a model for a one-line shell command.
+
 ## Steps
 
 1. **Confirm Gate 2 cleared.** Read `<config.tickets_dir>/<KEY>.md`: approved change list, proving

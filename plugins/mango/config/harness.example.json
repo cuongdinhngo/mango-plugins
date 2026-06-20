@@ -14,6 +14,8 @@
 
   "tickets_dir": "docs/tickets",
   "explore_fanout": true,
+  "//cost_tier": "Model-delegation dial: economy | standard | max (default standard). economy pushes more bulk retrieval to a Haiku worker and avoids Opus on review; max allows Opus on review for high-stakes diffs. Never demotes review/challenger to Haiku. See PRINCIPLES.md routing map.",
+  "cost_tier": "standard",
   "branch_strategy": "fix|feat|chore/<KEY>-<slug>",
   "lessons_path": "docs/LESSONS.md",
   "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",

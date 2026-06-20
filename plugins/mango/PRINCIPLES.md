@@ -77,3 +77,34 @@ end. Multi-surface work is only done when every surface is covered or every excl
 
 **Fails the gate when** Gate 2 has no proving test, finalise records the test "not run" with no
 command, or `k < N` with no recorded decision.
+
+---
+
+## Model delegation (strong model decides, weak model gathers)
+
+> **"Opus decides, Sonnet executes, Haiku gathers — and every decision or verdict must be produced
+> or ratified by the strong model; a weaker model may only gather, never conclude."**
+
+Route work by the **nature of the task (judgment vs retrieval)** — NOT by phase position
+(early/late) or role label (main/sub). The trap to avoid: review and the challenger *look* like
+"heavy checking", but finding unmet requirements is the **highest-judgment** step in the flow. Never
+demote it to a weak model — a weak model misses items yet asserts confidently, which is exactly the
+silent under-delivery mango exists to prevent. A high-stakes diff warrants a *stronger* reviewer,
+not a weaker one.
+
+| Step | Nature | Model |
+|------|--------|-------|
+| Orchestrator + gates (decide) | judgment | the strong model the user drives (Opus) |
+| Analysis: root cause/gap, requirements decomposition, AC validation, clarification, scope | judgment | Opus |
+| Design: smallest change list, proving test | judgment | Opus |
+| Review verdict + challenger requirement reconstruction | judgment (highest) | Sonnet — Opus for high-stakes diffs — **never Haiku** |
+| Implement the approved change list; draft PR body | execute | Sonnet |
+| Explore: locate handler, callers, blast radius | retrieval + light judgment | Sonnet |
+| Bulk read-and-extract / summarise across many files | heavy tokens, low judgment | Haiku |
+| grep stray refs / run tests / lint | pure shell | no model — call the Bash tool directly |
+
+`config.cost_tier` (`economy | standard | max`, default `standard`) shifts the dials within this
+map — never against it. `economy` pushes more retrieval to Haiku and avoids Opus on review;
+`standard` is the map above; `max` allows Opus on review for high-stakes diffs. `reviewer` and
+`challenger` are never pinned to Haiku. The **lite** tier runs on a single model — no delegation
+overhead. Never spawn a model for a one-line shell command (grep/test/lint) — run the Bash tool.

@@ -25,6 +25,11 @@ was removed.
   ticket + diff only); `challenger.md`/`PRINCIPLES.md` state the independence is procedural.
 - **IMP-7 Cost knob** — `explore_fanout` config key (default `true`); lite tier always skips
   fan-out; README cost-profile note.
+- **IMP-8 Model delegation** — routing map + the "Opus decides, Sonnet executes, Haiku gathers"
+  principle in `PRINCIPLES.md`; `cost_tier` config key (`economy|standard|max`, default `standard`);
+  a Haiku-pinned read-only `agents/extractor.md` for bulk read-and-extract; `analysis`/`execute`/
+  `review` honour `cost_tier` and run shell directly (no model). `reviewer`/`challenger` stay on
+  Sonnet (upgradable to Opus, never Haiku); lite tier runs on a single model.
 
 ## [0.1.0] — 2026-06-20
 

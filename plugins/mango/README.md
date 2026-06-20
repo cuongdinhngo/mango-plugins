@@ -61,7 +61,8 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 **Optional / defaulted**
 - `standards_path`, `tickets_dir` (default `docs/tickets`),
   `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`, `pr_host`,
-  `cause_taxonomy`, `explore_fanout` (default `true`).
+  `cause_taxonomy`, `explore_fanout` (default `true`), `cost_tier` (`economy|standard|max`, default
+  `standard`).
 
 `rulebook_path` may be a **file or a directory**; with a directory, every consumer reads all `*.md`
 inside it. Run `/mango:init` to generate this file for you.
@@ -72,6 +73,26 @@ The full tier is heavier — rule-book reads, requirement re-derivation, the cha
 `explore_fanout` is `true`) read-only Explore fan-out during investigation. For small, low-stakes,
 high-volume tickets use the **lite** tier (`/mango:quick`), which skips fan-out and the challenger.
 Set `explore_fanout: false` to disable investigation fan-out on the full tier too.
+
+### Model delegation
+
+mango routes by the **nature of the task**, not the phase: *Opus decides, Sonnet executes, Haiku
+gathers — and every decision or verdict is produced or ratified by the strong model; a weaker model
+may only gather, never conclude.*
+
+| Step | Model |
+|------|-------|
+| Orchestrator + gates, analysis judgment, design | Opus (the model you drive) |
+| Review verdict + challenger reconstruction (highest judgment) | Sonnet — Opus for high-stakes diffs — **never Haiku** |
+| Implement the approved change list; draft PR body; Explore | Sonnet |
+| Bulk read-and-extract across many files (`agents/extractor.md`) | Haiku |
+| grep stray refs / run tests / lint | no model — Bash directly |
+
+`cost_tier` shifts the dials **within** this map, never against it: `economy` pushes more bulk
+retrieval to the Haiku `extractor` and avoids Opus on review; `standard` is the map above; `max`
+allows Opus on review for high-stakes work. `reviewer`/`challenger` are never demoted to Haiku, and
+the lite tier runs on a single model. The full routing map lives in
+[`PRINCIPLES.md`](./PRINCIPLES.md).
 
 ## Testing the harness itself
 

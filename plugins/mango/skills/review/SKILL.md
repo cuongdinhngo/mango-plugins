@@ -11,6 +11,12 @@ the `k/N` denominator.
 `config.rulebook_path`. If `.harness.json` is missing, STOP and tell the user to create one from
 `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`.
 
+**Model delegation** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): the review verdict and the
+challenger's requirement reconstruction are the **highest-judgment** step — run them on Sonnet, and
+**never** on Haiku. When `config.cost_tier` is `max` and the diff is high-stakes, upgrade the
+`reviewer` (and challenger) to Opus rather than down. The Haiku `extractor` worker may only gather
+context for you (e.g. pull caller snippets); it never produces a verdict.
+
 ## Steps
 
 1. **Run the `reviewer` agent** on the working-tree diff. It reads `config.rulebook_path` /
