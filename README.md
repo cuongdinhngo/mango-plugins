@@ -26,7 +26,9 @@ command, tracker). `.harness.json` is gitignored by this marketplace; in your pr
 committed config — never put secrets in it (those live in a gitignored `.env`).
 
 Run a ticket with `/mango:solve <KEY>` (full lifecycle) or `/mango:quick <KEY>` (lite lane for
-trivial fixes). See the [plugin README](./plugins/mango/README.md) for the tiers and cost profile.
+trivial fixes). See the [plugin README](./plugins/mango/README.md) for the lite/full tiers, the
+cost profile, and the model-delegation map (`cost_tier`: Opus decides, Sonnet executes, Haiku
+gathers).
 
 ## Update
 
