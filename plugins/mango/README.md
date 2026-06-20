@@ -12,10 +12,25 @@ live in `.harness.json`. Trust comes from emitted, counted, gate-blocking artifa
 **Secrets never ship.** No token or credential belongs in `.harness.json` or any plugin file; keep
 them in a gitignored `.env`.
 
+## Getting set up
+
+| Skill | Use | Produces |
+|-------|-----|----------|
+| `/mango:init` | Once per project | Detects the stack read-only, interviews only for the undetectable, writes `.harness.json` (guesses marked `UNVERIFIED`), and scaffolds a single-file starter rule book if none exists. |
+| `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation. `solve` runs it as a fail-fast preflight. |
+
 ## The lifecycle
 
 Run the whole thing with `/mango:solve`, or invoke a phase directly. mango **stops and waits at
 every ✋ gate** — silence is never approval.
+
+### Tiers — right-sizing the rigor
+
+`analysis` declares `TIER: lite | full`. **Lite** is chosen only when ALL hold: `SCOPE=S`, a single
+file / single requirement row, no universal ("all/every/no") requirement, and the ticket is not
+security-tagged — otherwise **full**. Lite routes through `/mango:quick`: two human gates (a single
+combined pre-code gate + the final gate), reviewer-only, no challenger, no full matrix, no fan-out.
+Full keeps the complete five-phase flow. Force the lite lane with `/mango:quick <KEY>`.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
@@ -24,7 +39,8 @@ every ✋ gate** — silence is never approval.
 | `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. |
 | `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation, regression check, proving-test result, `k/N` coverage. |
 | `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows. |
-| `/mango:solve` | orchestrator | Runs all phases in order, holding every gate; resumes from `Session status`. |
+| `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
+| `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding,
 simplicity first, surgical changes, goal-driven execution.
@@ -45,7 +61,25 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 **Optional / defaulted**
 - `standards_path`, `tickets_dir` (default `docs/tickets`),
   `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`, `pr_host`,
-  `cause_taxonomy`.
+  `cause_taxonomy`, `explore_fanout` (default `true`).
+
+`rulebook_path` may be a **file or a directory**; with a directory, every consumer reads all `*.md`
+inside it. Run `/mango:init` to generate this file for you.
+
+## Cost profile
+
+The full tier is heavier — rule-book reads, requirement re-derivation, the challenger, and (when
+`explore_fanout` is `true`) read-only Explore fan-out during investigation. For small, low-stakes,
+high-volume tickets use the **lite** tier (`/mango:quick`), which skips fan-out and the challenger.
+Set `explore_fanout: false` to disable investigation fan-out on the full tier too.
+
+## Testing the harness itself
+
+`scripts/validate.py` is the cheap, always-on guard — structural checks plus per-skill contract
+tokens (it fails if a skill loses its load-bearing artifact). `tests/eval/` is the real behavioural
+check: `run.sh` drives `claude -p` over fixture tickets and asserts the expected artifacts (count
+line, gate count, the freeform Gate-0 confirmation). It costs tokens, so CI runs it only via the
+manual `eval.yml` workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 ## First run
 

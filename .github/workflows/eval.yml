@@ -1,0 +1,20 @@
+name: eval
+
+# Behavioural eval — the REAL behavioural check (costs tokens, calls the model).
+# Manual only; the always-on cheap guard is scripts/validate.py in validate.yml.
+on:
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Run behavioural eval
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: bash tests/eval/run.sh

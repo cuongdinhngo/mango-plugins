@@ -1,6 +1,7 @@
 {
   "//": "Copy this file to your project repo root as .harness.json and fill in the values. It is the per-project contract mango reads at runtime. SECRETS/TOKENS DO NOT BELONG HERE: keep them in a gitignored .env. .harness.json itself is gitignored by mango's marketplace, but treat it as committed project config — never paste credentials into it.",
 
+  "//rulebook_path": "May be a FILE or a DIRECTORY. If a directory, every consumer (reviewer/onboarder agents, grounding skills) reads all *.md inside it. Default to one file so the whole rule set always loads; point at a folder to split later.",
   "rulebook_path": "docs/ENGINEERING_RULES.md",
   "standards_path": "docs/CODING_STANDARDS.md",
 
@@ -12,6 +13,7 @@
   "test_command": "REPLACE_ME (e.g. the single command that runs your test suite or a focused subset)",
 
   "tickets_dir": "docs/tickets",
+  "explore_fanout": true,
   "branch_strategy": "fix|feat|chore/<KEY>-<slug>",
   "lessons_path": "docs/LESSONS.md",
   "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",

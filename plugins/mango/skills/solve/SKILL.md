@@ -17,11 +17,23 @@ Gates require pausing in the **live conversation** so the human can approve. A s
 isolated and returns once — it cannot hold a gate open, surface a Gate-0 question mid-run, or take a
 per-action approval. So orchestration must live here, in-conversation, as a skill.
 
+## Preflight (fail-fast)
+
+Before starting the pipeline, run the `doctor` checks against `${CLAUDE_PROJECT_DIR}/.harness.json`.
+**Refuse to start** while any ❌ remains — name exactly what to fix (point the user at `/mango:doctor`
+and `/mango:init`). No partial run on a broken config.
+
 ## Order
 
-Run, in strict order, holding the gate at each step:
+Run, in strict order, holding the gate at each step. After analysis declares `TIER`, **honour it**:
 
-1. `analysis` → **Gate 1** (and Gate 0 if `j > 0`) — STOP for approval.
+- **`TIER: lite`** → route the rest of the work through the `quick` skill (single combined pre-code
+  gate → execute → reviewer-only check → final gate). No challenger, no full matrix, no fan-out.
+- **`TIER: full`** → the existing five-phase flow below.
+
+A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
+
+1. `analysis` → **Gate 1** (and Gate 0 if `j > 0`) — STOP for approval; declares `TIER`.
 2. `design` → **Gate 2** — STOP for approval.
 3. `execute` → Phase 3 (autonomous) → flows into review.
 4. `review` → **Gate 4** — STOP only if not clean; loop back as needed.

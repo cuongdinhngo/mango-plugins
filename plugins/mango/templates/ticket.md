@@ -4,6 +4,8 @@
 - **Type:** bug | enhancement
 - **Repo(s) / Porting:** <which config.repos are touched; porting order if shared>
 - **SCOPE:** S | M | L
+- **STRUCTURE:** native | synthesized  <!-- synthesized → freeform ticket; confirm reading at Gate 0 -->
+- **TIER:** lite | full  <!-- lite routes through /mango:quick; full = five-phase flow -->
 
 ---
 

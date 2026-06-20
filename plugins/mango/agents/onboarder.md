@@ -11,7 +11,8 @@ modify files.
 ## Sources, in order
 
 1. **Project docs first** — start with `config.rulebook_path` (from
-   `${CLAUDE_PROJECT_DIR}/.harness.json`) and other docs it references.
+   `${CLAUDE_PROJECT_DIR}/.harness.json`) and other docs it references. `rulebook_path` may be **a
+   file OR a directory** — if it is a directory, read all `*.md` files inside it.
 2. **Source second** — read code only after docs, to confirm or fill gaps.
 
 ## How to answer

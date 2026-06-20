@@ -25,6 +25,13 @@ count, and the requirements matrix.
    `SECTIONS: <n> found (names) | <n> decomposed | ROWS: C=.. R=.. G=.. AC=..`
 
    Sections found MUST equal sections decomposed.
+
+   **Freeform tickets.** If the ticket has no sections matching `config.ticket_header_schema`,
+   **synthesize** the C/R/G/AC matrix from the prose, set `STRUCTURE: synthesized` in the working
+   doc, and raise a mandatory Gate-0 item: *"Confirm my reading of this freeform ticket before I
+   investigate."* This folds into the `CLARIFICATION` tally below (it counts toward `j`), so a
+   synthesized reading always stops at Gate 0 until the human confirms. Structured tickets set
+   `STRUCTURE: native`.
 4. **AC validation table.** Independently re-derive every concrete acceptance value (numbers,
    thresholds, counts, formats). Each mismatch between the ticket's stated value and your computed
    value becomes a **Gate-1 question carrying the computed value** — never a silent correction.
@@ -40,9 +47,15 @@ count, and the requirements matrix.
    - Bug → root cause classified against `config.cause_taxonomy`, with `path:line`.
    - Enhancement → per-goal gap analysis (current vs target), with `path:line`.
 8. **Blast radius.** Identify the handler/entry point, the blast radius (callers, dependents), and
-   which of `config.repos` are touched.
+   which of `config.repos` are touched. **Fan-out (cost knob):** on the **full** tier you may fan
+   out read-only Explore agents to investigate, but only if `config.explore_fanout` is true
+   (default true). The **lite** tier always skips fan-out.
 9. **Scope.** Declare `SCOPE: S|M|L`.
-10. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
-    `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled. Write Phase 1 into
-    the working doc and the `Session status` block, then STOP and wait for the user. Do not begin
-    design.
+10. **Tier.** After SCOPE, declare `TIER: lite | full`. Choose **lite** only when ALL hold:
+    `SCOPE=S`, a single file / single requirement row, no universal ("all/every/no") requirement,
+    and the ticket is not security-tagged. Otherwise **full** (the existing five-phase behaviour).
+    Lite routes through the `quick` skill; full keeps the full matrix, challenger, sweep, and gates.
+11. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
+    `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled, `STRUCTURE` and
+    `TIER` declared. Write Phase 1 into the working doc and the `Session status` block, then STOP
+    and wait for the user. Do not begin design.

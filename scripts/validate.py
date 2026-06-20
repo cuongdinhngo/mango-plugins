@@ -19,6 +19,19 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+([-+][0-9A-Za-z.\-]+)*$")
 # Names a third party may not claim for a marketplace.
 RESERVED_NAMES = {"anthropic", "claude", "claude-code"}
 
+# Skill-contract assertions: each skill body MUST contain its load-bearing tokens
+# (case-insensitive regex). This guards that an edit cannot quietly drop the
+# counted, gate-blocking artifact a skill is responsible for.
+SKILL_CONTRACTS = {
+    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1"],
+    "design": [r"proving test", r"Gate 2"],
+    "execute": [r"verification sweep", r"reformat"],
+    "review": [r"reviewer", r"challenger", r"not clean"],
+    "finalise": [r"dry-run", r"per[- ]action"],
+    "solve": [r"Session status", r"self-approve"],
+    "quick": [r"proving test", r"combined gate"],
+}
+
 failures = []
 checks = 0
 
@@ -137,11 +150,30 @@ def validate_frontmatter_files():
             check(bool(fields.get("description")), f"{rel}: missing 'description' frontmatter")
 
 
+def validate_skill_contracts():
+    """Each skill named in SKILL_CONTRACTS must contain its required tokens."""
+    for skill, patterns in SKILL_CONTRACTS.items():
+        path = ROOT / "plugins" / "mango" / "skills" / skill / "SKILL.md"
+        if not check(path.exists(), f"skill-contract: skills/{skill}/SKILL.md is missing"):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"skill-contract: cannot read skills/{skill}/SKILL.md ({exc})")
+            continue
+        for pattern in patterns:
+            check(
+                re.search(pattern, body, re.IGNORECASE) is not None,
+                f"skill-contract: skills/{skill}/SKILL.md missing required token /{pattern}/",
+            )
+
+
 def main():
     validate_all_json_parse()
     validate_marketplace()
     validate_plugin_manifests()
     validate_frontmatter_files()
+    validate_skill_contracts()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")
     if failures:

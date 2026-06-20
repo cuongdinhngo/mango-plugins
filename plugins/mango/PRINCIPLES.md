@@ -26,6 +26,11 @@ not guessed.
 **Fails the gate when** a gate is reached with `j > 0` unresolved, an AC mismatch was silently
 changed instead of raised, or sections found ≠ sections decomposed.
 
+> **Challenger independence is procedural, not structural.** The `challenger`'s "ticket-blind"
+> property holds only because the orchestrator withholds the working doc and re-fetches the raw
+> ticket to build its input — not because anything structurally prevents a leak. Treat it as a
+> discipline to uphold, and state the limit honestly rather than overclaiming guaranteed independence.
+
 ---
 
 ## 2. Simplicity first
