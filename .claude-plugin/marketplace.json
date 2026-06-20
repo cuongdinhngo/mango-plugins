@@ -1,0 +1,16 @@
+{
+  "name": "mango-plugins",
+  "owner": {
+    "name": "Cuong Ngo",
+    "url": "https://github.com/cuongdinhngo"
+  },
+  "description": "Marketplace hosting the mango plugin: a portable, gated ticket-lifecycle harness for Claude Code that ships machinery, never a project's domain rules.",
+  "plugins": [
+    {
+      "name": "mango",
+      "source": "./plugins/mango",
+      "description": "Gated ticket-lifecycle harness (analysis → design → execute → review → finalise). Project rules are read at runtime from .harness.json; trust comes from emitted, counted, gate-blocking artifacts.",
+      "category": "development"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+---
+name: analysis
+description: Phase 1 of the mango ticket lifecycle. Use when starting work on a ticket — pulls the ticket, opens the working doc, and decomposes every section into a counted C/R/G/AC requirements matrix with AC validation and a clarification tally. Stops at Gate 1.
+---
+
+Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This phase enforces principle 1 (Think before
+coding) via the `CLARIFICATION` tally, the `AC validation` table, the `SECTIONS found = decomposed`
+count, and the requirements matrix.
+
+**Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` and ground every rule in
+`config.rulebook_path`. If `.harness.json` is missing, STOP and tell the user to create one from
+`${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. Tracker READS may use `config.tracker.read_mcp`
+(if set); never write anything in this phase.
+
+## Steps
+
+1. **Pull the ticket.** Read it via `config.tracker.read_mcp` (or ask the user to paste it if no
+   read MCP is configured). Capture the raw ticket text verbatim — later phases re-derive from it.
+2. **Open the working doc.** Copy `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md` to
+   `<config.tickets_dir>/<KEY>.md`. This single doc carries state across all five phases.
+3. **Decompose EVERY section.** Using `config.ticket_header_schema` (which maps each ticket header
+   to C/R/G/AC), turn every ticket section into requirements-matrix rows. Each row: ID, Source,
+   Verbatim, Interpretation, Ph1 evidence, Status. Emit the count line:
+
+   `SECTIONS: <n> found (names) | <n> decomposed | ROWS: C=.. R=.. G=.. AC=..`
+
+   Sections found MUST equal sections decomposed.
+4. **AC validation table.** Independently re-derive every concrete acceptance value (numbers,
+   thresholds, counts, formats). Each mismatch between the ticket's stated value and your computed
+   value becomes a **Gate-1 question carrying the computed value** — never a silent correction.
+5. **Clarification tally.** Emit:
+
+   `CLARIFICATION: <M> raised | <k> self-resolved (cited) | <j> for human decision`
+
+   Self-resolved items must cite the source (rulebook §, code `path:line`, ticket line). **If j > 0,
+   STOP at Gate 0** and ask the human those questions before going further.
+6. **Universal inventory.** For any requirement saying "all/every/no", build a numbered inventory
+   of the affected items with total **N** (this N is the denominator later phases prove against).
+7. **Cause / gap analysis.**
+   - Bug → root cause classified against `config.cause_taxonomy`, with `path:line`.
+   - Enhancement → per-goal gap analysis (current vs target), with `path:line`.
+8. **Blast radius.** Identify the handler/entry point, the blast radius (callers, dependents), and
+   which of `config.repos` are touched.
+9. **Scope.** Declare `SCOPE: S|M|L`.
+10. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
+    `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled. Write Phase 1 into
+    the working doc and the `Session status` block, then STOP and wait for the user. Do not begin
+    design.

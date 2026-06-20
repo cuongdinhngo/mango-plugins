@@ -1,0 +1,28 @@
+name: validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # Required gate: deterministic, stdlib-only, no network.
+      - name: Validate marketplace and plugin manifests
+        run: python3 scripts/validate.py
+
+      # Best-effort, non-blocking: the Claude Code CLI strict validator.
+      - name: Claude Code plugin validate (best-effort)
+        continue-on-error: true
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          claude plugin validate ./plugins/mango --strict
+          claude plugin validate . --strict

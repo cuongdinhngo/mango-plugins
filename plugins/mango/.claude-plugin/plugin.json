@@ -1,0 +1,19 @@
+{
+  "name": "mango",
+  "displayName": "Mango",
+  "version": "0.1.0",
+  "description": "A portable, gated ticket-lifecycle harness for Claude Code. Ships the machinery (six gated phases, three read-only review agents, working-doc + PR templates) and reads every project-specific rule at runtime from .harness.json. No stack assumptions, no secrets. Trust comes from emitted, counted, gate-blocking artifacts.",
+  "author": {
+    "name": "Cuong Ngo"
+  },
+  "keywords": [
+    "ticket",
+    "lifecycle",
+    "workflow",
+    "gates",
+    "code-review",
+    "harness",
+    "skills"
+  ],
+  "license": "MIT"
+}

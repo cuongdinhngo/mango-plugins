@@ -1,0 +1,20 @@
+# Secrets — never ship
+.env
+.env.*
+*.pem
+*.pfx
+*.p12
+*.key
+
+# Per-project harness config (lives in the consuming project, not here)
+.harness.json
+
+# OS / editor cruft
+.DS_Store
+
+# Dependencies / build
+node_modules/
+
+# Python
+__pycache__/
+*.pyc
