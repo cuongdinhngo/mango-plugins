@@ -13,15 +13,20 @@ In Claude Code:
 /plugin install mango@mango-plugins
 ```
 
-Then, in any project you want to use it in, copy the per-project contract and fill it in:
+Then, in any project you want to use it in, bootstrap the per-project contract:
 
 ```
-cp <plugin>/config/harness.example.json .harness.json
-# edit .harness.json — point it at your rule-book, repos, test command, and tracker
+/mango:init      # detects your stack, writes .harness.json, scaffolds a starter rule book
+/mango:doctor    # health-checks the setup (✅/⚠/❌ with remediation)
 ```
 
-`.harness.json` is gitignored by this marketplace; in your project, treat it as committed config —
-never put secrets in it (those live in a gitignored `.env`).
+`/mango:init` marks every guessed value `UNVERIFIED` for you to confirm. Prefer to fill it by hand?
+Copy `<plugin>/config/harness.example.json` to `.harness.json` and edit it (rule-book, repos, test
+command, tracker). `.harness.json` is gitignored by this marketplace; in your project treat it as
+committed config — never put secrets in it (those live in a gitignored `.env`).
+
+Run a ticket with `/mango:solve <KEY>` (full lifecycle) or `/mango:quick <KEY>` (lite lane for
+trivial fixes). See the [plugin README](./plugins/mango/README.md) for the tiers and cost profile.
 
 ## Update
 
@@ -38,8 +43,13 @@ The required gate is deterministic, stdlib-only, and needs no network or auth:
 python3 scripts/validate.py
 ```
 
-CI additionally runs `claude plugin validate ./plugins/mango --strict` and
+It runs structural checks plus per-skill contract tokens (it fails if a skill loses its
+load-bearing artifact). CI additionally runs `claude plugin validate ./plugins/mango --strict` and
 `claude plugin validate . --strict` as a **best-effort, non-blocking** step.
+
+The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets and asserts the
+expected artifacts. It costs tokens, so CI runs it only via the manual `eval.yml` workflow
+(`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 ## Publish
 
