@@ -24,10 +24,10 @@ RESERVED_NAMES = {"anthropic", "claude", "claude-code"}
 # counted, gate-blocking artifact a skill is responsible for.
 SKILL_CONTRACTS = {
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1"],
-    "design": [r"proving test", r"Gate 2"],
-    "execute": [r"verification sweep", r"reformat"],
+    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions"],
+    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat"],
     "review": [r"reviewer", r"challenger", r"not clean"],
-    "finalise": [r"dry-run", r"per[- ]action"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson"],
     "solve": [r"Session status", r"self-approve"],
     "quick": [r"proving test", r"combined gate"],
 }

@@ -3,6 +3,47 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] — 2026-06-21
+
+Retrospective-driven hardening. Unlike v0.2 (predicted risks), these six fixes come from **two real
+mango runs**. Each fix cites the observed failure that motivated it. No v0.2 behaviour was removed.
+
+### Added / Changed
+- **A — Proof at the risk layer + per-AC verification plan.** `design` Phase 2 now emits a
+  verification-plan table (`AC | risk layer | proof artifact | layer-match? ✅/❌`); the proving test
+  must sit at the layer where the requirement can fail, and **Gate 2 may not pass with any ❌**.
+  Principle 4 in `PRINCIPLES.md` and the ticket template updated. *(Observed: a store unit test
+  passed while the integration-layer feature was broken — Gate 2 cleared on a false green; and an
+  "in-browser confirm" verification artifact surfaced only at Gate 4.)*
+- **B — Spike novel library/runtime assumptions before Gate 2.** `design` adds an **Assumptions**
+  step (`verified | novel-untested`); a `novel-untested` third-party/runtime assumption must be
+  resolved by a recorded **spike** or an integration/e2e-shaped proving test before Gate 2.
+  *(Observed: a design leaned on the untested "two live rich-text editors coexist" assumption — the
+  exact thing that broke.)*
+- **C — Execute escalation / re-gate.** `execute` defines a **"design invalidated"** STOP: when a
+  test proves the approved approach can't work, execute stops, records the finding, surfaces options,
+  and **re-opens Gate 2** (re-passing A + B) — never continues with a known-broken approach. `solve`
+  defines the `execute → (design-invalidated) → design re-gate` transition. *(Observed: execute found
+  the Gate-2 approach unworkable but mango had no defined transition; the operator improvised.)*
+- **D — Stuck-detector / circuit-breaker.** `execute` and `quick` STOP and escalate after `K` failed
+  attempts at the same failing-test signature (default `K=3`, configurable `stuck_threshold` in
+  `.harness.json`); the counter resets when the signature changes. *(Observed: ~7 attempts against
+  the same failing e2e before escalating.)*
+- **E — Finalise captures a durable lesson on every run.** `finalise` now asks for a durable lesson
+  (constraint / wrong assumption / process gap) **independent of deferred rows** and writes it to
+  `config.lessons_path` as a repo artifact, never only personal memory. Reinforced in `PRINCIPLES.md`.
+  *(Observed: a durable constraint nearly never reached `LESSONS.md` because there were no deferred
+  rows to hang it on.)*
+- **F — Working doc separated from the ticket spec.** The working doc moves to
+  `<config.work_dir>/<KEY>.work.md` (default `work_dir` = `tickets_dir`), a distinct file never
+  appended to the ticket spec; the `challenger` payload provably excludes it. `analysis`, `review`,
+  `solve`, the template, `PRINCIPLES.md`, and `challenger.md` updated — independence is now backed by
+  a path separation (still procedural, not cryptographic). *(Observed: the ticket file doubled as the
+  working doc, so challenger independence was a convention, not structure.)*
+- **Validator.** `scripts/validate.py` skill-contract checks now require `risk layer` + `Assumptions`
+  in `design`, a stuck/escalation token + a "design invalidated" token in `execute`, and
+  `durable lesson` in `finalise`.
+
 ## [0.2.0] — 2026-06-20
 
 Architecture-review hardening. Each item closes a specific adoption risk; no full-tier v1 behaviour

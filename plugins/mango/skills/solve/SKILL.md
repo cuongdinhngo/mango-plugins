@@ -36,11 +36,20 @@ A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
 1. `analysis` → **Gate 1** (and Gate 0 if `j > 0`) — STOP for approval; declares `TIER`.
 2. `design` → **Gate 2** — STOP for approval.
 3. `execute` → Phase 3 (autonomous) → flows into review.
+   - **`execute → (design-invalidated) → design re-gate`:** if execute hits its *design-invalidated*
+     escalation (a test proves the approved Gate-2 approach cannot work), it STOPS instead of
+     flowing to review. Surface the options, then **re-open Gate 2** with a revised approach (which
+     must re-pass design's Assumptions check and verification plan) before any further execute. Never
+     continue with a known-broken approach.
+   - **stuck-detector:** if execute hits `config.stuck_threshold` failed attempts at the same
+     failing signature, it STOPS and escalates to the user rather than retrying further.
 4. `review` → **Gate 4** — STOP only if not clean; loop back as needed.
-5. `finalise` → **final gate** — STOP; one separate approval per outward action.
+5. `finalise` → **final gate** — STOP; one separate approval per outward action. Always captures a
+   **durable lesson** (independent of deferred rows) to `config.lessons_path`.
 
-**Resume** from the working-doc `Session status` block: read it, determine the current phase, and
-continue from there rather than restarting.
+**Resume** from the working-doc (`<config.work_dir>/<KEY>.work.md`) `Session status` block: read it,
+determine the current phase, and continue from there rather than restarting. The working doc is
+**separate** from the ticket spec — never appended to the raw ticket.
 
 ## Non-negotiables
 

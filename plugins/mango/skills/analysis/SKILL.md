@@ -16,8 +16,14 @@ count, and the requirements matrix.
 
 1. **Pull the ticket.** Read it via `config.tracker.read_mcp` (or ask the user to paste it if no
    read MCP is configured). Capture the raw ticket text verbatim — later phases re-derive from it.
-2. **Open the working doc.** Copy `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md` to
-   `<config.tickets_dir>/<KEY>.md`. This single doc carries state across all five phases.
+2. **Open the working doc — separate from the ticket spec.** Copy
+   `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md` to `<config.work_dir>/<KEY>.work.md` (default
+   `work_dir` = `tickets_dir`). This mutable doc carries state across all five phases. It is a
+   **distinct file** from the ticket spec: **never** append the working doc to, or merge it into,
+   the raw ticket or any ticket spec file at `<config.tickets_dir>/<KEY>.md`. Keeping them on
+   separate paths is what lets the review phase hand the challenger the raw ticket without leaking
+   the design (observed failure: when the ticket file doubled as the working doc, the challenger's
+   independence rested on a manual "withhold" convention rather than structure).
 3. **Decompose EVERY section.** Using `config.ticket_header_schema` (which maps each ticket header
    to C/R/G/AC), turn every ticket section into requirements-matrix rows. Each row: ID, Source,
    Verbatim, Interpretation, Ph1 evidence, Status. Emit the count line:

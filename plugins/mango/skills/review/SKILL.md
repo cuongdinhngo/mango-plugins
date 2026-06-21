@@ -24,11 +24,14 @@ context for you (e.g. pull caller snippets); it never produces a verdict.
 2. **Run the `challenger` agent ticket-blind.** **Construct its input explicitly** so independence
    is procedural, not just requested: build the payload as exactly *(a)* the raw ticket text
    **re-fetched from the tracker** (`config.tracker.read_mcp`, or have the user paste it — do NOT
-   copy it out of the working doc) plus *(b)* the diff/branch. Invoke the challenger as a fresh
-   subagent with only that payload — **never** the working doc, design, or rationale. It rebuilds
-   the requirements from the raw ticket and judges each met / not met / can't tell with `path:line`.
-   This is a procedural guarantee (the orchestrator withholds the doc and re-fetches the ticket),
-   not a structural one — state that honestly if asked.
+   copy it out of the working doc) plus *(b)* the diff/branch. The payload **explicitly excludes the
+   working doc** `<config.work_dir>/<KEY>.work.md` (design, matrix, rationale) — which now lives on a
+   path separate from the ticket spec precisely so it is easy to leave out. Invoke the challenger as
+   a fresh subagent with only that payload — **never** the `.work.md`, design, or rationale. It
+   rebuilds the requirements from the raw ticket and judges each met / not met / can't tell with
+   `path:line`. This is a procedural guarantee backed by a path separation (the orchestrator
+   withholds the `.work.md` and re-fetches the ticket), not a cryptographic one — state that
+   honestly if asked.
 3. **Optional project security agent.** If the project defines one, run it on the diff.
 4. **Reconcile scope vs the approved list.** Any file outside the Gate-2 list, or reformatting of
    untouched lines, is **not clean**.

@@ -1,4 +1,9 @@
-# <KEY> — <ticket title>
+<!-- WORKING-DOC TEMPLATE. Copied by `analysis` to `<config.work_dir>/<KEY>.work.md` — the mutable
+state doc that carries all five phases. It is SEPARATE from the ticket spec: never append this to,
+or merge it into, the raw ticket / ticket spec file. The challenger is given only the re-fetched raw
+ticket + the diff, never this `.work.md`. -->
+
+# <KEY> — <ticket title> (working doc)
 
 - **Ticket:** <KEY> · <tracker link>
 - **Type:** bug | enhancement
@@ -58,9 +63,25 @@ the computed value — never a silent correction.
 
 - Approach:
 - Rejected alternatives:
+
+**Assumptions** (Gate 2 may not pass with an unresolved `novel-untested` 3p/runtime assumption —
+resolve via a recorded spike OR an integration/e2e-shaped proving test):
+
+| Assumption | verified / novel-untested | If novel-untested 3p/runtime → spike result OR integration-shaped proving test |
+|------------|---------------------------|--------------------------------------------------------------------------------|
+|            |                           |                                                                                |
+
 - Smallest change-list (every item traces to a matrix row): see matrix `Ph2 covered by`.
 - Rule compliance (vs rulebook_path / standards_path):
 - **Proving test** (fails pre-change, passes post-change; invocation via test_command):
+
+**Verification plan** (one row per AC / at-risk requirement; the proof must sit at the layer where
+the requirement can fail — **Gate 2 may not pass with any ❌**):
+
+| AC | risk layer (logic / integration / runtime-3p / e2e) | proof artifact (unit / integration / e2e / manual-recorded) | layer-match? ✅/❌ |
+|----|------------------------------------------------------|-------------------------------------------------------------|-------------------|
+|    |                                                      |                                                             |                   |
+
 - Rollback + porting plan across repos:
 - SCOPE confirmed:
 - **Gate 2 status:** waiting on user / cleared
@@ -71,6 +92,10 @@ the computed value — never a silent correction.
 - Commits (logical units; no AI co-author trailer):
 - Proving test added:
 - **Verification sweep:** zero stray references ✅/❌ · diff ⊆ approved list ✅/❌ · each hunk maps to a row ✅/❌
+- **Design-invalidation / re-gate** (fill only if a test or the proving test shows the approved
+  Gate-2 approach cannot work as designed): what failed + evidence (`path:line` / test signature) ·
+  STOP recorded ✅ · options surfaced to user · **Gate 2 re-opened** with a revised approach
+  (re-passes Assumptions + verification-plan). Never "continue with a known-broken approach."
 
 ## Phase 4 — Review ✋ (stop only if not clean)
 
@@ -92,6 +117,9 @@ the computed value — never a silent correction.
   - [ ] tracker comment (via tracker.cli)
   - [ ] tracker transition (via tracker.cli)
 - Follow-up tickets drafted for deferred (⚠) rows:
+- **Durable lesson** (asked on EVERY run, independent of deferred rows — a constraint discovered, a
+  wrong assumption, or a process gap): none / `<lesson>` written to `config.lessons_path` (a repo
+  artifact, never only personal memory):
 - Revert path:
 
 ---

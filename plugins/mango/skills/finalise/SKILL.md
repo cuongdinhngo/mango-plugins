@@ -14,8 +14,8 @@ goes through `config.tracker.cli` — **never** an MCP.
 
 ## Steps
 
-1. **Confirm review was clean.** Read `<config.tickets_dir>/<KEY>.md`. If Phase 4 is not clean,
-   return to review.
+1. **Confirm review was clean.** Read the working doc `<config.work_dir>/<KEY>.work.md`. If Phase 4
+   is not clean, return to review.
 2. **Draft the PR body.** Render `${CLAUDE_PLUGIN_ROOT}/templates/pr.md` to `/tmp/pr-<KEY>.md`.
    Derive content from the working doc (summary, changes, the proving test + result, data/DB, risk
    & rollback, reviewer checklist). Do not paste raw commit messages.
@@ -30,5 +30,12 @@ goes through `config.tracker.cli` — **never** an MCP.
 5. **Execute only approved actions.** For each approved action, run it. All tracker writes use
    `config.tracker.cli`. After each, report what happened.
 6. **Draft follow-up tickets** for every deferred (⚠) matrix row, so nothing silently drops.
-7. **Update `Session status`** with a concrete next action (never "continue") and state the
+7. **Durable lesson — ask on EVERY run, independent of deferred rows.** Ask: *"did this run produce
+   a durable lesson — a constraint discovered, a wrong assumption, or a process gap?"* This is
+   **not** tied to deferred (⚠) rows: a run with zero deferred rows can still have learned something
+   that must outlive it. If yes, write the lesson to `config.lessons_path` (and the working doc's
+   *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory. (Observed
+   failure: a run discovered a durable constraint — two live rich-text editors corrupt each other —
+   but had no deferred rows, so it nearly never reached the repo's shared `LESSONS.md`.)
+8. **Update `Session status`** with a concrete next action (never "continue") and state the
    **revert path** (branch, commits, how to undo a merge/transition).

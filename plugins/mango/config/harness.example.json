@@ -13,6 +13,10 @@
   "test_command": "REPLACE_ME (e.g. the single command that runs your test suite or a focused subset)",
 
   "tickets_dir": "docs/tickets",
+  "//work_dir": "Directory for mango's per-ticket WORKING DOC (<KEY>.work.md) — the mutable state doc carrying all five phases. Kept SEPARATE from the ticket spec so the challenger's input can exclude it. Defaults to tickets_dir if unset.",
+  "work_dir": "docs/tickets",
+  "//stuck_threshold": "Circuit-breaker: after this many failed attempts against the SAME proving artifact / failing-test signature, execute and quick STOP and escalate to the user instead of retrying. The counter resets when the failing signature changes. Default 3.",
+  "stuck_threshold": 3,
   "explore_fanout": true,
   "//cost_tier": "Model-delegation dial: economy | standard | max (default standard). economy pushes more bulk retrieval to a Haiku worker and avoids Opus on review; max allows Opus on review for high-stakes diffs. Never demotes review/challenger to Haiku. See PRINCIPLES.md routing map.",
   "cost_tier": "standard",

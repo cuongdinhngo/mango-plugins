@@ -17,8 +17,10 @@ model** — no delegation overhead (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`).
 
 ## Steps
 
-1. **Minimal working doc.** Create `<config.tickets_dir>/<KEY>.md` (from the template) but fill only
-   the **single goal row**, the **one change**, and the **proving test**. Set `TIER: lite`.
+1. **Minimal working doc.** Create the working doc `<config.work_dir>/<KEY>.work.md` (default
+   `work_dir` = `tickets_dir`) from the template — a **separate file** from the ticket spec, never
+   appended to the raw ticket — but fill only the **single goal row**, the **one change**, and the
+   **proving test**. Set `TIER: lite`.
 2. **Single combined gate (✋).** Present, together, the one change AND the proving test, and STOP
    for one approval before any code. This is the lite lane's **single combined gate** — there is no
    separate design gate. Silence ≠ approval.
@@ -27,7 +29,11 @@ model** — no delegation overhead (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`).
    must be ⊆ the approved change. Commit (no AI co-author trailer).
 4. **Reviewer-only check.** Run the `reviewer` agent on the diff. **No challenger, no full matrix.**
    Confirm the proving test is green via `config.test_command`. If the reviewer reports Critical or
-   the test is red, loop back and STOP.
+   the test is red, loop back and STOP. **Stuck-detector:** after **K** failed attempts against the
+   same proving artifact / same failing-test signature (default `K=3`, configurable as
+   `config.stuck_threshold` in `.harness.json`), STOP and escalate to the user with what was tried
+   and the options instead of retrying further; the counter resets when the failing signature
+   changes.
 5. **Finalise.** Hand off to `finalise`'s final gate: dry-run by default, one separate approval per
    outward action. Update `Session status` with a concrete next action.
 

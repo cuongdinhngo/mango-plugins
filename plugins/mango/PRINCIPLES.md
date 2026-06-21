@@ -26,10 +26,13 @@ not guessed.
 **Fails the gate when** a gate is reached with `j > 0` unresolved, an AC mismatch was silently
 changed instead of raised, or sections found ≠ sections decomposed.
 
-> **Challenger independence is procedural, not structural.** The `challenger`'s "ticket-blind"
-> property holds only because the orchestrator withholds the working doc and re-fetches the raw
-> ticket to build its input — not because anything structurally prevents a leak. Treat it as a
-> discipline to uphold, and state the limit honestly rather than overclaiming guaranteed independence.
+> **Challenger independence is procedural, backed by a path separation — not cryptographic.** The
+> working doc lives at `<config.work_dir>/<KEY>.work.md`, a **separate path** from the ticket spec,
+> so the orchestrator can build the challenger's input from the re-fetched raw ticket + diff and
+> simply leave the `.work.md` out. The "ticket-blind" property still holds only because the
+> orchestrator upholds that withhold-and-re-fetch discipline — nothing cryptographically prevents a
+> leak. Treat it as a discipline backed by structure, and state the limit honestly rather than
+> overclaiming guaranteed independence.
 
 ---
 
@@ -71,12 +74,22 @@ end. Multi-surface work is only done when every surface is covered or every excl
 **Enforced at** (design → Gate 2; review → Gate 4; finalise → final gate):
 - A named **proving test** is required at Gate 2: the assertion that fails pre-change, passes
   post-change, runnable via `config.test_command`.
+- **The proving test must sit at the layer where the requirement can fail; a logic-layer proof for
+  an integration/runtime requirement is false confidence, not coverage.** Gate 2 carries a per-AC
+  **verification plan** (risk layer vs proof artifact, with a layer-match check) and may not pass
+  with any layer mismatch.
 - The test result is reported at review, including "would it fail without the change?".
 - The `N · k/N` denominator rule for every universal ("all/every/no") requirement: `k` surfaces
   covered out of total `N`.
 
-**Fails the gate when** Gate 2 has no proving test, finalise records the test "not run" with no
-command, or `k < N` with no recorded decision.
+**Fails the gate when** Gate 2 has no proving test, a proving artifact sits below the layer where
+its requirement can fail (a layer-match `❌`), finalise records the test "not run" with no command,
+or `k < N` with no recorded decision.
+
+> **Lessons are repo artifacts, not personal memory.** A durable lesson — a constraint discovered,
+> a wrong assumption, or a process gap — belongs in `config.lessons_path` (a committed repo file),
+> never only in an assistant's personal memory. `finalise` asks for one on **every** run,
+> independent of whether any matrix row was deferred.
 
 ---
 
