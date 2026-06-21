@@ -30,6 +30,28 @@ trivial fixes). See the [plugin README](./plugins/mango/README.md) for the lite/
 cost profile, and the model-delegation map (`cost_tier`: Opus decides, Sonnet executes, Haiku
 gathers).
 
+## The lifecycle
+
+Run the whole thing with `/mango:solve`, or invoke a phase directly. mango **stops and waits at
+every ✋ gate** — silence is never approval. Each phase emits counted, gate-blocking artifacts.
+
+`analysis` declares `TIER: lite | full`. **Lite** (the `/mango:quick` lane) is chosen only when ALL
+hold: `SCOPE=S`, a single file / single requirement row, no universal requirement, and not
+security-tagged — otherwise **full**.
+
+| Skill | Phase / Gate | Produces |
+|-------|--------------|----------|
+| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. |
+| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, smallest change-list traced to rows, rule compliance, the named proving test, rollback + porting. |
+| `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation, regression check, proving-test result, `k/N` coverage. |
+| `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows. |
+| `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
+| `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
+
+See the [plugin README](./plugins/mango/README.md) for the full tier details, `.harness.json` keys,
+cost profile, and model-delegation map.
+
 ## Update
 
 ```
