@@ -13,14 +13,22 @@ the `k/N` denominator.
 
 **Model delegation** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): the review verdict and the
 challenger's requirement reconstruction are the **highest-judgment** step — run them on Sonnet, and
-**never** on Haiku. When `config.cost_tier` is `max` and the diff is high-stakes, upgrade the
-`reviewer` (and challenger) to Opus rather than down. The Haiku `extractor` worker may only gather
-context for you (e.g. pull caller snippets); it never produces a verdict.
+**never** on Haiku. The Haiku `extractor` worker may only gather context for you (e.g. pull caller
+snippets); it never produces a verdict.
+
+**Reviewer selection (concrete, not advisory).** A skill cannot re-pin a subagent's model at
+runtime, so the Opus upgrade is a **choice of agent**, not a setting:
+- Dispatch **`reviewer-max`** (Opus) when `config.cost_tier == "max"` **AND** the diff is
+  high-stakes — the ticket is security-tagged, **or** the diff touches auth / access control / data
+  access / schema-migration per `config.rulebook_path`.
+- Otherwise dispatch **`reviewer`** (Sonnet).
+- **Never** dispatch a Haiku reviewer.
 
 ## Steps
 
-1. **Run the `reviewer` agent** on the working-tree diff. It reads `config.rulebook_path` /
-   `config.standards_path` and returns a verdict (BLOCK / CHANGES REQUESTED / LGTM) plus findings.
+1. **Run the reviewer agent** on the working-tree diff — `reviewer` or `reviewer-max` per the
+   **Reviewer selection** rule above. It reads `config.rulebook_path` / `config.standards_path` and
+   returns a verdict (BLOCK / CHANGES REQUESTED / LGTM) plus findings.
 2. **Run the `challenger` agent ticket-blind.** **Construct its input explicitly** so independence
    is procedural, not just requested: build the payload as exactly *(a)* the raw ticket text
    **re-fetched from the tracker** (`config.tracker.read_mcp`, or have the user paste it — do NOT

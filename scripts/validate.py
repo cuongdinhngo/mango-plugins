@@ -17,7 +17,16 @@ ROOT = Path(__file__).resolve().parent.parent
 KEBAB = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+([-+][0-9A-Za-z.\-]+)*$")
 # Names a third party may not claim for a marketplace.
-RESERVED_NAMES = {"anthropic", "claude", "claude-code"}
+RESERVED_NAMES = {
+    "anthropic",
+    "claude",
+    "claude-code",
+    "claude-code-plugins",
+    "claude-plugins-official",
+    "anthropic-marketplace",
+    "anthropic-plugins",
+    "agent-skills",
+}
 
 # Skill-contract assertions: each skill body MUST contain its load-bearing tokens
 # (case-insensitive regex). This guards that an edit cannot quietly drop the
@@ -28,8 +37,8 @@ SKILL_CONTRACTS = {
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat"],
     "review": [r"reviewer", r"challenger", r"not clean"],
     "finalise": [r"dry-run", r"per[- ]action", r"durable lesson"],
-    "solve": [r"Session status", r"self-approve"],
-    "quick": [r"proving test", r"combined gate"],
+    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat"],
+    "quick": [r"proving test", r"combined gate", r"stuck"],
 }
 
 failures = []

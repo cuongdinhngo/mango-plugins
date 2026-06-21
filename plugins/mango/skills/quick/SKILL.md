@@ -17,6 +17,15 @@ model** — no delegation overhead (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`).
 
 ## Steps
 
+0. **Hard entry check (REFUSE non-qualifying tickets).** Before anything else, confirm the ticket is
+   genuinely trivial. **STOP and route the user to `/mango:solve` (full tier)** — do not proceed — if
+   ANY of these hold:
+   - the ticket is **security-tagged**;
+   - the change touches **more than one file**;
+   - the ticket contains a **universal ("all/every/no") requirement**.
+   This is a refusal, not a "should": lite exists only for single-file, single-requirement,
+   non-security fixes. A direct `/mango:quick <KEY>` on a ticket that fails this check is rejected
+   here.
 1. **Minimal working doc.** Create the working doc `<config.work_dir>/<KEY>.work.md` (default
    `work_dir` = `tickets_dir`) from the template — a **separate file** from the ticket spec, never
    appended to the raw ticket — but fill only the **single goal row**, the **one change**, and the

@@ -30,7 +30,9 @@ every ✋ gate** — silence is never approval.
 file / single requirement row, no universal ("all/every/no") requirement, and the ticket is not
 security-tagged — otherwise **full**. Lite routes through `/mango:quick`: two human gates (a single
 combined pre-code gate + the final gate), reviewer-only, no challenger, no full matrix, no fan-out.
-Full keeps the complete five-phase flow. Force the lite lane with `/mango:quick <KEY>`.
+Full keeps the complete five-phase flow. You can force the lite lane with `/mango:quick <KEY>`, but
+`quick` runs a **hard entry check** first and **refuses** (routing you to `/mango:solve`) if the
+ticket is security-tagged, touches more than one file, or has a universal requirement.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
@@ -85,16 +87,18 @@ may only gather, never conclude.*
 | Step | Model |
 |------|-------|
 | Orchestrator + gates, analysis judgment, design | Opus (the model you drive) |
-| Review verdict + challenger reconstruction (highest judgment) | Sonnet — Opus for high-stakes diffs — **never Haiku** |
+| Review verdict + challenger reconstruction (highest judgment) | Sonnet — the `reviewer-max` agent (Opus) for high-stakes diffs under `cost_tier: max` — **never Haiku** |
 | Implement the approved change list; draft PR body; Explore | Sonnet |
 | Bulk read-and-extract across many files (`agents/extractor.md`) | Haiku |
 | grep stray refs / run tests / lint | no model — Bash directly |
 
 `cost_tier` shifts the dials **within** this map, never against it: `economy` pushes more bulk
 retrieval to the Haiku `extractor` and avoids Opus on review; `standard` is the map above; `max`
-allows Opus on review for high-stakes work. `reviewer`/`challenger` are never demoted to Haiku, and
-the lite tier runs on a single model. The full routing map lives in
-[`PRINCIPLES.md`](./PRINCIPLES.md).
+dispatches the **`reviewer-max`** agent (Opus) for high-stakes diffs (security-tagged, or touching
+auth / data access / schema migration). Since a skill cannot re-pin a subagent's model at runtime,
+the Opus upgrade is a **choice of agent** (`reviewer-max` vs `reviewer`), which `review` selects
+explicitly — not a runtime setting. `reviewer`/`reviewer-max`/`challenger` are never Haiku, and the
+lite tier runs on a single model. The full routing map lives in [`PRINCIPLES.md`](./PRINCIPLES.md).
 
 ## Testing the harness itself
 

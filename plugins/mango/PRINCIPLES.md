@@ -110,7 +110,7 @@ not a weaker one.
 | Orchestrator + gates (decide) | judgment | the strong model the user drives (Opus) |
 | Analysis: root cause/gap, requirements decomposition, AC validation, clarification, scope | judgment | Opus |
 | Design: smallest change list, proving test | judgment | Opus |
-| Review verdict + challenger requirement reconstruction | judgment (highest) | Sonnet — Opus for high-stakes diffs — **never Haiku** |
+| Review verdict + challenger requirement reconstruction | judgment (highest) | Sonnet — the `reviewer-max` agent (Opus) for high-stakes diffs under `cost_tier: max` — **never Haiku** |
 | Implement the approved change list; draft PR body | execute | Sonnet |
 | Explore: locate handler, callers, blast radius | retrieval + light judgment | Sonnet |
 | Bulk read-and-extract / summarise across many files | heavy tokens, low judgment | Haiku |
@@ -118,6 +118,10 @@ not a weaker one.
 
 `config.cost_tier` (`economy | standard | max`, default `standard`) shifts the dials within this
 map — never against it. `economy` pushes more retrieval to Haiku and avoids Opus on review;
-`standard` is the map above; `max` allows Opus on review for high-stakes diffs. `reviewer` and
-`challenger` are never pinned to Haiku. The **lite** tier runs on a single model — no delegation
-overhead. Never spawn a model for a one-line shell command (grep/test/lint) — run the Bash tool.
+`standard` is the map above; `max` dispatches the **`reviewer-max`** agent (Opus) for high-stakes
+diffs (security-tagged, or touching auth / data access / schema migration). Because a skill cannot
+re-pin a subagent's model at runtime, the Opus upgrade is a **choice of agent** (`reviewer-max` vs
+`reviewer`), not a runtime setting — `review` selects it explicitly. `reviewer` and `reviewer-max`
+are never Haiku, and `challenger` is never pinned to Haiku. The **lite** tier runs on a single
+model — no delegation overhead. Never spawn a model for a one-line shell command (grep/test/lint) —
+run the Bash tool.

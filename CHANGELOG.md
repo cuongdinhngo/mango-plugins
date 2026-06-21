@@ -3,6 +3,34 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] — 2026-06-21
+
+Hardening patch from a review of the built plugin — closing gaps where v0.3 behaviour was asserted
+but not *guarded* or *evaluated*. No existing behaviour was removed.
+
+### Added / Changed
+- **F1 — Behavioural eval now covers the v0.3 behaviours.** `tests/eval/run.sh` previously exercised
+  only `analysis` happy-path artifacts. It now also asserts, via headless `claude -p` (still gated to
+  `workflow_dispatch`): proof at the risk layer (`design` marks an integration-layer AC proved only
+  by a unit test as a layer-match `❌` and demands an integration/e2e proof), the ticket-blind
+  `challenger` catching an unmet AC as "not met" with `path:line`, the design-invalidated escalation
+  (STOP + re-open Gate 2), and the stuck-detector (STOP + escalate at the threshold). New generic
+  fixtures `design-layer.md` and `challenger-unmet.md`.
+- **F2 — `cost_tier: max` has a real Opus-reviewer mechanism.** Because a skill cannot re-pin a
+  subagent's model at runtime, the Opus upgrade is now a **choice of agent**: new
+  `agents/reviewer-max.md` (identical role/rules/output to `reviewer`, `model: opus`). `review`
+  dispatches `reviewer-max` when `cost_tier == "max"` AND the diff is high-stakes (security-tagged,
+  or touching auth / data access / schema migration), else `reviewer`; never a Haiku reviewer.
+  `PRINCIPLES.md` replaces the vague "upgrade to Opus" wording with this concrete rule.
+- **F3 — Right-sizing & escalation are guarded, not advisory.** `quick` gains a **hard entry check
+  (step 0)**: it REFUSES and routes to `solve` if the ticket is security-tagged, touches more than
+  one file, or has a universal ("all/every/no") requirement. `validate.py` skill-contract checks add
+  `TIER` + `design[ -]invalidat` to `solve` and `stuck` to `quick`, so the routing/escalation
+  behaviours can't be silently deleted.
+- **F4 — Wider reserved-name guard.** `validate.py` `RESERVED_NAMES` now also rejects
+  `claude-code-plugins`, `claude-plugins-official`, `anthropic-marketplace`, `anthropic-plugins`, and
+  `agent-skills`. `mango-plugins` still passes.
+
 ## [0.3.0] — 2026-06-21
 
 Retrospective-driven hardening. Unlike v0.2 (predicted risks), these six fixes come from **two real
