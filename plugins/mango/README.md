@@ -104,9 +104,12 @@ lite tier runs on a single model. The full routing map lives in [`PRINCIPLES.md`
 
 `scripts/validate.py` is the cheap, always-on guard — structural checks plus per-skill contract
 tokens (it fails if a skill loses its load-bearing artifact). `tests/eval/` is the real behavioural
-check: `run.sh` drives `claude -p` over fixture tickets and asserts the expected artifacts (count
-line, gate count, the freeform Gate-0 confirmation). It costs tokens, so CI runs it only via the
-manual `eval.yml` workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
+check: `run.sh` drives `claude -p` over fixture tickets and asserts the expected artifacts. Beyond
+the analysis happy path (count line, gate count, freeform Gate-0 confirmation) it also exercises the
+behaviours that matter most — proof at the risk layer (`design` flags a unit proof for an
+integration-layer AC), the ticket-blind `challenger` catching an unmet AC, the design-invalidated
+escalation, and the stuck-detector. It costs tokens, so CI runs it only via the manual `eval.yml`
+workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 ## First run
 

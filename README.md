@@ -37,7 +37,9 @@ every ✋ gate** — silence is never approval. Each phase emits counted, gate-b
 
 `analysis` declares `TIER: lite | full`. **Lite** (the `/mango:quick` lane) is chosen only when ALL
 hold: `SCOPE=S`, a single file / single requirement row, no universal requirement, and not
-security-tagged — otherwise **full**.
+security-tagged — otherwise **full**. `/mango:quick` enforces this with a hard entry check: it
+**refuses** and routes to `/mango:solve` if the ticket is security-tagged, touches more than one
+file, or has a universal requirement.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
@@ -72,7 +74,9 @@ load-bearing artifact). CI additionally runs `claude plugin validate ./plugins/m
 `claude plugin validate . --strict` as a **best-effort, non-blocking** step.
 
 The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets and asserts the
-expected artifacts. It costs tokens, so CI runs it only via the manual `eval.yml` workflow
+expected artifacts — the analysis happy path plus the higher-risk v0.3 behaviours (proof at the
+risk layer, the ticket-blind challenger catching an unmet AC, the design-invalidated escalation, and
+the stuck-detector). It costs tokens, so CI runs it only via the manual `eval.yml` workflow
 (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 ## Publish
