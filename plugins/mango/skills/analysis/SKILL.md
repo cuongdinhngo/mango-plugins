@@ -15,15 +15,28 @@ count, and the requirements matrix.
 ## Steps
 
 1. **Pull the ticket.** Read it via `config.tracker.read_mcp` (or ask the user to paste it if no
-   read MCP is configured). Capture the raw ticket text verbatim — later phases re-derive from it.
-2. **Open the working doc — separate from the ticket spec.** Copy
-   `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md` to `<config.work_dir>/<KEY>.work.md` (default
-   `work_dir` = `tickets_dir`). This mutable doc carries state across all five phases. It is a
-   **distinct file** from the ticket spec: **never** append the working doc to, or merge it into,
-   the raw ticket or any ticket spec file at `<config.tickets_dir>/<KEY>.md`. Keeping them on
-   separate paths is what lets the review phase hand the challenger the raw ticket without leaking
-   the design (observed failure: when the ticket file doubled as the working doc, the challenger's
-   independence rested on a manual "withhold" convention rather than structure).
+   read MCP is configured). **Request the full field set in one read** — a tracker read can default
+   to a minimal field set (e.g. summary + status) and return an empty description, wasting a
+   re-fetch. Request `config.tracker.fields` if it is set; otherwise request a sensible full default
+   (description/body, type, labels, parent, priority). Capture the raw ticket text verbatim — later
+   phases re-derive from it.
+2. **Open the working doc — placement by where the ticket lives.** The working doc is the mutable
+   state doc carrying all five phases, built from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`. Choose
+   its placement from `config.work_doc_mode` (`auto | separate | embed`, default `auto`):
+   - **tracker-hosted ticket** (the ticket lives in the tracker, not as a repo file) → always a
+     **separate** file `<config.work_dir>/<KEY>.work.md` (default `work_dir` = `tickets_dir`).
+   - **local-file ticket** (the ticket is itself a file in the repo, e.g.
+     `<config.tickets_dir>/<KEY>.md`) → under `auto`/`embed`, **append** the working doc to that same
+     file **below a clear raw-ticket separator line** (the exact line
+     `<!-- ===== MANGO WORKING DOC (below this line is NOT part of the raw ticket) ===== -->`), so
+     there is one file, not a duplicate. Under `separate`, still write `<KEY>.work.md`.
+   Whichever placement is chosen, the **raw ticket portion stays above the separator** and the
+   working-doc portion below it; **never** mix design/matrix/rationale into the raw ticket text. This
+   separation (separate file, or below the separator line) is what lets the review phase hand the
+   challenger only the raw ticket without leaking the design — preserving the v0.3 challenger-blind
+   guarantee in both modes (observed failure: when the ticket file doubled as the working doc with no
+   separator, the challenger's independence rested on a manual "withhold" convention rather than
+   structure). Record the chosen `work_doc_mode` and the working-doc path in `Session status`.
 3. **Decompose EVERY section.** Using `config.ticket_header_schema` (which maps each ticket header
    to C/R/G/AC), turn every ticket section into requirements-matrix rows. Each row: ID, Source,
    Verbatim, Interpretation, Ph1 evidence, Status. Emit the count line:
@@ -62,10 +75,14 @@ count, and the requirements matrix.
    `config.cost_tier` is `economy`. Run grep/test/lint via the Bash tool directly — never spawn a
    model for a one-line shell command.
 9. **Scope.** Declare `SCOPE: S|M|L`.
-10. **Tier.** After SCOPE, declare `TIER: lite | full`. Choose **lite** only when ALL hold:
-    `SCOPE=S`, a single file / single requirement row, no universal ("all/every/no") requirement,
-    and the ticket is not security-tagged. Otherwise **full** (the existing five-phase behaviour).
-    Lite routes through the `quick` skill; full keeps the full matrix, challenger, sweep, and gates.
+10. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
+    **resolved inventory denominator N** (from the step-6 numbered inventory), **not** on the mere
+    presence of universal wording. A requirement that *sounds* universal ("all/every/no") but
+    resolves to **N = 1** is lite-eligible — a single-site change already covers "all". Choose
+    **lite** only when ALL hold: `SCOPE=S`, a single file / single requirement row, **no universal
+    requirement with N > 1** (N=1 does not disqualify), and the ticket is not security-tagged.
+    Otherwise **full** (the existing five-phase behaviour). Lite routes through the `quick` skill;
+    full keeps the full matrix, challenger, sweep, and gates.
 11. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
     `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled, `STRUCTURE` and
     `TIER` declared. Write Phase 1 into the working doc and the `Session status` block, then STOP

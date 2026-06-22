@@ -3,6 +3,51 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] — 2026-06-22
+
+Five fixes validated across more than one project and stack. Each describes a generic failure mode
+and a universal mechanism — no project, framework, tracker, tool, or filename is baked in. No
+existing behaviour was removed; the full tier is unchanged.
+
+### Added / Changed
+- **G — Tier triage on the resolved denominator N, not on keywords.** `analysis` now keys the
+  lite/full decision on the **resolved inventory denominator N** (from the Phase-1 numbered
+  inventory), not on the literal presence of universal wording. A requirement that *sounds* universal
+  ("all/every/no") but resolves to **N = 1** is lite-eligible — a single-site change already covers
+  "all". `quick`'s hard entry check aligns: it refuses on a universal requirement only when **N > 1**.
+  *(Observed: a universal-sounding requirement that resolved to one site forced full tier where lite
+  would have sufficed, spending the challenger/reviewer budget on confirmation, not findings.)*
+- **H — Project-supplied finalise-checklist hook.** New optional `config.pr_checklist_path` points at
+  a project-owned checklist (e.g. a PR-template or definition-of-done file). When set, `finalise`
+  reads it before drafting the PR body, walks each item, reports it satisfied / not-satisfied / N-A
+  with evidence, and surfaces any unmet item at the final gate. mango supplies the mechanism; the
+  project supplies the content. `doctor` warns if the key is set but the file is missing.
+  *(Observed: a ship-time requirement mango cannot know was caught only by a project's own checklist,
+  not by mango's generic finalise.)*
+- **I — Coverage-gap exclusion for proof-tier mismatches.** `design`'s per-AC verification plan now
+  requires any row whose proof tier sits below its risk layer to EITHER upgrade the proof OR be
+  recorded as a **named, human-approved coverage-gap exclusion** (item · risk tier · why deferred ·
+  follow-up). `review` treats a challenger "not met" that corresponds to a recorded exclusion as
+  **not a blocker** — an *unrecorded* gap still blocks. New "Coverage-gap exclusions" slot in the
+  working-doc template. *(Observed: a requirement whose real risk sat at an integration/behavioural
+  tier was only unit-proven, so the challenger's "not met" read as a hard failure when it was a
+  proof-tier mismatch.)*
+- **J — Conditional working-doc placement (still challenger-blind).** New `config.work_doc_mode`
+  (`auto | separate | embed`, default `auto`). A tracker-hosted ticket gets a separate
+  `<work_dir>/<KEY>.work.md` (v0.3 behaviour). When the ticket is **itself a local file in the repo**,
+  `auto`/`embed` append the working doc to that file **below a clear raw-ticket separator line** — one
+  file, no duplicate. `analysis` chooses placement; `review` builds the challenger payload from the
+  raw ticket portion only (above the separator) + the diff, never the working-doc portion — the
+  challenger-blindness guarantee holds in both modes. *(Observed: a separate working-doc file
+  duplicated a ticket that already lived as a repo file.)*
+- **K — Full field set on tracker reads.** `analysis` now requests a full field set on a ticket read
+  (honouring an optional `config.tracker.fields`, else a sensible default of
+  description/body, type, labels, parent, priority) so one read returns the ticket body. *(Observed: a
+  tracker read defaulted to a minimal field set and returned an empty description, wasting re-fetches.)*
+- **Validator.** `scripts/validate.py` skill-contract checks now require `denominator` in `analysis`,
+  `coverage-gap` in `design` and `review`, and `checklist` in `finalise`, so the new behaviours
+  cannot be silently dropped.
+
 ## [0.3.1] — 2026-06-21
 
 Hardening patch from a review of the built plugin — closing gaps where v0.3 behaviour was asserted

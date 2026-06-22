@@ -22,7 +22,9 @@ model** — no delegation overhead (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`).
    ANY of these hold:
    - the ticket is **security-tagged**;
    - the change touches **more than one file**;
-   - the ticket contains a **universal ("all/every/no") requirement**.
+   - the ticket contains a **universal ("all/every/no") requirement that resolves to N > 1** — judged
+     on the resolved inventory denominator N, **not** on the wording alone. A requirement that sounds
+     universal but resolves to **N = 1** (a single affected site) does **not** disqualify the ticket.
    This is a refusal, not a "should": lite exists only for single-file, single-requirement,
    non-security fixes. A direct `/mango:quick <KEY>` on a ticket that fails this check is rejected
    here.

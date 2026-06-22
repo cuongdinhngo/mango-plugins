@@ -45,15 +45,23 @@ this phase.
 
    The proving artifact for a requirement MUST sit at **the layer where that requirement can
    actually fail**. A logic-layer (unit) proof for an integration/runtime/3p requirement is a
-   layer mismatch → `❌` (false confidence, not coverage). **Gate 2 may not pass with any ❌.**
+   layer mismatch → `❌` (false confidence, not coverage). Any `❌` row must EITHER **upgrade the
+   proof** to the risk layer, OR be recorded as a **named coverage-gap exclusion** (item · risk tier
+   · why deferred · follow-up) in the working doc's *Coverage-gap exclusions* slot. **Gate 2 may not
+   pass with any ❌ that is neither upgraded nor recorded as a human-approved exclusion** — an
+   exclusion is a deliberate, human-approved deferral of a proof-tier mismatch, not a silent pass.
    (Observed failures: a named proving test was a store unit test that mocked the integration layer,
    so it stayed green while the real integration-layer behaviour was broken; separately, an "in-browser
-   confirm" acceptance criterion had no planned proof and surfaced only at Gate 4.)
+   confirm" acceptance criterion had no planned proof and surfaced only at Gate 4. And: a requirement
+   whose real risk sat at an integration/behavioural tier was only unit-proven, so the challenger's
+   later "not met" read as a hard failure when it was a proof-tier mismatch that should have been a
+   recorded exclusion.)
 8. **Rollback + porting plan.** State how to revert, and the porting plan across `config.repos` if
    the change touches shared code (which repos, in what order).
 9. **Confirm SCOPE.** Re-affirm or adjust `SCOPE: S|M|L` from analysis; if it grew, say why.
 10. **Self-audit, then STOP at Gate 2.** Confirm: every change-list item has a matrix row, `Ph2
     covered by` filled `k/N`, every assumption tagged and every `novel-untested` 3p/runtime one
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the
-    verification plan has **no ❌**, rollback + porting recorded. Write Phase 2 into the working doc
+    verification plan has **no ❌** (or every ❌ is recorded as a human-approved coverage-gap
+    exclusion with a follow-up), rollback + porting recorded. Write Phase 2 into the working doc
     and update `Session status`, then STOP and wait for the user. Do not begin execution.

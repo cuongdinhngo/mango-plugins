@@ -32,11 +32,11 @@ RESERVED_NAMES = {
 # (case-insensitive regex). This guards that an edit cannot quietly drop the
 # counted, gate-blocking artifact a skill is responsible for.
 SKILL_CONTRACTS = {
-    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1"],
-    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions"],
+    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator"],
+    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat"],
-    "review": [r"reviewer", r"challenger", r"not clean"],
-    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson"],
+    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist"],
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
 }

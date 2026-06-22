@@ -82,6 +82,14 @@ the requirement can fail — **Gate 2 may not pass with any ❌**):
 |----|------------------------------------------------------|-------------------------------------------------------------|-------------------|
 |    |                                                      |                                                             |                   |
 
+**Coverage-gap exclusions** (any verification-plan `❌` that is deliberately deferred instead of
+upgraded — each needs human approval; a recorded exclusion lets the review gate pass and tells the
+challenger's "not met" apart from an unmet requirement):
+
+| Item | Risk tier | Why deferred | Follow-up |
+|------|-----------|--------------|-----------|
+|      |           |              |           |
+
 - Rollback + porting plan across repos:
 - SCOPE confirmed:
 - **Gate 2 status:** waiting on user / cleared

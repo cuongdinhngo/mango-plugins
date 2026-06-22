@@ -47,9 +47,12 @@ A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
 5. `finalise` → **final gate** — STOP; one separate approval per outward action. Always captures a
    **durable lesson** (independent of deferred rows) to `config.lessons_path`.
 
-**Resume** from the working-doc (`<config.work_dir>/<KEY>.work.md`) `Session status` block: read it,
-determine the current phase, and continue from there rather than restarting. The working doc is
-**separate** from the ticket spec — never appended to the raw ticket.
+**Resume** from the working-doc `Session status` block: read it, determine the current phase, and
+continue from there rather than restarting. The working doc's placement follows
+`config.work_doc_mode` (default `auto`) — a **separate** `<config.work_dir>/<KEY>.work.md` for a
+tracker-hosted ticket, or **appended below a raw-ticket separator line** inside a local-file ticket.
+Either way the raw ticket portion stays above the separator and is never mixed with the design, so
+the challenger payload (`review`) can always exclude the working-doc portion.
 
 ## Non-negotiables
 

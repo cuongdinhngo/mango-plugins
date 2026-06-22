@@ -27,20 +27,23 @@ every ✋ gate** — silence is never approval.
 ### Tiers — right-sizing the rigor
 
 `analysis` declares `TIER: lite | full`. **Lite** is chosen only when ALL hold: `SCOPE=S`, a single
-file / single requirement row, no universal ("all/every/no") requirement, and the ticket is not
-security-tagged — otherwise **full**. Lite routes through `/mango:quick`: two human gates (a single
-combined pre-code gate + the final gate), reviewer-only, no challenger, no full matrix, no fan-out.
-Full keeps the complete five-phase flow. You can force the lite lane with `/mango:quick <KEY>`, but
-`quick` runs a **hard entry check** first and **refuses** (routing you to `/mango:solve`) if the
-ticket is security-tagged, touches more than one file, or has a universal requirement.
+file / single requirement row, no universal requirement **with N > 1**, and the ticket is not
+security-tagged — otherwise **full**. The lite/full decision keys on the **resolved inventory
+denominator N**, not on keywords: a requirement that *sounds* universal ("all/every/no") but resolves
+to a single site (**N = 1**) is lite-eligible. Lite routes through `/mango:quick`: two human gates (a
+single combined pre-code gate + the final gate), reviewer-only, no challenger, no full matrix, no
+fan-out. Full keeps the complete five-phase flow. You can force the lite lane with `/mango:quick
+<KEY>`, but `quick` runs a **hard entry check** first and **refuses** (routing you to `/mango:solve`)
+if the ticket is security-tagged, touches more than one file, or has a universal requirement that
+resolves to N > 1.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. |
-| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan** (proof at the layer where the requirement can fail — no `❌`), rollback + porting. |
+| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan** (proof at the layer where the requirement can fail; an `❌` must be upgraded or recorded as a human-approved **coverage-gap exclusion**), rollback + porting. |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation, regression check, proving-test result, `k/N` coverage. |
-| `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the working-doc portion), scope reconciliation, regression check, proving-test result, `k/N` coverage. A challenger "not met" matching a recorded coverage-gap exclusion does not block; an unrecorded gap does. |
+| `/mango:finalise` | 5 → final gate | Optional **project finalise-checklist** walk (`pr_checklist_path`), PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
 | `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
 
@@ -56,14 +59,18 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 - `rulebook_path` — your engineering rule book; every phase grounds its rules here.
 - `repos` — array of `{name, root}` (supports multi-repo porting).
 - `test_command` — the command phases use to run the proving test.
-- `tracker` — `{base_url, project_key, cli, read_mcp}`. **Writes go through `cli`; reads may use the
-  optional read-only `read_mcp`.**
+- `tracker` — `{base_url, project_key, cli, read_mcp, fields}`. **Writes go through `cli`; reads may
+  use the optional read-only `read_mcp`.** Optional `fields` lists the field set to request on a read
+  so one read returns the full ticket (default: description/body, type, labels, parent, priority).
 - `ticket_header_schema` — maps each ticket header to `C` / `R` / `G` / `AC`.
 
 **Optional / defaulted**
 - `standards_path`, `tickets_dir` (default `docs/tickets`),
-  `work_dir` (default = `tickets_dir`; holds the working doc `<KEY>.work.md`, kept separate from the
-  ticket spec), `stuck_threshold` (default `3`; circuit-breaker for repeated failures at the same
+  `work_dir` (default = `tickets_dir`; holds the working doc `<KEY>.work.md` when it is a separate
+  file), `work_doc_mode` (`auto|separate|embed`, default `auto`; embeds the working doc below a
+  raw-ticket separator line when the ticket is itself a local repo file, else a separate file),
+  `pr_checklist_path` (optional; a project-owned finalise checklist `finalise` walks before drafting
+  the PR), `stuck_threshold` (default `3`; circuit-breaker for repeated failures at the same
   proving artifact), `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`,
   `pr_host`, `cause_taxonomy`, `explore_fanout` (default `true`), `cost_tier`
   (`economy|standard|max`, default `standard`).

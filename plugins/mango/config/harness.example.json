@@ -15,6 +15,10 @@
   "tickets_dir": "docs/tickets",
   "//work_dir": "Directory for mango's per-ticket WORKING DOC (<KEY>.work.md) — the mutable state doc carrying all five phases. Kept SEPARATE from the ticket spec so the challenger's input can exclude it. Defaults to tickets_dir if unset.",
   "work_dir": "docs/tickets",
+  "//work_doc_mode": "Where the working doc lives: auto | separate | embed (default auto). A tracker-hosted ticket always gets a separate <work_dir>/<KEY>.work.md. When the ticket is itself a local file in the repo, auto/embed APPEND the working doc to that file below a raw-ticket separator line (one file, no duplicate); separate always writes a distinct file. The raw ticket portion stays above the separator either way, so the challenger payload can exclude the working doc.",
+  "work_doc_mode": "auto",
+  "//pr_checklist_path": "OPTIONAL path to a project-owned finalise checklist (e.g. a PR-template or definition-of-done file). If set, finalise walks each item and reports satisfied/not-satisfied/N-A with evidence before drafting the PR, surfacing any unmet item at the final gate. mango supplies the mechanism; the project supplies the content. Omit or null to disable.",
+  "pr_checklist_path": null,
   "//stuck_threshold": "Circuit-breaker: after this many failed attempts against the SAME proving artifact / failing-test signature, execute and quick STOP and escalate to the user instead of retrying. The counter resets when the failing signature changes. Default 3.",
   "stuck_threshold": 3,
   "explore_fanout": true,
@@ -28,7 +32,9 @@
     "base_url": "https://tracker.example.com",
     "project_key": "PROJ",
     "cli": "REPLACE_ME (CLI command for ALL tracker writes — comments, transitions; never an MCP)",
-    "read_mcp": "REPLACE_ME_OR_NULL (optional read-only MCP server name for ticket READS only)"
+    "read_mcp": "REPLACE_ME_OR_NULL (optional read-only MCP server name for ticket READS only)",
+    "//fields": "OPTIONAL list of fields to request on a ticket READ, so one read returns the full ticket (some trackers default to a minimal set and return an empty description). If unset, analysis requests a sensible full default (description/body, type, labels, parent, priority).",
+    "fields": ["description", "type", "labels", "parent", "priority"]
   },
 
   "cause_taxonomy": [

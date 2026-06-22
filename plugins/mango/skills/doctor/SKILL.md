@@ -23,6 +23,9 @@ Read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit a che
    (reads only). ❌ if neither — "set `tracker.cli` to your tracker write command."
 5. **Test command set.** `test_command` is non-empty and not a `REPLACE_ME` placeholder. ❌ → "set
    `test_command` to the command that runs your proving test."
+6. **Finalise checklist (if set).** If `config.pr_checklist_path` is set, the file it points at must
+   exist. ⚠ if set but missing — "`pr_checklist_path` is set but the file is absent; finalise will
+   have no checklist to walk." Skip silently if the key is unset (it is optional).
 
 ## Output
 
