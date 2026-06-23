@@ -32,7 +32,9 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    `ticket_header_schema` all exist. ❌ → name each missing key.
 3. **Rule book usable.** `rulebook_path` exists (as a file or a directory). If it exists but looks
    like boilerplate or is very short, ⚠ "rule book looks like a stub — fill in the TODOs." ❌ if it
-   does not exist.
+   does not exist. In either the ⚠ (thin/boilerplate) or the ❌ (missing) case, **suggest**
+   `/mango:codify` to facilitate defining the rule book and database conventions — *suggest only;
+   never run it automatically.*
 4. **Tracker writable.** `tracker.cli` exists and is executable, **or** `tracker.read_mcp` is set
    (reads only). ❌ if neither — "set `tracker.cli` to your tracker write command."
 5. **Test command set.** `test_command` is non-empty and not a `REPLACE_ME` placeholder. ❌ → "set

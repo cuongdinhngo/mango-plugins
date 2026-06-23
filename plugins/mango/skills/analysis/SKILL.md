@@ -71,7 +71,10 @@ count, and the requirements matrix.
    - Bug → root cause classified against `config.cause_taxonomy`, with `path:line`.
    - Enhancement → per-goal gap analysis (current vs target), with `path:line`.
 8. **Blast radius.** Identify the handler/entry point, the blast radius (callers, dependents), and
-   which of `config.repos` are touched. **Fan-out (cost knob):** on the **full** tier you may fan
+   which of `config.repos` are touched. **If a `db-map` has been generated** (under `config.docs_dir`,
+   from the opt-in `db-map` skill), consult it to widen the blast radius to **schema dependents** —
+   columns still read/written, foreign keys, and dependent views/procedures. This is "use it if
+   present"; never require it — the lifecycle runs fully when no `db-map` exists. **Fan-out (cost knob):** on the **full** tier you may fan
    out read-only Explore agents to investigate, but only if `config.explore_fanout` is true
    (default true). The **lite** tier always skips fan-out. **Model delegation** (see
    `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): keep the judgment work of this phase — decomposition, AC

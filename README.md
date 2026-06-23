@@ -25,6 +25,12 @@ Copy `<plugin>/config/harness.example.json` to `.harness.json` and edit it (rule
 command, tracker). `.harness.json` is gitignored by this marketplace; in your project treat it as
 committed config — never put secrets in it (those live in a gitignored `.env`).
 
+No rule book yet, or a thin/inconsistent one? Run `/mango:codify` — it **counts** the conventions your
+code and schema already use, asks **you** to choose each standard, and records them as **provisional
+until you ratify**. mango facilitates the rule book; it never authors it. Two opt-in descriptive maps,
+`/mango:sitemap` (code surface) and `/mango:db-map` (database schema), generate regenerable facts when
+configured — see the [plugin README](./plugins/mango/README.md).
+
 Run a ticket with `/mango:solve <KEY>` (full lifecycle) or `/mango:quick <KEY>` (lite lane for
 trivial fixes). See the [plugin README](./plugins/mango/README.md) for the lite/full tiers, the
 cost profile, and the model-delegation map (`cost_tier`: Opus decides, Sonnet executes, Haiku
@@ -36,10 +42,12 @@ Run the whole thing with `/mango:solve`, or invoke a phase directly. mango **sto
 every ✋ gate** — silence is never approval. Each phase emits counted, gate-blocking artifacts.
 
 `analysis` declares `TIER: lite | full`. **Lite** (the `/mango:quick` lane) is chosen only when ALL
-hold: `SCOPE=S`, a single file / single requirement row, no universal requirement, and not
-security-tagged — otherwise **full**. `/mango:quick` enforces this with a hard entry check: it
-**refuses** and routes to `/mango:solve` if the ticket is security-tagged, touches more than one
-file, or has a universal requirement.
+hold: `SCOPE=S`, a single file / single requirement row, no universal requirement **with N > 1**, and
+not security-tagged — otherwise **full**. The decision keys on the **resolved inventory denominator
+N**, not on keywords: a requirement that *sounds* universal but resolves to a single site (**N = 1**)
+is lite-eligible. `/mango:quick` enforces this with a hard entry check: it **refuses** and routes to
+`/mango:solve` if the ticket is security-tagged, touches more than one file, or has a universal
+requirement that resolves to N > 1.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|

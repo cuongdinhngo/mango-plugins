@@ -18,7 +18,30 @@ them in a gitignored `.env`.
 |-------|-----|----------|
 | `/mango:init` | Once per project | Detects the stack read-only, interviews only for the undetectable, writes `.harness.json` (guesses marked `UNVERIFIED`), and scaffolds a single-file starter rule book if none exists. |
 | `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation, prefaced by `mango <version> @ <base path>` so the running version is always visible. `solve` runs it as a fail-fast preflight. |
+| `/mango:codify` | When the rule book is missing / thin / inconsistent (opt-in) | **Counts** the conventions the code and schema actually use (code rules **and** database conventions), asks **you** to choose each going-forward standard, and writes them to the rule book tagged **`PROVISIONAL (awaiting ratification)`**. Facilitates; never authors a rule, never auto-picks the majority, never changes code. `doctor` suggests it when the rule book looks thin. |
 | `/mango:version-check` | On demand (opt-in) | Reports the running version vs the latest published version and, if newer, **prints** the host `/plugin` commands to update. Needs `update_check_url`; never updates or installs. |
+
+**Defining the rule book — `mango generates the descriptive and facilitates the normative, but never
+authors the normative.**` `init` gives you a skeleton rule book with TODOs; when a project has no
+rule book, a thin one, or genuinely inconsistent conventions, `/mango:codify` is the deep, opt-in
+facilitation. It observes and counts the patterns (presenting "pattern A: 12 files, B: 5" as **data**,
+not a verdict), asks you to pick each standard, and records the choices as **provisional** until you
+ratify them — the rule the whole plugin grounds in stays the team's decision, never mango's.
+
+### Descriptive maps (opt-in, stack-specific)
+
+Two opt-in adapters generate **descriptive facts** (regenerable, falsifiable) — never normative rules.
+They are off unless configured and are **not** part of the lifecycle; the lifecycle runs fully whether
+or not either has ever been generated.
+
+| Skill | Use | Produces | Needs |
+|-------|-----|----------|-------|
+| `/mango:sitemap` | Map the code surface | Routes/endpoints + modules written to `docs_dir` | `code_map_cmd` (or a stack adapter) + `docs_dir` |
+| `/mango:db-map` | Map the database schema | Tables, columns+types, primary/foreign keys, indexes, relationships, views/procedures, to `docs_dir` | `db_kind` + (`db_introspect_cmd` **or** `migrations_path`) + `docs_dir` |
+
+A generated `db-map`, **if present**, lets `analysis` widen the Phase-1 blast radius to schema
+dependents (columns, FKs, dependent views/procs) — used if present, never required. The *normative*
+database conventions live in the `codify` rule book, not in these maps.
 
 ## The lifecycle
 
@@ -49,7 +72,20 @@ resolves to N > 1.
 | `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding,
-simplicity first, surgical changes, goal-driven execution.
+simplicity first, surgical changes, goal-driven execution — plus the boundary that **mango generates
+the descriptive and facilitates the normative, but never authors the normative.**
+
+## Agents
+
+All review agents are **read-only** — they produce verdicts and findings, never edits.
+
+| Agent | Role | Model |
+|-------|------|-------|
+| `reviewer` | Rule-book / standards verdict on the diff (BLOCK / CHANGES REQUESTED / LGTM) | Sonnet |
+| `reviewer-max` | Same role/rules/output as `reviewer`, for high-stakes diffs under `cost_tier: max` | Opus |
+| `challenger` | Ticket-blind requirement reconstruction (met / not met / can't tell, with `path:line`) | Sonnet |
+| `onboarder` | Wayfinding / orientation in an unfamiliar codebase | Sonnet |
+| `extractor` | Bulk read-and-extract across many files (gathers context; never concludes) | Haiku |
 
 ## `.harness.json` config keys
 
@@ -75,6 +111,14 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
   proving artifact), `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`,
   `pr_host`, `cause_taxonomy`, `explore_fanout` (default `true`), `cost_tier`
   (`economy|standard|max`, default `standard`).
+- `update_check_url` (optional; raw URL to the published marketplace manifest — lets
+  `/mango:version-check` compare running vs latest and print the host update commands. Unset → no
+  network call).
+- **Descriptive-adapter keys (all optional, off by default):** `docs_dir` (where `sitemap`/`db-map`
+  write their regenerable maps), `code_map_cmd` (drives `/mango:sitemap`), and the `db-map` trio —
+  `db_kind` plus either `db_introspect_cmd` (read-only schema introspection) or `migrations_path`
+  (derive the schema from migration files). With these unset, the adapters report they are not
+  configured and do nothing.
 
 `rulebook_path` may be a **file or a directory**; with a directory, every consumer reads all `*.md`
 inside it. Run `/mango:init` to generate this file for you.

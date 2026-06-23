@@ -30,6 +30,17 @@
   "lessons_path": "docs/LESSONS.md",
   "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",
 
+  "//docs_dir": "OPTIONAL directory where the opt-in descriptive adapters write their regenerable maps (sitemap.md, db-map.md). Descriptive facts only — never normative rules. Unset → the adapters have nowhere to write and report they are not configured.",
+  "docs_dir": null,
+  "//code_map_cmd": "OPTIONAL command for /mango:sitemap to emit the code surface (routes/endpoints + modules). Opt-in & stack-specific; unset → sitemap reports it is not configured and does nothing.",
+  "code_map_cmd": null,
+  "//db_kind": "OPTIONAL database kind (generic label, e.g. relational/document). Required, with one of db_introspect_cmd or migrations_path, to enable /mango:db-map. db-map is OFF by default.",
+  "db_kind": null,
+  "//db_introspect_cmd": "OPTIONAL read-only introspection command for /mango:db-map to derive the schema map. Must never alter or migrate the schema. Use this OR migrations_path.",
+  "db_introspect_cmd": null,
+  "//migrations_path": "OPTIONAL directory of migration files for /mango:db-map to derive the schema from when no live introspection command is available. Use this OR db_introspect_cmd.",
+  "migrations_path": null,
+
   "tracker": {
     "base_url": "https://tracker.example.com",
     "project_key": "PROJ",

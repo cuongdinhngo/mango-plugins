@@ -41,6 +41,7 @@ SKILL_CONTRACTS = {
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin"],
+    "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend"],
 }
 
 failures = []
@@ -179,12 +180,60 @@ def validate_skill_contracts():
             )
 
 
+def validate_doc_consistency():
+    """Docs must reflect reality: the plugin README's skill list matches the skills/
+    directory exactly, and every config key in harness.example.json is documented.
+
+    Guards against doc drift — a skill added/removed without a README update, a README
+    naming a skill that does not exist, or a new config key shipping undocumented.
+    """
+    plugin = ROOT / "plugins" / "mango"
+    readme = plugin / "README.md"
+    if not check(readme.exists(), "doc-consistency: plugins/mango/README.md is missing"):
+        return
+    try:
+        readme_text = readme.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"doc-consistency: cannot read plugins/mango/README.md ({exc})")
+        return
+
+    # Skill directories (those carrying a SKILL.md).
+    skill_dirs = {
+        p.parent.name for p in plugin.glob("skills/*/SKILL.md")
+    }
+    # Every skill directory must be named in the README.
+    for skill in sorted(skill_dirs):
+        check(
+            skill in readme_text,
+            f"doc-consistency: skill '{skill}' exists under skills/ but is not named in the plugin README",
+        )
+    # The README must not reference a /mango:<skill> that does not exist.
+    for referenced in sorted(set(re.findall(r"/mango:([a-z][a-z0-9-]*)", readme_text))):
+        check(
+            referenced in skill_dirs,
+            f"doc-consistency: plugin README references /mango:{referenced} but no skills/{referenced}/ exists",
+        )
+
+    # Every top-level config key in harness.example.json must be documented in the README.
+    example = plugin / "config" / "harness.example.json"
+    data = load_json(example)
+    if isinstance(data, dict):
+        for key in data:
+            if key.startswith("//"):
+                continue
+            check(
+                key in readme_text,
+                f"doc-consistency: config key '{key}' in harness.example.json is not documented in the plugin README",
+            )
+
+
 def main():
     validate_all_json_parse()
     validate_marketplace()
     validate_plugin_manifests()
     validate_frontmatter_files()
     validate_skill_contracts()
+    validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")
     if failures:

@@ -3,6 +3,55 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] — 2026-06-23
+
+The largest feature since v0.1: a facilitated way to **bootstrap a project's rule book** when it is
+missing, thin, or inconsistent, plus **opt-in descriptive maps** of the code surface and the database
+schema. This closes the single biggest adoption blocker — the rule book the whole plugin grounds in.
+Everything here honours one boundary: **mango generates the descriptive and facilitates the normative,
+but never authors the normative.** Generic and stack-agnostic throughout; the descriptive maps are
+opt-in and never core.
+
+### Added
+- **A — `/mango:codify` (facilitated rule/convention definition).** New `skills/codify/SKILL.md`
+  observes and **counts** the conventions the code and schema actually use — across generic code
+  dimensions (error handling, naming/case, layering, validation, logging, imports) and database
+  conventions (table/column naming, timestamps, soft-delete, FK on-delete policy, raw-SQL vs ORM,
+  migration style) — flags dimensions with **no dominant pattern** as "no consistent rule found", then
+  **asks the human to choose** each going-forward standard. It presents counts as **data** (it may
+  state "the majority is X") but **never picks, recommends, or defaults to** any option, and **never
+  authors** a rule. Chosen standards are written to `rulebook_path` tagged
+  **`PROVISIONAL (awaiting ratification)`** and stay provisional until the human **ratifies** them; an
+  optional drift list of diverging files may be emitted as tech-debt. Read-only on code — it changes
+  no code. `doctor` now **suggests** `/mango:codify` (suggest only) when the rule book is missing or
+  looks thin. `PRINCIPLES.md` states the observe/facilitate/never-author boundary authoritatively.
+  *(Observed: with no real rule book, the reviewer/challenger produced generic, low-value output; the
+  fix is to help define the standard without mango inventing it.)*
+- **B — Opt-in descriptive adapters `/mango:sitemap` and `/mango:db-map`.** Two **descriptive-only**
+  skills generate regenerable **facts** (never normative rules), off unless configured and **not** part
+  of the lifecycle. `sitemap` maps the code surface (routes/endpoints + modules) via an optional
+  `code_map_cmd`; `db-map` maps the schema (tables, columns+types, primary/foreign keys, indexes,
+  relationships, views/procedures) via `db_kind` + either `db_introspect_cmd` or `migrations_path`,
+  writing to `docs_dir` — read-only, it alters no schema. The *normative* database conventions live in
+  the `codify` rule book, not in these maps. Light optional wiring: **if a `db-map` exists**, `analysis`
+  may widen the Phase-1 blast radius to schema dependents (columns, FKs, dependent views/procs) — used
+  if present, never required; the lifecycle runs fully without either adapter. *(Observed: mango had no
+  view of the code surface or the database — where the costliest mistakes live and where the
+  reviewer/challenger are blindest — yet schema maps are too stack-specific to be core.)*
+
+### Changed
+- **Config.** New optional, generic, commented keys in `config/harness.example.json`: `docs_dir`,
+  `code_map_cmd`, `db_kind`, `db_introspect_cmd`, `migrations_path` (all `null`/off by default).
+- **Validator.** `scripts/validate.py` skill-contract checks now require the `codify` boundary tokens
+  (counting, PROVISIONAL/ratification, does-not-author/recommend). A new **documentation-consistency
+  check** asserts that every `skills/*/` directory is named in the plugin README, that the README
+  references no `/mango:` skill that does not exist, and that every key in `harness.example.json` is
+  documented in the plugin README — failing the build on any doc drift.
+- **Docs synced to reality.** The plugin README now carries the full skill inventory (incl. `codify`,
+  `sitemap`, `db-map`), an explicit agent inventory, the complete config-key list (incl. the new keys
+  and `update_check_url`), and the boundary one-liner; `PRINCIPLES.md`, `plugin.json` `description`, the
+  marketplace `README.md`, and the root README were brought into line.
+
 ## [0.4.1] — 2026-06-23
 
 A small, high-value patch from a real run where a preflight reported green while a stale plugin
