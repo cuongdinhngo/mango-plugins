@@ -62,6 +62,11 @@ count, and the requirements matrix.
    STOP at Gate 0** and ask the human those questions before going further.
 6. **Universal inventory.** For any requirement saying "all/every/no", build a numbered inventory
    of the affected items with total **N** (this N is the denominator later phases prove against).
+   When a requirement is a counted **"do X for each of N"** (it maps onto this numbered inventory of
+   size N), record it as a **per-item checklist** — **one row per item**, not a single aggregate row
+   — and note on the requirement that review must confirm **every** item, not just a total. An
+   aggregate "k/N" is not enough for a "for each" requirement: the tail can ship incomplete behind a
+   passing count.
 7. **Cause / gap analysis.**
    - Bug → root cause classified against `config.cause_taxonomy`, with `path:line`.
    - Enhancement → per-goal gap analysis (current vs target), with `path:line`.

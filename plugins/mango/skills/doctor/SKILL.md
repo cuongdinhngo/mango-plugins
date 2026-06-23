@@ -6,7 +6,21 @@ description: Health-check a project's mango setup. Use before running the lifecy
 Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill turns silent runtime drift in
 `.harness.json` into a counted, visible artifact — a checklist that blocks the pipeline when red.
 
-Read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit a checklist with
+**First output line — the authoritative running-version signal.** Before any check, read the
+running manifest at `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` for `<version>` and take
+`<base path>` from `${CLAUDE_PLUGIN_ROOT}`, then print as the very first line:
+
+`mango <version> @ <base path>`
+
+State plainly, right there: *"This is the version that will run. A green doctor does not prove it is
+the version you intended — if this line is not the version you expect, resolve it from the host with
+`/plugin` (do not work around the loader from a restricted/remote channel)."* If — and only if — the
+base path contains a version segment that **differs** from the manifest version, emit a ❌
+("loaded path/manifest version mismatch — reinstall from the host"). This signal is purely
+**locally observable**: doctor stays **offline**, makes no network call, and never reads or edits any
+host plugin registry. doctor detects and informs; it never installs or reinstalls anything.
+
+Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit a checklist with
 ✅ (pass) / ⚠ (warn) / ❌ (fail). For each ❌, print the **exact remediation** (often: run
 `/mango:init`, or add the named key).
 

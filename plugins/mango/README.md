@@ -17,7 +17,8 @@ them in a gitignored `.env`.
 | Skill | Use | Produces |
 |-------|-----|----------|
 | `/mango:init` | Once per project | Detects the stack read-only, interviews only for the undetectable, writes `.harness.json` (guesses marked `UNVERIFIED`), and scaffolds a single-file starter rule book if none exists. |
-| `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation. `solve` runs it as a fail-fast preflight. |
+| `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation, prefaced by `mango <version> @ <base path>` so the running version is always visible. `solve` runs it as a fail-fast preflight. |
+| `/mango:version-check` | On demand (opt-in) | Reports the running version vs the latest published version and, if newer, **prints** the host `/plugin` commands to update. Needs `update_check_url`; never updates or installs. |
 
 ## The lifecycle
 
@@ -77,6 +78,21 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 
 `rulebook_path` may be a **file or a directory**; with a directory, every consumer reads all `*.md`
 inside it. Run `/mango:init` to generate this file for you.
+
+## Operational notes
+
+- **Plugin administration belongs to the host.** Installing, reinstalling, pinning a version, or
+  reordering the install registry is done **from the host** with `/plugin` — never from a restricted
+  or remote channel where `/plugin` is unavailable. mango **detects and informs; it never
+  self-administers.**
+- **If you find yourself working around the loader/registry from a restricted channel — stop and do
+  it from the host.** mango will not install, reinstall, reorder a registry, or run `/plugin` for you.
+- **Verify the live version from `doctor`'s first line**, not by assuming. `/mango:doctor` prints
+  `mango <version> @ <base path>` as line 1 — a green doctor does **not** prove the version you
+  intended is the one actually loaded; a stale version can run silently behind a passing preflight.
+- **Use `/mango:version-check`** (if `update_check_url` is configured) to learn whether a newer
+  version has been published. It reports running vs latest and **prints** the host `/plugin` commands
+  to update — it does not update anything.
 
 ## Cost profile
 

@@ -50,7 +50,11 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
 5. **Regression check.** Re-check the Phase-1 callers / blast radius for regressions.
 6. **Proving test.** Run it via `config.test_command`. Record the result and answer: **"would it
    fail without the change?"**
-7. **Fill `Ph3/4 proven by`** (`k/N`) for every matrix row and universal-inventory item.
+7. **Fill `Ph3/4 proven by`** (`k/N`) for every matrix row and universal-inventory item. For a
+   counted **"for each of N"** requirement, verify **item-by-item** and fill the **per-item** rows of
+   its inventory checklist — the gate is not clean until **every** item is confirmed (or each
+   unconfirmed item is a recorded, human-approved coverage-gap exclusion). An aggregate "k/N" alone
+   is **insufficient** for a "for each" requirement: a passing total can hide an incomplete tail.
 8. **Decide clean vs not clean.** Clean requires ALL of:
    - reviewer reports no Critical;
    - challenger finds every item met — **except** a challenger "not met" that corresponds to a

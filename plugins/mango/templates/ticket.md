@@ -43,6 +43,16 @@ the computed value — never a silent correction.
   1.
   2.
 
+For a counted **"do X for each of N"** requirement, this numbered list **is** the per-item checklist:
+one row per item, not a single aggregate row. Review fills each row item-by-item — it is not clean
+until **every** item is confirmed (or each unconfirmed item is a recorded, human-approved
+coverage-gap exclusion). An aggregate "k/N" alone does not close a "for each" requirement.
+
+| # | Item | Ph3/4 proven by (`path:line` / test) | Status ✅/⚠/❌ |
+|---|------|--------------------------------------|----------------|
+| 1 |      |                                      |                |
+| 2 |      |                                      |                |
+
 ## Clarifications
 
 `CLARIFICATION: <M> raised | <k> self-resolved (cited) | <j> for human decision`

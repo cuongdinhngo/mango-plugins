@@ -24,6 +24,8 @@
   "explore_fanout": true,
   "//cost_tier": "Model-delegation dial: economy | standard | max (default standard). economy pushes more bulk retrieval to a Haiku worker and avoids Opus on review; max allows Opus on review for high-stakes diffs. Never demotes review/challenger to Haiku. See PRINCIPLES.md routing map.",
   "cost_tier": "standard",
+  "//update_check_url": "OPTIONAL raw URL to the published marketplace manifest (e.g. the raw marketplace.json of the marketplace mango is published from). If set, /mango:version-check fetches it to compare the running version against the latest published version and PRINTS the host /plugin commands when a newer one exists. mango never updates or installs — plugin administration is the host's job. Leave unset/null to disable the check (no network call).",
+  "update_check_url": null,
   "branch_strategy": "fix|feat|chore/<KEY>-<slug>",
   "lessons_path": "docs/LESSONS.md",
   "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",

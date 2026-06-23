@@ -3,6 +3,45 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] — 2026-06-23
+
+A small, high-value patch from a real run where a preflight reported green while a stale plugin
+version was silently loaded, and where a counted "for each of N" requirement shipped with its tail
+incomplete. Every fix is generic; mango still **detects and informs, never self-administers** — it
+does not install, reinstall, reorder a registry, or run plugin administration on your behalf.
+
+### Added / Changed
+- **L — `doctor` surfaces the running version.** `doctor`'s **first output line** is now the
+  authoritative running-version signal — `mango <version> @ <base path>`, read from the running
+  manifest and base path — with the plain note that a green doctor does **not** prove the intended
+  version is loaded, and that a version should be resolved from the host (not by working around the
+  loader from a restricted/remote channel). If the base path carries a version segment that differs
+  from the manifest, `doctor` emits a mismatch ❌. `doctor` stays **offline**: no network call, no
+  reading or editing of any host plugin registry, no install. *(Observed: a preflight passed while a
+  stale version ran silently behind it, because the check validated config but never showed which
+  version was actually loaded.)*
+- **M — Counted "for each of N" requirements become a verified per-item checklist.** `analysis` now
+  records a "do X for each of N" requirement as a **per-item checklist** (one row per item) in the
+  inventory, not a single aggregate row; `review` verifies it **item-by-item** and is not clean until
+  **every** item is confirmed (or each unconfirmed item is a recorded, human-approved coverage-gap
+  exclusion) — an aggregate "k/N" alone is insufficient. The working-doc template's inventory gains a
+  per-item checklist table. *(Observed: a counted "for each" requirement passed an aggregate check
+  with the tail incomplete; only an independent reviewer caught it.)*
+- **V — Opt-in `version-check` skill (informs, never updates).** New `/mango:version-check`: reads
+  the running version and, **only if** the optional `config.update_check_url` (a raw URL to the
+  published marketplace manifest) is set, fetches it to compare against the latest published version.
+  When a newer version exists it **prints** the exact host `/plugin` commands to update — it never
+  runs them, never installs, and never edits any registry. With `update_check_url` unset it makes no
+  network call. New optional `update_check_url` key in `config/harness.example.json`. *(Observed: no
+  in-tool way to learn a newer version existed without doing forbidden admin from a restricted
+  channel.)*
+- **Operational notes (README) + validator.** The plugin README gains an **Operational notes**
+  section: plugin administration is the host's job, verify the live version from `doctor`'s first
+  line, and use `version-check` to learn of newer versions. `scripts/validate.py` skill-contract
+  checks now require the running-version / base-path tokens in `doctor`, item-by-item / per-item
+  verification tokens in `review`, a `for each` token in `analysis`, and the `version-check` skill's
+  frontmatter, so the new behaviours cannot be silently dropped.
+
 ## [0.4.0] — 2026-06-22
 
 Five fixes validated across more than one project and stack. Each describes a generic failure mode
