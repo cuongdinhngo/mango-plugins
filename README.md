@@ -62,6 +62,24 @@ requirement that resolves to N > 1.
 See the [plugin README](./plugins/mango/README.md) for the full tier details, `.harness.json` keys,
 cost profile, and model-delegation map.
 
+## Supporting skills
+
+These are **not** part of the gated lifecycle and do not run a ticket — they set up, diagnose, build
+knowledge about, or describe a project. Kept separate from the lifecycle table above for that reason.
+
+| Skill | Role | Notes |
+|-------|------|-------|
+| `/mango:init` | Detect the stack, write `.harness.json`, scaffold a starter rule book | Marks every guessed value `UNVERIFIED` for you to confirm. |
+| `/mango:doctor` | Setup health-check — ✅/⚠/❌ checklist with exact remediation | Prints the running version + base path as its **first line**; offline — a green doctor does not prove the intended version is loaded. |
+| `/mango:codify` | Count the code + DB conventions already in use → **you choose** each standard → record it | Recorded **PROVISIONAL until you ratify**; facilitates, never authors, changes no code. |
+| `/mango:sitemap` | Generate a code-surface map (routes / modules) into `docs_dir` | Opt-in; needs `code_map_cmd`. |
+| `/mango:db-map` | Generate a schema map (tables / columns / keys / indexes / relations) into `docs_dir` | Opt-in; **off by default**; needs `db_kind` + (`db_introspect_cmd` or `migrations_path`). |
+| `/mango:version-check` | Compare running vs latest and **print the host `/plugin` commands** | Informs only, never updates; needs `update_check_url`. |
+
+The `sitemap`/`db-map` outputs are **descriptive** (facts, regenerable — what the project is);
+`codify` is **normative** (what it should be). mango generates the descriptive and facilitates the
+normative, but never authors the normative.
+
 ## Update
 
 ```

@@ -75,6 +75,26 @@ The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think bef
 simplicity first, surgical changes, goal-driven execution — plus the boundary that **mango generates
 the descriptive and facilitates the normative, but never authors the normative.**
 
+## Supporting skills
+
+Beyond the gated lifecycle, these skills set up, diagnose, build knowledge about, or describe a
+project. They are **not** gated and do not run a ticket, so they sit apart from the lifecycle table.
+(Each is also introduced in context above — *Getting set up* and *Descriptive maps* — this is the
+at-a-glance index.)
+
+| Skill | Role | Notes |
+|-------|------|-------|
+| `/mango:init` | Detect the stack, write `.harness.json`, scaffold a starter rule book | Marks every guessed value `UNVERIFIED`. |
+| `/mango:doctor` | Setup health-check — ✅/⚠/❌ checklist with exact remediation | Prints the running version + base path as its **first line**; offline — a green doctor does not prove the intended version is loaded. |
+| `/mango:codify` | Count the code + DB conventions already in use → **you choose** each standard → record it | Recorded **PROVISIONAL until you ratify**; facilitates, never authors, changes no code. |
+| `/mango:sitemap` | Generate a code-surface map (routes / modules) into `docs_dir` | Opt-in; needs `code_map_cmd`. |
+| `/mango:db-map` | Generate a schema map (tables / columns / keys / indexes / relations) into `docs_dir` | Opt-in; **off by default**; needs `db_kind` + (`db_introspect_cmd` or `migrations_path`). |
+| `/mango:version-check` | Compare running vs latest and **print the host `/plugin` commands** | Informs only, never updates; needs `update_check_url`. |
+
+The `sitemap`/`db-map` outputs are **descriptive** (facts, regenerable — what the project is);
+`codify` is **normative** (what it should be). mango generates the descriptive and facilitates the
+normative, but never authors the normative.
+
 ## Agents
 
 All review agents are **read-only** — they produce verdicts and findings, never edits.
