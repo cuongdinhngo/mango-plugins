@@ -55,13 +55,25 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
    its inventory checklist — the gate is not clean until **every** item is confirmed (or each
    unconfirmed item is a recorded, human-approved coverage-gap exclusion). An aggregate "k/N" alone
    is **insufficient** for a "for each" requirement: a passing total can hide an incomplete tail.
-8. **Decide clean vs not clean.** Clean requires ALL of:
+8. **Layer-match re-confirmation (binding).** Re-confirm that **no AC closed clean on a
+   layer-mismatched proof.** Walk design's verification plan: any row whose proof artifact sits below
+   its risk layer (a layer-match `❌`) that is **not** a recorded, human-approved coverage-gap
+   exclusion **blocks clean** — the proof must be upgraded to its risk layer, or the gap recorded as
+   a human-approved exclusion. A green proving test at the wrong layer is not coverage.
+9. **Decide clean vs not clean.** Clean requires ALL of:
    - reviewer reports no Critical;
    - challenger finds every item met — **except** a challenger "not met" that corresponds to a
      **recorded, human-approved coverage-gap exclusion** (from design's verification plan / the
      working doc's *Coverage-gap exclusions* slot) does **not** block clean: it is a known proof-tier
      mismatch, not an unmet requirement. An *unrecorded* gap still blocks.
+   - no layer-match `❌` stands unresolved (step 8);
    - `k = N` (or every exclusion is human-approved and recorded);
    - proving test green.
-   **Not clean → loop back to the relevant phase and STOP.** Clean → write Phase 4 into the working
-   doc, update `Session status`, and proceed to finalise.
+   **Not clean → loop back to the relevant phase and STOP.** Clean → record the **stale-review
+   guard** marker `Reviewed at <commit SHA>` plus the set of reviewed files in the working doc (step
+   10), write Phase 4, update `Session status`, and proceed to finalise.
+10. **Record the reviewed commit (stale-review guard).** On a clean verdict, capture the exact
+    `HEAD` SHA and the set of files the review covered, and write a `Reviewed at <sha>` marker (with
+    the reviewed-file list) into the working doc's Phase-4 slot. A clean review is scoped to that
+    commit: `finalise` compares the live tree against this marker and **refuses** to open a PR if the
+    diff moved beyond it, routing back here for a re-review (see `finalise`).

@@ -3,6 +3,54 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] — 2026-06-24
+
+Four fixes from a real run where the gates caught a 4× scope explosion but one of the most
+load-bearing checks was **advisory, not binding** — so a worthless proof was allowed to stand. The
+theme of this release is mango's own binding contract made literal: prose and self-declared columns
+do not bind; only an emitted artifact that **blocks a gate** binds. Every fix is generic and
+stack-agnostic; no existing behaviour was removed.
+
+### Added / Changed
+- **N1 — Layer-match becomes a hard gate (was advisory).** `design`'s per-AC verification plan now
+  requires the **layer-match column to be filled before the proving test is named**, and the rule is
+  **binding**: if an AC's **risk layer is integration / runtime / e2e and its proof sits at the
+  logic/unit layer**, that row is `❌` and **Gate 2 is blocked** — it passes only when the proof is
+  upgraded to the matching layer **or** the row is recorded as a human-approved coverage-gap
+  exclusion. The gate keys on the **risk-layer vs proof-layer comparison** (a wording cue —
+  "renders / runs / dispatches / persists / sends" — only hints at the risk layer; it is never
+  keyword-triage). `review` re-confirms no AC closed clean on a layer-mismatched proof. `PRINCIPLES.md`
+  Principle 4 now reads "enforced, not advisory", and `scripts/validate.py` requires the `design`
+  binding wording (`layer-match` + a blocking token). *(Observed: a runtime acceptance criterion was
+  backed only by a logic-layer unit proof; it passed and proved nothing, because the per-AC
+  layer-match check existed but was advisory.)*
+- **N2 — Stale-review guard in `finalise`.** A clean review is scoped to the commit it covered.
+  `review` now records a **`Reviewed at <sha>` marker** (commit SHA + reviewed files) on a clean
+  verdict; `finalise` compares the live `HEAD`/diff against it **before any outward action** and
+  **refuses** to open a PR — routing back to `review` for a re-review covering the new diff — if
+  commits landed or files changed beyond the reviewed set. A bare "go" does not override a stale
+  review. `solve` carries the reviewed SHA across review→finalise and marks the review stale if
+  `execute`/`design` re-ran after it. New `Reviewed at` slot in the working-doc template; validator
+  requires a `finalise` stale token. *(Observed: a clean review covered a small diff, the diff then
+  grew, and finalise opened the PR on the stale review.)*
+- **N3 — "Outgrew its ticket" nudge.** `solve` (with light checks in `analysis`/`design`/`execute`)
+  tracks the declared `SCOPE`/`TIER`. If at any gate the **realized** scope crosses up a tier
+  (especially S/M → L), or the change-list/diff materially exceeds the approved one, mango **stops at
+  the next gate** and asks the human to either formally **re-scope** (updating the working-doc scope,
+  and the branch/PR type if the change type drifted) or **split** the excess into a follow-up — never
+  silently absorbing the expansion. The re-declaration is recorded in the Decision log; validator
+  requires a `solve` outgrew/re-scope token. *(Observed: a small card's realized scope grew
+  several-fold mid-flow and the working doc absorbed it silently, with the change type drifting from
+  the branch type.)*
+- **N4 — `init` resolves the config-file commit policy.** After writing `.harness.json`, `init`
+  **asks** whether it should be **committed** (shared team config) or **kept local**: on "local" it
+  adds `.harness.json` to `.gitignore` (creating it if absent) and tells the user; on "committed" it
+  leaves `.gitignore` untouched but warns that secrets never belong in the config (they live in a
+  gitignored `.env`). It does not hard-gitignore by default — the config is often shared, so the human
+  decides — and never writes secrets into the config file. A note was added to the README Operational
+  notes. *(Observed: the per-project config sits at the repo root, so honouring "don't commit it" was
+  manual vigilance on every commit.)*
+
 ## [0.5.0] — 2026-06-23
 
 The largest feature since v0.1: a facilitated way to **bootstrap a project's rule book** when it is

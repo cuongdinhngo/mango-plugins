@@ -43,9 +43,16 @@ A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
      continue with a known-broken approach.
    - **stuck-detector:** if execute hits `config.stuck_threshold` failed attempts at the same
      failing signature, it STOPS and escalates to the user rather than retrying further.
-4. `review` → **Gate 4** — STOP only if not clean; loop back as needed.
-5. `finalise` → **final gate** — STOP; one separate approval per outward action. Always captures a
-   **durable lesson** (independent of deferred rows) to `config.lessons_path`.
+4. `review` → **Gate 4** — STOP only if not clean; loop back as needed. On a clean verdict, `review`
+   records a `Reviewed at <sha>` marker (commit SHA + reviewed files). **Carry that reviewed SHA
+   across the review→finalise transition.** If `execute` or `design` runs **again** after a clean
+   review (a loop-back), the review is **stale** — drop the marker and require a fresh review before
+   finalise.
+5. `finalise` → **final gate** — STOP; one separate approval per outward action. **Stale-review
+   guard:** before any outward action, finalise compares the live tree against the `Reviewed at`
+   marker and **refuses** the PR (routing back to `review`) if commits landed or files changed beyond
+   the reviewed set — a bare "go" does not override it. Always captures a **durable lesson**
+   (independent of deferred rows) to `config.lessons_path`.
 
 **Resume** from the working-doc `Session status` block: read it, determine the current phase, and
 continue from there rather than restarting. The working doc's placement follows
@@ -60,6 +67,14 @@ the challenger payload (`review`) can always exclude the working-doc portion.
 - **No outward action without explicit per-action approval.**
 - **Writes via CLI, not MCP** (`config.tracker.cli`).
 - **Do not widen scope.** Stay inside the approved change list.
+- **"Outgrew its ticket" nudge — never auto-absorb an expansion.** Track the declared `SCOPE`/`TIER`.
+  If at any gate the **realized** scope crosses **up a tier** (especially S/M → L), or the
+  change-list / diff materially exceeds the approved one, **stop at the next gate** and surface that
+  the card has **outgrown its original scope**. Ask the human to either formally **re-scope** (update
+  the working-doc `SCOPE`, and the branch/PR type if the change type drifted from the branch type) or
+  **split** the excess into a follow-up ticket. Flag any **branch/PR-type drift** (e.g. a `fix`
+  branch now carrying a feature). Record the re-declaration in the Decision log. Never silently
+  absorb the growth into the working doc.
 - A mid-run **"do the full thing"** instruction **resets coverage to the literal ticket text**:
   re-derive every matrix row from scratch; prior deferrals expire.
 - **One ticket per run.**

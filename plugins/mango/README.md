@@ -16,7 +16,7 @@ them in a gitignored `.env`.
 
 | Skill | Use | Produces |
 |-------|-----|----------|
-| `/mango:init` | Once per project | Detects the stack read-only, interviews only for the undetectable, writes `.harness.json` (guesses marked `UNVERIFIED`), and scaffolds a single-file starter rule book if none exists. |
+| `/mango:init` | Once per project | Detects the stack read-only, interviews only for the undetectable, writes `.harness.json` (guesses marked `UNVERIFIED`), **asks whether `.harness.json` is committed or kept local** (and gitignores it on "local"), and scaffolds a single-file starter rule book if none exists. |
 | `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation, prefaced by `mango <version> @ <base path>` so the running version is always visible. `solve` runs it as a fail-fast preflight. |
 | `/mango:codify` | When the rule book is missing / thin / inconsistent (opt-in) | **Counts** the conventions the code and schema actually use (code rules **and** database conventions), asks **you** to choose each going-forward standard, and writes them to the rule book tagged **`PROVISIONAL (awaiting ratification)`**. Facilitates; never authors a rule, never auto-picks the majority, never changes code. `doctor` suggests it when the rule book looks thin. |
 | `/mango:version-check` | On demand (opt-in) | Reports the running version vs the latest published version and, if newer, **prints** the host `/plugin` commands to update. Needs `update_check_url`; never updates or installs. |
@@ -64,12 +64,12 @@ resolves to N > 1.
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. |
-| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan** (proof at the layer where the requirement can fail; an `❌` must be upgraded or recorded as a human-approved **coverage-gap exclusion**), rollback + porting. |
+| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and **blocks Gate 2** unless the proof is upgraded or recorded as a human-approved **coverage-gap exclusion**), the proving test named at the matching layer, rollback + porting. |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the working-doc portion), scope reconciliation, regression check, proving-test result, `k/N` coverage. A challenger "not met" matching a recorded coverage-gap exclusion does not block; an unrecorded gap does. |
-| `/mango:finalise` | 5 → final gate | Optional **project finalise-checklist** walk (`pr_checklist_path`), PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the working-doc portion), scope reconciliation, regression check, **layer-match re-confirmation** (no AC closed clean on a layer-mismatched proof), proving-test result, `k/N` coverage. A challenger "not met" matching a recorded coverage-gap exclusion does not block; an unrecorded gap does. On a clean verdict it records a **`Reviewed at <sha>` marker** (commit + reviewed files) for the stale-review guard. |
+| `/mango:finalise` | 5 → final gate | **Stale-review guard** (refuses to open a PR if `HEAD`/the diff moved beyond the `Reviewed at` commit, routing back to `review`), optional **project finalise-checklist** walk (`pr_checklist_path`), PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
-| `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
+| `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. Carries the reviewed-commit marker across review→finalise (a re-run of execute/design after a clean review marks it stale) and raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split rather than silently absorbing the growth. |
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding,
 simplicity first, surgical changes, goal-driven execution — plus the boundary that **mango generates
@@ -84,7 +84,7 @@ at-a-glance index.)
 
 | Skill | Role | Notes |
 |-------|------|-------|
-| `/mango:init` | Detect the stack, write `.harness.json`, scaffold a starter rule book | Marks every guessed value `UNVERIFIED`. |
+| `/mango:init` | Detect the stack, write `.harness.json`, scaffold a starter rule book | Marks every guessed value `UNVERIFIED`; asks whether `.harness.json` is committed or gitignored. |
 | `/mango:doctor` | Setup health-check — ✅/⚠/❌ checklist with exact remediation | Prints the running version + base path as its **first line**; offline — a green doctor does not prove the intended version is loaded. |
 | `/mango:codify` | Count the code + DB conventions already in use → **you choose** each standard → record it | Recorded **PROVISIONAL until you ratify**; facilitates, never authors, changes no code. |
 | `/mango:sitemap` | Generate a code-surface map (routes / modules) into `docs_dir` | Opt-in; needs `code_map_cmd`. |
@@ -157,6 +157,10 @@ inside it. Run `/mango:init` to generate this file for you.
 - **Use `/mango:version-check`** (if `update_check_url` is configured) to learn whether a newer
   version has been published. It reports running vs latest and **prints** the host `/plugin` commands
   to update — it does not update anything.
+- **`.harness.json` commit policy is resolved at `init`, not left to vigilance.** `init` asks whether
+  the config is **committed** (shared team config) or **kept local**: on "local" it adds
+  `.harness.json` to `.gitignore`; on "committed" it warns that secrets never belong in it. Either
+  way `init` writes no secrets into `.harness.json` — tokens live only in a gitignored `.env`.
 
 ## Cost profile
 

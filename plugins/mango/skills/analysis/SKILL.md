@@ -82,7 +82,10 @@ count, and the requirements matrix.
    (reading many files to pull facts) to the Haiku `extractor` worker, more so when
    `config.cost_tier` is `economy`. Run grep/test/lint via the Bash tool directly — never spawn a
    model for a one-line shell command.
-9. **Scope.** Declare `SCOPE: S|M|L`.
+9. **Scope.** Declare `SCOPE: S|M|L`. This is the **baseline** the *outgrew-its-ticket* nudge
+   (`solve`) compares the realized scope against at later gates: if the realized scope crosses up a
+   tier (S/M → L) or the diff materially exceeds the approved one, a later gate stops to re-scope or
+   split rather than silently absorbing the growth.
 10. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
     **resolved inventory denominator N** (from the step-6 numbered inventory), **not** on the mere
     presence of universal wording. A requirement that *sounds* universal ("all/every/no") but

@@ -123,8 +123,10 @@ challenger's "not met" apart from an unmet requirement):
 - Scope reconciliation (files outside list / reformatting):
 - Regression on Phase-1 callers:
 - Proving test result + "would it fail without the change?":
+- Layer-match re-confirmation (no AC closed clean on a layer-mismatched proof; any `❌` is upgraded or a recorded exclusion):
 - `Ph3/4 proven by` filled (k/N): see matrix.
-- **Clean?** reviewer no Critical AND challenger every item met AND k=N (or exclusions approved) AND proving test green → yes/no
+- **Clean?** reviewer no Critical AND challenger every item met AND no layer-match ❌ unresolved AND k=N (or exclusions approved) AND proving test green → yes/no
+- **Reviewed at** (stale-review guard — recorded on a clean verdict): `<commit SHA>` · reviewed files: `<list>`. `finalise` refuses to open a PR if `HEAD` / the diff moved beyond this set, routing back here for a re-review.
 
 ## Phase 5 — Finalise ✋ final gate
 
@@ -143,6 +145,10 @@ challenger's "not met" apart from an unmet requirement):
 ---
 
 ## Decision log
+
+Record every gate decision here — including any **scope re-declaration** when the card *outgrew its
+ticket* (realized scope crossed a tier, or the change type drifted from the branch/PR type): note the
+old → new `SCOPE`/type and whether the excess was re-scoped or split into a follow-up.
 
 | When | Decision | Why |
 |------|----------|-----|

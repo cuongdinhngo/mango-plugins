@@ -33,11 +33,11 @@ RESERVED_NAMES = {
 # counted, gate-blocking artifact a skill is responsible for.
 SKILL_CONTRACTS = {
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each"],
-    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap"],
+    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat"],
-    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item"],
-    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist"],
-    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat"],
+    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale"],
+    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin"],

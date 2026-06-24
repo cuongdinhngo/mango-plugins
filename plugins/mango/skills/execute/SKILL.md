@@ -35,7 +35,10 @@ directly — never spawn a model for a one-line shell command.
    - zero stray references introduced (no dangling symbols/imports from the edit);
    - the diff ⊆ approved change list (no file outside the list, no untouched-line reformatting);
    - each diff hunk maps to a matrix row.
-   Record the sweep result in the working doc.
+   Record the sweep result in the working doc. If the realized diff **materially exceeds** the
+   approved change list or the declared `SCOPE` has crossed up a tier (S/M → L), do not absorb it —
+   surface the *outgrew-its-ticket* nudge at the next gate (review) so the human can re-scope or
+   split, and flag any branch/PR-type drift.
 6. **Commit per logical unit.** One commit per logical unit, clear messages, **no AI co-author
    trailer of any kind**.
 7. **Write back + flow to review.** Write Phase 3 into the working doc (including the sweep result

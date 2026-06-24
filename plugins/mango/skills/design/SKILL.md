@@ -25,7 +25,7 @@ this phase.
    novel-untested`. For any `novel-untested` assumption about **third-party or runtime behaviour**
    (e.g. "two live editors of library X can coexist", "this API is idempotent under retry"), the
    design must EITHER (a) run a throwaway **spike** now and record the result here, OR (b) shape the
-   Gate-2 proving test (step 6) as an integration/e2e proof that would **fail if the assumption is
+   Gate-2 proving test (step 7) as an integration/e2e proof that would **fail if the assumption is
    false**. **Gate 2 may not pass with an unresolved `novel-untested` assumption.** (Observed
    failure: a design leaned on an untested "two live rich-text editors coexist" assumption — the
    exact thing that broke — because nothing forced de-risking a novel runtime assumption.)
@@ -35,30 +35,41 @@ this phase.
    no indirection serving a single call site.
 5. **Rule compliance.** Check the proposed change against `config.rulebook_path` and
    `config.standards_path`; note any rule that constrains the design and how you comply.
-6. **Proving test.** Name the **proving test**: the specific assertion that **fails pre-change and
-   passes post-change**, runnable via `config.test_command`. State the exact invocation. Gate 2
-   cannot pass without it.
-7. **Verification plan (per-AC, layer-matched).** Emit a table with one row per acceptance
-   criterion / at-risk requirement:
+6. **Verification plan (per-AC, layer-matched) — fill the layer-match column BEFORE naming the
+   proving test (step 7).** Emit a table with one row per acceptance criterion / at-risk
+   requirement:
 
    `AC | risk layer (logic | integration | runtime/3p | e2e) | proof artifact (unit | integration | e2e | manual-recorded) | layer-match? ✅/❌`
 
-   The proving artifact for a requirement MUST sit at **the layer where that requirement can
-   actually fail**. A logic-layer (unit) proof for an integration/runtime/3p requirement is a
-   layer mismatch → `❌` (false confidence, not coverage). Any `❌` row must EITHER **upgrade the
-   proof** to the risk layer, OR be recorded as a **named coverage-gap exclusion** (item · risk tier
-   · why deferred · follow-up) in the working doc's *Coverage-gap exclusions* slot. **Gate 2 may not
-   pass with any ❌ that is neither upgraded nor recorded as a human-approved exclusion** — an
-   exclusion is a deliberate, human-approved deferral of a proof-tier mismatch, not a silent pass.
-   (Observed failures: a named proving test was a store unit test that mocked the integration layer,
-   so it stayed green while the real integration-layer behaviour was broken; separately, an "in-browser
-   confirm" acceptance criterion had no planned proof and surfaced only at Gate 4. And: a requirement
-   whose real risk sat at an integration/behavioural tier was only unit-proven, so the challenger's
-   later "not met" read as a hard failure when it was a proof-tier mismatch that should have been a
-   recorded exclusion.)
+   Classify each AC's **risk layer** first — the layer where the requirement can *actually fail* —
+   then choose its proof artifact to match. A requirement that can only fail at integration/runtime
+   (classification cue: worded as "renders / runs / dispatches / persists / sends") cannot be proven
+   by a pure-logic test. Do **not** triage on keywords alone — the gate keys on the **risk-layer vs
+   proof-layer comparison** the plan records; the wording is only a hint to classify the risk layer.
+
+   **Binding gate rule — the layer-match is enforced, not advisory.** If an AC's **risk layer is
+   integration / runtime / e2e and its proof artifact is at the logic/unit layer**, that row is a
+   layer mismatch → `❌` and **Gate 2 is blocked**. The row passes only when the proof is **upgraded**
+   to the matching layer, OR it is recorded as a **named, human-approved coverage-gap exclusion**
+   (item · risk tier · why deferred · follow-up) in the working doc's *Coverage-gap exclusions* slot.
+   A layer-match `❌` that is neither upgraded nor a recorded human-approved exclusion **blocks Gate 2
+   — it does not pass silently.** (Observed failures: a named proving test was a store unit test that
+   mocked the integration layer, so it stayed green while the real integration-layer behaviour was
+   broken; separately, an "in-browser confirm" acceptance criterion had no planned proof and surfaced
+   only at Gate 4. And: a requirement whose real risk sat at an integration/behavioural tier was only
+   unit-proven, so the challenger's later "not met" read as a hard failure when it was a proof-tier
+   mismatch that should have been a recorded exclusion.)
+7. **Proving test (at the matching layer).** With the risk layer classified (step 6), name the
+   **proving test**: the specific assertion that **fails pre-change and passes post-change**,
+   runnable via `config.test_command`, and **sitting at the risk layer** of the AC it proves. State
+   the exact invocation. Gate 2 cannot pass without it; a proving test below its AC's risk layer is a
+   layer-match `❌` and blocks Gate 2 (see step 6).
 8. **Rollback + porting plan.** State how to revert, and the porting plan across `config.repos` if
    the change touches shared code (which repos, in what order).
-9. **Confirm SCOPE.** Re-affirm or adjust `SCOPE: S|M|L` from analysis; if it grew, say why.
+9. **Confirm SCOPE.** Re-affirm or adjust `SCOPE: S|M|L` from analysis; if it grew, say why. If the
+   realized scope has **crossed up a tier** (especially S/M → L) or the change-list materially
+   exceeds the analysis baseline, raise the *outgrew-its-ticket* nudge at this gate: stop to
+   **re-scope or split** (and flag any branch/PR-type drift) rather than silently absorbing it.
 10. **Self-audit, then STOP at Gate 2.** Confirm: every change-list item has a matrix row, `Ph2
     covered by` filled `k/N`, every assumption tagged and every `novel-untested` 3p/runtime one
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the

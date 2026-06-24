@@ -74,10 +74,11 @@ end. Multi-surface work is only done when every surface is covered or every excl
 **Enforced at** (design → Gate 2; review → Gate 4; finalise → final gate):
 - A named **proving test** is required at Gate 2: the assertion that fails pre-change, passes
   post-change, runnable via `config.test_command`.
-- **The proving test must sit at the layer where the requirement can fail; a logic-layer proof for
-  an integration/runtime requirement is false confidence, not coverage.** Gate 2 carries a per-AC
-  **verification plan** (risk layer vs proof artifact, with a layer-match check) and may not pass
-  with any layer mismatch.
+- **Gate 2 is blocked when an integration/runtime AC is backed only by a logic-layer proof; the
+  layer-match is enforced, not advisory.** Gate 2 carries a per-AC **verification plan** (risk layer
+  vs proof artifact, with a binding layer-match check). A layer-match `❌` blocks Gate 2 and passes
+  only when the proof is upgraded to the matching layer **or** the row is recorded as a
+  human-approved coverage-gap exclusion — never a silent pass.
 - The test result is reported at review, including "would it fail without the change?".
 - The `N · k/N` denominator rule for every universal ("all/every/no") requirement: `k` surfaces
   covered out of total `N`.

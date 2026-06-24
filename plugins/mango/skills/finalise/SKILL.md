@@ -14,8 +14,14 @@ goes through `config.tracker.cli` — **never** an MCP.
 
 ## Steps
 
-1. **Confirm review was clean.** Read the working doc `<config.work_dir>/<KEY>.work.md`. If Phase 4
-   is not clean, return to review.
+1. **Confirm review was clean — and not stale (stale-review guard).** Read the working doc
+   `<config.work_dir>/<KEY>.work.md`. If Phase 4 is not clean, return to review. Then, **before any
+   outward action**, enforce the stale-review guard: read the `Reviewed at <sha>` marker recorded at
+   review and compare the current `HEAD` (and the working-tree diff) against it. If commits landed
+   after that SHA, or files changed **beyond** the reviewed set, the review is **stale** — **refuse**
+   to finalise / open a PR and route back to `review` for a **re-review** covering the new diff. A
+   bare "go" does **not** override a stale review; only a fresh clean review (a new `Reviewed at`
+   marker covering the current tree) clears it.
 2. **Project finalise-checklist hook (if configured).** If `config.pr_checklist_path` is set, read
    that file **before** drafting the PR body. It is a project-owned checklist (e.g. a PR-template,
    a definition-of-done file) holding ship-time requirements mango cannot know in advance. **Walk
