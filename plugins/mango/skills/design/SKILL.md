@@ -56,6 +56,24 @@ this phase.
    `${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md` lists each gate's layer; reuse the v0.6
    layer-match mechanism here — do not fork it.
 
+   **Surface-aware rows — one row per (AC × affected surface).** For a universal / app-wide frontend
+   AC, the denominator is the **surface inventory N** from analysis (`SURFACES: N`, enumerated from
+   code). Lay out the verification plan / proof manifest with **one row per affected surface**, not a
+   single ticket-scoped row — proving "the surfaces the ticket named" while reachable surfaces go
+   unproven is the exact bug this removes. Each row names its proof **tier** (the ladder is elastic
+   but a proof is never optional): `automated` (tier-1, satisfies the C1–C8 automated-proof contract)
+   → `render@<bp>` (tier-2, a recorded render of the real surface at the breakpoint asserting the
+   visible measurable — a **first-class proof, not an exclusion**) → `excluded` (human-approved, only
+   when neither tier is reachable). See `${CLAUDE_PLUGIN_ROOT}/templates/ui-proof-scaffold.md` for the
+   tier-1 shape `execute` will fill.
+
+   **Mechanism-4 banner — under-coverage must be impossible to miss.** For each universal/app-wide
+   frontend requirement, let `N` = |surfaces|, `M` = surfaces with a planned valid proof (any tier),
+   `X` = recorded exclusions. When `M + X < N`, emit a loud line — as unmissable as an unfilled matrix
+   column — and **block Gate 2**:
+
+   `⚠ surfaces proven: <M+X>/<N> — <uncovered surfaces> have no proof; cover or record an exclusion.`
+
    **Binding gate rule — the layer-match is enforced, not advisory.** If an AC's **risk layer is
    integration / runtime / e2e and its proof artifact is at the logic/unit layer**, that row is a
    layer mismatch → `❌` and **Gate 2 is blocked**. The row passes only when the proof is **upgraded**
@@ -84,8 +102,10 @@ this phase.
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the
     verification plan has **no ❌** (or every ❌ is recorded as a human-approved coverage-gap
     exclusion with a follow-up), rollback + porting recorded, and — when track includes frontend —
-    `DESIGN.md` created/updated (see below). Write Phase 2 into the working doc and update
-    `Session status`, then STOP and wait for the user. Do not begin execution.
+    `DESIGN.md` created/updated (see below) and, for any universal/app-wide frontend requirement,
+    the proof manifest laid out **one row per (AC × surface)** with `N == M + X` (no under-coverage
+    banner standing). Write Phase 2 into the working doc and update `Session status`, then STOP and
+    wait for the user. Do not begin execution.
 
 ## Frontend track — the `DESIGN.md` contract (only when `config.track` includes frontend)
 

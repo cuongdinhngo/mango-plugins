@@ -67,6 +67,22 @@ count, and the requirements matrix.
    — and note on the requirement that review must confirm **every** item, not just a total. An
    aggregate "k/N" is not enough for a "for each" requirement: the tail can ship incomplete behind a
    passing count.
+
+   **Surface inventory — for a universal / app-wide FRONTEND requirement, the denominator N comes
+   from the CODE, never the ticket.** When the track includes frontend (confirmed at step 9) and a
+   requirement is phrased all/every/no **or is inherently page-wide** (no horizontal scroll, reflow,
+   focus-visible, contrast — anything that holds across the UI), enumerate **every reachable surface**
+   — each route, full-window overlay, modal, and major mounted state — and set **N = |surfaces|**.
+   Source the surface list from the opt-in `sitemap` (`config.docs_dir/sitemap.md`) **if present**;
+   if it was never generated, run a lightweight read-only **"enumerate reachable views"** sub-step
+   (inspect the routing/entry points). The ticket's examples are a **hint, never the denominator** —
+   counting only the surfaces the ticket named is exactly the failure this removes. Emit it as a
+   counted, challenger-checkable artifact (like `TRACK`):
+
+   `SURFACES: <N> — <surface>, <surface>, …`
+
+   A surface the change *can* affect that ends up with neither a proof nor a recorded exclusion makes
+   the requirement **incomplete** — later phases (design/execute/review) prove against this N.
 7. **Cause / gap analysis.**
    - Bug → root cause classified against `config.cause_taxonomy`, with `path:line`.
    - Enhancement → per-goal gap analysis (current vs target), with `path:line`.
@@ -108,5 +124,6 @@ count, and the requirements matrix.
     full keeps the full matrix, challenger, sweep, and gates.
 12. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
     `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled, `STRUCTURE`,
-    `TRACK`, and `TIER` declared. Write Phase 1 into the working doc and the `Session status` block,
+    `TRACK`, and `TIER` declared, and — when the track includes frontend with a universal/app-wide
+    requirement — `SURFACES: N` emitted from the code surface. Write Phase 1 into the working doc and the `Session status` block,
     then STOP and wait for the user. Do not begin design.
