@@ -54,6 +54,20 @@ coverage-gap exclusion). An aggregate "k/N" alone does not close a "for each" re
 | 1 |      |                                      |                |
 | 2 |      |                                      |                |
 
+### Surface inventory (universal / app-wide FRONTEND requirements only)
+
+For any frontend requirement phrased all/every/no **or inherently page-wide** (no horizontal scroll,
+reflow, focus-visible, contrast …), the denominator **N is the count of reachable surfaces enumerated
+from the CODE — never from the ticket prose**. Consult the opt-in `sitemap` (`config.docs_dir/sitemap.md`);
+if absent, enumerate reachable views read-only. The ticket's examples are a *hint*, never the denominator.
+
+`SURFACES: <N> — <route / full-window overlay / modal / major mounted state>, …`
+
+| # | Surface (route / overlay / modal / state) | Can the change affect it? |
+|---|-------------------------------------------|---------------------------|
+| 1 |                                           | yes / no                  |
+| 2 |                                           | yes / no                  |
+
 ## Clarifications
 
 `CLARIFICATION: <M> raised | <k> self-resolved (cited) | <j> for human decision`
@@ -101,6 +115,24 @@ challenger's "not met" apart from an unmet requirement):
 |------|-----------|--------------|-----------|
 |      |           |              |           |
 
+**Proof manifest — surface-aware (frontend integration/runtime/behavioral ACs).** `design` lays out
+**one row per (AC × affected surface)** from the Surface inventory; `execute` fills the tier + proof;
+`review` scores it. Proof tier is **elastic but never optional** — `automated` (tier-1, satisfies the
+C1–C8 automated-proof contract) → `render@<bp>` (tier-2, a recorded render/screenshot of the real
+surface at the breakpoint asserting the visible measurable — a **first-class proof, not an
+exclusion**) → `excluded` (human-approved, only when neither tier is reachable). e2e is the *top* tier
+when a runner exists, **not** the only acceptable proof.
+
+| AC | surface | risk-layer (integration/runtime/behavioral) | tier (automated / render@<bp> / excluded) | proof-cmd \| artifact | asserts (measurable) | status: PASS(automated\|render@<bp>) / EXCLUDED(approver, reason) |
+|----|---------|---------------------------------------------|-------------------------------------------|------------------------|----------------------|-------------------------------------------------------------------|
+|    |         |                                             |                                           |                        |                      |                                                                   |
+
+**Surface coverage count.** For each universal/app-wide frontend requirement: `N` = |Surface
+inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED. **Gate 2 passes iff
+`N == M + X`.** When `M + X < N`, emit the loud banner (as unmissable as an unfilled matrix column):
+
+`⚠ surfaces proven: <M+X>/<N> — <uncovered surfaces> have no proof; cover or record an exclusion.`
+
 - Rollback + porting plan across repos:
 - **DESIGN.md** (frontend track only): created/updated at `config.design_doc_path` — palette
   domain-first, shell/data-core split, Responsive & touch choices (breakpoints, nav pattern,
@@ -129,8 +161,12 @@ challenger's "not met" apart from an unmet requirement):
 - Proving test result + "would it fail without the change?":
 - Layer-match re-confirmation (no AC closed clean on a layer-mismatched proof; any `❌` is upgraded or a recorded exclusion):
 - **Frontend rubric** (frontend track only — scored against `DESIGN.md`): Core (tokens / no hardcoded hex-px / semantic HTML / state-not-by-colour-alone / reduced-motion) + M1–M10 (viewport, no-h-scroll @breakpoints+320, reflow, touch-target, input-zoom, tap/hover parity, focus-visible, contrast, safe-area, pointer parity); M10 smell ran + dispatch-assert run-or-recorded-exclusion: n/a / pass / findings
+- **Proof-manifest / surfaces proven** (frontend universal/app-wide reqs): challenger scores each row
+  (tier-1 vs C1–C8, tier-2 vs the render-proof contract), re-runs/confirms ≥1 proof (lite: confirm
+  command/artifact present), and checks `N == M + X` per requirement. `surfaces proven: <M+X>/<N>` —
+  any `M + X < N` blocks (emit the banner): n/a / <M+X>/<N>
 - `Ph3/4 proven by` filled (k/N): see matrix.
-- **Clean?** reviewer no Critical AND challenger every item met AND no layer-match ❌ unresolved AND k=N (or exclusions approved) AND proving test green → yes/no
+- **Clean?** reviewer no Critical AND challenger every item met AND no layer-match ❌ unresolved AND k=N (or exclusions approved) AND **surfaces proven N==M+X** AND proving test green → yes/no
 - **Reviewed at** (stale-review guard — recorded on a clean verdict): `<commit SHA>` · reviewed files: `<list>`. `finalise` refuses to open a PR if `HEAD` / the diff moved beyond this set, routing back here for a re-review.
 
 ## Phase 5 — Finalise ✋ final gate
