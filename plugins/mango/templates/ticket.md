@@ -10,6 +10,7 @@ ticket + the diff, never this `.work.md`. -->
 - **Repo(s) / Porting:** <which config.repos are touched; porting order if shared>
 - **SCOPE:** S | M | L
 - **STRUCTURE:** native | synthesized  <!-- synthesized → freeform ticket; confirm reading at Gate 0 -->
+- **TRACK:** backend | frontend | fullstack  <!-- counted artifact from analysis; orthogonal to TIER; selects which gate set (frontend adds the a11y/token + M1–M10 rubric) -->
 - **TIER:** lite | full  <!-- lite routes through /mango:quick; full = five-phase flow -->
 
 ---
@@ -101,6 +102,9 @@ challenger's "not met" apart from an unmet requirement):
 |      |           |              |           |
 
 - Rollback + porting plan across repos:
+- **DESIGN.md** (frontend track only): created/updated at `config.design_doc_path` — palette
+  domain-first, shell/data-core split, Responsive & touch choices (breakpoints, nav pattern,
+  collapse/reflow, thumb-zone, motion): n/a / done
 - SCOPE confirmed:
 - **Gate 2 status:** waiting on user / cleared
 
@@ -124,6 +128,7 @@ challenger's "not met" apart from an unmet requirement):
 - Regression on Phase-1 callers:
 - Proving test result + "would it fail without the change?":
 - Layer-match re-confirmation (no AC closed clean on a layer-mismatched proof; any `❌` is upgraded or a recorded exclusion):
+- **Frontend rubric** (frontend track only — scored against `DESIGN.md`): Core (tokens / no hardcoded hex-px / semantic HTML / state-not-by-colour-alone / reduced-motion) + M1–M10 (viewport, no-h-scroll @breakpoints+320, reflow, touch-target, input-zoom, tap/hover parity, focus-visible, contrast, safe-area, pointer parity); M10 smell ran + dispatch-assert run-or-recorded-exclusion: n/a / pass / findings
 - `Ph3/4 proven by` filled (k/N): see matrix.
 - **Clean?** reviewer no Critical AND challenger every item met AND no layer-match ❌ unresolved AND k=N (or exclusions approved) AND proving test green → yes/no
 - **Reviewed at** (stale-review guard — recorded on a clean verdict): `<commit SHA>` · reviewed files: `<list>`. `finalise` refuses to open a PR if `HEAD` / the diff moved beyond this set, routing back here for a re-review.

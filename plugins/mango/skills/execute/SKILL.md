@@ -45,6 +45,22 @@ directly — never spawn a model for a one-line shell command.
    and `Ph3/4 proven by` progress), update `Session status`, then flow straight into the `review`
    phase. Do not perform any outward action (no push, no PR, no tracker write).
 
+## Frontend track — token-first + input-agnostic (only when `config.track` includes frontend)
+
+When TRACK includes frontend, implement the approved change list under these rules (still nothing
+beyond the approved list):
+
+- **Token-first (greppable).** All colour / spacing / radius / font go through the **design tokens**
+  (theme + CSS custom properties) declared in `config.design_doc_path` (`DESIGN.md`). **No scattered
+  hardcoded hex/px** in component code — the review rubric greps for raw `#rrggbb` / `NNpx`.
+- **Input-agnostic interactions.** Use **Pointer Events**, not mouse-only handlers
+  (`mousedown`/`mousemove`/`clientX`). **No affordance gated solely on `:hover`** — every action and
+  any information shown on hover must also be reachable by tap + focus.
+- **Compose the aesthetic layer; never own it.** If a taste/design skill is installed, compose it for
+  aesthetic generation; **if none is installed, follow `DESIGN.md`** and proceed. **Never stop because
+  a taste skill is absent** — mango blocks only on a missing measurable number, never on a missing
+  aesthetic.
+
 ## Escalations (mandatory STOP conditions)
 
 These interrupt the autonomous flow. Both record the finding in the working doc before stopping.

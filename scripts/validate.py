@@ -32,10 +32,10 @@ RESERVED_NAMES = {
 # (case-insensitive regex). This guards that an edit cannot quietly drop the
 # counted, gate-blocking artifact a skill is responsible for.
 SKILL_CONTRACTS = {
-    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each"],
-    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block"],
-    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat"],
-    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at"],
+    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK"],
+    "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive"],
+    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer"],
+    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target"],
     "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale"],
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew"],
     "quick": [r"proving test", r"combined gate", r"stuck"],

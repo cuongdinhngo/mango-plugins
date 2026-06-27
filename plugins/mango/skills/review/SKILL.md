@@ -28,7 +28,10 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
 
 1. **Run the reviewer agent** on the working-tree diff — `reviewer` or `reviewer-max` per the
    **Reviewer selection** rule above. It reads `config.rulebook_path` / `config.standards_path` and
-   returns a verdict (BLOCK / CHANGES REQUESTED / LGTM) plus findings.
+   returns a verdict (BLOCK / CHANGES REQUESTED / LGTM) plus findings. **When TRACK (from analysis)
+   includes frontend, inject `${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md` into the reviewer's
+   brief** (and the challenger's) so it also scores the frontend rubric — see the **Frontend track**
+   section below. Do **not** fork the agents per track; the rubric is injected content.
 2. **Run the `challenger` agent ticket-blind.** **Construct its input explicitly** so independence
    is procedural, not just requested: build the payload as exactly *(a)* the **raw ticket portion
    only** plus *(b)* the diff/branch. Source the raw ticket by `config.work_doc_mode`:
@@ -77,3 +80,31 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
     the reviewed-file list) into the working doc's Phase-4 slot. A clean review is scoped to that
     commit: `finalise` compares the live tree against this marker and **refuses** to open a PR if the
     diff moved beyond it, routing back here for a re-review (see `finalise`).
+
+## Frontend track — score the rubric against `DESIGN.md` (only when `config.track` includes frontend)
+
+When TRACK includes frontend, the reviewer **and** the challenger also score
+`${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md`. Every rubric item is **falsifiable**
+(measurable or greppable) and is checked **against the project's `DESIGN.md`**
+(`config.design_doc_path`), never against a blanket aesthetic rule — "is it tasteful?" is **out** of
+the rubric; taste exists only as `DESIGN.md` conformance. The rubric covers:
+
+- **Core (always):** matches `DESIGN.md` (colour/font/spacing/radius from agreed tokens); no
+  hardcoded hex/px outside tokens (grep); semantic HTML; **state never by colour alone** (icon +
+  text); `prefers-reduced-motion` respected; no aesthetic change mixed into a logic/backend PR.
+- **Responsive & touch — M1–M10 (all falsifiable):** viewport meta / zoom (M1), no horizontal scroll
+  at each breakpoint + the 320 px floor (M2), reflow @320 px (M3), **touch-target** ≥ 44×44 px with
+  ≥ 8 px spacing (M4), input zoom guard ≥ 16 px (M5), tap/hover parity (M6), focus-visible + ≥ 3:1
+  indicator (M7), contrast (M8), safe-area respect (M9), pointer-input parity (M10). These are the
+  **a11y** / responsive gates; each carries its risk layer for the layer-match gate.
+
+**Layer-match re-confirmation extends to the frontend ACs (do not fork it).** Each M-gate carries a
+risk layer above the logic/unit layer (`document` / `computed-style` / `integration/runtime` /
+`behavioral`); a unit-only proof (mocked DOM) clears **none** of them. Re-confirm at step 8 that no
+frontend AC closed clean on a layer-mismatched proof — a `❌` blocks clean unless it is a recorded,
+human-approved coverage-gap exclusion.
+
+**M10 degrades gracefully — it never wedges the review.** Its always-on greppable smell (a mouse-only
+handler or hover-only interaction with no pointer/touch equivalent) always runs and can block; its
+best-effort behavioral dispatch-assert runs **only when the environment can**, and when it can't it
+is recorded as a named human-approved coverage-gap exclusion rather than blocking.

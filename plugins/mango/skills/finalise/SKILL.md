@@ -38,6 +38,11 @@ goes through `config.tracker.cli` — **never** an MCP.
    - open a PR via `config.pr_host`;
    - tracker comment (via `config.tracker.cli`);
    - tracker transition (via `config.tracker.cli`).
+   **Frontend-track PR discipline (when `config.track` includes frontend):** do **not** mix
+   aesthetic/responsive changes into a logic/backend PR — they ride a **separate branch** (per
+   `config.branch_strategy`). If the diff has crossed from one into the other, surface it here as an
+   *outgrew-its-ticket* split rather than shipping a mixed PR. Reuse the existing per-action approval +
+   dry-run below; this adds no new outward action.
 5. **Require explicit, separate approval per action.** Present the list (and any not-satisfied
    checklist items from step 2) and **stop**. Take NO outward action until the user approves each one
    individually. Silence ≠ approval. Default to dry-run: show the exact command you would run for each.

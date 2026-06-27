@@ -82,11 +82,23 @@ count, and the requirements matrix.
    (reading many files to pull facts) to the Haiku `extractor` worker, more so when
    `config.cost_tier` is `economy`. Run grep/test/lint via the Bash tool directly — never spawn a
    model for a one-line shell command.
-9. **Scope.** Declare `SCOPE: S|M|L`. This is the **baseline** the *outgrew-its-ticket* nudge
+9. **TRACK — emit as a counted artifact.** Declare which gate set(s) apply, using `config.track`
+   when set, otherwise **infer from touched files** (step 8's blast radius). Emit:
+
+   `TRACK: backend | frontend | fullstack — <k>/<N> touched files under UI paths`
+
+   Use `frontend` when the materially-touched files are predominantly UI; `fullstack` when **both**
+   the UI side and a server/data side are materially touched; `backend` otherwise. **TRACK is
+   orthogonal to TIER** — TIER is process weight, TRACK is which gate set applies; a ticket may be
+   `track=frontend` + `TIER=lite`. When TRACK includes frontend and any declared `config.breakpoints`
+   width is a **small viewport** (or the 320 px floor applies), note that the **width-parametric gates
+   (M2 no horizontal scroll, M3 reflow @320 px) are in scope** — so the challenger counts them at
+   review. On `track=backend` this is a one-line declaration and nothing else in the phase changes.
+10. **Scope.** Declare `SCOPE: S|M|L`. This is the **baseline** the *outgrew-its-ticket* nudge
    (`solve`) compares the realized scope against at later gates: if the realized scope crosses up a
    tier (S/M → L) or the diff materially exceeds the approved one, a later gate stops to re-scope or
    split rather than silently absorbing the growth.
-10. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
+11. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
     **resolved inventory denominator N** (from the step-6 numbered inventory), **not** on the mere
     presence of universal wording. A requirement that *sounds* universal ("all/every/no") but
     resolves to **N = 1** is lite-eligible — a single-site change already covers "all". Choose
@@ -94,7 +106,7 @@ count, and the requirements matrix.
     requirement with N > 1** (N=1 does not disqualify), and the ticket is not security-tagged.
     Otherwise **full** (the existing five-phase behaviour). Lite routes through the `quick` skill;
     full keeps the full matrix, challenger, sweep, and gates.
-11. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
-    `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled, `STRUCTURE` and
-    `TIER` declared. Write Phase 1 into the working doc and the `Session status` block, then STOP
-    and wait for the user. Do not begin design.
+12. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
+    `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled, `STRUCTURE`,
+    `TRACK`, and `TIER` declared. Write Phase 1 into the working doc and the `Session status` block,
+    then STOP and wait for the user. Do not begin design.

@@ -47,6 +47,15 @@ this phase.
    by a pure-logic test. Do **not** triage on keywords alone — the gate keys on the **risk-layer vs
    proof-layer comparison** the plan records; the wording is only a hint to classify the risk layer.
 
+   **Frontend ACs (when `config.track` includes frontend) are classified honestly by the same rule.**
+   A "renders / responsive / no horizontal scroll / contrast / focus / a11y / touch-target" AC has an
+   **integration/runtime** (or `document` / `computed-style`) risk layer — never pure logic. A
+   unit-only proof (a mocked DOM) is a layer-match `❌` and **blocks Gate 2**; it clears only with an
+   integration/e2e proof against a **real rendered DOM** (or the served document for the viewport-meta
+   gate), or a recorded human-approved coverage-gap exclusion. The M1–M10 risk-layer floor in
+   `${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md` lists each gate's layer; reuse the v0.6
+   layer-match mechanism here — do not fork it.
+
    **Binding gate rule — the layer-match is enforced, not advisory.** If an AC's **risk layer is
    integration / runtime / e2e and its proof artifact is at the logic/unit layer**, that row is a
    layer mismatch → `❌` and **Gate 2 is blocked**. The row passes only when the proof is **upgraded**
@@ -74,5 +83,32 @@ this phase.
     covered by` filled `k/N`, every assumption tagged and every `novel-untested` 3p/runtime one
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the
     verification plan has **no ❌** (or every ❌ is recorded as a human-approved coverage-gap
-    exclusion with a follow-up), rollback + porting recorded. Write Phase 2 into the working doc
-    and update `Session status`, then STOP and wait for the user. Do not begin execution.
+    exclusion with a follow-up), rollback + porting recorded, and — when track includes frontend —
+    `DESIGN.md` created/updated (see below). Write Phase 2 into the working doc and update
+    `Session status`, then STOP and wait for the user. Do not begin execution.
+
+## Frontend track — the `DESIGN.md` contract (only when `config.track` includes frontend)
+
+When TRACK (from analysis) includes frontend, **create or update the project design contract** at
+`config.design_doc_path` (default `DESIGN.md`) from `${CLAUDE_PLUGIN_ROOT}/templates/design-doc.md`
+**before naming the verification plan (step 6)** — the frontend rubric is scored *against this file*,
+so it must exist and be current. Hard rules for it:
+
+- **Palette derives from domain meaning FIRST, general aesthetic rules SECOND.** A blanket rule (e.g.
+  "ban colour X") must yield to domain meaning — a domain term may literally denote that colour.
+  Record each token's meaning so the reviewer checks against the contract, not a blanket rule.
+- **Separate "shell" (character-rich pages) from "data-core" (tables/grids/charts):** data-core is
+  **legibility-first and static**; a data-core region may scroll inside its own bounded container, but
+  the document must not.
+- Include the generic **"Responsive & touch"** section: declared breakpoints (mirror
+  `config.breakpoints`); the narrow-width **navigation pattern**; which regions **collapse vs reflow
+  vs scroll-in-container**; thumb-zone priority; the **motion** policy (honour `prefers-reduced-motion`,
+  limit animation to `transform`/`opacity`). These are the **choices** the responsive gates (M2/M3
+  and the rest of M1–M10) are scored against — they live here, never gated by mango.
+
+**Own the durable, compose the volatile.** mango owns only the measurable/greppable conformance to
+this contract. The *aesthetic-generation* layer is **composed, never owned**: call an installed taste
+skill if present, else follow `DESIGN.md` — **never stop because a taste skill is missing** (mango
+blocks on a missing **number**, never on a missing aesthetic). The breakpoint **values**, the
+narrow-width **navigation pattern**, and which regions **collapse vs reflow** are `DESIGN.md` choices,
+not mango gates.
