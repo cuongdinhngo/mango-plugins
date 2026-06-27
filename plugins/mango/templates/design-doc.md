@@ -39,8 +39,8 @@ State is **never conveyed by colour alone** — every status carries an icon + t
 
 Separate the two surface kinds; they have different design goals.
 
-- **Shell** — character-rich pages (landing, marketing, navigation chrome, empty states). Expression
-  and brand live here.
+- **Shell** — character-rich pages (landing, marketing, navigation/header regions, empty states).
+  Expression and brand live here.
 - **Data-core** — tables, grids, dense forms, charts. **Legibility-first and static**: restrained
   motion, high contrast, predictable layout. A `data-core` region may scroll **inside its own bounded
   container**, but the document itself must not (see M2).

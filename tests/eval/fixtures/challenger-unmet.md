@@ -12,29 +12,21 @@
 ```diff
 --- a/src/contact_form.js
 +++ b/src/contact_form.js
-@@ -8,6 +8,16 @@ import { useState } from "react";
- function ContactForm() {
-   const [email, setEmail] = useState("");
-+  const [error, setError] = useState("");
+@@ -8,6 +8,18 @@ function initContactForm(root) {
+   const input = root.querySelector("#email");
++  const errorEl = root.querySelector(".err");
 +
 +  function validate(value) {
 +    if (!value.includes("@")) {
-+      setError("Enter a valid email");
++      errorEl.textContent = "Enter a valid email";
 +      return false;
 +    }
-+    setError("");
++    errorEl.textContent = "";
 +    return true;
 +  }
- 
-   return (
-     <form>
-@@ -16,7 +26,8 @@ function ContactForm() {
-       <label>Email</label>
--      <input value={email} onChange={(e) => setEmail(e.target.value)} />
-+      <input value={email} onChange={(e) => { setEmail(e.target.value); validate(e.target.value); }} />
-+      {error && <span className="err">{error}</span>}
-       <button type="submit">Send</button>
-     </form>
-   );
++
++  input.addEventListener("input", (e) => {
++    validate(e.target.value);
++  });
  }
 ```
