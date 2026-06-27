@@ -62,10 +62,12 @@ run_prompt() {
   echo "$transcript"
 }
 
-# full: expects the SECTIONS count line and a Gate 1 stop.
+# full: expects the SECTIONS count line and a stop at a pre-code gate. analysis stops at Gate 1
+# when clean, OR Gate 0 when it raises clarifications (j>0) — a universal "all signup paths"
+# requirement with an un-enumerable N legitimately surfaces Gate-0 questions, so accept either.
 t="$(run_fixture full 'Run the mango analysis skill on this ticket. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "full: SECTIONS count line" "$t" 'SECTIONS:'
-assert_contains "full: Gate 1"             "$t" 'Gate 1'
+assert_contains "full: SECTIONS count line"        "$t" 'SECTIONS:'
+assert_contains "full: stops at a pre-code gate"   "$t" 'Gate[ -]?[01]'
 
 # lite: a trivial ticket should be triaged TIER: lite.
 t="$(run_fixture lite 'Run the mango analysis skill on this ticket and declare the TIER.')"
