@@ -3,6 +3,60 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] — 2026-06-27
+
+A new **frontend track**: an opt-in gate set for UI work, riding the v0.6 layer-match hard gate
+rather than forking it. The design boundary throughout is **own the durable, compose the volatile** —
+mango embeds only UI knowledge that is **measurable or greppable** (a11y thresholds, token-first,
+conformance to a per-project `DESIGN.md`) and **composes, never owns,** the aesthetic-generation
+layer: it calls an external taste skill if one is installed, else follows `DESIGN.md`, and **never
+stops because a taste skill is missing.** mango blocks on a missing *number*, never on a missing
+aesthetic. The backend path is unchanged: a `track=backend` ticket runs exactly as in v0.6. Generic
+and stack-agnostic throughout — no framework, library, product, or device specifics ship.
+
+### Added / Changed
+- **F1 — `track` config + TRACK artifact (orthogonal to TIER).** New `track`
+  (`backend|frontend|fullstack`, default `backend`) selects which gate set applies; `analysis` emits
+  `TRACK: … — k/N touched files under UI paths` as a **counted artifact** the challenger can check,
+  using `config.track` or inferring from touched-file paths. `track` is **orthogonal to TIER** (TIER
+  = process weight, track = which gates), so a ticket may be `track=frontend` + `TIER=lite`;
+  `fullstack` applies both gate sets. When a declared `breakpoints` width is a small viewport, the
+  width-parametric gates (M2/M3) are noted in scope. New optional `breakpoints` and `design_doc_path`
+  keys. New `TRACK` field in the working-doc template; validator requires the `analysis` `TRACK`
+  token.
+- **F2 — per-project `DESIGN.md` contract.** On the frontend track, `design` creates/updates a
+  `DESIGN.md` (at `config.design_doc_path`) from a new `templates/design-doc.md`: palette derives
+  from **domain meaning first, general rules second** (a blanket "ban colour X" yields to a domain
+  term that denotes that colour); a **shell** (character-rich) vs **data-core** (tables/grids/charts,
+  legibility-first, static) split; and a generic **Responsive & touch** section (declared
+  breakpoints, narrow-width navigation pattern, which regions collapse vs reflow vs
+  scroll-in-container, thumb-zone, motion). These are project **choices** the gates are scored
+  against — they live in `DESIGN.md`, never gated by mango. Validator requires the `design`
+  `DESIGN.md` / `data-core` / `responsive` tokens.
+- **F3 — falsifiable a11y/token + M1–M10 responsive/touch rubric.** A new
+  `templates/frontend-rubric.md` the `review` skill injects into the reviewer/challenger brief when
+  track includes frontend (the agents stay generic — no per-track fork). Every item is **falsifiable**
+  (measurable or greppable) and scored **against `DESIGN.md`** — "is it tasteful?" is out of the
+  rubric. Core items (token-first, no hardcoded hex/px, semantic HTML, state-not-by-colour-alone,
+  reduced-motion) plus the **M1–M10** gates (viewport/zoom, no horizontal scroll at each breakpoint +
+  the 320 px floor, reflow @320 px, touch-target ≥ 44×44 px, input-zoom ≥ 16 px, tap/hover parity,
+  focus-visible, contrast, safe-area, pointer-input parity). Constants (44/24 px, 16 px, 4.5:1,
+  320 px) are **standards**, not config.
+- **F4 — frontend ACs ride the layer-match hard gate (reused, not forked).** A
+  "renders/responsive/contrast/a11y" AC has an integration/runtime (or `document`/`computed-style`)
+  risk layer; a unit-only proof against a mocked DOM is a layer-match `❌` and **blocks Gate 2** —
+  clearing only with a proof against a **real rendered DOM** (or the served document for the
+  viewport-meta gate) or a recorded human-approved coverage-gap exclusion. A **risk-layer floor**
+  puts `document`/`computed-style`/`integration-runtime`/`behavioral` all above the logic/unit layer.
+  `review` re-confirms no frontend AC closed clean on a layer-mismatched proof. `execute` goes
+  **token-first** (all colour/spacing/radius/font through tokens; no scattered hex/px) and
+  **input-agnostic** (Pointer Events, no affordance gated solely on `:hover`). **M10 degrades
+  gracefully:** an always-on greppable smell (mouse-only / hover-only) can block, while the
+  best-effort pointer/touch dispatch-assert runs only when the environment can — else it is recorded
+  as a coverage-gap exclusion and never wedges the gate. New generic eval fixtures assert the @320 px
+  unit-proof block and the hover-only/mouse-only flag. Validator requires the `execute`
+  `token-first`/`pointer` and `review` `a11y`/`DESIGN.md`/`touch-target` tokens.
+
 ## [0.6.0] — 2026-06-24
 
 Four fixes from a real run where the gates caught a 4× scope explosion but one of the most
