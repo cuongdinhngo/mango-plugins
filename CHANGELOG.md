@@ -3,6 +3,56 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] — 2026-06-27
+
+Surface-coverage + tiered UI proof, built **on top of** the v0.7 frontend gates (reusing `track`,
+`TIER`, the layer-match hard gate, the per-AC verification plan, the counted-artifact pattern, the
+opt-in `sitemap`, and the existing exclusion record — no parallel mechanism). On two real frontend
+field tests the full pipeline went **green and still shipped broken UI** — under *opposite* harness
+conditions (one with full e2e, one with none). The shared root cause was **not** weak proofs: it was a
+**wrong denominator on the surface axis** — the verification counted the surfaces the *ticket* named,
+while the failures lived on reachable surfaces the ticket never mentioned. A green gate proved the
+wrong N. Generic and stack-agnostic throughout — no framework, library, test-runner, product, or
+device specifics ship. Backend is untouched, and a frontend ticket with no integration/runtime AC runs
+exactly as in v0.7.
+
+### Added / Changed
+- **S1 — Surface coverage: N comes from the CODE, not the ticket (the fix).** For a universal /
+  app-wide frontend requirement (no horizontal scroll, reflow, focus-visible, contrast — anything
+  phrased all/every/no or inherently page-wide), `analysis` enumerates **every reachable surface**
+  (route / full-window overlay / modal / major mounted state) from the code surface — the opt-in
+  `sitemap` (`config.docs_dir/sitemap.md`) if present, else a read-only "enumerate reachable views"
+  sub-step — and emits a counted, challenger-checkable `SURFACES: N`. The ticket's examples are a
+  **hint, never the denominator**. New surface-inventory slot in the working-doc template; validator
+  requires the `analysis` `SURFACES` token. *(Observed: "I tested the surfaces the ticket named" passed
+  the gate while reachable surfaces the ticket never mentioned shipped broken.)*
+- **S2 — Elastic proof tier: e2e optional, a proof not.** A frontend AC's risk-layer proof is
+  satisfied by the **highest available tier**, recorded per surface in a **proof manifest** beside the
+  verification plan: `PASS(automated)` (tier-1, satisfying the **C1–C8** automated-proof contract by
+  composing the *project's* declared runner — detected from declared test scripts / `config.test_command`,
+  **mango bundles none**) → `PASS(render@<bp>)` (tier-2, a recorded render of the real surface at the
+  breakpoint asserting the visible measurable — a **first-class proof, NOT an exclusion**, the cheap
+  reality-facing check both field tests were missing) → `EXCLUDED(approver, reason)` (only when neither
+  tier is reachable; reuses the v0.6/T2 exclusion record). `execute` **never stops for a missing
+  runner** — it scaffolds tier-1 per the new runner-agnostic `templates/ui-proof-scaffold.md`, else
+  records a tier-2 render proof, else an exclusion. Dropping a tier because there is no runner is fine;
+  dropping to *nothing* blocks the gate. Validator requires the `execute` `render` / `proof-manifest` /
+  `ui-proof-scaffold` tokens. *(Observed: with no test runner, the proving-test gate degraded to a
+  silent exclusion instead of demanding the one cheap proof that exists — render the surface and look.)*
+- **S3 — Counted `N == M + X` gate + loud banner.** `design` lays out the verification plan / manifest
+  **one row per (AC × affected surface)**; `review`'s challenger scores each entry (tier-1 vs C1–C8,
+  tier-2 vs the render-proof contract) and **re-runs ≥1** tier-1 `proof-cmd` (or confirms a tier-2
+  render artifact) to defeat fabricated entries. With `N` = |surfaces|, `M` = surfaces with a valid
+  PASS (any tier), `X` = recorded EXCLUDED, **the gate passes iff `N == M + X`** — otherwise
+  `design`/`review` emit `⚠ surfaces proven: k/N — <uncovered> have no proof; cover or record an
+  exclusion` and block, as unmissable as an unfilled matrix column. The challenger keeps its
+  ticket-blindness: it re-enumerates surfaces from the branch code rather than reading the working-doc
+  manifest. Under `TIER=lite` the re-run lightens to confirming command/artifact presence — coverage,
+  the manifest, and a proof per surface stay mandatory. New generic eval fixtures assert the `k<N`
+  block and the no-runner `PASS(render@<bp>)`. Validator requires the `review` `proof-manifest` /
+  `surfaces proven` tokens. mango **owns** the coverage rule, tier ladder, manifest schema, and
+  scaffold spec; it **composes** the runner and bundles none.
+
 ## [0.7.0] — 2026-06-27
 
 A new **frontend track**: an opt-in gate set for UI work, riding the v0.6 layer-match hard gate
