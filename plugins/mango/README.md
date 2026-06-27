@@ -75,6 +75,59 @@ The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think bef
 simplicity first, surgical changes, goal-driven execution — plus the boundary that **mango generates
 the descriptive and facilitates the normative, but never authors the normative.**
 
+### Frontend track — measurable UI gates, composed taste
+
+`config.track` (`backend|frontend|fullstack`, default `backend`) selects which gate set applies. It
+is **orthogonal to TIER** (TIER = process weight; track = which gates), so a ticket may be
+`track=frontend` + `TIER=lite`. `analysis` emits `TRACK: … — k/N touched files under UI paths` as a
+**counted artifact** (from `config.track`, else inferred from touched-file paths) that the challenger
+can check. A `track=backend` ticket runs **exactly as in v0.6** — none of the gates below apply.
+
+**The design boundary: own the durable, compose the volatile.** mango embeds only UI knowledge that
+is **durable + falsifiable** — a11y thresholds it can *measure*, token-first it can *grep*,
+conformance to a per-project **`DESIGN.md`** contract. It **composes, never owns,** the
+*aesthetic-generation* layer: it calls an external taste skill **if installed**, else follows
+`DESIGN.md`, and **never stops because a taste skill is missing.** mango blocks on a missing
+**number**, never on a missing aesthetic. Breakpoint **values**, the narrow-width **navigation
+pattern**, and which regions **collapse vs reflow** are *choices* → they live in `DESIGN.md`.
+
+- **`DESIGN.md` contract** (built by `design` from `templates/design-doc.md` at `config.design_doc_path`):
+  palette **domain-meaning-first, general rules second** (a blanket "ban colour X" yields to a domain
+  term that denotes it); a **shell** (character-rich) vs **data-core** (tables/grids/charts —
+  legibility-first, static) split; and a **Responsive & touch** section (declared breakpoints,
+  narrow-width navigation pattern, collapse vs reflow vs scroll-in-container, thumb-zone, motion).
+- **Falsifiable rubric** (`templates/frontend-rubric.md`, injected by `review` into the
+  reviewer/challenger brief — the agents are **not** forked per track): every item is measurable or
+  greppable and scored **against `DESIGN.md`**; "is it tasteful?" is out of scope. Core items
+  (token-first, no hardcoded hex/px, semantic HTML, state-not-by-colour-alone, `prefers-reduced-motion`)
+  plus the **M1–M10** responsive/touch gates:
+
+  | | Gate | Threshold |
+  |---|------|-----------|
+  | M1 | viewport meta / zoom not disabled | `width=device-width, initial-scale=1`; no `user-scalable=no` |
+  | M2 | no horizontal page scroll at each breakpoint + 320 px floor | `scrollWidth ≤ clientWidth` |
+  | M3 | reflow @320 px, no 2-D scroll | WCAG 1.4.10 |
+  | M4 | touch-target size + spacing | ≥ 44×44 px (floor 24×24); ≥ 8 px apart |
+  | M5 | input zoom guard | control `font-size ≥ 16px` |
+  | M6 | tap/hover parity | nothing exposed only via `:hover` |
+  | M7 | focus-visible + indicator contrast | ≥ 3:1 |
+  | M8 | contrast | text ≥ 4.5:1; UI/state ≥ 3:1 |
+  | M9 | safe-area respect | fixed/sticky edges use `env(safe-area-inset-*)` |
+  | M10 | pointer-input parity | drag/resize/hover also fire via Pointer Events |
+
+  Constants (44/24 px, 16 px, 4.5:1, 320 px) are **standards** → fixed, not config.
+- **Layer-match hard gate (reused from v0.6, not forked).** A "renders/responsive/contrast/a11y" AC
+  has an integration/runtime (or `document`/`computed-style`) risk layer; a unit-only proof against a
+  mocked DOM is `❌` and **blocks Gate 2**, clearing only with a proof against a **real rendered DOM**
+  (or the served document for M1) or a recorded human-approved coverage-gap exclusion. A
+  **risk-layer floor** puts `document`/`computed-style`/`integration-runtime`/`behavioral` all above
+  the logic/unit layer. `execute` is **token-first** and **input-agnostic** (Pointer Events, no
+  affordance gated solely on `:hover`).
+- **M10 degrades gracefully — never wedges review.** Its always-on greppable smell (a mouse-only or
+  hover-only handler with no pointer/touch equivalent) can block; its best-effort pointer/touch
+  dispatch-assert runs **only when the environment can** — otherwise it is recorded as a named
+  human-approved coverage-gap exclusion. A non-runnable M10 never blocks the gate.
+
 ## Supporting skills
 
 Beyond the gated lifecycle, these skills set up, diagnose, build knowledge about, or describe a
