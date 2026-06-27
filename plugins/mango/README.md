@@ -63,10 +63,10 @@ resolves to N > 1.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
-| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. |
-| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and **blocks Gate 2** unless the proof is upgraded or recorded as a human-approved **coverage-gap exclusion**), the proving test named at the matching layer, rollback + porting. |
-| `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the working-doc portion), scope reconciliation, regression check, **layer-match re-confirmation** (no AC closed clean on a layer-mismatched proof), proving-test result, `k/N` coverage. A challenger "not met" matching a recorded coverage-gap exclusion does not block; an unrecorded gap does. On a clean verdict it records a **`Reviewed at <sha>` marker** (commit + reviewed files) for the stale-review guard. |
+| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. On the **frontend** track also emits `SURFACES: N` (reachable surfaces enumerated from code) for any universal/app-wide requirement. |
+| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and **blocks Gate 2** unless the proof is upgraded or recorded as a human-approved **coverage-gap exclusion**), the proving test named at the matching layer, rollback + porting. On the **frontend** track also creates/updates **`DESIGN.md`** and lays out the verification plan **one row per (AC × surface)**, emitting `⚠ surfaces proven: k/N` when under-covered. |
+| `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). On the **frontend** track emits the **proof manifest** — the highest-tier proof per surface (`automated`→`render@<bp>`→`excluded`); **never stops for a missing runner**. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the working-doc portion), scope reconciliation, regression check, **layer-match re-confirmation** (no AC closed clean on a layer-mismatched proof), proving-test result, `k/N` coverage. A challenger "not met" matching a recorded coverage-gap exclusion does not block; an unrecorded gap does. On the **frontend** track also scores the **proof manifest** and the **`N == M + X`** surface check (`surfaces proven: k/N`). On a clean verdict it records a **`Reviewed at <sha>` marker** (commit + reviewed files) for the stale-review guard. |
 | `/mango:finalise` | 5 → final gate | **Stale-review guard** (refuses to open a PR if `HEAD`/the diff moved beyond the `Reviewed at` commit, routing back to `review`), optional **project finalise-checklist** walk (`pr_checklist_path`), PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
 | `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. Carries the reviewed-commit marker across review→finalise (a re-run of execute/design after a clean review marks it stale) and raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split rather than silently absorbing the growth. |
@@ -127,6 +127,31 @@ pattern**, and which regions **collapse vs reflow** are *choices* → they live 
   hover-only handler with no pointer/touch equivalent) can block; its best-effort pointer/touch
   dispatch-assert runs **only when the environment can** — otherwise it is recorded as a named
   human-approved coverage-gap exclusion. A non-runnable M10 never blocks the gate.
+
+#### Surface coverage + tiered UI proof (the denominator comes from the code)
+
+Two real field tests went **green and still shipped broken UI** — once with full e2e, once with none.
+The shared root cause was a **wrong denominator**: the verification counted the surfaces the *ticket*
+named, while the failures lived on reachable surfaces it never mentioned. v0.8 fixes the axis:
+
+- **Surface coverage.** For a universal / app-wide frontend requirement, `analysis` enumerates every
+  reachable surface (route / full-window overlay / modal / major mounted state) from the **code** —
+  the opt-in `sitemap` if present, else a read-only "enumerate reachable views" sub-step — and emits a
+  counted, challenger-checkable `SURFACES: N`. The ticket's examples are a **hint, never the
+  denominator**.
+- **Elastic proof tier — e2e is optional, a proof is not.** `execute` records, per affected surface,
+  the **highest available tier** in a **proof manifest**: `PASS(automated)` (tier-1, satisfying the
+  **C1–C8** automated-proof contract by composing the *project's* runner — mango bundles none) →
+  `PASS(render@<bp>)` (tier-2, a recorded render of the real surface at the breakpoint asserting the
+  visible measurable — a **first-class proof, not an exclusion**) → `EXCLUDED` (human-approved, only
+  when neither is reachable). mango **never stops for a missing runner**: it scaffolds tier-1 per
+  `templates/ui-proof-scaffold.md`, else records a tier-2 render proof, else an exclusion.
+- **Counted gate + loud banner.** `review`'s challenger scores the manifest (tier-1 vs C1–C8, tier-2
+  vs the render-proof contract) and re-runs/confirms ≥1 proof. With `N` = |surfaces|, `M` = surfaces
+  with a valid PASS (any tier), `X` = recorded exclusions, **Gate 2 passes iff `N == M + X`**;
+  otherwise `design`/`review` emit `⚠ surfaces proven: k/N — <uncovered> have no proof` and block. A
+  proof covering 2 of 5 reachable surfaces reads `surfaces proven: 2/5` and is blocked. Under
+  `TIER=lite` the re-run lightens to confirming command/artifact presence — coverage stays mandatory.
 
 ## Supporting skills
 
