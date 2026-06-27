@@ -49,12 +49,21 @@ is lite-eligible. `/mango:quick` enforces this with a hard entry check: it **ref
 `/mango:solve` if the ticket is security-tagged, touches more than one file, or has a universal
 requirement that resolves to N > 1.
 
+`config.track` (`backend|frontend|fullstack`, default `backend`) selects which **gate set** applies —
+**orthogonal to TIER** (TIER = process weight; track = which gates). `backend` runs exactly as before.
+On the **frontend** track `analysis` emits a counted `TRACK` artifact, `design` builds a per-project
+**`DESIGN.md`** contract, and `review` scores a falsifiable a11y/token + **M1–M10** responsive/touch
+rubric — all riding the existing layer-match hard gate. mango embeds only the measurable/greppable
+part (**own the durable**) and **composes, never owns,** the aesthetic layer: it calls a taste skill
+if installed, else follows `DESIGN.md`, and never stops because one is missing. See the
+[plugin README](./plugins/mango/README.md#frontend-track--measurable-ui-gates-composed-taste).
+
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. |
-| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan** (proof at the layer where the requirement can fail — no `❌`), rollback + porting. |
+| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and blocks Gate 2), rollback + porting. On the **frontend** track also creates/updates the **`DESIGN.md`** contract. |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation, regression check, proving-test result, `k/N` coverage. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation, regression check, layer-match re-confirmation, proving-test result, `k/N` coverage. On the **frontend** track also scores the **M1–M10** a11y/token rubric against `DESIGN.md` (injected into the brief — agents stay generic). |
 | `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
 | `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
@@ -100,9 +109,11 @@ load-bearing artifact). CI additionally runs `claude plugin validate ./plugins/m
 `claude plugin validate . --strict` as a **best-effort, non-blocking** step.
 
 The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets and asserts the
-expected artifacts — the analysis happy path plus the higher-risk v0.3 behaviours (proof at the
+expected artifacts — the analysis happy path, the higher-risk lifecycle behaviours (proof at the
 risk layer, the ticket-blind challenger catching an unmet AC, the design-invalidated escalation, and
-the stuck-detector). It costs tokens, so CI runs it only via the manual `eval.yml` workflow
+the stuck-detector), and the **frontend track** (a "no horizontal overflow @320 px" AC backed only by
+a unit proof is layer-matched `❌` and blocks Gate 2; the rubric flags a hover-only / mouse-only
+handler). It costs tokens, so CI runs it only via the manual `eval.yml` workflow
 (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 ## Publish
