@@ -131,6 +131,13 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
   proving artifact), `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`,
   `pr_host`, `cause_taxonomy`, `explore_fanout` (default `true`), `cost_tier`
   (`economy|standard|max`, default `standard`).
+- **Frontend-track keys (all optional):** `track` (`backend|frontend|fullstack`, default `backend`;
+  selects which gate set applies — **orthogonal to TIER** — and may be inferred from touched-file
+  paths when unset), `breakpoints` (optional list of viewport widths the responsive gates test; the
+  320 px reflow floor is always tested on the frontend track regardless), and `design_doc_path`
+  (default `DESIGN.md`; the per-project design contract the frontend rubric is scored against). With
+  `track` at its `backend` default, none of the frontend gates apply and a ticket runs exactly as in
+  v0.6.
 - `update_check_url` (optional; raw URL to the published marketplace manifest — lets
   `/mango:version-check` compare running vs latest and print the host update commands. Unset → no
   network call).

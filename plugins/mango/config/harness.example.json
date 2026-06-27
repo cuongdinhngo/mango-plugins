@@ -22,6 +22,13 @@
   "//stuck_threshold": "Circuit-breaker: after this many failed attempts against the SAME proving artifact / failing-test signature, execute and quick STOP and escalate to the user instead of retrying. The counter resets when the failing signature changes. Default 3.",
   "stuck_threshold": 3,
   "explore_fanout": true,
+
+  "//track": "Which gate set(s) apply: backend | frontend | fullstack (default backend). ORTHOGONAL to TIER (TIER = process weight; track = which gates). backend behaves exactly as pre-0.7. frontend adds the falsifiable a11y/token rubric + the M1–M10 responsive/touch gates. fullstack applies both gate sets. When unset, mango may INFER the track from touched-file paths (k/N files under UI paths). A ticket may be track=frontend + TIER=lite.",
+  "track": "backend",
+  "//breakpoints": "OPTIONAL list of viewport widths (CSS px) the frontend responsive gates test against, e.g. [375, 768, 1280]. The 320 px reflow floor is a STANDARD, always tested when track includes frontend regardless of this list. When a declared width is a small viewport, the width-parametric gates (M2 no-h-scroll, M3 reflow) come into scope. Ignored on the backend track.",
+  "breakpoints": null,
+  "//design_doc_path": "OPTIONAL path to the per-project DESIGN.md contract (default DESIGN.md at repo root). On the frontend track, design creates/updates it (palette/typography/spacing tokens, shell vs data-core split, the Responsive & touch choices) and the review rubric is scored AGAINST it. Breakpoint values, navigation pattern, and which regions collapse vs reflow live here — they are project CHOICES, never gated by mango.",
+  "design_doc_path": "DESIGN.md",
   "//cost_tier": "Model-delegation dial: economy | standard | max (default standard). economy pushes more bulk retrieval to a Haiku worker and avoids Opus on review; max allows Opus on review for high-stakes diffs. Never demotes review/challenger to Haiku. See PRINCIPLES.md routing map.",
   "cost_tier": "standard",
   "//update_check_url": "OPTIONAL raw URL to the published marketplace manifest (e.g. the raw marketplace.json of the marketplace mango is published from). If set, /mango:version-check fetches it to compare the running version against the latest published version and PRINTS the host /plugin commands when a newer one exists. mango never updates or installs — plugin administration is the host's job. Leave unset/null to disable the check (no network call).",
