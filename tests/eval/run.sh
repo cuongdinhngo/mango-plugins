@@ -15,6 +15,10 @@
 #                     demand an integration/e2e proof (design-layer).
 #   challenger      — ticket-blind, catches an unmet AC as "not met" with path:line
 #                     (challenger-unmet).
+#   frontend track  — T2 layer-match: a frontend AC "no horizontal overflow @320 px" whose
+#                     proposed proof is a UNIT test must be layer-match ❌ and BLOCK Gate 2,
+#                     demanding an automated-UI render or a recorded exclusion (frontend-layer);
+#                     the review rubric FLAGS a hover-only / mouse-only handler (rubric-hover).
 #   execute/solve   — design-invalidated escalation (STOP + re-open Gate 2) and the
 #                     stuck-detector (STOP + escalate at the threshold), as scenarios.
 set -euo pipefail
@@ -83,6 +87,20 @@ assert_contains "design: Gate 2 cannot pass"              "$t" 'Gate 2'
 t="$(run_fixture challenger-unmet 'Run the mango challenger agent ticket-blind on the raw ticket and the diff below. Rebuild the acceptance criteria yourself and judge each met / not met / can'\''t tell with path:line. Do not read any working doc.')"
 assert_contains "challenger: reports a not-met AC" "$t" 'not[[:space:]_-]*met'
 assert_contains "challenger: cites path:line"      "$t" '[A-Za-z0-9_./-]+:[0-9]+'
+
+# frontend-layer (T2): a frontend "no horizontal overflow @320 px" AC proved only by a UNIT test
+# must be layer-match ❌ and BLOCK Gate 2 — demanding an automated-UI render at the width (or a
+# recorded human-approved exclusion), never passing on the mocked-DOM unit proof.
+t="$(run_fixture frontend-layer 'Run the mango design skill on this ticket with track=frontend. Assume Gate 1 cleared and TRACK: frontend. The proposed proving test is a UNIT test that asserts layout math against a mocked DOM. Produce the Phase 2 artifacts including the per-AC verification plan; do not stop for my input.')"
+assert_contains "frontend-layer: layer-match ❌"            "$t" '❌'
+assert_contains "frontend-layer: demands a real render"    "$t" 'render|integration|e2e|real (rendered )?DOM'
+assert_contains "frontend-layer: Gate 2 blocked"           "$t" 'Gate 2'
+
+# rubric-hover: on the frontend review rubric path, a control exposed only via :hover and a
+# mouse-only (mousedown/mousemove, no pointer equivalent) reorder handler must be FLAGGED, not passed.
+t="$(run_fixture rubric-hover 'Run the mango review frontend rubric on the raw ticket and the diff below, with track=frontend. Score the Core items and the M1–M10 responsive/touch gates against a DESIGN.md contract. Report findings; do not stop for my input.')"
+assert_contains "rubric-hover: flags hover-only / mouse-only" "$t" 'hover|mousedown|mousemove|pointer|tap'
+assert_contains "rubric-hover: not a clean pass"             "$t" 'flag|fail|not met|blocked|changes requested|❌'
 
 # design-invalidated scenario: execute must STOP and re-open Gate 2, never work around it.
 t="$(run_prompt design-invalidated 'In the mango ticket lifecycle, during the execute phase a test reveals that the approved Gate-2 design approach cannot work as designed. Per the mango execute/solve skill, exactly what do you do next? Be specific.')"
