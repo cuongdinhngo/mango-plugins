@@ -19,6 +19,10 @@
 #                     proposed proof is a UNIT test must be layer-match ❌ and BLOCK Gate 2,
 #                     demanding an automated-UI render or a recorded exclusion (frontend-layer);
 #                     the review rubric FLAGS a hover-only / mouse-only handler (rubric-hover).
+#   surface coverage— a universal frontend AC where the sitemap shows N reachable surfaces but the
+#                     proof covers only some reads `surfaces proven: k/N` (k<N) and BLOCKS Gate 2
+#                     (surface-denominator); a frontend AC with NO runner yields a tier-2
+#                     PASS(render@<bp>), not a silent skip or auto-exclusion (no-runner-proof).
 #   execute/solve   — design-invalidated escalation (STOP + re-open Gate 2) and the
 #                     stuck-detector (STOP + escalate at the threshold), as scenarios.
 set -euo pipefail
@@ -103,6 +107,19 @@ assert_contains "frontend-layer: Gate 2 blocked"           "$t" 'Gate 2'
 t="$(run_fixture rubric-hover 'Run the mango review frontend rubric on the raw ticket and the diff below, with track=frontend. Score the Core items and the M1–M10 responsive/touch gates against a DESIGN.md contract. Report findings; do not stop for my input.')"
 assert_contains "rubric-hover: flags hover-only / mouse-only" "$t" 'hover|mousedown|mousemove|pointer|tap'
 assert_contains "rubric-hover: not a clean pass"             "$t" 'flag|fail|not met|blocked|changes requested|❌'
+
+# surface-denominator: a universal frontend AC whose sitemap shows 5 reachable surfaces but whose
+# proposed proof covers only 2 must read `surfaces proven: 2/5` (k<N) and BLOCK Gate 2 — the
+# denominator is the code surface, not the surfaces the ticket named.
+t="$(run_fixture surface-denominator 'Run the mango design skill with track=frontend. Assume Gate 1 cleared, TRACK: frontend, and SURFACES: 5 (the five reachable surfaces listed). The proposed proof covers only the overview and reports routes (2 of 5). Produce the Phase 2 verification plan / proof manifest and the surface-coverage banner; do not stop for my input.')"
+assert_contains "surface-denominator: surfaces proven 2/5" "$t" 'surfaces proven:?[^0-9]*2[[:space:]]*/[[:space:]]*5'
+assert_contains "surface-denominator: Gate 2 blocked"      "$t" 'Gate 2'
+
+# no-runner-proof: a frontend AC in a project with NO automated-UI runner must yield a tier-2
+# PASS(render@<bp>) recorded proof — NOT a silent skip and NOT an automatic exclusion.
+t="$(run_fixture no-runner-proof 'Run the mango execute skill on this AC with track=frontend. The project declares NO automated-UI runner and tests/ is unavailable. Per mango, produce the proof-manifest entry for the affected surface — do not silently skip and do not auto-exclude. State the tier and the proof; do not stop for my input.')"
+assert_contains "no-runner: tier-2 render proof" "$t" 'render@|render proof|PASS\(render'
+assert_contains "no-runner: a proof, not a skip"  "$t" 'render@|PASS\(render|first-class|not an exclusion'
 
 # design-invalidated scenario: execute must STOP and re-open Gate 2, never work around it.
 t="$(run_prompt design-invalidated 'In the mango ticket lifecycle, during the execute phase a test reveals that the approved Gate-2 design approach cannot work as designed. Per the mango execute/solve skill, exactly what do you do next? Be specific.')"

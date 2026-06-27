@@ -284,7 +284,9 @@ check: `run.sh` drives `claude -p` over fixture tickets and asserts the expected
 the analysis happy path (count line, gate count, freeform Gate-0 confirmation) it also exercises the
 behaviours that matter most — proof at the risk layer (`design` flags a unit proof for an
 integration-layer AC), the ticket-blind `challenger` catching an unmet AC, the design-invalidated
-escalation, and the stuck-detector. It costs tokens, so CI runs it only via the manual `eval.yml`
+escalation, the stuck-detector, and the frontend surface-coverage gate (a universal AC covering 2 of
+5 reachable surfaces reads `surfaces proven: 2/5` and blocks; a no-runner AC yields a tier-2
+`PASS(render@<bp>)`, not a silent skip). It costs tokens, so CI runs it only via the manual `eval.yml`
 workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 ## First run

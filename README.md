@@ -118,10 +118,12 @@ load-bearing artifact). CI additionally runs `claude plugin validate ./plugins/m
 The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets and asserts the
 expected artifacts — the analysis happy path, the higher-risk lifecycle behaviours (proof at the
 risk layer, the ticket-blind challenger catching an unmet AC, the design-invalidated escalation, and
-the stuck-detector), and the **frontend track** (a "no horizontal overflow @320 px" AC backed only by
+the stuck-detector), the **frontend track** (a "no horizontal overflow @320 px" AC backed only by
 a unit proof is layer-matched `❌` and blocks Gate 2; the rubric flags a hover-only / mouse-only
-handler). It costs tokens, so CI runs it only via the manual `eval.yml` workflow
-(`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
+handler), and **surface coverage** (a universal AC covering only 2 of 5 reachable surfaces reads
+`surfaces proven: 2/5` and blocks; a no-runner AC yields a tier-2 `PASS(render@<bp>)`, not a skip). It
+costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
+`ANTHROPIC_API_KEY` secret).
 
 ## Publish
 
