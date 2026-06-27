@@ -61,6 +61,31 @@ beyond the approved list):
   a taste skill is absent** — mango blocks only on a missing measurable number, never on a missing
   aesthetic.
 
+## Surface-coverage proof manifest (frontend integration/runtime/behavioral ACs)
+
+For every frontend AC whose risk layer is integration / runtime / behavioral, **emit/update the proof
+manifest** in the working doc beside the verification plan — **one row per (AC × affected surface)**
+across the analysis `SURFACES: N` inventory. The proof **tier is elastic, but a proof is never
+optional** — produce the **highest tier the project can support** per surface:
+
+1. **`PASS(automated)` (tier-1)** — compose the **project's declared automated-UI runner** (detect it
+   from the project's declared test scripts / `config.test_command`; **mango bundles no runner**)
+   into the shape in `${CLAUDE_PLUGIN_ROOT}/templates/ui-proof-scaffold.md`, satisfying the C1–C8
+   automated-proof contract. Record a re-runnable `proof-cmd` + inspectable artifact.
+2. **`PASS(render@<bp>)` (tier-2)** — when no runner is declared (or `tests/` is off-limits), record a
+   **render/screenshot of the real affected surface at the declared breakpoint** asserting the visible
+   measurable (e.g. `scrollWidth ≤ clientWidth`, target ≥ size, indicator present). This is a
+   **first-class proof, NOT an exclusion** — the cheap reality-facing check; record the artifact path.
+3. **`EXCLUDED(approver, reason)` (tier-3)** — only when neither tier is reachable (a state that cannot
+   be driven). Human-approved; reuse the v0.6/T2 coverage-gap exclusion record.
+
+**Never silently skip a surface.** Dropping tier-1 → tier-2 because there is no runner is expected and
+fine; dropping to *nothing* is not — a frontend AC with no manifest entry at any tier blocks the gate.
+**`execute` never stops merely because no runner is installed** — it scaffolds tier-1 if a runner
+exists, else records a tier-2 `render@<bp>` proof, else records an EXCLUDED row. Fill each manifest
+row's `tier`, `proof-cmd|artifact`, `asserts`, and `status`; the surface count `N == M + X` is scored
+at review.
+
 ## Escalations (mandatory STOP conditions)
 
 These interrupt the autonomous flow. Both record the finding in the working doc before stopping.
