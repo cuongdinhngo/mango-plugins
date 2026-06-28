@@ -3,6 +3,26 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.1] — 2026-06-28
+
+Test-infra only — **no skill behaviour changes**. Makes the behavioural eval
+(`tests/eval/run.sh`) runnable by anyone with one command, regardless of how they authenticate.
+
+### Fixed
+- **Eval runnable via OAuth or API key.** The runner required `ANTHROPIC_API_KEY` and rejected a
+  perfectly capable OAuth/subscription session. The guard now verifies the *capability* to run
+  `claude -p` — API key, else a non-interactive `claude auth status` check, else a minimal capability
+  probe — and only fails (naming **both** options) when none works. Never rejects an OAuth session.
+- **Hands-free self-scaffolding.** `run.sh` now sets up its own throwaway environment (an isolated
+  local clone + a temp gitignored `.harness.json` + a minimal rule book) and runs the fixtures against
+  the **shipped** skills via `--plugin-dir`, so a fresh clone exercises what the repo ships rather than
+  whatever the operator has installed. Everything is removed on exit (`trap`), and fixtures that
+  `execute` can only mutate the throwaway clone — the live checkout is never touched.
+- **CI uses the same single code path.** `eval.yml` still just runs `bash tests/eval/run.sh` (API key
+  from the secret in CI, OAuth locally) — no CI-only branch.
+
+All fixtures and assertions are unchanged.
+
 ## [0.8.0] — 2026-06-27
 
 Surface-coverage + tiered UI proof, built **on top of** the v0.7 frontend gates (reusing `track`,

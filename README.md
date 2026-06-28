@@ -125,6 +125,19 @@ handler), and **surface coverage** (a universal AC covering only 2 of 5 reachabl
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret).
 
+**Running the eval.** One command, hands-free:
+
+```
+bash tests/eval/run.sh
+```
+
+It works with **either** an exported `ANTHROPIC_API_KEY` **or** an OAuth/subscription login
+(`claude /login`) — it verifies the capability to run `claude -p`, not a specific credential. The
+script sets up its own throwaway environment (an isolated local clone, a temp `.harness.json`, and a
+minimal rule book) so a fresh clone "just runs" against the **shipped** skills, then removes it all on
+exit — your working tree is never mutated. It prints the per-fixture `PASS`/`FAIL` lines and exits
+non-zero if any assertion fails.
+
 ## Publish
 
 1. Create the GitHub repo `mango-plugins` under your account.
