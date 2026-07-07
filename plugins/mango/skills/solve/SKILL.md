@@ -49,10 +49,11 @@ A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
    review (a loop-back), the review is **stale** — drop the marker and require a fresh review before
    finalise.
 5. `finalise` → **final gate** — STOP; one separate approval per outward action. **Stale-review
-   guard:** before any outward action, finalise compares the live tree against the `Reviewed at`
-   marker and **refuses** the PR (routing back to `review`) if commits landed or files changed beyond
-   the reviewed set — a bare "go" does not override it. Always captures a **durable lesson**
-   (independent of deferred rows) to `config.lessons_path`.
+   guard (mechanical, file-set — never commit count):** before any outward action, finalise diffs the
+   live tree against the `Reviewed at` marker, **exempts** the working doc / bookkeeping paths, and
+   **refuses** the PR (routing back to `review`) iff any *remaining* source file changed **beyond the
+   reviewed set** — the working-doc/marker bump alone never trips it, and a bare "go" does not override
+   it. Always captures a **durable lesson** (independent of deferred rows) to `config.lessons_path`.
 
 **Resume** from the working-doc `Session status` block: read it, determine the current phase, and
 continue from there rather than restarting. The working doc's placement follows

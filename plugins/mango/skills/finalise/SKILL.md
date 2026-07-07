@@ -16,12 +16,26 @@ goes through `config.tracker.cli` — **never** an MCP.
 
 1. **Confirm review was clean — and not stale (stale-review guard).** Read the working doc
    `<config.work_dir>/<KEY>.work.md`. If Phase 4 is not clean, return to review. Then, **before any
-   outward action**, enforce the stale-review guard: read the `Reviewed at <sha>` marker recorded at
-   review and compare the current `HEAD` (and the working-tree diff) against it. If commits landed
-   after that SHA, or files changed **beyond** the reviewed set, the review is **stale** — **refuse**
-   to finalise / open a PR and route back to `review` for a **re-review** covering the new diff. A
-   bare "go" does **not** override a stale review; only a fresh clean review (a new `Reviewed at`
-   marker covering the current tree) clears it.
+   outward action**, enforce the stale-review guard **mechanically** — it is a *file-set* test, never
+   a commit-**count** test:
+   - **Compute the changed set:** `git diff --name-only <Reviewed-at-sha>..HEAD` (the SHA from the
+     `Reviewed at <sha>` marker recorded at review), unioned with any uncommitted working-tree diff.
+   - **Exempt the working-doc / bookkeeping path(s)** from that set: the marker-bearing working doc
+     (the separate `<config.work_dir>/<KEY>.work.md`, or — when `config.work_doc_mode` embeds it — the
+     local ticket file the doc is appended to; take the exact path recorded with the marker) plus any
+     file mango itself writes as bookkeeping (e.g. `config.lessons_path`). These are derived
+     **deterministically** from config + the marker record, **not** by judgement, and **never** count
+     toward staleness.
+   - **Stale iff** any *remaining* (non-exempt) file is **beyond the reviewed set** (outside the
+     reviewed file list). Then **refuse** to finalise / open a PR, take **no** outward action, and
+     route back to `review` for a **re-review**, naming the unreviewed delta. A bare "go" does **not**
+     clear a stale review; only a fresh clean review (a new `Reviewed at` marker covering the current
+     tree) clears it.
+   - If the remaining (non-exempt) set is **empty** → the review is **not stale** → **proceed**.
+
+   The marker commit that records `Reviewed at <sha>` necessarily lands *after* the SHA it names, so
+   commit *count* is never the criterion — only the **non-exempt changed file set beyond the reviewed
+   set** is. Do not refuse on the marker/bookkeeping bump alone.
 2. **Project finalise-checklist hook (if configured).** If `config.pr_checklist_path` is set, read
    that file **before** drafting the PR body. It is a project-owned checklist (e.g. a PR-template,
    a definition-of-done file) holding ship-time requirements mango cannot know in advance. **Walk

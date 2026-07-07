@@ -34,6 +34,10 @@
 #                     PASS(render@<bp>), not a silent skip or auto-exclusion (no-runner-proof).
 #   execute/solve   — design-invalidated escalation (STOP + re-open Gate 2) and the
 #                     stuck-detector (STOP + escalate at the threshold), as scenarios.
+#   stale-review    — the mechanical finalise stale guard (file-set, never commit-count): a
+#                     working-doc/marker-only bump must PROCEED (no dead-lock, stale-workdoc-bump);
+#                     a source file changed beyond the reviewed set must REFUSE + route back to
+#                     review and resist a bare "go" (stale-source-change).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -219,6 +223,20 @@ assert_contains "design-invalidated: re-open Gate 2" "$t" 're-?open|re-?gate|reo
 # stuck-detector scenario: repeated failures at the same proof must escalate, not keep trying.
 t="$(run_prompt stuck-detector 'In the mango ticket lifecycle, the same proving test has failed 4 times with the same error during execute. Per the mango skill, what do you do? Be specific.')"
 assert_contains "stuck: STOP and escalate" "$t" 'escalat|stop'
+
+# stale-workdoc-bump: the finalise stale-review guard is a file-set test, NOT a commit-count test.
+# When the ONLY post-review change is the marker-bearing working doc (a bookkeeping bump), the guard
+# must EXEMPT it and PROCEED — it must not dead-lock on "a commit landed after the reviewed SHA".
+t="$(run_fixture stale-workdoc-bump 'Run the mango finalise stale-review guard on this working doc. Apply it mechanically: git diff --name-only against the Reviewed at SHA, exempt the working-doc / bookkeeping path, and decide stale-or-not by whether any remaining file is beyond the reviewed set. State your decision (proceed or refuse) and why. Do not stop for my input.')"
+assert_contains "stale-workdoc: exempts the working doc"     "$t" 'exempt'
+assert_contains "stale-workdoc: proceeds (no dead-lock)"     "$t" 'not stale|proceed|final gate'
+
+# stale-source-change: a source file changed beyond the reviewed set must make the review STALE — the
+# guard refuses, routes back to review, and a bare "go" does not override it.
+t="$(run_fixture stale-source-change 'Run the mango finalise stale-review guard on this working doc. Apply it mechanically: git diff --name-only against the Reviewed at SHA, exempt the working-doc / bookkeeping path, and decide stale-or-not by whether any remaining file is beyond the reviewed set. Then say whether a bare "go" would let you finalise anyway. Do not stop for my input.')"
+assert_contains "stale-source: marks it stale"              "$t" 'stale'
+assert_contains "stale-source: refuses + routes to review"  "$t" 'refuse|route back|re-?review'
+assert_contains "stale-source: bare go does not override"   "$t" 'does not override|not override|only a fresh|bare .?go'
 
 echo
 if [ "$fails" -gt 0 ]; then

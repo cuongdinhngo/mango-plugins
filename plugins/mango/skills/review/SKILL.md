@@ -79,9 +79,13 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
    10), write Phase 4, update `Session status`, and proceed to finalise.
 10. **Record the reviewed commit (stale-review guard).** On a clean verdict, capture the exact
     `HEAD` SHA and the set of files the review covered, and write a `Reviewed at <sha>` marker (with
-    the reviewed-file list) into the working doc's Phase-4 slot. A clean review is scoped to that
-    commit: `finalise` compares the live tree against this marker and **refuses** to open a PR if the
-    diff moved beyond it, routing back here for a re-review (see `finalise`).
+    the reviewed-file list **and the working-doc path** — the separate `<config.work_dir>/<KEY>.work.md`
+    or the embedded local-ticket file per `config.work_doc_mode`) into the working doc's Phase-4 slot.
+    Recording the working-doc path makes `finalise`'s exemption unambiguous — that path (and any mango
+    bookkeeping file) is excluded from the staleness comparison. A clean review is scoped to that
+    commit: `finalise` compares the live tree against this marker and **refuses** to open a PR if any
+    non-exempt file changed **beyond the reviewed set**, routing back here for a re-review (see
+    `finalise`).
 
 ## Frontend track — score the rubric against `DESIGN.md` (only when `config.track` includes frontend)
 

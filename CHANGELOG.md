@@ -3,6 +3,34 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] — 2026-07-07
+
+Makes the finalise **stale-review guard** mechanical. The guard already *behaved* correctly — it lets
+a working-doc bump through, refuses on a source change, and resists a bare "go" — but only because the
+model **reinterpreted** the step-1 prose. Read literally, that prose dead-locked every full-tier run:
+its "if commits landed after the reviewed SHA" clause always matches, because the commit that records
+`Reviewed at <sha>` necessarily lands *after* the SHA it names. This replaces judgment-dependent prose
+with a deterministic rule. No change to what fires — only to how the rule is stated.
+
+### Fixed
+- **Stale-review guard is now a file-set test, never a commit-count test.** `finalise` step 1 computes
+  the changed set (`git diff --name-only <Reviewed-at-sha>..HEAD` ∪ working-tree diff), **exempts** the
+  working-doc / bookkeeping path(s) — derived deterministically from `work_doc_mode`/`work_dir` and the
+  path now recorded with the marker — and is **stale iff any remaining source file is beyond the
+  reviewed set**. The "any commit after the SHA" criterion is deleted, so the marker/bookkeeping bump
+  can no longer dead-lock the guard. A bare "go" still never clears it; only a fresh `Reviewed at`
+  marker covering the current tree does.
+- **Marker now records the working-doc path.** `review` writes the working-doc path alongside the
+  `Reviewed at <sha>` marker + reviewed-file set, making finalise's exemption unambiguous.
+- **Docs + validator synced.** `solve` and `PRINCIPLES.md` describe the guard mechanically (source
+  beyond the reviewed set = stale; working doc exempt). `scripts/validate.py`'s `finalise` contract now
+  also requires the `beyond the reviewed set` and `exempt` tokens, so the rule cannot regress to a
+  commit-count phrasing.
+- **Eval coverage (both directions).** Two generic fixtures added: a working-doc/marker-only bump must
+  **proceed** (the regression test for the literal dead-lock, which occurred on every full-tier run),
+  and a source file changed beyond the reviewed set must **refuse**, route back to `review`, and resist
+  a bare "go".
+
 ## [0.8.1] — 2026-06-28
 
 Test-infra only — **no skill behaviour changes**. Makes the behavioural eval

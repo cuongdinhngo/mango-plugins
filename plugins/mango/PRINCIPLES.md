@@ -80,6 +80,11 @@ end. Multi-surface work is only done when every surface is covered or every excl
   only when the proof is upgraded to the matching layer **or** the row is recorded as a
   human-approved coverage-gap exclusion — never a silent pass.
 - The test result is reported at review, including "would it fail without the change?".
+- The **stale-review guard** at finalise is **mechanical**: it diffs the live tree against the
+  `Reviewed at <sha>` marker, exempts the working-doc / bookkeeping paths, and is stale **iff a source
+  file changed beyond the reviewed set** — never a commit-*count* test, so the marker/bookkeeping bump
+  alone cannot dead-lock it. A bare "go" never clears it; only a fresh review covering the current tree
+  does.
 - The `N · k/N` denominator rule for every universal ("all/every/no") requirement: `k` surfaces
   covered out of total `N`.
 
