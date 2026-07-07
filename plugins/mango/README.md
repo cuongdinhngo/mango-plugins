@@ -289,6 +289,20 @@ escalation, the stuck-detector, and the frontend surface-coverage gate (a univer
 `PASS(render@<bp>)`, not a silent skip). It costs tokens, so CI runs it only via the manual `eval.yml`
 workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
+**Running the eval yourself — one command, no setup.** From a fresh clone:
+
+```
+bash tests/eval/run.sh
+```
+
+It works with **either** an exported `ANTHROPIC_API_KEY` **or** an OAuth/subscription login
+(`claude /login`) — the guard verifies the *capability* to run `claude -p`, not a specific
+credential, and fails only (naming both options) when neither works. The script sets up its own
+throwaway environment (an isolated local clone + a temp `.harness.json` + a minimal rule book), runs
+the fixtures against the **shipped** skills via `--plugin-dir`, and tears it all down on exit — your
+working tree is never touched. It prints the `PASS`/`FAIL` lines and a final `N/N assertions pass`,
+exiting non-zero if any assertion fails.
+
 ## First run
 
 ```

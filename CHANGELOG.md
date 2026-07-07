@@ -3,6 +3,19 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] — 2026-07-07
+
+Test-infra / docs only — **no skill behaviour changes**; the 27 behavioural assertions stay green,
+now runnable by anyone in one command. Closes the "eval repeatable-by-others" gate.
+
+### Added / Changed
+- **"Running the eval" note in the README.** Documents the local one-command run
+  (`bash tests/eval/run.sh`) for a second person cloning the repo: it works with **either** an
+  exported `ANTHROPIC_API_KEY` **or** an OAuth/subscription login, sets up and tears down its own
+  throwaway environment, runs against the shipped skills via `--plugin-dir`, and prints
+  `N/N assertions pass`. The auth-agnostic guard and self-scaffolding runner themselves shipped in
+  0.8.1; this makes the hands-free, any-auth path explicit for local operators, not just CI.
+
 ## [0.9.0] — 2026-07-07
 
 Makes the finalise **stale-review guard** mechanical. The guard already *behaved* correctly — it lets
