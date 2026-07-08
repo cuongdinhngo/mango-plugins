@@ -33,6 +33,17 @@ this phase.
    `Ph2 covered by` (which matrix row(s)), `k/N`. **Every item must trace to a matrix row** — an
    item with no row behind it fails the gate. Prefer the smallest edit; no speculative abstraction,
    no indirection serving a single call site.
+
+   **Test blast-radius (mechanical) — fold invalidated existing assertions in as proof collateral.**
+   Before closing the change list, **mechanically enumerate the existing assertions this change will
+   invalidate**: grep the repo for the exact **copy keys, headings, route shapes, or exports** the
+   change touches (the strings/symbols being renamed, moved, or reworded), and list every existing
+   test / spec / snapshot that references them. **Fold each hit into the approved change list as an
+   explicit *proof collateral* item** (file/area + the matrix row it rides), up front — an existing
+   test whose assertion the change breaks is a **planned edit**, not an execute surprise. This
+   converts a predictable execute deviation into a Gate-2 item. *(Observed failure: a change reworded
+   a heading that an existing shell test asserted; the change list never mentioned that test, so it
+   surfaced only as an execute deviation.)*
 5. **Rule compliance.** Check the proposed change against `config.rulebook_path` and
    `config.standards_path`; note any rule that constrains the design and how you comply.
 6. **Verification plan (per-AC, layer-matched) — fill the layer-match column BEFORE naming the

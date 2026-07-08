@@ -23,6 +23,13 @@ to.
      the published marketplace manifest). **Make no network call.** Stop here.
    - If `config.update_check_url` **is set**, fetch that URL (read-only), parse the plugin's published
      `version` from the returned marketplace manifest, and compare it to the running version.
+   - **No `version` in the marketplace manifest? Follow `source` to the plugin's `plugin.json`.** A
+     marketplace manifest often carries no `version` field — the version lives in the plugin's own
+     `plugin.json`. When the manifest has **no `version`** for the plugin, take its `source` path from
+     that manifest and read `version` from the plugin's `plugin.json` there (read-only), instead of
+     stopping at "not specified". Resolve the source relative to the manifest URL for a remote source,
+     or as a repo-relative path for a local one. This is still **detect-and-inform only** — reading a
+     `plugin.json` is a read, never a self-update.
 3. **Report + print host commands (never run them).**
    - Print: the running version and the latest published version.
    - If the published version is **newer**, print the exact commands to run **on the host**, and say

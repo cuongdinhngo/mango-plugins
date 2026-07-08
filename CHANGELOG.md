@@ -3,6 +3,47 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] — 2026-07-08
+
+The **official 1.0 release**. Three evidence-backed sharpening fixes from the latest field retro —
+all refinements to existing mechanisms, no new architecture — plus the stable-API milestone. Generic
+and stack-agnostic throughout; backend and non-frontend behaviour is unchanged.
+
+**Release status (honest).** The public skill/config API is **stable**. mango has been proven
+end-to-end across multiple real projects and two stacks **by its author**, with a green behavioural
+eval suite and fault-injected escalation paths. **Independent-operator validation is ongoing** and
+its results will be folded into later releases.
+
+### Fixed
+- **`execute` frontend track — one assertion PER CLAUSE of a multi-clause M-gate.** A multi-clause
+  rubric gate (M4 = touch-target `size ≥ 44×44 px` **and** `spacing ≥ 8 px`; M7 = focus indicator
+  `visible` **and** `contrast ≥ 3:1`) is only proven when **every clause** carries its own assertion.
+  `execute` now enumerates **one assertion per clause** and the proof manifest carries **one row per
+  clause**; a clause with no assertion makes the gate **incomplete → it blocks, exactly as a missing
+  surface does**. This generalizes the per-item-inventory rule (which prevents aggregate-count hiding)
+  from surfaces to the clauses of a gate. `templates/frontend-rubric.md` names the clauses of each
+  multi-clause gate; `execute` enumerates them and invents none. *(Observed: an M4 proof asserting
+  only the size clause shipped green while a real 0 px-gap spacing failure went unproven.)*
+- **`design` — mechanical test blast-radius sub-step in the Gate-2 plan.** Before closing the change
+  list, `design` now **mechanically enumerates the existing assertions the change will invalidate** —
+  grepping for the copy keys, headings, route shapes, or exports being changed — and **folds each hit
+  into the approved change list as up-front proof collateral**. This converts a predictable execute
+  deviation (an existing test asserting an old string) into a planned Gate-2 item. *(Observed: a
+  change reworded a heading an existing shell test asserted; the change list never mentioned that
+  test, so it surfaced only as an execute deviation.)*
+- **`version-check` — follow `source` to the plugin's own `plugin.json` when the manifest has no
+  `version`.** A marketplace manifest often carries no `version` field — the version lives in the
+  plugin's `plugin.json`. Step 2 now follows the plugin's `source` path to its `plugin.json` and reads
+  the version there instead of dead-ending at "not specified". Still **detect-and-inform only** — a
+  read, never a self-update. *(Observed: the skill dead-ended on a version-less manifest and the
+  operator had to fetch the published `plugin.json` by hand.)*
+- **Validator + eval locked to the new semantics.** `scripts/validate.py` now requires the `execute`
+  per-clause token (`(per|each) clause`), the `design` `blast[ -]radius` token, and the `version-check`
+  `plugin.json` fallback token, so none can silently regress. Two generic fixtures added
+  (`per-clause`, `blast-radius`): an M4 proof asserting only size marks the spacing clause unproven and
+  **blocks Gate 2** while a both-clause proof passes; a string-altering change lists the affected
+  existing test in the Gate-2 change list as collateral.
+
 ## [0.9.1] — 2026-07-07
 
 Test-infra / docs only — **no skill behaviour changes**; the 27 behavioural assertions stay green,

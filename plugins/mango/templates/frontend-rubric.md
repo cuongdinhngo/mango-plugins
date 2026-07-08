@@ -37,6 +37,19 @@ domain meaning recorded in `DESIGN.md`.
 
 Constants (44/24 px, 16 px, 4.5:1, 320 px) are **standards** → fixed rubric constants, not config.
 
+## Multi-clause gates — one assertion PER CLAUSE (no proving the easy clause only)
+
+Several gates carry a threshold with **more than one clause**. Each clause is proven **separately** —
+the proof manifest carries **one row per clause**, and a clause with no assertion leaves the gate
+**incomplete → it blocks, exactly as a missing surface does.** Asserting the easy clause (e.g. target
+size) does **not** clear the gate while the other clause (e.g. spacing) is unproven. `execute`
+enumerates the clauses named here — it does not invent new ones.
+
+| Multi-clause gate | Clause 1 | Clause 2 |
+|-------------------|----------|----------|
+| M4 touch-target | `size` ≥ 44×44 px (floor 24×24) | `spacing` ≥ 8 px between adjacent targets |
+| M7 focus-visible | indicator `visible` on every interactive element | indicator `contrast` ≥ 3:1 |
+
 ## Risk-layer floor (so the layer-match hard gate cannot be diluted)
 
 `document`, `computed-style`, `integration/runtime`, and `behavioral` are **all ABOVE the

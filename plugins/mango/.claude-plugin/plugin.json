@@ -1,7 +1,7 @@
 {
   "name": "mango",
   "displayName": "Mango",
-  "version": "0.9.1",
+  "version": "1.0.0",
   "description": "A portable, gated ticket-lifecycle harness for Claude Code. Ships the machinery (gated lifecycle phases, read-only review agents, working-doc + PR templates) and reads every project-specific rule at runtime from .harness.json. Facilitates defining a project's rule book and database conventions (/mango:codify — counts the observed patterns, the human chooses, nothing is authored or binding until ratified) and offers opt-in descriptive code/schema maps (sitemap, db-map). No stack assumptions, no secrets. Trust comes from emitted, counted, gate-blocking artifacts; mango generates the descriptive and facilitates the normative, but never authors the normative.",
   "author": {
     "name": "Cuong Ngo"

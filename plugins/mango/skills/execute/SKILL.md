@@ -86,6 +86,20 @@ exists, else records a tier-2 `render@<bp>` proof, else records an EXCLUDED row.
 row's `tier`, `proof-cmd|artifact`, `asserts`, and `status`; the surface count `N == M + X` is scored
 at review.
 
+**One assertion PER CLAUSE of a multi-clause M-gate.** An M-gate whose threshold has more than one
+clause (e.g. M4 = touch-target `size ≥ 44×44 px` **and** `spacing ≥ 8 px`; M7 = focus indicator
+`visible` **and** `contrast ≥ 3:1`) is only proven when **every clause** carries its own assertion.
+For each in-scope multi-clause M-gate, **enumerate one assertion per clause** and give the proof
+manifest **one row per clause** (M4 → a `size` row + a `spacing` row; M7 → a `visible` row + a
+`≥3:1 contrast` row). A clause with **no assertion** makes the gate **incomplete → it blocks, exactly
+as a missing surface does** — proving the easy clause (size) does not clear the gate while the other
+clause (spacing) goes unasserted. Use the clauses the rubric already names in
+`${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md`; do **not** invent new clauses. This is the
+per-item-inventory rule (which prevents aggregate-count hiding) generalized from surfaces to the
+clauses of a gate. *(Observed failure: an M4 proof asserted only the size clause and shipped green
+while a real 0 px-gap spacing failure went unproven — the reviewer had to catch it by measuring the
+DOM.)*
+
 ## Escalations (mandatory STOP conditions)
 
 These interrupt the autonomous flow. Both record the finding in the working doc before stopping.

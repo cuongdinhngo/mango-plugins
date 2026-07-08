@@ -21,7 +21,9 @@
 #                     freeform synthesis + Gate 0 confirmation (freeform).
 #   design          — proof at the risk layer: an integration-layer AC with a UNIT
 #                     proving test must mark the verification-plan layer-match ❌ and
-#                     demand an integration/e2e proof (design-layer).
+#                     demand an integration/e2e proof (design-layer). test blast-radius: a
+#                     change that alters a string an existing assertion checks must list
+#                     that test file in the Gate-2 change list as proof collateral (blast-radius).
 #   challenger      — ticket-blind, catches an unmet AC as "not met" with path:line
 #                     (challenger-unmet).
 #   frontend track  — T2 layer-match: a frontend AC "no horizontal overflow @320 px" whose
@@ -32,6 +34,9 @@
 #                     proof covers only some reads `surfaces proven: k/N` (k<N) and BLOCKS Gate 2
 #                     (surface-denominator); a frontend AC with NO runner yields a tier-2
 #                     PASS(render@<bp>), not a silent skip or auto-exclusion (no-runner-proof).
+#   per-clause      — a multi-clause M-gate (M4 = size AND spacing) whose proof asserts only the
+#                     size clause marks the spacing clause unproven and BLOCKS Gate 2; a proof
+#                     asserting BOTH clauses passes (per-clause).
 #   execute/solve   — design-invalidated escalation (STOP + re-open Gate 2) and the
 #                     stuck-detector (STOP + escalate at the threshold), as scenarios.
 #   stale-review    — the mechanical finalise stale guard (file-set, never commit-count): a
@@ -179,6 +184,12 @@ assert_contains "design: verification-plan layer-match ❌" "$t" '❌'
 assert_contains "design: demands integration/e2e proof"   "$t" 'integration|e2e'
 assert_contains "design: Gate 2 cannot pass"              "$t" 'Gate 2'
 
+# blast-radius: a change that alters a string an existing assertion checks must list that existing
+# test file in the Gate-2 change list as proof collateral — a planned edit, not an execute surprise.
+t="$(run_fixture blast-radius 'Run the mango design skill on this ticket. Assume Gate 1 cleared. Produce the Phase 2 artifacts including the smallest change-list table and its mechanical test blast-radius sub-step; do not stop for my input.')"
+assert_contains "blast-radius: names the affected existing test" "$t" 'dashboard_heading_spec|dashboard[_-]heading'
+assert_contains "blast-radius: folds it in as collateral"        "$t" 'blast[ -]radius|collateral|proof collateral'
+
 # challenger: ticket-blind on (raw ticket + diff) must report the one unmet AC as not met + path:line.
 t="$(run_fixture challenger-unmet 'Run the mango challenger agent ticket-blind on the raw ticket and the diff below. Rebuild the acceptance criteria yourself and judge each met / not met / can'\''t tell with path:line. Do not read any working doc.')"
 assert_contains "challenger: reports a not-met AC" "$t" 'not[[:space:]_-]*met'
@@ -214,6 +225,17 @@ assert_contains "surface-denominator: Gate 2 blocked"          "$t" 'Gate 2'
 t="$(run_fixture no-runner-proof 'Run the mango execute skill on this AC with track=frontend. The project declares NO automated-UI runner and tests/ is unavailable. Per mango, produce the proof-manifest entry for the affected surface — do not silently skip and do not auto-exclude. State the tier and the proof; do not stop for my input.')"
 assert_contains "no-runner: tier-2 render proof" "$t" 'render@|render proof|PASS\(render'
 assert_contains "no-runner: a proof, not a skip"  "$t" 'render@|PASS\(render|first-class|not an exclusion'
+
+# per-clause (Fix 1): a multi-clause M4 gate (size AND spacing) whose proof asserts ONLY the size
+# clause must mark the spacing clause unproven and BLOCK Gate 2 — proving the easy clause does not
+# clear a gate whose other clause is unasserted.
+t="$(run_fixture per-clause 'Run the mango design/execute per-clause M-gate check on this ticket with track=frontend. Assume TRACK: frontend and Gate 1 cleared. The submitted M4 proof asserts ONLY the size clause (no spacing assertion). Lay out the proof manifest one row per clause and state whether Gate 2 passes; do not stop for my input.')"
+assert_contains "per-clause: spacing clause unproven"  "$t" 'spacing'
+assert_contains "per-clause: gate incomplete / blocks" "$t" 'incomplete|block|❌|unproven|not proven'
+assert_contains "per-clause: Gate 2 blocked"           "$t" 'Gate 2'
+# both-clause variant: a proof asserting BOTH size and spacing clears the M4 gate.
+t="$(run_prompt per-clause-both 'On the mango frontend track, an M4 touch-target proof manifest carries one row asserting size ≥ 44×44 px AND a second row asserting spacing ≥ 8 px between adjacent targets — both clauses asserted. Per the mango per-clause rule, does the M4 gate pass? Answer and say why.')"
+assert_contains "per-clause-both: M4 passes with both clauses" "$t" 'pass|complete|clear|proven'
 
 # design-invalidated scenario: execute must STOP and re-open Gate 2, never work around it.
 t="$(run_prompt design-invalidated 'In the mango ticket lifecycle, during the execute phase a test reveals that the approved Gate-2 design approach cannot work as designed. Per the mango execute/solve skill, exactly what do you do next? Be specific.')"
