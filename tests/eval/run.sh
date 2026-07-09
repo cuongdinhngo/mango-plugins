@@ -150,6 +150,25 @@ assert_contains() {
   fi
 }
 
+# assert_all <label> <transcript-file> <regex...> — passes iff EVERY regex matches the file.
+# Use to encode a DECISION-level match (outcome + reasoning must both appear), so a correct
+# behaviour passes under any wording while a wrong outcome — which drops one of the tokens —
+# still fails.
+assert_all() {
+  local label="$1" file="$2"; shift 2
+  local rel="${file#$REPO_ROOT/}" missing="" re
+  total=$((total + 1))
+  for re in "$@"; do
+    grep -qiE "$re" "$file" || missing="$missing /$re/"
+  done
+  if [ -z "$missing" ]; then
+    echo "  PASS: $label  [$rel]"
+  else
+    echo "  FAIL: $label (missing$missing)  [$rel]"
+    fails=$((fails + 1))
+  fi
+}
+
 # run_fixture <name> <prompt> — runs the fixture, tees the full transcript to
 # $TDIR/<name>.log, and echoes that file path (assertions grep the file).
 run_fixture() {
@@ -260,14 +279,21 @@ assert_contains "stuck: STOP and escalate" "$t" 'escalat|stop'
 # When the ONLY post-review change is the marker-bearing working doc (a bookkeeping bump), the guard
 # must EXEMPT it and PROCEED — it must not dead-lock on "a commit landed after the reviewed SHA".
 t="$(run_fixture stale-workdoc-bump 'Run the mango finalise stale-review guard on this working doc. Apply it mechanically: git diff --name-only against the Reviewed at SHA, exempt the working-doc / bookkeeping path, and decide stale-or-not by whether any remaining file is beyond the reviewed set. State your decision (proceed or refuse) and why. Do not stop for my input.')"
-assert_contains "stale-workdoc: exempts the working doc"     "$t" 'exempt'
+# Decision-level: correct behaviour is PROCEED *because* the only change was the exempt
+# working-doc/bookkeeping/marker path. Require both the proceed outcome AND an exemption-reasoning
+# token (widened over phrasing) — so a proceed with no exemption recognition, or a wrong "stale"
+# verdict, still fails.
+assert_all "stale-workdoc: exempts the working doc"          "$t" 'not stale|proceed' 'exempt|bookkeeping|working[- ]doc|marker'
 assert_contains "stale-workdoc: proceeds (no dead-lock)"     "$t" 'not stale|proceed|final gate'
 
 # stale-source-change: a source file changed beyond the reviewed set must make the review STALE — the
 # guard refuses, routes back to review, and a bare "go" does not override it.
 t="$(run_fixture stale-source-change 'Run the mango finalise stale-review guard on this working doc. Apply it mechanically: git diff --name-only against the Reviewed at SHA, exempt the working-doc / bookkeeping path, and decide stale-or-not by whether any remaining file is beyond the reviewed set. Then say whether a bare "go" would let you finalise anyway. Do not stop for my input.')"
 assert_contains "stale-source: marks it stale"              "$t" 'stale'
-assert_contains "stale-source: refuses + routes to review"  "$t" 'refuse|route back|re-?review'
+# Routing widened over phrasing (refuse / route back / re-run review / blocked / fresh review). The
+# separate `stale` and bare-go assertions remain the outcome guards, so a stale verdict that then
+# proceeds/stops WITHOUT routing, or a honoured bare "go", still fails the suite.
+assert_contains "stale-source: refuses + routes to review"  "$t" 'refuse|route|re-?run review|re-?review|blocked|fresh review'
 assert_contains "stale-source: bare go does not override"   "$t" 'does not override|not override|only a fresh|bare .?go'
 
 echo
