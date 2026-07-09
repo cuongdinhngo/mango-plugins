@@ -127,7 +127,10 @@ a unit proof is layer-matched `❌` and blocks Gate 2; the rubric flags a hover-
 handler), and **surface coverage** (a universal AC covering only 2 of 5 reachable surfaces reads
 `surfaces proven: 2/5` and blocks; a no-runner AC yields a tier-2 `PASS(render@<bp>)`, not a skip). It
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
-`ANTHROPIC_API_KEY` secret).
+`ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
+(they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct
+behaviour passes under any wording while a wrong *outcome* still fails — green comes from stability
+across independent fresh runs, not from tuning a regex to one transcript.
 
 **Running the eval.** One command, hands-free:
 

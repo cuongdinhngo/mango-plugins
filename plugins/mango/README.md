@@ -301,7 +301,10 @@ credential, and fails only (naming both options) when neither works. The script 
 throwaway environment (an isolated local clone + a temp `.harness.json` + a minimal rule book), runs
 the fixtures against the **shipped** skills via `--plugin-dir`, and tears it all down on exit — your
 working tree is never touched. It prints the `PASS`/`FAIL` lines and a final `N/N assertions pass`,
-exiting non-zero if any assertion fails.
+exiting non-zero if any assertion fails. Assertions are matched at the **decision level** and are
+**emphasis-agnostic** (tolerant of markdown `**`/`_` and phrasing variants around the load-bearing
+token): a correct behaviour passes under any wording, a wrong *outcome* always fails — so a green
+result reflects stability across independent fresh runs, not a regex tuned to one transcript.
 
 ## First run
 

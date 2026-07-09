@@ -3,6 +3,27 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Test-infra / docs only — **no skill, fixture, or behaviour changes**; all behavioural assertions stay
+green. Ends the eval whack-a-mole where a *correct* behaviour intermittently tripped a *brittle*
+assertion (a different one each run: the stale-review `exempt`/`refuse` phrasings, then a
+`TIER: **lite**` markdown-bold miss).
+
+### Changed
+- **Eval assertions hardened to decision-level + emphasis-agnostic.** Assertions now match the
+  *decision* (outcome token + reasoning token both required) and tolerate markdown emphasis (`**`/`_`)
+  and phrasing variants around the load-bearing token, so a correct behaviour passes under any wording
+  while a wrong *outcome* still fails. The `lite: TIER lite` regex was the last brittle instance
+  (`TIER:[[:space:]]*lite` → `TIER:[[:space:]*_]*lite`); the stale-review assertions were widened the
+  same way earlier. Widening is over *wording/emphasis only*, never over outcome — every assertion
+  still fails on a wrong tier / a missed exemption / an honoured bare "go".
+- **Certified stable across independent fresh runs.** `tests/eval/run.sh` was run **6 consecutive
+  times end-to-end**, each regenerating transcripts — all **33/33**, no assertion failing on any run.
+  Green now reflects run-to-run stability, not a regex tuned to a single already-produced transcript.
+- **READMEs document the assertion-robustness property** in their eval sections (both the root and
+  plugin READMEs).
+
 ## [1.0.0] — 2026-07-08
 
 The **official 1.0 release**. Three evidence-backed sharpening fixes from the latest field retro —
