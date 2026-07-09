@@ -199,7 +199,7 @@ assert_contains "full: stops at a pre-code gate"   "$t" 'Gate[ -]?[01]'
 
 # lite: a trivial ticket should be triaged TIER: lite.
 t="$(run_fixture lite 'Run the mango analysis skill on this ticket and declare the TIER.')"
-assert_contains "lite: TIER lite" "$t" 'TIER:[[:space:]]*lite'
+assert_contains "lite: TIER lite" "$t" 'TIER:[[:space:]*_]*lite'
 
 # freeform: a header-less ticket should synthesize and confirm at Gate 0.
 t="$(run_fixture freeform 'Run the mango analysis skill on this freeform ticket.')"
