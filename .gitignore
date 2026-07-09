@@ -18,3 +18,6 @@ node_modules/
 # Python
 __pycache__/
 *.pyc
+
+# Eval transcripts (teed by tests/eval/run.sh for inspection; regenerated each run)
+tests/eval/.transcripts/

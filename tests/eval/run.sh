@@ -48,6 +48,10 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES="$HERE/fixtures"
 REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
+# Full model transcripts are teed here (gitignored) so a failed assertion is inspectable —
+# each PASS/FAIL line points at the transcript file it judged. Wiped fresh each run.
+TDIR="$HERE/.transcripts"
+rm -rf "$TDIR"; mkdir -p "$TDIR"
 fails=0
 total=0
 
@@ -131,34 +135,40 @@ claude_run() {
   ( cd "$SANDBOX" && claude -p --plugin-dir "$PLUGIN_DIR" "$@" )
 }
 
-# assert_contains <label> <transcript> <regex>
+# assert_contains <label> <transcript-file> <regex>
+# $2 is the path to the teed transcript file (returned by run_fixture/run_prompt), so every
+# PASS/FAIL line can name the exact transcript it judged.
 assert_contains() {
-  local label="$1" transcript="$2" regex="$3"
+  local label="$1" file="$2" regex="$3"
+  local rel="${file#$REPO_ROOT/}"
   total=$((total + 1))
-  if grep -qiE "$regex" <<<"$transcript"; then
-    echo "  PASS: $label"
+  if grep -qiE "$regex" "$file"; then
+    echo "  PASS: $label  [$rel]"
   else
-    echo "  FAIL: $label (missing /$regex/)"
+    echo "  FAIL: $label (missing /$regex/)  [$rel]"
     fails=$((fails + 1))
   fi
 }
 
+# run_fixture <name> <prompt> — runs the fixture, tees the full transcript to
+# $TDIR/<name>.log, and echoes that file path (assertions grep the file).
 run_fixture() {
   local name="$1" prompt="$2"
-  echo "== fixture: $name =="
-  local ticket transcript
+  local ticket transcript file="$TDIR/$name.log"
   ticket="$(cat "$FIXTURES/$name.md")"
   transcript="$(claude_run "$prompt"$'\n\nTicket:\n'"$ticket" 2>&1 || true)"
-  echo "$transcript"
+  { echo "== fixture: $name =="; echo "$transcript"; } >"$file"
+  echo "$file"
 }
 
-# run_prompt <label> <prompt> — a fixture-less scenario prompt (no ticket attached).
+# run_prompt <label> <prompt> — a fixture-less scenario prompt (no ticket attached). Tees the
+# transcript to $TDIR/<label>.log and echoes that file path.
 run_prompt() {
   local label="$1" prompt="$2"
-  echo "== scenario: $label =="
-  local transcript
+  local transcript file="$TDIR/${label//[^A-Za-z0-9_-]/-}.log"
   transcript="$(claude_run "$prompt" 2>&1 || true)"
-  echo "$transcript"
+  { echo "== scenario: $label =="; echo "$transcript"; } >"$file"
+  echo "$file"
 }
 
 # full: expects the SECTIONS count line and a stop at a pre-code gate. analysis stops at Gate 1
