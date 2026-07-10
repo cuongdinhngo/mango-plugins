@@ -3,12 +3,29 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.1.0] — 2026-07-10
 
-Test-infra / docs only — **no skill, fixture, or behaviour changes**; all behavioural assertions stay
-green. Ends the eval whack-a-mole where a *correct* behaviour intermittently tripped a *brittle*
-assertion (a different one each run: the stale-review `exempt`/`refuse` phrasings, then a
-`TIER: **lite**` markdown-bold miss).
+One evidence-backed refinement from field retro #4 — the **format-scope rule** — plus the
+previously-unreleased eval assertion-robustness work, shipped together. No new architecture; the fix
+is one proven refinement to the existing surgical discipline. Generic and stack-agnostic — **no
+formatter is named**. Backend and non-frontend behaviour is otherwise unchanged.
+
+### Added
+- **`execute` — the format-scope rule, stated explicitly.** `execute` now states it: run the
+  project's formatter **only on the files this change authored or edited**; **never** reformat a
+  shared or pre-existing file wholesale. A whole-file format pass rewrites lines outside the change
+  and reads as scope creep at review; whole-file conformance is a **separate concern** — CI, or a
+  dedicated chore ticket — never folded into this ticket's diff. It is the existing untouched-lines /
+  surgical discipline (Principle 3) applied to the formatter, not a parallel rule. `review`'s scope
+  reconciliation now names a wholesale reformat of a shared file as **not clean**; `PRINCIPLES.md`
+  (Principle 3) and both READMEs document it. *(Observed, retro #4: a whole-file format pass over a
+  shared file reformatted untouched lines → review flagged scope creep → the reformat was reverted →
+  the next whole-file pass re-collapsed it — a real, recurring loop. The by-hand resolution — format
+  only the authored/edited files — was not stated as a rule, so it recurred.)*
+- **Eval coverage + validator lock.** A generic `format-scope` fixture asserts `execute` scopes the
+  formatter to the authored/edited file and does **not** wholesale-reformat the shared file present
+  beside it. `scripts/validate.py` requires the `execute` `format[ -]scope` token so the rule cannot
+  silently regress.
 
 ### Changed
 - **Eval assertions hardened to decision-level + emphasis-agnostic.** Assertions now match the

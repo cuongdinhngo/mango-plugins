@@ -73,7 +73,7 @@ when under-covered.
 |-------|--------------|----------|
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation, clarification tally, universal inventory, root-cause/gap, blast radius, scope. |
 | `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and blocks Gate 2), rollback + porting. On the **frontend** track also creates/updates the **`DESIGN.md`** contract and lays out the plan **one row per (AC × surface)** with an under-coverage banner. |
-| `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). On the **frontend** track emits the **proof manifest** (highest tier per surface; never stops for a missing runner). |
+| `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep (diff ⊆ approved list), commits with no AI co-author trailer. Runs the project's formatter **only on authored/edited files** — never a wholesale reformat of a shared file (**format-scope rule**); whole-file conformance is a separate concern (CI / a chore ticket). STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). On the **frontend** track emits the **proof manifest** (highest tier per surface; never stops for a missing runner). |
 | `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation, regression check, layer-match re-confirmation, proving-test result, `k/N` coverage. On the **frontend** track also scores the **M1–M10** a11y/token rubric against `DESIGN.md` and the **`N == M + X`** surface-coverage check. |
 | `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
@@ -124,8 +124,10 @@ expected artifacts — the analysis happy path, the higher-risk lifecycle behavi
 risk layer, the ticket-blind challenger catching an unmet AC, the design-invalidated escalation, and
 the stuck-detector), the **frontend track** (a "no horizontal overflow @320 px" AC backed only by
 a unit proof is layer-matched `❌` and blocks Gate 2; the rubric flags a hover-only / mouse-only
-handler), and **surface coverage** (a universal AC covering only 2 of 5 reachable surfaces reads
-`surfaces proven: 2/5` and blocks; a no-runner AC yields a tier-2 `PASS(render@<bp>)`, not a skip). It
+handler), **surface coverage** (a universal AC covering only 2 of 5 reachable surfaces reads
+`surfaces proven: 2/5` and blocks; a no-runner AC yields a tier-2 `PASS(render@<bp>)`, not a skip),
+and the **format-scope rule** (execute scopes the formatter to the authored/edited files, never a
+wholesale reformat of a shared file). It
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
 (they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct

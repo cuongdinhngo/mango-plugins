@@ -27,6 +27,13 @@ directly — never spawn a model for a one-line shell command.
    - Make exactly the changes in the Gate-2 list; nothing more.
    - Match surrounding style.
    - **Never reformat lines you are not changing.**
+   - **Format-scope rule.** If you run the project's formatter, scope it to the files **this change
+     authored or edited** — **never** run it over a shared or pre-existing file wholesale. A
+     whole-file format pass rewrites lines outside your change and reads as scope creep at review
+     (revert it and the next whole-file pass just re-collapses it — a recurring loop). Whole-file
+     format conformance is a **separate concern** — CI, or a dedicated chore ticket — never folded
+     into this ticket's diff. This is the same surgical discipline as the untouched-lines rule
+     (Principle 3), applied to the formatter, not a parallel rule.
    - Remove only orphans your change itself created; do not delete pre-existing dead code.
 4. **Add the proving test** named at Gate 2. Confirm it fails on the pre-change state if you can,
    then passes after the change. If it keeps failing, the two **Escalations** below apply — do not

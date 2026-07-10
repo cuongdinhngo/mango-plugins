@@ -37,6 +37,9 @@
 #   per-clause      — a multi-clause M-gate (M4 = size AND spacing) whose proof asserts only the
 #                     size clause marks the spacing clause unproven and BLOCKS Gate 2; a proof
 #                     asserting BOTH clauses passes (per-clause).
+#   format-scope    — execute runs the project's formatter ONLY on the files this change authored/
+#                     edited, never a wholesale reformat of a shared/pre-existing file; whole-file
+#                     conformance is a separate concern (CI / a chore ticket) (format-scope).
 #   execute/solve   — design-invalidated escalation (STOP + re-open Gate 2) and the
 #                     stuck-detector (STOP + escalate at the threshold), as scenarios.
 #   stale-review    — the mechanical finalise stale guard (file-set, never commit-count): a
@@ -265,6 +268,15 @@ assert_contains "per-clause: Gate 2 blocked"           "$t" 'Gate 2'
 # both-clause variant: a proof asserting BOTH size and spacing clears the M4 gate.
 t="$(run_prompt per-clause-both 'On the mango frontend track, an M4 touch-target proof manifest carries one row asserting size ≥ 44×44 px AND a second row asserting spacing ≥ 8 px between adjacent targets — both clauses asserted. Per the mango per-clause rule, does the M4 gate pass? Answer and say why.')"
 assert_contains "per-clause-both: M4 passes with both clauses" "$t" 'pass|complete|clear|proven'
+
+# format-scope (Fix v1.1): execute runs the project's formatter ONLY on the files this change
+# authored/edited — never a wholesale reformat of a shared/pre-existing file (that reformats untouched
+# lines and reads as scope creep); whole-file conformance is a separate concern (CI / a chore ticket).
+t="$(run_fixture format-scope 'Run the mango execute skill on this ticket. The project has a formatter. Per mango, state exactly which files you would run the formatter over, and whether you would run it over the whole shared file. Do not stop for my input.')"
+# Decision-level: scope the formatter to the authored/edited file (outcome + reasoning token both
+# required), and do NOT wholesale-reformat the shared file (a whole-file token + a decline/defer token).
+assert_all "format-scope: scopes formatter to authored/edited files" "$t" 'format' 'authored|edited|only .*(chang|edit)|files (this|i) (chang|edit)|the (changed|edited) file'
+assert_all "format-scope: no wholesale reformat of the shared file"  "$t" 'whole[- ]?file|wholesale|entire (shared )?file|whole shared file' 'not|never|avoid|would ?n.?t|do ?n.?t|defer|separate|\bCI\b|chore'
 
 # design-invalidated scenario: execute must STOP and re-open Gate 2, never work around it.
 t="$(run_prompt design-invalidated 'In the mango ticket lifecycle, during the execute phase a test reveals that the approved Gate-2 design approach cannot work as designed. Per the mango execute/solve skill, exactly what do you do next? Be specific.')"

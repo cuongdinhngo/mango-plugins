@@ -49,7 +49,9 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
    one — state that honestly if asked.
 3. **Optional project security agent.** If the project defines one, run it on the diff.
 4. **Reconcile scope vs the approved list.** Any file outside the Gate-2 list, or reformatting of
-   untouched lines, is **not clean**.
+   untouched lines — including a **wholesale reformat of a shared or pre-existing file** by a
+   formatter run beyond the authored/edited files (the execute **format-scope rule**) — is **not
+   clean**.
 5. **Regression check.** Re-check the Phase-1 callers / blast radius for regressions.
 6. **Proving test.** Run it via `config.test_command`. Record the result and answer: **"would it
    fail without the change?"**

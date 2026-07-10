@@ -54,7 +54,10 @@ abstraction serves only one call site.
 ## 3. Surgical changes
 
 **Operating rule.** Touch only what the approved change list requires. Match surrounding style.
-Never reformat lines you are not changing. Never delete pre-existing dead code without instruction.
+Never reformat lines you are not changing. Run the project's formatter only on the files this change
+authored or edited — never over a shared or pre-existing file wholesale; whole-file conformance is a
+separate concern (CI or a dedicated chore ticket), never folded into this ticket's diff. Never delete
+pre-existing dead code without instruction.
 
 **Enforced at** (execute → Phase 3; review → Gate 4):
 - The **verification sweep**: proves zero stray references and that the diff ⊆ approved list.
