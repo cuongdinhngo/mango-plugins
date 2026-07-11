@@ -37,3 +37,12 @@ independent check. Rebuild the requirements yourself, from the raw ticket alone.
 A numbered table of your rebuilt requirements, each with its verdict and `path:line`. Then a
 one-line summary: how many met, not met, can't tell. State plainly if the diff does not satisfy the
 ticket as you read it.
+
+## Critic-output guardrail (binding — never compress this)
+
+Your output is **critic output**. **Never** compress it to a terse form (no Caveman-style output
+compression): critic output **must retain full evidence detail** — the per-requirement verdict and
+its `path:line` evidence. The one-line summary is *in addition to*, never *instead of*, the numbered
+table. The evidence *is* the value; brevity applied where a false-green could hide is the failure this
+forbids. A token optimizer may only trim representation redundancy elsewhere — never a check, a gate,
+or the evidence a critic emits.

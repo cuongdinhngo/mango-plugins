@@ -42,7 +42,14 @@ SKILL_CONTRACTS = {
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
     "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend"],
+    "budget": [r"[Dd]etect", r"[Ii]nform", r"recorded", r"never.{0,15}install", r"depend",
+               r"RTK", r"[Cc]aveman", r"safety axis", r"degrade clean", r"PROVISIONAL",
+               r"non-critic-only", r"descriptive"],
 }
+
+# Critic agents whose output must never be terse-compressed. Each brief MUST carry the
+# Caveman-critic guardrail so a token optimizer cannot strip the evidence a gate relies on.
+CRITIC_AGENTS = ["reviewer", "reviewer-max", "challenger"]
 
 failures = []
 checks = 0
@@ -180,6 +187,44 @@ def validate_skill_contracts():
             )
 
 
+def validate_token_optimizer():
+    """The token_optimizer block ships descriptive + human-gated with two HARD-PINNED invariants:
+    RTK default-expect (degrade clean), headroom.output_shaper OFF (never shapes critic output),
+    caveman scoped non-critic-only. Guards that an edit cannot silently flip a safety invariant."""
+    example = ROOT / "plugins" / "mango" / "config" / "harness.example.json"
+    data = load_json(example)
+    if not isinstance(data, dict):
+        return
+    to = data.get("token_optimizer")
+    if not check(isinstance(to, dict), "token_optimizer: missing or not an object in harness.example.json"):
+        return
+    check(to.get("rtk") == "expect", "token_optimizer: rtk default must be 'expect' (degrade-clean)")
+    headroom = to.get("headroom", {})
+    check(isinstance(headroom, dict) and headroom.get("output_shaper") is False,
+          "token_optimizer: headroom.output_shaper must be false (never shapes critic output)")
+    caveman = to.get("caveman", {})
+    check(isinstance(caveman, dict) and caveman.get("scope") == "non-critic-only",
+          "token_optimizer: caveman.scope must be 'non-critic-only' (Caveman never touches critic output)")
+
+
+def validate_critic_guardrail():
+    """Every critic agent brief MUST carry the Caveman-critic guardrail: critic output keeps full
+    evidence detail and is never terse-compressed. The build fails if the prohibition is dropped."""
+    for agent in CRITIC_AGENTS:
+        path = ROOT / "plugins" / "mango" / "agents" / f"{agent}.md"
+        if not check(path.exists(), f"critic-guardrail: agents/{agent}.md is missing"):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"critic-guardrail: cannot read agents/{agent}.md ({exc})")
+            continue
+        check(re.search(r"Caveman", body) is not None,
+              f"critic-guardrail: agents/{agent}.md missing the Caveman-critic prohibition")
+        check(re.search(r"full evidence", body, re.IGNORECASE) is not None,
+              f"critic-guardrail: agents/{agent}.md must state critic output retains full evidence detail")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -233,6 +278,8 @@ def main():
     validate_plugin_manifests()
     validate_frontmatter_files()
     validate_skill_contracts()
+    validate_token_optimizer()
+    validate_critic_guardrail()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

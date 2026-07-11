@@ -199,6 +199,26 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 
 ---
 
+## Cost ledger (descriptive — facts only, never auto-cuts)
+
+A **counted artifact** recording token usage **per phase and per subagent dispatch** (reviewer,
+challenger, extractor, Explore fan-out, each review round), read from each dispatch's usage block.
+It reports **facts only**: phase, subagent/dispatch, round, tokens. **Descriptive, never normative**
+— it makes the cost visible so a *human* can decide where to trim; it never itself decides to cut a
+check, a gate, a critic, or evidence detail. This is also the data the middle-tier sizing decision
+needs later — **measure before you size** (`context ≠ correctness`: don't optimize what you haven't
+measured). When a `token_optimizer` is enabled (via `/mango:budget`), record what it is
+estimated/measured to save here too — measure the optimizer, don't trust its claim.
+
+| Phase | Subagent / dispatch | Round | Tokens (in / out) | Optimizer applied · est./measured saving |
+|-------|---------------------|-------|-------------------|------------------------------------------|
+|       |                     |       |                   |                                          |
+
+`LEDGER TOTAL: <tokens> · top cost driver: <phase / subagent>` — surfaced by `finalise` at the final
+gate as a one-line summary (total + top cost driver). It never triggers an automatic cut.
+
+---
+
 ## Decision log
 
 Record every gate decision here — including any **scope re-declaration** when the card *outgrew its

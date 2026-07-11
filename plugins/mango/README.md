@@ -168,10 +168,38 @@ at-a-glance index.)
 | `/mango:sitemap` | Generate a code-surface map (routes / modules) into `docs_dir` | Opt-in; needs `code_map_cmd`. |
 | `/mango:db-map` | Generate a schema map (tables / columns / keys / indexes / relations) into `docs_dir` | Opt-in; **off by default**; needs `db_kind` + (`db_introspect_cmd` or `migrations_path`). |
 | `/mango:version-check` | Compare running vs latest and **print the host `/plugin` commands** | Informs only, never updates; needs `update_check_url`. |
+| `/mango:budget` | Detect token optimizers, inform per the safety axis, record a human's provisional adoption in `token_optimizer` | Descriptive + human-gated (like `codify`); never installs one, never depends on one, never lets one weaken a critic. |
 
 The `sitemap`/`db-map` outputs are **descriptive** (facts, regenerable — what the project is);
 `codify` is **normative** (what it should be). mango generates the descriptive and facilitates the
 normative, but never authors the normative.
+
+### Token cost — measure before you optimize
+
+mango records its own token cost as a **descriptive Cost ledger** (per phase and per subagent
+dispatch — reviewer, challenger, extractor, Explore fan-out, each review round) in the working doc;
+`finalise` surfaces a one-line summary (total + top cost driver). The ledger is **facts only — it
+never auto-cuts a check, a gate, a critic, or evidence detail**; it makes cost visible so a *human*
+can decide, and is the data a later sizing decision needs (measure before you size).
+
+`/mango:budget` (opt-in, like `codify`) then lets a human adopt an external token optimizer with the
+safety trade-offs made explicit. **The safety axis:** an optimizer is safe only if it removes
+**representation redundancy** (how output is phrased), **never** a check, a gate, a critic, or the
+**evidence detail** a critic relies on (`path:line`, measured values, diffs).
+
+- **RTK** — compresses **Bash-command output** before it enters context. Safe; sits **below** mango.
+  The default `token_optimizer.rtk: "expect"` means mango **tolerates** RTK's compact output but
+  **never installs or depends on it** — RTK absent, the run is **identical** (only the saving is
+  lost). `doctor` may note RTK presence as one informational line; it never gates on it.
+- **Headroom** — input compression is safe, but its `OUTPUT_SHAPER` / effort-routing changes what the
+  model writes → it **must stay OFF** (`headroom.output_shaper: false`, enforced).
+- **Caveman** — terse agent output. **Never applied to critic output** (reviewer / challenger /
+  gate-blocking artifact), which must retain full evidence detail; if enabled it is scoped
+  **non-critic-only** (`caveman.scope: "non-critic-only"`, enforced). Terse critic output loses the
+  evidence that *is* the review's value — brevity is never applied where a false-green could hide.
+
+Adopting any optimizer is a **recorded, provisional decision** (ratified like `codify`), never a
+silent toggle. `budget` **detects and informs, never self-administers.**
 
 ## Agents
 
@@ -209,6 +237,13 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
   proving artifact), `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`,
   `pr_host`, `cause_taxonomy`, `explore_fanout` (default `true`), `cost_tier`
   (`economy|standard|max`, default `standard`).
+- `token_optimizer` (optional; the human-gated record of which external token optimizers mango may
+  assume — set via `/mango:budget`). Ships descriptive + human-gated with two **hard-pinned**
+  invariants: `rtk: "expect"` (mango tolerates RTK's compact Bash output but never installs/depends on
+  it — degrades cleanly when absent), `headroom.output_shaper: false` (never shapes critic output),
+  and `caveman.scope: "non-critic-only"` (Caveman-style compression never touches reviewer / challenger
+  / gate-blocking output). Enabling any optimizer is a recorded provisional decision, never a silent
+  toggle.
 - **Frontend-track keys (all optional):** `track` (`backend|frontend|fullstack`, default `backend`;
   selects which gate set applies — **orthogonal to TIER** — and may be inferred from touched-file
   paths when unset), `breakpoints` (optional list of viewport widths the responsive gates test; the
@@ -291,7 +326,11 @@ to the authored/edited files, never a wholesale reformat of a shared file), and 
 behaviours (each with its own fixture so a red run is diagnosable): a **behavioural deviation** from
 the approved Gate-2 bullet is recorded despite a clean file diff; a **vague AC** is pinned to a
 measurable or logged as a manual-check exclusion and cannot carry a bare `✅`; a **red baseline** is
-recorded with a delta-green DoD; a **conditional LGTM** leads to a verify-only re-review. It costs tokens, so CI runs it only via the manual `eval.yml`
+recorded with a delta-green DoD; a **conditional LGTM** leads to a verify-only re-review — and the four
+**v1.3** budget behaviours: the **cost ledger** is descriptive (per-phase/subagent, surfaced at
+finalise, never auto-cuts); an **RTK-absent** run completes identically (degrade clean); **Caveman is
+forbidden on critic output** (which keeps `path:line` evidence); and enabling an optimizer is a
+**recorded provisional decision**, not silent. It costs tokens, so CI runs it only via the manual `eval.yml`
 workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 **Running the eval yourself — one command, no setup.** From a fresh clone:

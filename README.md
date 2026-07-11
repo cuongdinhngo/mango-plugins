@@ -4,9 +4,9 @@ A Claude Code **marketplace** hosting the [`mango`](./plugins/mango) plugin — 
 ticket-lifecycle harness. The repo root *is* the marketplace; the plugin lives in
 [`plugins/mango/`](./plugins/mango).
 
-> **Status: 1.0 — stable.** Proven across multiple real projects (two stacks) by its author, with a
-> green behavioural eval and fault-injection-tested escalation paths. Independent-operator validation
-> is ongoing.
+> **Status: 1.3.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
+> with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
+> API has been stable since 1.0. Independent-operator validation is ongoing.
 
 ## Install
 
@@ -95,6 +95,7 @@ knowledge about, or describe a project. Kept separate from the lifecycle table a
 | `/mango:sitemap` | Generate a code-surface map (routes / modules) into `docs_dir` | Opt-in; needs `code_map_cmd`. |
 | `/mango:db-map` | Generate a schema map (tables / columns / keys / indexes / relations) into `docs_dir` | Opt-in; **off by default**; needs `db_kind` + (`db_introspect_cmd` or `migrations_path`). |
 | `/mango:version-check` | Compare running vs latest and **print the host `/plugin` commands** | Informs only, never updates; needs `update_check_url`. |
+| `/mango:budget` | Detect token optimizers → inform per the safety axis → record a human's provisional adoption | Descriptive + human-gated; never installs, never depends on one, never lets one weaken a critic. mango records a descriptive **Cost ledger** and tolerates RTK's compact output but degrades cleanly without it. |
 
 The `sitemap`/`db-map` outputs are **descriptive** (facts, regenerable — what the project is);
 `codify` is **normative** (what it should be). mango generates the descriptive and facilitates the
@@ -131,7 +132,10 @@ wholesale reformat of a shared file), and the four **v1.2** behaviours — one f
 is diagnosable — (a **behavioural deviation** from the approved Gate-2 bullet is recorded despite a
 clean file diff; a **vague AC** is pinned to a measurable or logged as a manual-check exclusion and
 cannot carry a bare `✅`; a **red baseline** is recorded with a delta-green DoD; a **conditional
-LGTM** takes a verify-only re-review). It
+LGTM** takes a verify-only re-review) — and the four **v1.3** budget behaviours (the **cost ledger** is
+descriptive and never auto-cuts; an **RTK-absent** run completes identically; **Caveman is forbidden on
+critic output**, which keeps its `path:line` evidence; enabling an optimizer is a **recorded provisional
+decision**, not silent). It
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
 (they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct

@@ -9,7 +9,7 @@
     {
       "name": "mango",
       "source": "./plugins/mango",
-      "description": "Gated ticket-lifecycle harness (analysis → design → execute → review → finalise). Project rules are read at runtime from .harness.json; trust comes from emitted, counted, gate-blocking artifacts. Also facilitates defining a project's rule book and DB conventions (/mango:codify — provisional until a human ratifies) and ships opt-in descriptive code/schema maps (sitemap, db-map).",
+      "description": "Gated ticket-lifecycle harness (analysis → design → execute → review → finalise). Project rules are read at runtime from .harness.json; trust comes from emitted, counted, gate-blocking artifacts. Also facilitates defining a project's rule book and DB conventions (/mango:codify — provisional until a human ratifies), ships opt-in descriptive code/schema maps (sitemap, db-map), and makes its own token cost visible as a descriptive ledger with human-gated optimizer adoption (/mango:budget — never installs one, never lets one weaken a critic).",
       "category": "development"
     }
   ]

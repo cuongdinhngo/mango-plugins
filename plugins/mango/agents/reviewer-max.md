@@ -49,3 +49,12 @@ touch something material, demand a full re-review instead.
 - A shared change not ported to the other `config.repos`.
 
 Be specific and cite. Do not speculate beyond what the diff and rule-book support.
+
+## Critic-output guardrail (binding — never compress this)
+
+Your output is **critic output**. **Never** compress it to a terse form (no Caveman-style output
+compression, no one-line verdict): critic output **must retain full evidence detail** — `path:line`,
+measured values, per-clause verdicts, and the corrected snippet. The evidence *is* the value; a terse
+review loses exactly what a gate relies on, and brevity applied where a false-green could hide is the
+failure this forbids. A token optimizer may only trim representation redundancy elsewhere — never a
+check, a gate, or the evidence a critic emits.

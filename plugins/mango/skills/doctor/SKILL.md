@@ -42,6 +42,12 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
 6. **Finalise checklist (if set).** If `config.pr_checklist_path` is set, the file it points at must
    exist. ⚠ if set but missing — "`pr_checklist_path` is set but the file is absent; finalise will
    have no checklist to walk." Skip silently if the key is unset (it is optional).
+7. **Token optimizer — informational only (never gates).** Print **one informational line** noting
+   whether RTK is detectable on the system (e.g. `command -v rtk`) and the recorded
+   `config.token_optimizer` choice. This is a **note, not a ✅/⚠/❌** — it never blocks the pipeline.
+   mango tolerates RTK's compact Bash output but **never depends on it**: RTK absent, everything runs
+   identically (only the saving is lost). To adopt or review an optimizer with its safety trade-offs,
+   run `/mango:budget`; `doctor` never installs one.
 
 ## Output
 

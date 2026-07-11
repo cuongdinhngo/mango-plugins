@@ -3,6 +3,61 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] — 2026-07-11
+
+Makes mango's token cost **visible and measurable** and adds a human-gated way to adopt an external
+token optimizer with its safety trade-offs explicit — without mango ever installing one, depending on
+one, or letting one weaken a critic. Cost was always an **estimate**, never measured per-phase; this
+release measures first (`context ≠ correctness` applied to optimization: don't optimize what you
+haven't measured), then gates adoption behind a human choice exactly as `codify` gates the rule book.
+Generic and stack-agnostic throughout — no project, ticket, library, or brand is named; the optimizer
+names (RTK / Headroom / Caveman) are the generic classes the safety axis reasons about. Backend
+behaviour is otherwise unchanged, and with `token_optimizer` at its defaults a run is identical to
+v1.2.
+
+### Added / Changed
+- **Cost ledger (descriptive measurement).** The run records token usage **per phase and per subagent
+  dispatch** (reviewer, challenger, extractor, Explore fan-out, each review round) into the working
+  doc as a **facts-only** counted artifact (new *Cost ledger* block in the working-doc template);
+  `solve` records rows as it goes and `finalise` surfaces a one-line summary (total + top cost driver).
+  It is **descriptive, never normative** — it makes cost visible so a *human* can decide where to trim;
+  it never itself cuts a check, a gate, a critic, or evidence detail. It is also the data a later
+  middle-tier sizing decision needs — measure before you size. `PRINCIPLES.md` documents it.
+- **`budget` skill (detect + inform + human-gate optimizer adoption).** New `skills/budget/SKILL.md`,
+  mirroring `codify`'s descriptive + human-gated shape: it **detects** which optimizers are present
+  (installs nothing), **informs** per a fixed **safety axis** (an optimizer is safe only if it removes
+  representation redundancy — how output is phrased — never a check, gate, critic, or the evidence a
+  critic relies on), **human-gates adoption** into a `token_optimizer` block in `.harness.json` as a
+  **recorded provisional decision** (ratified like `codify`), and **reports** each enabled optimizer's
+  estimated/measured saving in the ledger (measure the optimizer, don't trust its claim). It never
+  installs, never makes mango depend on an optimizer, and never silently changes what a critic emits.
+- **RTK default-expect (below mango; degrade cleanly).** The default `token_optimizer.rtk: "expect"`
+  means mango **tolerates** RTK rewriting Bash-command output (git/test/lint/ls) into a compact form —
+  it does **not** install RTK and does **not** require it. RTK absent → everything runs **identically**
+  (only the saving is lost); mango never fails, blocks, or changes a decision on RTK presence/absence,
+  and no mango logic parses an RTK-specific format in a way that breaks without it. `doctor` may note
+  RTK presence as one **informational** line (never a gating ✅/⚠/❌).
+- **Caveman critic guardrail (HARD — invariant).** Caveman-style output compression **must never** be
+  applied to critic output — the `reviewer`, `reviewer-max`, `challenger`, and any gate-blocking
+  artifact — which **must retain full evidence detail** (`path:line`, measured values, per-clause
+  verdicts). The three critic agent briefs carry the guardrail; Caveman, if enabled, is **scoped to
+  non-critic output only** (`caveman.scope: "non-critic-only"`, enforced). `PRINCIPLES.md` states the
+  rationale: terse critic output loses the evidence that *is* the review's value; brevity is never
+  applied where a false-green could hide (the retro-#5 class).
+- **Config, validator & docs.** New `token_optimizer` block in `config/harness.example.json` (with the
+  two hard-pinned invariants). `scripts/validate.py` adds the `budget` skill contract (detect / inform
+  / recorded / never-install / degrade-clean / non-critic-only tokens), a `token_optimizer` schema
+  check (rtk expect, `output_shaper` false, caveman non-critic-only), and a critic-guardrail token
+  check across the three critic agents (build fails if the Caveman-critic prohibition is dropped). Both
+  READMEs and `PRINCIPLES.md` document `budget`, the safety axis, the RTK expectation, and the ledger;
+  the v0.5 doc-consistency check stays green.
+- **Eval coverage (one fixture per guarantee).** Four generic fixtures (`ledger-descriptive`,
+  `rtk-degrade`, `caveman-critic-guard`, `optimizer-adoption-gated`) assert: a run records a
+  facts-only per-phase/subagent ledger and surfaces a finalise summary without auto-cutting; an
+  RTK-absent run completes identically with no changed decision; critic output keeps `path:line`
+  evidence and the guardrail forbids terse critic output; enabling an optimizer lands in `.harness.json`
+  as a recorded provisional choice. Fixtures are generic (`PROJ-*`); the eval coverage header is updated.
+
 ## [1.2.0] — 2026-07-11
 
 Four evidence-backed fixes from field retros #4 and #5, gathered into one minor. No new architecture

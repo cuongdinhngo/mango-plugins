@@ -58,6 +58,14 @@
 #   conditional-LGTM — a round-1 CHANGES REQUESTED with a conditional LGTM leads to a verify-only
 #                     re-review (named-fix check + regression scan), not a full re-derivation, and the
 #                     challenger is not re-run unless a fix changed scope (conditional-LGTM).
+#   budget (v1.3)   — cost ledger is descriptive: a run records a per-phase/per-subagent cost block and
+#                     finalise surfaces a summary, without auto-cutting anything (ledger-descriptive);
+#                     with rtk: expect but RTK absent the run completes identically — nothing fails or
+#                     changes a decision (rtk-degrade); with caveman enabled, critic output still carries
+#                     path:line evidence and terse critic output is forbidden (caveman-critic-guard);
+#                     enabling an optimizer lands in .harness.json token_optimizer as a recorded
+#                     provisional decision, never a silent toggle, and budget installs nothing
+#                     (optimizer-adoption-gated).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -133,6 +141,7 @@ cat >"$SANDBOX/.harness.json" <<'HARNESS'
   "explore_fanout": false,
   "track": "backend",
   "cost_tier": "standard",
+  "token_optimizer": { "rtk": "expect", "headroom": { "enabled": false, "output_shaper": false }, "caveman": { "enabled": false, "scope": "non-critic-only" } },
   "branch_strategy": "fix|feat|chore/<KEY>-<slug>",
   "lessons_path": "docs/LESSONS.md",
   "tracker": { "base_url": "https://tracker.example.com", "project_key": "EVAL", "cli": "true", "read_mcp": null },
@@ -358,6 +367,37 @@ assert_contains "conditional-LGTM: verify-only re-review"         "$t" 'verify-o
 # Decision-level: round 2 confirms the named fixes + runs a regression scan (outcome) WITHOUT a full
 # re-derivation / without re-running the challenger (the guard) — so a full re-review drops a token.
 assert_all "conditional-LGTM: verify-only, not a full re-derivation" "$t" 'regression' 'not .*re-?deriv|without a full|challenger.*(once|not repeated|not re-?run)|not repeated'
+
+# ledger-descriptive (v1.3): the Cost ledger is a descriptive, facts-only artifact. A completed run
+# records per-phase/per-subagent token usage and finalise surfaces a one-line summary (total + top cost
+# driver) WITHOUT the ledger deciding to cut anything.
+t="$(run_fixture ledger-descriptive 'Run the mango finalise cost-ledger step for this completed full-tier ticket. Using the recorded per-dispatch token usage shown, produce the Cost ledger block and the one-line finalise summary (total + top cost driver). State plainly whether the ledger itself decides to cut anything. Do not stop for my input.')"
+assert_contains "ledger: records a cost ledger"              "$t" 'cost ledger|ledger total'
+# Decision-level: it is descriptive/facts-only (outcome) AND does not itself auto-cut a check/critic (guard).
+assert_all "ledger: descriptive, does not auto-cut"          "$t" 'descriptive|facts[ -]only|facts only' 'not.*cut|never.*cut|(not|never) *\*{0,2}normative|does *\*{0,2}not\*{0,2}.{0,12}(cut|decide|drop)|human (call|can |decide|decision)|not itself|makes.*visible'
+assert_contains "ledger: finalise summary (total + driver)"  "$t" 'top cost driver|cost driver|ledger total'
+
+# rtk-degrade (v1.3): with token_optimizer.rtk: expect but RTK absent, the run completes identically —
+# mango never fails, blocks, or changes a decision on RTK absence; only the token saving is lost.
+t="$(run_fixture rtk-degrade 'Per the mango budget skill and PRINCIPLES, this project sets token_optimizer.rtk: expect but RTK is not installed. Explain exactly what happens to a mango run: does anything fail, block, or change a gate decision because RTK is absent? Be specific. Do not stop for my input.')"
+assert_contains "rtk-degrade: runs identically"             "$t" 'identical|degrade clean|degrade cleanly|unchanged|same|no difference'
+# Decision-level: about RTK (subject) AND nothing fails/blocks/changes a decision / only the saving is lost (guard).
+assert_all "rtk-degrade: no failure / no changed decision"  "$t" 'rtk' 'not fail|never fail|does not.*(fail|block|chang)|no.*(fail|block|chang)|only the saving|degrade'
+
+# caveman-critic-guard (v1.3): with caveman enabled, critic output (reviewer/challenger) must NOT be
+# terse-compressed and must retain path:line evidence detail.
+t="$(run_fixture caveman-critic-guard 'Run the mango review phase on this ticket with token_optimizer.caveman.enabled true. Per mango'\''s Caveman critic guardrail, state whether the reviewer/challenger output may be compressed to a terse form, and what evidence critic output must retain. Do not stop for my input.')"
+assert_contains "caveman-guard: critic keeps evidence detail" "$t" 'path:line|evidence detail|full evidence'
+# Decision-level: names caveman/compression/terse (subject) AND forbids it on critic output (guard).
+assert_all "caveman-guard: forbids terse critic output"       "$t" 'caveman|compress|terse' 'never|not|forbid|must not|non-critic-only|retain'
+
+# optimizer-adoption-gated (v1.3): enabling an optimizer is a recorded provisional decision in
+# .harness.json token_optimizer — never a silent toggle — and budget installs nothing.
+t="$(run_fixture optimizer-adoption-gated 'Run the mango budget skill for this project to consider adopting the detected Headroom optimizer. Per mango, state exactly how the adoption is recorded and where, whether it is silent, and whether budget installs anything. Do not stop for my input.')"
+assert_contains "adoption-gated: recorded in token_optimizer" "$t" 'token_optimizer|\.harness\.json'
+# Decision-level: recorded (outcome) AND provisional / not silent (guard).
+assert_all "adoption-gated: recorded provisional, not silent"  "$t" 'recorded|token_optimizer' 'provisional|not.*silent|not a silent|ratif|human'
+assert_contains "adoption-gated: never installs / no depend"   "$t" 'never install|not install|does not install|installs nothing|depend'
 
 echo
 if [ "$fails" -gt 0 ]; then

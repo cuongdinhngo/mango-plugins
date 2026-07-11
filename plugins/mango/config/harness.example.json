@@ -31,6 +31,13 @@
   "design_doc_path": "DESIGN.md",
   "//cost_tier": "Model-delegation dial: economy | standard | max (default standard). economy pushes more bulk retrieval to a Haiku worker and avoids Opus on review; max allows Opus on review for high-stakes diffs. Never demotes review/challenger to Haiku. See PRINCIPLES.md routing map.",
   "cost_tier": "standard",
+
+  "//token_optimizer": "Human-gated record (via /mango:budget) of which external token optimizers mango may assume are present. DESCRIPTIVE + human-gated, exactly like codify: mango DETECTS + INFORMS + records a human's choice — it NEVER installs an optimizer, never DEPENDS on one, and never lets one weaken a check/gate/critic. Safety axis: an optimizer is safe only if it removes representation redundancy (how output is phrased), never a check, a gate, a critic, or the evidence detail a critic relies on (path:line, measured values, diffs). rtk: expect|off (default expect) — mango tolerates RTK rewriting Bash-command output into a compact form; it does not install RTK and DEGRADES CLEANLY when RTK is absent (nothing fails, no decision changes — only the saving is lost). headroom.output_shaper MUST stay false (it changes what the model writes / how hard it thinks → can weaken a critic). caveman.scope is HARD-PINNED to non-critic-only: Caveman-style output compression must NEVER be applied to reviewer/challenger/gate-blocking output, which must retain full evidence detail. Enabling any optimizer is a recorded provisional decision (ratified like codify), never a silent toggle.",
+  "token_optimizer": {
+    "rtk": "expect",
+    "headroom": { "enabled": false, "output_shaper": false },
+    "caveman": { "enabled": false, "scope": "non-critic-only" }
+  },
   "//update_check_url": "OPTIONAL raw URL to the published marketplace manifest (e.g. the raw marketplace.json of the marketplace mango is published from). If set, /mango:version-check fetches it to compare the running version against the latest published version and PRINTS the host /plugin commands when a newer one exists. mango never updates or installs — plugin administration is the host's job. Leave unset/null to disable the check (no network call).",
   "update_check_url": null,
   "branch_strategy": "fix|feat|chore/<KEY>-<slug>",

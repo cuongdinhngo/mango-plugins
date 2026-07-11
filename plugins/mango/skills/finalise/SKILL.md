@@ -73,5 +73,11 @@ goes through `config.tracker.cli` — **never** an MCP.
    *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory. (Observed
    failure: a run discovered a durable constraint — two live rich-text editors corrupt each other —
    but had no deferred rows, so it nearly never reached the repo's shared `LESSONS.md`.)
-9. **Update `Session status`** with a concrete next action (never "continue") and state the
+9. **Surface the Cost ledger summary (descriptive).** Read the working-doc **Cost ledger** and print
+   a one-line summary — `LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>` — at the final
+   gate, plus any recorded optimizer saving. This is **facts only**: it makes the cost visible so a
+   human can decide where to trim; it **never** triggers an automatic cut of a check, a gate, a
+   critic, or evidence detail. It is also the data a later middle-tier sizing decision needs — measure
+   before you size.
+10. **Update `Session status`** with a concrete next action (never "continue") and state the
    **revert path** (branch, commits, how to undo a merge/transition).
