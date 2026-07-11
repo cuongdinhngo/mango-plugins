@@ -38,11 +38,31 @@ directly — never spawn a model for a one-line shell command.
 4. **Add the proving test** named at Gate 2. Confirm it fails on the pre-change state if you can,
    then passes after the change. If it keeps failing, the two **Escalations** below apply — do not
    loop indefinitely and do not silently swap in a different approach.
-5. **Verification sweep.** Prove:
-   - zero stray references introduced (no dangling symbols/imports from the edit);
-   - the diff ⊆ approved change list (no file outside the list, no untouched-line reformatting);
-   - each diff hunk maps to a matrix row.
-   Record the sweep result in the working doc. If the realized diff **materially exceeds** the
+
+   **Baseline-aware Definition of Done (detect-not-assume).** Honour the `BASELINE:` recorded at
+   analysis. When `baseline: green`, the DoD is the usual "the verification command passes". When
+   `baseline: red | flaky`, the DoD is **prove the delta is green**: your change must **not introduce
+   any new failure**, and must **fix any pre-existing failure it claims to**. A pre-existing failure
+   **outside** the change stays a **recorded baseline exclusion** — it is neither a blocker for this
+   ticket nor a silent pass. Do not improvise a "baseline red, my delta green" story ad hoc; read it
+   from the recorded baseline and prove your diff against it.
+5. **Verification sweep — scope discipline on BOTH axes.** Scope discipline is measured on **two
+   axes**: the **file set** AND **conformance to the approved design behaviour**. A clean file diff
+   does **not** certify behavioural conformance.
+   - **Axis 1 — file set.** Prove:
+     - zero stray references introduced (no dangling symbols/imports from the edit);
+     - the diff ⊆ approved change list (no file outside the list, no untouched-line reformatting);
+     - each diff hunk maps to a matrix row.
+   - **Axis 2 — design-conformance self-check (behaviour).** Walk **each Gate-2 Approach bullet**
+     (not the file list) and classify it `implemented-as-approved | deviated`. Any bullet you
+     implemented **differently** from what Gate 2 approved is `deviated` — **even when every touched
+     file is inside the change-list**, so the Axis-1 sweep passes clean. A `deviated` bullet **must
+     be recorded as a deviation** (reuse the Phase-3 deviation-record mechanism in the working doc),
+     with its trace to the approved bullet, and **surfaced to review** for adjudication — exactly as
+     a file-scope deviation would be. Do **not** let a green Axis-1 diff (`diff ⊆ list ✅`) sit over a
+     behaviour that diverges from the approved design; and never self-mark a feature `✅` that you did
+     not actually implement.
+   Record **both** axes' results in the working doc. If the realized diff **materially exceeds** the
    approved change list or the declared `SCOPE` has crossed up a tier (S/M → L), do not absorb it —
    surface the *outgrew-its-ticket* nudge at the next gate (review) so the human can re-scope or
    split, and flag any branch/PR-type drift.

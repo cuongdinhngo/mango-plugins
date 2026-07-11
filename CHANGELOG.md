@@ -3,6 +3,66 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] — 2026-07-11
+
+Four evidence-backed fixes from field retros #4 and #5, gathered into one minor. No new architecture
+— all four refine existing mechanisms. Each ships with its **own** generic eval fixture so a red run
+pinpoints which fix regressed. Generic and stack-agnostic throughout — no project, library,
+framework, formatter, or device is named. Backend behaviour is otherwise unchanged.
+
+### Added / Changed
+- **`execute` — design-conformance self-check (scope discipline on BOTH axes).** The verification
+  sweep now measures scope on **two axes**: the **file set** (the existing `diff ⊆ approved list`
+  sweep) **and** conformance to the **approved design behaviour**. `execute` walks **each Gate-2
+  Approach bullet**, classifies it `implemented-as-approved | deviated`, and any `deviated` bullet is
+  **recorded as a deviation** (reusing the Phase-3 deviation record) traced to its approved bullet and
+  surfaced to `review` — **even when every touched file is inside the change-list**, so the file-set
+  sweep passes clean. `review`'s scope reconciliation re-confirms the behaviour axis and treats a
+  missed behavioural deviation (or a feature self-marked `✅` that was not implemented) as **not
+  clean**. `PRINCIPLES.md` §3 states the two axes. *(Observed, retro #5: Gate 2 approved a behaviour
+  in writing, execute implemented something different and recorded no deviation because no file left
+  the change-list — a green counted artifact sitting over a wrong behaviour; only the reviewer,
+  re-reading the design, caught it.)*
+- **`analysis` — vague acceptance value → falsifiable at Gate 1.** Each acceptance value must be
+  either **falsifiable** (a measurable/greppable definition, not a vague adjective) **or** recorded as
+  an explicit **manual-check exclusion** (unmeasurable → human-verified, logged up front as a
+  coverage-gap exclusion). One that is **neither** is flagged by the AC-validation step and **may not
+  carry a matrix `✅`** — a bare self-reported `✅` can no longer stand in for an unmeasurable or
+  unbuilt thing. Ties into the existing AC-validation + coverage-gap-exclusion machinery; no parallel
+  mechanism. `PRINCIPLES.md` §1 documents it. *(Observed, retro #5: a vaguely-worded requirement was
+  self-marked `✅` without being implemented, because nothing forced the vague word to a testable
+  form.)*
+- **Red/flaky baseline vocabulary (`analysis` + `execute` + `review`).** A first-class,
+  **project-supplied** baseline: `analysis` runs the verification command once on the untouched
+  checkout and records `BASELINE: green | red | flaky` (with the specific failing items). A clean
+  checkout is **not** assumed green. When `baseline ≠ green`, the Definition of Done becomes **prove
+  the delta is green** — the change introduces no new failure and fixes any it claims to; a
+  pre-existing failure outside the change is a **recorded baseline exclusion**, neither a blocker nor
+  a silent pass. `execute` proves against the baseline; `review`/`finalise` compare against it, never
+  against a blanket "all green". mango **detects and records** the baseline; it never decides which
+  pre-existing failures are acceptable (a human/rulebook call, logged). New `BASELINE` field in the
+  working-doc template; `PRINCIPLES.md` §4 documents it. *(Observed, n=2: the verification command was
+  unsatisfiable on a clean checkout — a pre-existing/flaky failure — and mango had no vocabulary for a
+  red/flaky baseline, so the operator improvised "baseline red, my delta green" in every phase.)*
+- **`review` — conditional LGTM + verify-only re-review.** Round 1 may return a **conditional LGTM**
+  ("LGTM once findings 1–N land as described"); the re-review is then a **verify-only pass** — confirm
+  the N named fixes are present + a regression scan — **without** a full requirement re-derivation. The
+  ticket-blind `challenger`'s full re-derivation runs **once** and is **not repeated** on a verify-only
+  round unless a fix changed scope (its independence is the value; its cost is not paid twice for pure
+  re-confirmation). A reviewer may still demand a full re-review if a fix touched something material.
+  The `reviewer`/`reviewer-max` briefs describe the conditional-LGTM option. *(Observed, n=2: a round-2
+  review after CHANGES REQUESTED was ~100% re-confirmation yet cost a full reviewer+challenger
+  re-derivation.)*
+- **Eval coverage + validator lock.** Four generic fixtures (`behavioural-drift`, `vague-requirement`,
+  `red-baseline`, `conditional-LGTM`) — one per fix, so a red run is diagnosable — assert: a
+  behavioural deviation is recorded despite a clean file diff; a vague AC is pinned to a measurable or
+  logged as a manual-check exclusion and cannot carry a bare `✅`; a pre-existing failure yields
+  `baseline: red` with a delta-green DoD; a conditional LGTM leads to a verify-only re-review.
+  `scripts/validate.py` now requires the `analysis` `falsifiable`/`manual-check`/`baseline`, `execute`
+  `approved design`/`both axes`/`baseline`, and `review` `conditional`/`verify-only`/`baseline`
+  tokens, so none can silently regress. Both READMEs and `PRINCIPLES.md` document all four; the v0.5
+  doc-consistency check stays green.
+
 ## [1.1.0] — 2026-07-10
 
 One evidence-backed refinement from field retro #4 — the **format-scope rule** — plus the

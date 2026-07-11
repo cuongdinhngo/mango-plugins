@@ -12,6 +12,8 @@ ticket + the diff, never this `.work.md`. -->
 - **STRUCTURE:** native | synthesized  <!-- synthesized → freeform ticket; confirm reading at Gate 0 -->
 - **TRACK:** backend | frontend | fullstack  <!-- counted artifact from analysis; orthogonal to TIER; selects which gate set (frontend adds the a11y/token + M1–M10 rubric) -->
 - **TIER:** lite | full  <!-- lite routes through /mango:quick; full = five-phase flow -->
+- **BASELINE:** green | red | flaky  <!-- analysis runs config.test_command once on the untouched checkout; if red/flaky, list the specific pre-existing failing items below. When baseline≠green the DoD is "prove the delta is green": no new failure, fix any claimed; a pre-existing failure outside the change is a recorded baseline exclusion, not a blocker and not a silent pass. review/finalise compare against THIS, never "all green". -->
+  <!-- baseline exclusions (pre-existing failures outside this change): <list, or none> -->
 
 ---
 
@@ -33,9 +35,14 @@ Status legend: ✅ done/proven · ⚠ deferred (needs follow-up ticket) · ❌ n
 Independently re-derive every concrete acceptance value. A mismatch is a Gate-1 question carrying
 the computed value — never a silent correction.
 
-| AC ID | Ticket states | Independently computed | Match? | If mismatch → Gate-1 question |
-|-------|---------------|------------------------|--------|-------------------------------|
-|       |               |                        | Y/N    |                               |
+Every acceptance value must be **falsifiable** (a measurable/greppable definition — not a vague
+adjective) **or** a recorded **manual-check exclusion** (unmeasurable → human-verified; log it in
+*Coverage-gap exclusions* below). One that is **neither** is flagged here and **may not carry a
+matrix `✅`**; pin a vague word to a measurable form as a Gate-1 question.
+
+| AC ID | Ticket states | Independently computed | Match? | Falsifiable? (measurable/greppable · manual-check exclusion · **neither → flag**) | If mismatch / not falsifiable → Gate-1 question |
+|-------|---------------|------------------------|--------|-----------------------------------------------------------------------------------|-------------------------------------------------|
+|       |               |                        | Y/N    |                                                                                   |                                                 |
 
 ## Inventory (universal "all/every/no" requirements)
 
@@ -145,7 +152,13 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 - Branch:
 - Commits (logical units; no AI co-author trailer):
 - Proving test added:
-- **Verification sweep:** zero stray references ✅/❌ · diff ⊆ approved list ✅/❌ · each hunk maps to a row ✅/❌
+- **Verification sweep — BOTH axes.** *File axis:* zero stray references ✅/❌ · diff ⊆ approved list ✅/❌ · each hunk maps to a row ✅/❌. *Behaviour axis (design-conformance self-check):* walk each Gate-2 Approach bullet, classify `implemented-as-approved | deviated`; a clean file diff does not certify behavioural conformance.
+- **Design-conformance deviations** (any Gate-2 Approach bullet implemented differently from what was approved — recorded even when every touched file is in the change-list; surfaced to review for adjudication):
+
+  | Approved Gate-2 bullet | What was implemented instead | `path:line` | Surfaced to review |
+  |------------------------|------------------------------|-------------|--------------------|
+  |                        |                              |             |                    |
+
 - **Design-invalidation / re-gate** (fill only if a test or the proving test shows the approved
   Gate-2 approach cannot work as designed): what failed + evidence (`path:line` / test signature) ·
   STOP recorded ✅ · options surfaced to user · **Gate 2 re-opened** with a revised approach
@@ -153,12 +166,13 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 
 ## Phase 4 — Review ✋ (stop only if not clean)
 
-- reviewer verdict (BLOCK / CHANGES REQUESTED / LGTM):
+- reviewer verdict (BLOCK / CHANGES REQUESTED [/ conditional LGTM] / LGTM):
+- Re-review path (if round 1 was CHANGES REQUESTED): full / **verify-only** (round 1 was a conditional LGTM → confirm findings 1–N landed + regression scan; challenger re-derivation NOT repeated unless a fix changed scope):
 - challenger (ticket-blind) result:
 - security agent (if any):
 - Scope reconciliation (files outside list / reformatting):
 - Regression on Phase-1 callers:
-- Proving test result + "would it fail without the change?":
+- Proving test result + "would it fail without the change?" (judged vs the recorded `BASELINE`, not "all green": when baseline≠green the bar is delta-green — no new failure, claimed fixes landed; a pre-existing failure outside the change is a recorded baseline exclusion):
 - Layer-match re-confirmation (no AC closed clean on a layer-mismatched proof; any `❌` is upgraded or a recorded exclusion):
 - **Frontend rubric** (frontend track only — scored against `DESIGN.md`): Core (tokens / no hardcoded hex-px / semantic HTML / state-not-by-colour-alone / reduced-motion) + M1–M10 (viewport, no-h-scroll @breakpoints+320, reflow, touch-target, input-zoom, tap/hover parity, focus-visible, contrast, safe-area, pointer parity); M10 smell ran + dispatch-assert run-or-recorded-exclusion: n/a / pass / findings
 - **Proof-manifest / surfaces proven** (frontend universal/app-wide reqs): challenger scores each row

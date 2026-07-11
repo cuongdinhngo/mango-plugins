@@ -20,11 +20,17 @@ not guessed.
   If `j > 0`, STOP at Gate 0 — do not proceed.
 - The `AC validation` table: every concrete acceptance value is recomputed independently. A
   mismatch becomes a Gate-1 question carrying the computed value — **never a silent correction**.
+- **Falsifiable-or-excluded acceptance values.** Every acceptance value is either **falsifiable** (a
+  measurable/greppable definition — not a vague adjective) **or** a recorded **manual-check
+  exclusion** (unmeasurable → human-verified, logged up front as a coverage-gap exclusion). One that
+  is **neither** is flagged at Gate 1 and **may not carry a matrix `✅`** — a bare self-reported `✅`
+  cannot stand in for an unmeasurable or unbuilt thing.
 - `SECTIONS: <n> found = <n> decomposed`. Every ticket section maps to ≥1 matrix row.
 - A `Rejected alternatives` line at design records what was considered and dropped.
 
 **Fails the gate when** a gate is reached with `j > 0` unresolved, an AC mismatch was silently
-changed instead of raised, or sections found ≠ sections decomposed.
+changed instead of raised, sections found ≠ sections decomposed, or a vague acceptance value carries
+a `✅` without being pinned to a measurable or recorded as a manual-check exclusion.
 
 > **Challenger independence is procedural, backed by a path separation — not cryptographic.** The
 > working doc lives at `<config.work_dir>/<KEY>.work.md`, a **separate path** from the ticket spec,
@@ -57,15 +63,24 @@ abstraction serves only one call site.
 Never reformat lines you are not changing. Run the project's formatter only on the files this change
 authored or edited — never over a shared or pre-existing file wholesale; whole-file conformance is a
 separate concern (CI or a dedicated chore ticket), never folded into this ticket's diff. Never delete
-pre-existing dead code without instruction.
+pre-existing dead code without instruction. **Scope discipline has two axes — the file set AND
+conformance to the approved design behaviour; a clean file diff does not certify behavioural
+conformance.**
 
 **Enforced at** (execute → Phase 3; review → Gate 4):
 - The **verification sweep**: proves zero stray references and that the diff ⊆ approved list.
 - The diff ⊆ approved-list check and the "no reformatting untouched lines" review check.
 - Each diff hunk maps to a matrix row.
+- The **design-conformance self-check** (behaviour axis): execute walks each Gate-2 Approach bullet
+  and classifies it `implemented-as-approved | deviated`; any `deviated` bullet is recorded as a
+  deviation (traced to the approved bullet) and surfaced to review — **even when the file diff is a
+  clean subset of the approved list**. review re-confirms this axis and treats a missed behavioural
+  deviation, or a feature self-marked `✅` that was not implemented, as **not clean**.
 
 **Fails the gate when** a changed file is outside the approved list, untouched lines were
-reformatted, or pre-existing dead code was deleted without instruction.
+reformatted, pre-existing dead code was deleted without instruction, or the implementation diverges
+from an approved Gate-2 Approach bullet without that deviation being recorded — a green file diff
+sitting over a wrong behaviour.
 
 ---
 
@@ -82,6 +97,21 @@ end. Multi-surface work is only done when every surface is covered or every excl
   vs proof artifact, with a binding layer-match check). A layer-match `❌` blocks Gate 2 and passes
   only when the proof is upgraded to the matching layer **or** the row is recorded as a
   human-approved coverage-gap exclusion — never a silent pass.
+- **Baseline-aware Definition of Done (project-supplied, detect-not-assume).** `analysis` captures a
+  `BASELINE: green | red | flaky` by running the verification command once on the untouched checkout
+  (a clean checkout is **not** assumed green — a pre-existing or flaky failure is real). When
+  `baseline ≠ green`, the DoD is **prove the delta is green**: the change introduces no new failure
+  and fixes any it claims to; a pre-existing failure outside the change is a **recorded baseline
+  exclusion**, neither a blocker nor a silent pass. `execute` proves against this baseline;
+  `review`/`finalise` compare against it, never against a blanket "all green". mango **detects and
+  records** the baseline; it never decides which pre-existing failures are acceptable — that is a
+  human/rulebook call, logged.
+- **Verify-only re-review after a conditional LGTM.** A round-1 `CHANGES REQUESTED` may be qualified
+  as a **conditional LGTM** ("LGTM once findings 1–N land as described"); the re-review is then a
+  **verify-only pass** (confirm the N named fixes + a regression scan) rather than a full requirement
+  re-derivation. The ticket-blind `challenger`'s full re-derivation runs **once** and is not repeated
+  on a verify-only round unless a fix changed scope — its independence is preserved, its cost is not
+  paid twice for pure re-confirmation.
 - The test result is reported at review, including "would it fail without the change?".
 - The **stale-review guard** at finalise is **mechanical**: it diffs the live tree against the
   `Reviewed at <sha>` marker, exempts the working-doc / bookkeeping paths, and is stale **iff a source

@@ -46,7 +46,10 @@ goes through `config.tracker.cli` — **never** an MCP.
    If the key is unset, skip this step and behave exactly as before.
 3. **Draft the PR body.** Render `${CLAUDE_PLUGIN_ROOT}/templates/pr.md` to `/tmp/pr-<KEY>.md`.
    Derive content from the working doc (summary, changes, the proving test + result, data/DB, risk
-   & rollback, reviewer checklist). Do not paste raw commit messages.
+   & rollback, reviewer checklist). Do not paste raw commit messages. When the recorded `BASELINE`
+   was `red | flaky`, report the proving-test result **against that baseline** (delta-green: no new
+   failure; claimed fixes landed) and note any pre-existing **baseline exclusions** — never claim a
+   blanket "all green" the baseline never supported.
 4. **List planned outward actions.** Enumerate every outward action the ticket needs, e.g.:
    - push the branch;
    - open a PR via `config.pr_host`;

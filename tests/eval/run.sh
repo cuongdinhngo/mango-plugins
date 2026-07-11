@@ -46,6 +46,18 @@
 #                     working-doc/marker-only bump must PROCEED (no dead-lock, stale-workdoc-bump);
 #                     a source file changed beyond the reviewed set must REFUSE + route back to
 #                     review and resist a bare "go" (stale-source-change).
+#   behavioural-drift — execute's design-conformance self-check (scope discipline on BOTH axes): an
+#                     approach implemented differently from the approved Gate-2 bullet must be RECORDED
+#                     as a deviation even when every touched file is in the change-list (clean file
+#                     diff), not swept clean (behavioural-drift).
+#   vague-requirement — Gate-1 falsifiability: a vaguely-worded AC must be pinned to a measurable or
+#                     logged as a manual-check exclusion, and may NOT carry a bare ✅ (vague-requirement).
+#   red-baseline    — baseline vocabulary: a verification command RED on a clean checkout is recorded
+#                     as baseline: red, the DoD becomes delta-green, and the pre-existing failure is a
+#                     recorded baseline exclusion — neither blocks forever nor silently passes (red-baseline).
+#   conditional-LGTM — a round-1 CHANGES REQUESTED with a conditional LGTM leads to a verify-only
+#                     re-review (named-fix check + regression scan), not a full re-derivation, and the
+#                     challenger is not re-run unless a fix changed scope (conditional-LGTM).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -307,6 +319,45 @@ assert_contains "stale-source: marks it stale"              "$t" 'stale'
 # proceeds/stops WITHOUT routing, or a honoured bare "go", still fails the suite.
 assert_contains "stale-source: refuses + routes to review"  "$t" 'refuse|route|re-?run review|re-?review|blocked|fresh review'
 assert_contains "stale-source: bare go does not override"   "$t" 'does not override|not override|only a fresh|bare .?go'
+
+# behavioural-drift (Fix v1.2): execute's design-conformance self-check. An approach implemented
+# differently from the approved Gate-2 Approach bullet must be RECORDED as a deviation and surfaced to
+# review — even when every touched file is inside the change-list (so the file-set sweep passes clean).
+t="$(run_fixture behavioural-drift 'Run the mango execute skill on this ticket. Gate 2 is already cleared (the approved Approach bullet is quoted). Run the verification sweep on BOTH axes — the file set AND conformance to the approved design behaviour. State whether you record a design-conformance deviation, and why. Do not stop for my input.')"
+# Decision-level: a deviation is recorded (outcome) BECAUSE the behaviour diverges from the approved
+# design even though the file diff is clean (reasoning) — so a "swept clean" pass drops a token and fails.
+assert_all "behavioural-drift: records a deviation on the behaviour axis" "$t" 'deviat' 'approved (design|approach|gate.?2|bullet)|behaviou?r'
+assert_contains "behavioural-drift: acknowledges the clean file diff"     "$t" 'subset|diff ⊆|file.?set|change.?list|touched file|clean (file )?diff'
+assert_contains "behavioural-drift: surfaces it to review / not clean"    "$t" 'review|not clean|surface|adjudicat'
+
+# vague-requirement (Fix v1.2): Gate-1 falsifiability. A vaguely-worded AC ("loads quickly / feels
+# responsive") must be pinned to a measurable or logged as a manual-check exclusion, and may not carry
+# a bare ✅.
+t="$(run_fixture vague-requirement 'Run the mango analysis skill on this ticket. Apply the Gate-1 falsifiability check in the AC-validation step to each acceptance value. Do not stop for my input; show the artifacts you would produce.')"
+assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not falsifiable|not measurable|unmeasurable|vague|manual-check'
+# Decision-level: it is pinned to a measurable OR logged as a manual-check exclusion (outcome), and it
+# may not carry a bare ✅ (the guard) — so a silent ✅ drops a token and fails.
+assert_all "vague-requirement: cannot carry a bare ✅"             "$t" 'falsifiable|measurable|manual-check' 'may not|cannot|not carry|flag|pin|Gate[ -]?1 question|exclusion'
+
+# red-baseline (Fix v1.2): baseline vocabulary. A verification command that is RED on a clean checkout
+# must be recorded as baseline: red, the DoD treated as delta-green, and the pre-existing failure logged
+# as a baseline exclusion — neither blocking forever nor silently passing.
+t="$(run_fixture red-baseline 'Run the mango analysis skill on this ticket, including the baseline-capture step. The verification command already fails on the untouched checkout (as shown). Record the baseline, state the Definition of Done, and say how the pre-existing failure is handled. Do not stop for my input.')"
+assert_contains "red-baseline: records baseline red/flaky"  "$t" 'baseline[:*_ ]+(red|flaky)|baseline.*(is|=).*(red|flaky)'
+assert_contains "red-baseline: DoD is delta-green"          "$t" 'delta.?green|prove the delta|delta is green'
+# Decision-level: the pre-existing failure is a recorded exclusion (outcome) that neither blocks nor
+# silently passes (the guard).
+assert_all "red-baseline: pre-existing failure is a recorded exclusion" "$t" 'exclusion|excluded|baseline exclusion' 'not a blocker|neither|not .*silent|does not block|outside the change'
+
+# conditional-LGTM (Fix v1.2): a round-1 CHANGES REQUESTED with a conditional LGTM leads to a
+# verify-only re-review (confirm findings 1–N + regression scan), NOT a full re-derivation, and the
+# ticket-blind challenger is not re-run unless a fix changed scope.
+t="$(run_fixture conditional-LGTM 'Run the mango review re-review on this ticket. Round 1 already returned CHANGES REQUESTED with the two named findings shown, and the author has applied exactly those two fixes (no scope change). State the round-1 verdict form and exactly what round 2 does. Do not stop for my input.')"
+assert_contains "conditional-LGTM: conditional LGTM offered"      "$t" 'conditional'
+assert_contains "conditional-LGTM: verify-only re-review"         "$t" 'verify-only|verify only'
+# Decision-level: round 2 confirms the named fixes + runs a regression scan (outcome) WITHOUT a full
+# re-derivation / without re-running the challenger (the guard) — so a full re-review drops a token.
+assert_all "conditional-LGTM: verify-only, not a full re-derivation" "$t" 'regression' 'not .*re-?deriv|without a full|challenger.*(once|not repeated|not re-?run)|not repeated'
 
 echo
 if [ "$fails" -gt 0 ]; then

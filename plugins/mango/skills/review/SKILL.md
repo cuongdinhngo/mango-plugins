@@ -48,13 +48,28 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
    orchestrator withholds the working doc and re-derives from the raw ticket), not a cryptographic
    one — state that honestly if asked.
 3. **Optional project security agent.** If the project defines one, run it on the diff.
-4. **Reconcile scope vs the approved list.** Any file outside the Gate-2 list, or reformatting of
-   untouched lines — including a **wholesale reformat of a shared or pre-existing file** by a
-   formatter run beyond the authored/edited files (the execute **format-scope rule**) — is **not
-   clean**.
+4. **Reconcile scope vs the approved list — on BOTH axes.** Scope discipline is measured on the
+   **file set** AND on **conformance to the approved design behaviour** — a clean file diff does not
+   certify behavioural conformance.
+   - **File axis.** Any file outside the Gate-2 list, or reformatting of untouched lines — including
+     a **wholesale reformat of a shared or pre-existing file** by a formatter run beyond the
+     authored/edited files (the execute **format-scope rule**) — is **not clean**.
+   - **Behaviour axis.** Re-read the Gate-2 **Approach** bullets against what execute actually
+     implemented. Any bullet implemented **differently** from the approved design is a **behavioural
+     deviation** and must be adjudicated here — **even when the file diff is a clean subset of the
+     approved list** (`diff ⊆ list ✅`). A deviation execute recorded (its Phase-3 design-conformance
+     self-check) is surfaced for your decision; a deviation execute **missed** — a bullet you find
+     diverged, or a feature self-marked `✅` that was not actually implemented — is a review finding
+     and is **not clean**.
 5. **Regression check.** Re-check the Phase-1 callers / blast radius for regressions.
-6. **Proving test.** Run it via `config.test_command`. Record the result and answer: **"would it
-   fail without the change?"**
+6. **Proving test — judged against the recorded baseline, not "all green".** Run it via
+   `config.test_command`. Record the result and answer: **"would it fail without the change?"**
+   Compare the run against the `BASELINE:` recorded at analysis, **not** against a blanket "all
+   green". When `baseline: red | flaky`, the bar is **delta-green**: the change must have introduced
+   **no new failure** and must have fixed any it claimed to; a pre-existing failure that remains
+   **outside** the change is a **recorded baseline exclusion** — it does **not** block clean, and it
+   is **not** a silent pass (it is named). A **new** failure the change introduced, or a claimed fix
+   that did not land, blocks clean.
 7. **Fill `Ph3/4 proven by`** (`k/N`) for every matrix row and universal-inventory item. For a
    counted **"for each of N"** requirement, verify **item-by-item** and fill the **per-item** rows of
    its inventory checklist — the gate is not clean until **every** item is confirmed (or each
@@ -88,6 +103,28 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
     commit: `finalise` compares the live tree against this marker and **refuses** to open a PR if any
     non-exempt file changed **beyond the reviewed set**, routing back here for a re-review (see
     `finalise`).
+
+## Re-review after CHANGES REQUESTED — conditional LGTM + verify-only pass
+
+A round-1 `CHANGES REQUESTED` need not cost a full second dispatch when round 2 is pure
+re-confirmation. Two options, chosen by the reviewer:
+
+- **Conditional LGTM.** Round 1 may return a **conditional LGTM** — *"LGTM once findings 1–N land as
+  described"* — naming exactly the N findings that must be fixed and how. This is the reviewer's
+  signal that nothing else is outstanding.
+- **Verify-only re-review.** When round 1 was a conditional LGTM, the re-review is a **verify-only
+  pass**: confirm the N named fixes are present **as described** and run a **regression scan** over
+  the Phase-1 callers / blast radius — **without** a full requirement re-derivation. The ticket-blind
+  **`challenger`'s full re-derivation runs once** (round 1); its independence is the value, so it is
+  **not repeated** on a verify-only round **unless a fix changed scope** (touched a file/behaviour
+  beyond the named findings). A reviewer may still **demand a full re-review** if a fix touched
+  something material — the verify-only path is an option, never a shortcut that skips a real
+  re-check. If a verify-only pass finds a named fix missing or a regression, it escalates back to a
+  full review.
+
+Everything else (clean-decision criteria, the stale-review marker) is unchanged: a verify-only pass
+that confirms all N fixes + a clean regression scan yields a clean verdict and records the
+`Reviewed at <sha>` marker exactly as a full review would.
 
 ## Frontend track — score the rubric against `DESIGN.md` (only when `config.track` includes frontend)
 

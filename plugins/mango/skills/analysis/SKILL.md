@@ -51,9 +51,22 @@ count, and the requirements matrix.
    investigate."* This folds into the `CLARIFICATION` tally below (it counts toward `j`), so a
    synthesized reading always stops at Gate 0 until the human confirms. Structured tickets set
    `STRUCTURE: native`.
-4. **AC validation table.** Independently re-derive every concrete acceptance value (numbers,
-   thresholds, counts, formats). Each mismatch between the ticket's stated value and your computed
-   value becomes a **Gate-1 question carrying the computed value** — never a silent correction.
+4. **AC validation table — and a falsifiability check.** Independently re-derive every concrete
+   acceptance value (numbers, thresholds, counts, formats). Each mismatch between the ticket's stated
+   value and your computed value becomes a **Gate-1 question carrying the computed value** — never a
+   silent correction.
+
+   **Every acceptance value must be either falsifiable or an explicit manual-check exclusion.** For
+   each AC, its value must be **falsifiable** — a measurable/greppable definition that a test or grep
+   could disprove (e.g. "a named element with property X is present", "count == N", a threshold), not
+   a vague adjective ("looks clean", "is fast", "works well"). An AC that is **not** falsifiable must
+   instead be recorded up front as an **explicit manual-check exclusion** (unmeasurable → a human
+   verifies it; logged as a coverage-gap exclusion in the working doc, reusing the existing
+   coverage-gap-exclusion machinery — do not invent a parallel one). An AC that is **neither**
+   falsifiable **nor** a recorded manual-check exclusion is **flagged by this step** and **may not
+   carry a matrix `✅`** — a bare self-reported `✅` cannot stand in for an unmeasurable or unbuilt
+   thing. Where a vague word is the only blocker, pin it to a measurable form as a Gate-1 question
+   (carrying your proposed definition), exactly as an AC-value mismatch is raised.
 5. **Clarification tally.** Emit:
 
    `CLARIFICATION: <M> raised | <k> self-resolved (cited) | <j> for human decision`
@@ -69,7 +82,7 @@ count, and the requirements matrix.
    passing count.
 
    **Surface inventory — for a universal / app-wide FRONTEND requirement, the denominator N comes
-   from the CODE, never the ticket.** When the track includes frontend (confirmed at step 9) and a
+   from the CODE, never the ticket.** When the track includes frontend (confirmed at step 10) and a
    requirement is phrased all/every/no **or is inherently page-wide** (no horizontal scroll, reflow,
    focus-visible, contrast — anything that holds across the UI), enumerate **every reachable surface**
    — each route, full-window overlay, modal, and major mounted state — and set **N = |surfaces|**.
@@ -98,7 +111,22 @@ count, and the requirements matrix.
    (reading many files to pull facts) to the Haiku `extractor` worker, more so when
    `config.cost_tier` is `economy`. Run grep/test/lint via the Bash tool directly — never spawn a
    model for a one-line shell command.
-9. **TRACK — emit as a counted artifact.** Declare which gate set(s) apply, using `config.track`
+9. **Baseline capture — run the verification command once on the untouched checkout
+   (detect-not-assume).** Before any change, run `config.test_command` (and any declared lint) **once
+   on the untouched checkout** and record the result as a counted artifact:
+
+   `BASELINE: green | red | flaky — <specific failing items if red/flaky>`
+
+   A clean checkout is not assumed green: a project's verification command can be **unsatisfiable on
+   a fresh checkout** (a pre-existing/vendored failure, a flaky sub-pixel assertion). When
+   `baseline ≠ green`, the Definition of Done for later phases becomes **"prove the delta is green"**
+   — the change must introduce **no new failure** and must fix any it claims to; each pre-existing
+   failure **outside** the change is recorded as a **baseline exclusion** (neither a blocker nor a
+   silent pass). This is **project-supplied**: mango **detects and records** the baseline; it does
+   **not** decide which pre-existing failures are acceptable — that is a human/rulebook call, logged.
+   `design`/`execute` prove against this baseline and `review`/`finalise` compare against it, never
+   against a blanket "all green".
+10. **TRACK — emit as a counted artifact.** Declare which gate set(s) apply, using `config.track`
    when set, otherwise **infer from touched files** (step 8's blast radius). Emit:
 
    `TRACK: backend | frontend | fullstack — <k>/<N> touched files under UI paths`
@@ -110,11 +138,11 @@ count, and the requirements matrix.
    width is a **small viewport** (or the 320 px floor applies), note that the **width-parametric gates
    (M2 no horizontal scroll, M3 reflow @320 px) are in scope** — so the challenger counts them at
    review. On `track=backend` this is a one-line declaration and nothing else in the phase changes.
-10. **Scope.** Declare `SCOPE: S|M|L`. This is the **baseline** the *outgrew-its-ticket* nudge
+11. **Scope.** Declare `SCOPE: S|M|L`. This is the scope baseline the *outgrew-its-ticket* nudge
    (`solve`) compares the realized scope against at later gates: if the realized scope crosses up a
    tier (S/M → L) or the diff materially exceeds the approved one, a later gate stops to re-scope or
    split rather than silently absorbing the growth.
-11. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
+12. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
     **resolved inventory denominator N** (from the step-6 numbered inventory), **not** on the mere
     presence of universal wording. A requirement that *sounds* universal ("all/every/no") but
     resolves to **N = 1** is lite-eligible — a single-site change already covers "all". Choose
@@ -122,8 +150,10 @@ count, and the requirements matrix.
     requirement with N > 1** (N=1 does not disqualify), and the ticket is not security-tagged.
     Otherwise **full** (the existing five-phase behaviour). Lite routes through the `quick` skill;
     full keeps the full matrix, challenger, sweep, and gates.
-12. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete,
-    `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status` filled, `STRUCTURE`,
-    `TRACK`, and `TIER` declared, and — when the track includes frontend with a universal/app-wide
-    requirement — `SURFACES: N` emitted from the code surface. Write Phase 1 into the working doc and the `Session status` block,
-    then STOP and wait for the user. Do not begin design.
+13. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete with
+    every acceptance value **falsifiable or a recorded manual-check exclusion** (none carrying a bare
+    `✅`), `BASELINE` captured, `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status`
+    filled, `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track includes frontend with a
+    universal/app-wide requirement — `SURFACES: N` emitted from the code surface. Write Phase 1 into
+    the working doc and the `Session status` block, then STOP and wait for the user. Do not begin
+    design.

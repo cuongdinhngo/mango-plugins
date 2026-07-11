@@ -22,6 +22,13 @@ Lead with the **verdict**, then the findings.
 - **CHANGES REQUESTED** — Important findings only, no Critical.
 - **LGTM** — nothing Critical or Important.
 
+When your only outstanding items are a small, fully-specified set of Important findings and nothing
+else is in question, you may qualify a **CHANGES REQUESTED** as a **conditional LGTM** — state
+*"LGTM once findings 1–N land as described"* and list exactly those N findings. This lets the
+re-review be a **verify-only pass** (confirm those N fixes + a regression scan) rather than a full
+re-derivation. Only offer it when nothing beyond the named findings is outstanding; if a fix would
+touch something material, demand a full re-review instead.
+
 **Findings.** For each: `path:line`, the problem, the rule-book/standards section it violates, and a
 **corrected snippet**.
 
