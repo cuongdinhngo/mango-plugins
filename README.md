@@ -4,7 +4,7 @@ A Claude Code **marketplace** hosting the [`mango`](./plugins/mango) plugin — 
 ticket-lifecycle harness. The repo root *is* the marketplace; the plugin lives in
 [`plugins/mango/`](./plugins/mango).
 
-> **Status: 1.3.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
+> **Status: 1.3.1 — stable API.** Proven across multiple real projects (two stacks) by its author,
 > with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
 > API has been stable since 1.0. Independent-operator validation is ongoing.
 

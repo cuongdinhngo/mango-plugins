@@ -52,9 +52,12 @@
 #                     diff), not swept clean (behavioural-drift).
 #   vague-requirement — Gate-1 falsifiability: a vaguely-worded AC must be pinned to a measurable or
 #                     logged as a manual-check exclusion, and may NOT carry a bare ✅ (vague-requirement).
-#   red-baseline    — baseline vocabulary: a verification command RED on a clean checkout is recorded
-#                     as baseline: red, the DoD becomes delta-green, and the pre-existing failure is a
-#                     recorded baseline exclusion — neither blocks forever nor silently passes (red-baseline).
+#   red-baseline    — baseline vocabulary against a GENUINELY red command (config.test_command points at
+#                     a committed pre-existing failing check for this fixture only): analysis MEASURES
+#                     baseline: red by running it (a failing-item detail present only in the command
+#                     output, never the ticket, must appear), the DoD becomes delta-green, and the
+#                     pre-existing failure is a recorded exclusion — neither blocks forever nor silently
+#                     passes (red-baseline).
 #   conditional-LGTM — a round-1 CHANGES REQUESTED with a conditional LGTM leads to a verify-only
 #                     re-review (named-fix check + regression scan), not a full re-derivation, and the
 #                     challenger is not re-run unless a fix changed scope (conditional-LGTM).
@@ -128,12 +131,17 @@ Minimal rule set so the mango skills execute end-to-end during the eval.
 - Prefer the smallest change that satisfies the requirement.
 - No secrets in code or config.
 RULES
-cat >"$SANDBOX/.harness.json" <<'HARNESS'
+# The sandbox harness, parameterized on test_command. Default is `true` (a green baseline). One
+# fixture (red-baseline) points it at a committed pre-existing failing check so the baseline is
+# GENUINELY red, then restores the green default — so the harness JSON stays in one place and only
+# the one field that must vary does.
+write_harness() {  # <test_command>
+  cat >"$SANDBOX/.harness.json" <<HARNESS
 {
   "rulebook_path": "docs/EVAL_RULES.md",
   "standards_path": "docs/EVAL_RULES.md",
   "repos": [{ "name": "app", "root": "." }],
-  "test_command": "true",
+  "test_command": "$1",
   "tickets_dir": "docs/tickets",
   "work_dir": "docs/tickets",
   "work_doc_mode": "auto",
@@ -148,6 +156,28 @@ cat >"$SANDBOX/.harness.json" <<'HARNESS'
   "ticket_header_schema": { "Constraint": "C", "Requirement": "R", "Goal": "G", "Acceptance Criteria": "AC" }
 }
 HARNESS
+}
+write_harness "true"
+
+# A committed pre-existing failing check, so the red-baseline fixture has a GENUINELY red
+# config.test_command to detect on a clean checkout (not a red baseline narrated in the ticket). The
+# failing item names (pdf_snapshot_spec / snapshot drift / sub-pixel / "1 failed") appear ONLY here,
+# never in the ticket text — so their presence in a transcript proves the model MEASURED the baseline
+# by running the command rather than reading "red" off the ticket. Committed so it is part of the
+# untouched checkout.
+mkdir -p "$SANDBOX/tests/baseline"
+cat >"$SANDBOX/tests/baseline/verify.sh" <<'VERIFY'
+#!/bin/sh
+# Simulated project verification command. On a CLEAN checkout it already fails on a pre-existing item
+# OUTSIDE any single ticket's area — a genuinely RED baseline the analysis phase must DETECT by running
+# it (never assume green, never narrate red from the ticket).
+echo "PASS  spec/invoice/export_spec"
+echo "FAIL  spec/legacy/pdf_snapshot_spec   — pre-existing snapshot drift (1 sub-pixel), unrelated to invoice export"
+echo "1 failed, 1 passed"
+exit 1
+VERIFY
+git -C "$SANDBOX" -c user.email=eval@example.com -c user.name=mango-eval add tests/baseline/verify.sh >/dev/null 2>&1
+git -C "$SANDBOX" -c user.email=eval@example.com -c user.name=mango-eval commit -q -m "eval: pre-existing red baseline check (fixture scaffolding)" >/dev/null 2>&1
 
 # All fixtures run headless inside the sandbox against the SHIPPED skills
 # (--plugin-dir), so the eval tests what the repo ships, not whatever the operator
@@ -348,11 +378,22 @@ assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not fal
 # may not carry a bare ✅ (the guard) — so a silent ✅ drops a token and fails.
 assert_all "vague-requirement: cannot carry a bare ✅"             "$t" 'falsifiable|measurable|manual-check' 'may not|cannot|not carry|flag|pin|Gate[ -]?1 question|exclusion'
 
-# red-baseline (Fix v1.2): baseline vocabulary. A verification command that is RED on a clean checkout
-# must be recorded as baseline: red, the DoD treated as delta-green, and the pre-existing failure logged
-# as a baseline exclusion — neither blocking forever nor silently passing.
-t="$(run_fixture red-baseline 'Run the mango analysis skill on this ticket, including the baseline-capture step. The verification command already fails on the untouched checkout (as shown). Record the baseline, state the Definition of Done, and say how the pre-existing failure is handled. Do not stop for my input.')"
-assert_contains "red-baseline: records baseline red/flaky"  "$t" 'baseline[:*_ ]+(red|flaky)|baseline.*(is|=).*(red|flaky)'
+# red-baseline (Fix v1.2, hardened v1.3.1): baseline vocabulary against a GENUINELY red command. The
+# config.test_command is pointed at the committed pre-existing failing check for THIS fixture only, so
+# analysis must DETECT baseline: red by RUNNING it (detect-not-assume). The ticket carries NO fabricated
+# command output, so the model cannot pass by narrating "red" — the failing-item detail can only come
+# from the command. Restore the green default immediately after this one run.
+write_harness "sh tests/baseline/verify.sh"
+t="$(run_fixture red-baseline 'Run the mango analysis skill on this ticket, focusing on the baseline-capture step: run config.test_command once on the untouched checkout, record the BASELINE from what you actually observe, state the Definition of Done, and say how any pre-existing failure is handled. Do not stop for my input.')"
+write_harness "true"
+# Decision-level: the baseline is classified red/flaky. Matches the label-adjacent form
+# (`BASELINE: red`), the `is/=` form, and a red/flaky *result* classification (`Result: **red**`,
+# `red, exit code 1`) — emphasis-agnostic over phrasing. Still outcome-bound: a green result never
+# produces a red/flaky classification (the ticket carries no "red" and verify.sh's output has none).
+assert_contains "red-baseline: records baseline red/flaky"  "$t" 'baseline[:*_ ]+(red|flaky)|baseline.*(is|=).*(red|flaky)|result:?[-* ]*(red|flaky)|(red|flaky)[,)* ]+exit'
+# Measured, not narrated: a failing-item detail that exists ONLY in the command's output (never in the
+# ticket) must appear — so a run that read "red" off the ticket without running the command still fails.
+assert_contains "red-baseline: measured (observed failing item, not narrated)" "$t" 'pdf_snapshot_spec|snapshot drift|sub-?pixel|1 failed'
 assert_contains "red-baseline: DoD is delta-green"          "$t" 'delta.?green|prove the delta|delta is green'
 # Decision-level: the pre-existing failure is a recorded exclusion (outcome) that neither blocks nor
 # silently passes (the guard).

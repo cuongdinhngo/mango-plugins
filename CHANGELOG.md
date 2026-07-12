@@ -3,6 +3,27 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] — 2026-07-12
+
+Eval-truth patch — no skill behaviour changes. The `red-baseline` fixture previously narrated a red
+baseline in prose while the sandbox's `config.test_command` was `true` (always green), so a correct
+detect-not-assume run *measured* green and the assertion missed, while any pass came from the model
+**narrating** "red" off the ticket rather than measuring it — green for the wrong reason. This release
+makes the baseline **genuinely** red so Fix #3 is actually exercised.
+
+### Changed
+- **`red-baseline` fixture now measures a genuinely red baseline.** `tests/eval/run.sh` parameterizes
+  the sandbox harness on `test_command` (`write_harness`) and, for the `red-baseline` fixture only,
+  points it at a **committed pre-existing failing check** (`tests/baseline/verify.sh`, exits non-zero
+  on a clean checkout on an item outside the ticket's area), then restores the green default. The
+  fixture ticket no longer carries any fabricated command output, and the failing-item detail
+  (`pdf_snapshot_spec` / snapshot drift / sub-pixel / "1 failed") lives **only** in the command output
+  — so its presence in a transcript proves the baseline was **measured, not narrated**.
+- **Decision-level assertions for `red-baseline`:** detects `baseline: red` **by measuring** (observed
+  failing item appears) + DoD is delta-green + the pre-existing failure is a recorded exclusion that
+  neither blocks forever nor silently passes. A run that reads "red" off the ticket without running the
+  command now fails.
+
 ## [1.3.0] — 2026-07-11
 
 Makes mango's token cost **visible and measurable** and adds a human-gated way to adopt an external
