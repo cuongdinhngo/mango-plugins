@@ -325,8 +325,10 @@ escalation, the stuck-detector, the frontend surface-coverage gate (a universal 
 to the authored/edited files, never a wholesale reformat of a shared file), and the four v1.2
 behaviours (each with its own fixture so a red run is diagnosable): a **behavioural deviation** from
 the approved Gate-2 bullet is recorded despite a clean file diff; a **vague AC** is pinned to a
-measurable or logged as a manual-check exclusion and cannot carry a bare `✅`; a **red baseline** is
-recorded with a delta-green DoD; a **conditional LGTM** leads to a verify-only re-review — and the four
+measurable or logged as a manual-check exclusion and cannot carry a bare `✅`; a **red baseline** —
+a verification command genuinely red on a clean checkout — is **measured by running it** (not read
+from the ticket) and recorded with a delta-green DoD; a **conditional LGTM** leads to a verify-only
+re-review — and the four
 **v1.3** budget behaviours: the **cost ledger** is descriptive (per-phase/subagent, surfaced at
 finalise, never auto-cuts); an **RTK-absent** run completes identically (degrade clean); **Caveman is
 forbidden on critic output** (which keeps `path:line` evidence); and enabling an optimizer is a
