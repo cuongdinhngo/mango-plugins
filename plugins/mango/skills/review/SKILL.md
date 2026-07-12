@@ -122,6 +122,16 @@ re-confirmation. Two options, chosen by the reviewer:
   re-check. If a verify-only pass finds a named fix missing or a regression, it escalates back to a
   full review.
 
+  **The cheap path is the default, not luck (scope the re-run — do not re-do round 1).** A verify-only
+  round must **carry forward round-1's verified facts** (the requirement reconstruction, the passing
+  proving test, the layer-match verdicts, the baseline) and **re-run only the proof affected by the
+  named fixes** plus the regression scan. It must **not re-derive requirements** and must **not
+  blanket-re-run the full build / lint / tsc / test suite or re-read the files from scratch** — **unless
+  a named fix changed scope** (touched a file or behaviour beyond the findings), which reverts it to a
+  full re-review. Reuse what round 1 already established; re-prove only what the fixes actually changed.
+  This is what makes the verify-only round **consistently cheaper** than the full round rather than a
+  coin flip that can cost *more* by re-running everything.
+
 Everything else (clean-decision criteria, the stale-review marker) is unchanged: a verify-only pass
 that confirms all N fixes + a clean regression scan yields a clean verdict and records the
 `Reviewed at <sha>` marker exactly as a full review would.

@@ -176,11 +176,17 @@ normative, but never authors the normative.
 
 ### Token cost — measure before you optimize
 
-mango records its own token cost as a **descriptive Cost ledger** (per phase and per subagent
-dispatch — reviewer, challenger, extractor, Explore fan-out, each review round) in the working doc;
-`finalise` surfaces a one-line summary (total + top cost driver). The ledger is **facts only — it
-never auto-cuts a check, a gate, a critic, or evidence detail**; it makes cost visible so a *human*
-can decide, and is the data a later sizing decision needs (measure before you size).
+mango records its own token cost as a **descriptive Cost ledger** in the working doc — **one row
+emitted per subagent-dispatch return** (reviewer, challenger, extractor, Explore fan-out, each review
+round), transcribed from that return's usage block as a **mechanical by-product of dispatching**, not
+bookkeeping the model must remember (N dispatches → N rows); `finalise` surfaces a one-line summary
+(total + top cost driver). The ledger is **facts only — it never auto-cuts a check, a gate, a critic,
+or evidence detail**; it makes cost visible so a *human* can decide, and is the data a later sizing
+decision needs (measure before you size). It is **dispatch-scoped**: it measures **subagent dispatch
+only** — main-loop output noise (verbose lint/test/build dumps, file reads) is **not measured by
+mango**, so it implies no dispatch-vs-noise split; the optimizer reports its **own** savings (`rtk
+gain`) for that domain. The token column is labelled plainly **`Tokens`** (a dispatch return surfaces a
+single figure, so no false-precision `(out)` / in-out split).
 
 `/mango:budget` (opt-in, like `codify`) then lets a human adopt an external token optimizer with the
 safety trade-offs made explicit. **The safety axis:** an optimizer is safe only if it removes
@@ -190,7 +196,10 @@ safety trade-offs made explicit. **The safety axis:** an optimizer is safe only 
 - **RTK** — compresses **Bash-command output** before it enters context. Safe; sits **below** mango.
   The default `token_optimizer.rtk: "expect"` means mango **tolerates** RTK's compact output but
   **never installs or depends on it** — RTK absent, the run is **identical** (only the saving is
-  lost). `doctor` may note RTK presence as one informational line; it never gates on it.
+  lost). `doctor` may note RTK presence as one informational line; it never gates on it. When RTK is
+  present **but unwired**, `budget` **prints the exact wiring command** (its `rtk init`-style hook
+  setup) with a "**you must run this — it edits your global config, mango will not**" note; it never
+  runs it.
 - **Headroom** — input compression is safe, but its `OUTPUT_SHAPER` / effort-routing changes what the
   model writes → it **must stay OFF** (`headroom.output_shaper: false`, enforced).
 - **Caveman** — terse agent output. **Never applied to critic output** (reviewer / challenger /
@@ -332,7 +341,13 @@ re-review — and the four
 **v1.3** budget behaviours: the **cost ledger** is descriptive (per-phase/subagent, surfaced at
 finalise, never auto-cuts); an **RTK-absent** run completes identically (degrade clean); **Caveman is
 forbidden on critic output** (which keeps `path:line` evidence); and enabling an optimizer is a
-**recorded provisional decision**, not silent. It costs tokens, so CI runs it only via the manual `eval.yml`
+**recorded provisional decision**, not silent — and the five **v1.4** ledger-truth behaviours (one
+fixture each): the ledger is **auto-appended** one row per dispatch return (not narrated bookkeeping);
+it declares itself **dispatch-only** and refuses a fabricated dispatch-vs-noise split, pointing at the
+optimizer's own `rtk gain`; a conditional-LGTM **verify-only round reuses round-1 facts** and re-runs
+only the affected proof; the **Tokens column** carries no false-precision `(out)`; and with RTK
+present-but-unwired **`budget` prints the wiring command** + a "you run this, not mango" note and
+administers nothing. It costs tokens, so CI runs it only via the manual `eval.yml`
 workflow (`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 **Running the eval yourself — one command, no setup.** From a fresh clone:

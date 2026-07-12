@@ -249,13 +249,17 @@ run the Bash tool.
 > one, never depends on one, and never lets one weaken a check, a gate, a critic, or the evidence a
 > critic emits.**
 
-- **The Cost ledger is descriptive.** The run records token usage **per phase and per subagent
-  dispatch** (reviewer, challenger, extractor, Explore fan-out, each review round) into the working
-  doc as a **facts-only** counted artifact; `finalise` surfaces a one-line summary (total + top cost
-  driver). It **never** auto-cuts anything — it makes cost **visible** so a *human* can decide. Cost
-  was always an **estimate**, never measured per-phase; `context ≠ correctness` applied to
-  optimization means **don't optimize what you haven't measured** — the ledger is that measurement,
-  and the data a later middle-tier sizing decision needs.
+- **The Cost ledger is descriptive.** The run records token usage **per subagent dispatch** (reviewer,
+  challenger, extractor, Explore fan-out, each review round) into the working doc as a **facts-only**
+  counted artifact — **one row emitted per dispatch return as a mechanical by-product of dispatching**
+  (N dispatches → N rows), not bookkeeping the model is asked to remember; `finalise` surfaces a
+  one-line summary (total + top cost driver). It **never** auto-cuts anything — it makes cost **visible**
+  so a *human* can decide. Cost was always an **estimate**, never measured per-phase; `context ≠
+  correctness` applied to optimization means **don't optimize what you haven't measured** — the ledger
+  is that measurement, and the data a later middle-tier sizing decision needs. The ledger is
+  **dispatch-scoped**: it measures subagent dispatch only — main-loop output noise is **not measured by
+  mango**, so it implies no dispatch-vs-noise split; the optimizer reports its **own** savings (`rtk
+  gain`) for that domain.
 - **The safety axis (governs every optimizer choice).** An optimizer is **safe** only if it removes
   **representation redundancy** — *how* output is phrased — and **never** a check, a gate, a critic,
   or the **evidence detail** a critic relies on (`path:line`, measured values, per-clause verdicts,

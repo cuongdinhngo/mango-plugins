@@ -73,11 +73,16 @@ goes through `config.tracker.cli` — **never** an MCP.
    *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory. (Observed
    failure: a run discovered a durable constraint — two live rich-text editors corrupt each other —
    but had no deferred rows, so it nearly never reached the repo's shared `LESSONS.md`.)
-9. **Surface the Cost ledger summary (descriptive).** Read the working-doc **Cost ledger** and print
-   a one-line summary — `LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>` — at the final
-   gate, plus any recorded optimizer saving. This is **facts only**: it makes the cost visible so a
-   human can decide where to trim; it **never** triggers an automatic cut of a check, a gate, a
-   critic, or evidence detail. It is also the data a later middle-tier sizing decision needs — measure
-   before you size.
+9. **Surface the Cost ledger summary (descriptive, dispatch-only).** Read the working-doc **Cost
+   ledger** and print a one-line summary — `LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>`
+   — at the final gate, plus any recorded optimizer saving. This is **facts only**: it makes the cost
+   visible so a human can decide where to trim; it **never** triggers an automatic cut of a check, a
+   gate, a critic, or evidence detail. It is also the data a later middle-tier sizing decision needs —
+   measure before you size. **State the scope honestly:** the ledger measures **subagent dispatch
+   only** — main-loop output noise (verbose lint/test/build dumps, file reads) is **not measured by
+   mango**. Do **not** fabricate or imply a dispatch-vs-noise split (a 100%-dispatch / 0%-noise number
+   is an instrumentation artifact, not a finding). For the output-noise side, point the user at the
+   optimizer's own analytics — **`rtk gain`** when RTK is live — rather than having mango self-instrument
+   the main loop; each layer measures its own domain.
 10. **Update `Session status`** with a concrete next action (never "continue") and state the
    **revert path** (branch, commits, how to undo a merge/transition).

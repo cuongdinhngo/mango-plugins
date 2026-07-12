@@ -29,6 +29,12 @@ re-review be a **verify-only pass** (confirm those N fixes + a regression scan) 
 re-derivation. Only offer it when nothing beyond the named findings is outstanding; if a fix would
 touch something material, demand a full re-review instead.
 
+On the **verify-only re-review round**, keep it scoped so it is consistently cheap: **reuse round-1's
+verified facts** (requirement reconstruction, the passing proving test, layer-match verdicts, baseline)
+and re-run **only the proof affected by the named fixes** plus a regression scan. Do **not** re-derive
+requirements or blanket-re-run the full build/lint/tsc/test suite — **unless** a named fix changed
+scope (touched a file or behaviour beyond the findings), which demands a full re-review instead.
+
 **Findings.** For each: `path:line`, the problem, the rule-book/standards section it violates, and a
 **corrected snippet**.
 

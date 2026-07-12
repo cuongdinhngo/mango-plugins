@@ -4,7 +4,7 @@ A Claude Code **marketplace** hosting the [`mango`](./plugins/mango) plugin — 
 ticket-lifecycle harness. The repo root *is* the marketplace; the plugin lives in
 [`plugins/mango/`](./plugins/mango).
 
-> **Status: 1.3.1 — stable API.** Proven across multiple real projects (two stacks) by its author,
+> **Status: 1.4.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
 > with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
 > API has been stable since 1.0. Independent-operator validation is ongoing.
 
@@ -95,7 +95,7 @@ knowledge about, or describe a project. Kept separate from the lifecycle table a
 | `/mango:sitemap` | Generate a code-surface map (routes / modules) into `docs_dir` | Opt-in; needs `code_map_cmd`. |
 | `/mango:db-map` | Generate a schema map (tables / columns / keys / indexes / relations) into `docs_dir` | Opt-in; **off by default**; needs `db_kind` + (`db_introspect_cmd` or `migrations_path`). |
 | `/mango:version-check` | Compare running vs latest and **print the host `/plugin` commands** | Informs only, never updates; needs `update_check_url`. |
-| `/mango:budget` | Detect token optimizers → inform per the safety axis → record a human's provisional adoption | Descriptive + human-gated; never installs, never depends on one, never lets one weaken a critic. mango records a descriptive **Cost ledger** and tolerates RTK's compact output but degrades cleanly without it. |
+| `/mango:budget` | Detect token optimizers → inform per the safety axis → record a human's provisional adoption | Descriptive + human-gated; never installs, never depends on one, never lets one weaken a critic. mango records a descriptive **Cost ledger** (one row auto-appended per dispatch return; **dispatch-only** — it never implies a dispatch-vs-noise split), tolerates RTK's compact output but degrades cleanly without it, and — when RTK is present-but-unwired — **prints** the wiring command for the user to run (never runs it). |
 
 The `sitemap`/`db-map` outputs are **descriptive** (facts, regenerable — what the project is);
 `codify` is **normative** (what it should be). mango generates the descriptive and facilitates the
@@ -133,10 +133,15 @@ is diagnosable — (a **behavioural deviation** from the approved Gate-2 bullet 
 clean file diff; a **vague AC** is pinned to a measurable or logged as a manual-check exclusion and
 cannot carry a bare `✅`; a **red baseline** — a verification command genuinely red on a clean
 checkout — is **measured by running it** (not read from the ticket) and recorded with a delta-green
-DoD; a **conditional LGTM** takes a verify-only re-review) — and the four **v1.3** budget behaviours (the **cost ledger** is
+DoD; a **conditional LGTM** takes a verify-only re-review) — the four **v1.3** budget behaviours (the **cost ledger** is
 descriptive and never auto-cuts; an **RTK-absent** run completes identically; **Caveman is forbidden on
 critic output**, which keeps its `path:line` evidence; enabling an optimizer is a **recorded provisional
-decision**, not silent). It
+decision**, not silent), and the five **v1.4** ledger-truth behaviours — one fixture each — (the ledger
+**auto-appends** one row per dispatch return, not narrated bookkeeping; it is **dispatch-only** and
+refuses a fabricated dispatch-vs-noise split, pointing at the optimizer's own `rtk gain`; a
+conditional-LGTM **verify-only round reuses round-1 facts** and re-runs only the affected proof; the
+**Tokens column** carries no false-precision `(out)`; and with RTK present-but-unwired **`budget`
+prints the wiring command** + a "you run this, not mango" note and administers nothing). It
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
 (they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct

@@ -201,18 +201,30 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 
 ## Cost ledger (descriptive — facts only, never auto-cuts)
 
-A **counted artifact** recording token usage **per phase and per subagent dispatch** (reviewer,
-challenger, extractor, Explore fan-out, each review round), read from each dispatch's usage block.
-It reports **facts only**: phase, subagent/dispatch, round, tokens. **Descriptive, never normative**
-— it makes the cost visible so a *human* can decide where to trim; it never itself decides to cut a
-check, a gate, a critic, or evidence detail. This is also the data the middle-tier sizing decision
-needs later — **measure before you size** (`context ≠ correctness`: don't optimize what you haven't
-measured). When a `token_optimizer` is enabled (via `/mango:budget`), record what it is
-estimated/measured to save here too — measure the optimizer, don't trust its claim.
+A **counted artifact** recording token usage **per subagent dispatch** (reviewer, challenger,
+extractor, Explore fan-out, each review round), transcribed from each return's usage block. **One row
+is emitted per dispatch return — a run that dispatched N subagents ends with N rows** — as a mechanical
+by-product of dispatching, not bookkeeping to remember (see `solve`). It reports **facts only**: phase,
+subagent/dispatch, round, tokens. **Descriptive, never normative** — it makes the cost visible so a
+*human* can decide where to trim; it never itself decides to cut a check, a gate, a critic, or evidence
+detail. This is also the data the middle-tier sizing decision needs later — **measure before you size**
+(`context ≠ correctness`: don't optimize what you haven't measured).
 
-| Phase | Subagent / dispatch | Round | Tokens (in / out) | Optimizer applied · est./measured saving |
-|-------|---------------------|-------|-------------------|------------------------------------------|
-|       |                     |       |                   |                                          |
+**Scope — dispatch-only (honest about what is and isn't measured).** The ledger measures **subagent
+dispatch only**. Main-loop output noise (verbose lint/test/build dumps, file reads) is **not measured
+by mango** — do **not** present a dispatch-vs-noise percentage as if both were counted; that split is
+an instrumentation artifact, not a finding. For the output-noise side, consult the optimizer's own
+analytics (`rtk gain` when RTK is live) — each layer measures its own domain. When a `token_optimizer`
+is enabled (via `/mango:budget`), record what it is estimated/measured to save here too — measure the
+optimizer, don't trust its claim.
+
+The **Tokens** column carries the single figure the harness surfaces per dispatch return; it is **not**
+split into in/out, so the column is labelled plainly `Tokens` (no unsupported `(out)` — don't claim a
+precision the measurement doesn't have).
+
+| Phase | Subagent / dispatch | Round | Tokens | Optimizer applied · est./measured saving |
+|-------|---------------------|-------|--------|------------------------------------------|
+|       |                     |       |        |                                          |
 
 `LEDGER TOTAL: <tokens> · top cost driver: <phase / subagent>` — surfaced by `finalise` at the final
 gate as a one-line summary (total + top cost driver). It never triggers an automatic cut.

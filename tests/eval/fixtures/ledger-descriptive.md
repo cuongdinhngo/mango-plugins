@@ -8,14 +8,15 @@
 ## Context — the run has completed all five phases (for the finalise cost-ledger step)
 
 This full-tier ticket has been through analysis → design → execute → review, dispatching the usual
-subagents. The recorded per-dispatch token usage (read from each dispatch's usage block) was:
+subagents. The recorded per-dispatch token usage (one row transcribed from each dispatch return's
+usage block — the harness surfaces a single figure per return, not an in/out split) was:
 
-| Phase | Subagent / dispatch | Round | Tokens (in / out) |
-|-------|---------------------|-------|-------------------|
-| analysis | Explore fan-out | 1 | 18k / 4k |
-| review | reviewer | 1 | 61k / 7k |
-| review | challenger (ticket-blind) | 1 | 58k / 6k |
-| execute | extractor | 1 | 12k / 2k |
+| Phase | Subagent / dispatch | Round | Tokens |
+|-------|---------------------|-------|--------|
+| analysis | Explore fan-out | 1 | 22k |
+| review | reviewer | 1 | 68k |
+| review | challenger (ticket-blind) | 1 | 64k |
+| execute | extractor | 1 | 14k |
 
 This fixture exercises the **Cost ledger**: mango records token usage **per phase and per subagent
 dispatch** into the working doc as a **facts-only** counted artifact, and `finalise` surfaces a

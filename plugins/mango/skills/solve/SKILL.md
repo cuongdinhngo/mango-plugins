@@ -82,10 +82,17 @@ the challenger payload (`review`) can always exclude the working-doc portion.
 - **Reject any phase that reaches a gate with an unfilled matrix column.**
 - **Process corrections become repo artifacts.** When the user corrects how a phase behaves, log it
   to `config.lessons_path` AND fix the offending skill/doc in the same session.
-- **Record the Cost ledger as you go (descriptive).** After each phase and each subagent dispatch
-  (reviewer, challenger, extractor, Explore fan-out, each review round), append the token usage — read
-  from that dispatch's usage block — to the working-doc **Cost ledger** as a **facts-only** row (phase,
-  subagent, round, tokens). It is descriptive: it never itself decides to cut a check, a gate, a
-  critic, or evidence detail. `finalise` surfaces the one-line summary (total + top cost driver). See
-  `/mango:budget` for the safety axis and the human-gated `token_optimizer` adoption; mango tolerates
-  RTK's compact Bash output but **never depends on it** — RTK absent, the run is identical.
+- **Emit a Cost-ledger row per dispatch return (mechanical, not narrated).** The ledger is **not**
+  bookkeeping to remember "as you go" — a thing the model can silently forget (an unenforced artifact
+  is a coin flip). Instead: **when a subagent dispatch returns** (reviewer, challenger, extractor,
+  Explore fan-out, each review round), **append one ledger row from that return's usage block** — phase,
+  dispatch name, round, tokens — as an **immediate, non-optional by-product of dispatching**. The rule
+  is mechanical: **a ledger row is emitted per dispatch return; a run that dispatched N subagents ends
+  with N rows.** (This is the ledger's "teeth" — not a gate that blocks, but a mechanical emission so it
+  can't silently not-happen; the harness surfaces each subagent's token usage on return, so the row is
+  transcribed from that, not invented.) The ledger stays **descriptive**: it records facts and never
+  itself decides to cut a check, a gate, a critic, or evidence detail. It measures **subagent dispatch
+  only** — main-loop output noise is **not** measured by mango (see `finalise`). `finalise` surfaces the
+  one-line summary (total + top cost driver). See `/mango:budget` for the safety axis and the
+  human-gated `token_optimizer` adoption; mango tolerates RTK's compact Bash output but **never depends
+  on it** — RTK absent, the run is identical.

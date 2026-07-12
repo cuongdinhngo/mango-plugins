@@ -69,6 +69,15 @@
 #                     enabling an optimizer lands in .harness.json token_optimizer as a recorded
 #                     provisional decision, never a silent toggle, and budget installs nothing
 #                     (optimizer-adoption-gated).
+#   ledger truth (v1.4) — the ledger is emitted MECHANICALLY: one row per dispatch return (N dispatches
+#                     → N rows), not narrated bookkeeping (ledger-auto-append); it measures subagent
+#                     dispatch ONLY and refuses to fabricate a dispatch-vs-noise split, pointing at the
+#                     optimizer's own analytics (rtk gain) for the noise side (ledger-dispatch-only-honesty);
+#                     a conditional-LGTM verify-only round REUSES round-1 facts and re-runs only the
+#                     affected proof — never a blanket suite re-run or re-derivation (verify-only-scoped);
+#                     the Tokens column is labelled plainly (no false-precision "(out)" over an unsplit
+#                     figure) (ledger-label); and with RTK present-but-unwired, budget PRINTS the wiring
+#                     command + a "you run this, not mango" note and administers nothing (budget-rtk-wire-guidance).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -439,6 +448,49 @@ assert_contains "adoption-gated: recorded in token_optimizer" "$t" 'token_optimi
 # Decision-level: recorded (outcome) AND provisional / not silent (guard).
 assert_all "adoption-gated: recorded provisional, not silent"  "$t" 'recorded|token_optimizer' 'provisional|not.*silent|not a silent|ratif|human'
 assert_contains "adoption-gated: never installs / no depend"   "$t" 'never install|not install|does not install|installs nothing|depend'
+
+# ledger-auto-append (v1.4 Fix 1): the Cost ledger is emitted mechanically — one row per dispatch
+# return, as a by-product of dispatching, NOT narrated bookkeeping the model must remember. A run that
+# dispatched four subagents ends with four ledger rows.
+t="$(run_fixture ledger-auto-append 'Run the mango solve/finalise Cost-ledger step for this run. Per mango, produce the Cost-ledger block the run ends with, state plainly what emits each row (the dispatch return, mechanically — not narrated bookkeeping), and how many rows a four-dispatch run carries. Do not stop for my input.')"
+assert_contains "ledger-auto-append: records the ledger"         "$t" 'cost ledger|ledger total|ledger'
+# Decision-level: rows are emitted per dispatch return (outcome) mechanically / as a by-product, not narrated (guard).
+assert_all "ledger-auto-append: one row emitted per dispatch return" "$t" 'per dispatch|each dispatch|per .*return|row per dispatch' 'mechanical|by-?product|emitted|not narrat|not bookkeep'
+assert_contains "ledger-auto-append: N dispatches → N rows"      "$t" '4 rows|four rows|4 ledger rows|four ledger rows|one row per (dispatch|return)'
+
+# ledger-dispatch-only-honesty (v1.4 Fix 2): the ledger measures subagent dispatch ONLY; main-loop
+# output noise is NOT measured by mango. The summary must declare dispatch-only, refuse to fabricate a
+# dispatch-vs-noise split, and point at the optimizer's own analytics (rtk gain) for the noise side.
+t="$(run_fixture ledger-dispatch-only-honesty 'Run the mango finalise Cost-ledger summary for this completed ticket, then answer the operator honestly per mango. Do not stop for my input.')"
+assert_contains "dispatch-only: declares dispatch-only"          "$t" 'dispatch[ -]only|subagent dispatch only|dispatch-scoped'
+# Decision-level: it does not fabricate a split (guard) over the noise/main-loop side (subject).
+assert_all "dispatch-only: no fabricated dispatch-vs-noise split" "$t" 'not measured|does not measure|not measure|instrumentation artifact|no .*split' 'noise|main[- ]loop|dispatch.?vs.?noise'
+assert_contains "dispatch-only: points at optimizer analytics"   "$t" 'rtk gain|optimizer.?s own|its own analytics|own savings|own analytics'
+
+# verify-only-scoped (v1.4 Fix 3): a conditional-LGTM verify-only round must REUSE round-1's verified
+# facts and re-run ONLY the proof affected by the named fixes — never blanket-re-run the full suite or
+# re-derive requirements (no fix changed scope), so the cheap path is the default not a coin flip.
+t="$(run_fixture verify-only-scoped 'Run the mango review re-review on this ticket. Round 1 was a conditional LGTM with the two named findings; the author applied exactly those two fixes, no scope change. State exactly what round 2 re-runs and what it reuses, and why. Do not stop for my input.')"
+assert_contains "verify-only-scoped: reuses round-1 facts"       "$t" 'reuse|carr(y|ies).?forward|round.?1 (facts|verified)|already (verified|established)'
+# Decision-level: re-runs only the affected proof (outcome) and does NOT blanket-re-run / re-derive (guard).
+assert_all "verify-only-scoped: re-runs only the affected proof" "$t" 'only .*(proof|affected|named|fix)|scoped|affected proof' 'not .*(blanket|re-?deriv|full suite|entire suite)|without .*full|not re-?run the (full|entire)|does not re-?run'
+assert_contains "verify-only-scoped: challenger not repeated"    "$t" 'challenger.*(not|once)|not repeated|not re-?run|re-?deriv.*(not|once)'
+
+# ledger-label (v1.4 Fix 4): a dispatch return surfaces a single unsplit figure, so the Tokens column
+# must be labelled plainly `Tokens` — never `(out)` / `(in / out)` over an unsplit metric (false precision).
+t="$(run_fixture ledger-label 'Run the mango Cost-ledger step for this run and produce the ledger block and its column header. Label the token column to match what is actually measured; do not label it (out) or (in / out) over an unsplit metric, and say why. Do not stop for my input.')"
+assert_contains "ledger-label: single unsplit figure"           "$t" 'single|unsplit|not split|no in.?/.?out|one figure'
+# Decision-level: labelled Tokens (subject) and NOT labelled (out) over an unsplit metric (guard).
+assert_all "ledger-label: column not labelled (out)"            "$t" 'tokens' 'not .*\(out\)|no .*\(out\)|without .*\(out\)|not.*in ?/ ?out|plainly|just .?tokens|not split|unsplit'
+
+# budget-rtk-wire-guidance (v1.4 Fix 5): with RTK present-but-unwired, budget prints the exact wiring
+# command + a "you run this yourself, not mango" note (it edits the global config), and administers
+# nothing — detect + inform usefully, never execute.
+t="$(run_fixture budget-rtk-wire-guidance 'Run the mango budget skill for this project: RTK is installed but not wired. Per mango, state exactly what budget outputs and what it does NOT do. Do not stop for my input.')"
+assert_contains "rtk-wire: prints the wiring command"            "$t" 'rtk init|wire|wiring|hook setup|register.*hook'
+# Decision-level: the user runs it (subject) and mango will not / it edits the global config (guard).
+assert_all "rtk-wire: you run it, not mango"                     "$t" 'you (must )?run|user (must )?run|run (it|this) yourself|must run it' 'mango (will not|won.?t|does not|never)|not mango|global.*config'
+assert_contains "rtk-wire: administers nothing"                  "$t" 'install(ed|s)?[ _*]*nothing|never[ _*]*install|wires?[ _*]*nothing|administers?[ _*]*nothing|did[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)|does[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)'
 
 echo
 if [ "$fails" -gt 0 ]; then

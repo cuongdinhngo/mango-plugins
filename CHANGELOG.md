@@ -3,6 +3,54 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] — 2026-07-12
+
+Makes the descriptive **Cost ledger** honest and mechanical, and closes two ledger/review gaps found
+by two independent budget-ledger field retros (n=2 on the core findings). No new architecture — five
+fixes sharpen the v1.3 ledger and the v1.2 review lane; the ledger stays **descriptive** and `budget`
+stays **detect-not-administer** (no auto-install, no optimizer dependency, no critic-output
+compression). Generic and stack-agnostic throughout — no project, ticket, library, or brand is named;
+the optimizer names (RTK / Headroom / Caveman) are the generic classes the safety axis reasons about.
+With `token_optimizer` at its defaults a run is otherwise identical to v1.3.
+
+### Changed
+- **Ledger auto-append — one row per dispatch return (stop the coin flip).** The Cost ledger was
+  narration the model was asked to maintain "as you go", so it could silently not-happen (an unenforced
+  artifact is a coin flip). It is now a **mechanical by-product of dispatching**: a ledger row is
+  **emitted per subagent-dispatch return**, transcribed from that return's usage block — a run that
+  dispatched N subagents ends with N rows. (`solve`, `templates/ticket.md`, `PRINCIPLES.md`.)
+- **Dispatch-only honesty — no fabricated dispatch-vs-noise split.** The ledger measures **subagent
+  dispatch only**; main-loop output noise (verbose lint/test/build dumps, file reads) is **not measured
+  by mango**. The finalise summary now declares this plainly and does **not** present a
+  dispatch-vs-noise percentage as if both were counted (that split is an instrumentation artifact, not
+  a finding); for the output-noise side it points at the optimizer's own analytics (`rtk gain`). Each
+  layer measures its own domain. (`finalise`, `budget`, `PRINCIPLES.md`.)
+- **Verify-only re-review is consistently cheap (not a coin flip).** A conditional-LGTM verify-only
+  round must **carry forward round-1's verified facts** (requirement reconstruction, the passing
+  proving test, layer-match verdicts, baseline) and **re-run only the proof affected by the named
+  fixes** plus a regression scan — never re-derive requirements or blanket-re-run the full
+  build/lint/tsc/test suite unless a fix changed scope. The cheap path is now the default, not luck.
+  (`review`, `agents/reviewer.md`, `agents/reviewer-max.md`.)
+- **Drop the false-precision ledger label.** A dispatch return surfaces a single figure with no in/out
+  split, so the ledger column is labelled plainly **`Tokens`** — not `Tokens (out)` or `(in / out)`.
+  (`templates/ticket.md`; guarded by a new `validate_ledger_label` check.)
+- **`budget` prints how to wire RTK (inform, still don't administer).** When RTK is present but
+  **unwired**, `budget` now additionally **prints the exact wiring command** (its canonical `rtk
+  init`-style hook setup) with an explicit note that **the user must run it** — it edits their global
+  Claude Code config, and mango will not. Detect + inform usefully; never execute, install, or edit the
+  global config. (`budget`.)
+
+### Tests / validation
+- **Five new eval fixtures — one per fix** (generic `PROJ-*`, decision-level assertions): `ledger-auto-append`
+  (one row per dispatch return, emitted mechanically), `ledger-dispatch-only-honesty` (dispatch-only,
+  no fabricated split, points at `rtk gain`), `verify-only-scoped` (reuse round-1 facts + re-run only
+  the affected proof), `ledger-label` (no `(out)` over an unsplit metric), `budget-rtk-wire-guidance`
+  (prints the wiring command + "you run this, not mango", administers nothing).
+- **`scripts/validate.py`** locks each fix with contract tokens (`solve` `per dispatch`; `finalise`
+  `dispatch-only` / `not measured` / `rtk gain`; `review` `reuse` / `only the proof affected`; `budget`
+  `wire` / `you must run this` / `dispatch-scoped` / `rtk gain`) plus a new label-sanity check.
+- The `ledger-descriptive` fixture's sample table is aligned to the single-`Tokens` label.
+
 ## [1.3.1] — 2026-07-12
 
 Eval-truth patch — no skill behaviour changes. The `red-baseline` fixture previously narrated a red

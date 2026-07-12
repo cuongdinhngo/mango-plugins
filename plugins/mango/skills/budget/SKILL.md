@@ -63,7 +63,12 @@ axis:
 4. **Report the effect in the Cost ledger (measure the optimizer, don't trust its claim).** For each
    enabled optimizer, record in the working-doc **Cost ledger** what it is estimated/measured to save,
    so its effect is itself a counted, visible fact — not a vendor claim taken on faith. The ledger
-   stays **descriptive**: it reports cost and savings; it never itself decides to cut anything.
+   stays **descriptive**: it reports cost and savings; it never itself decides to cut anything. **The
+   ledger is dispatch-scoped:** it measures **subagent dispatch only** — the main-loop output noise an
+   input optimizer trims (verbose lint/test/build dumps, file reads) is **not measured by mango**, so
+   do not read a dispatch-vs-noise split off it. For that output-noise side, the optimizer reports its
+   **own** savings (`rtk gain` when RTK is live) — each layer measures its own domain; mango does not
+   self-instrument the main loop to second-guess it.
 5. **Boundary self-check.** Confirm before finishing: nothing was installed; mango depends on no
    optimizer (RTK absent → identical behaviour); no critic output was compressed
    (`caveman.scope: non-critic-only` holds and critic output keeps `path:line` + measured values);
@@ -79,6 +84,20 @@ Bash-command output** (git / test / lint / ls) into a compact form and **tolerat
   lost. mango must **never fail, block, or change a decision** based on RTK presence/absence. No mango
   logic may parse an RTK-specific output format in a way that breaks without RTK.
 - `doctor` may print RTK presence as one **informational** line — never a ✅/⚠/❌ that gates anything.
+
+### RTK present-but-unwired → print the wiring command (inform, still don't administer)
+
+When detection finds RTK **installed but not wired** into Claude Code (the binary is present but no
+hook invokes it), reporting "present, no hook" is accurate but a dead-end — the user knows it isn't
+live but not how to fix it. So `budget` additionally **prints the exact command / steps to wire it**,
+from RTK's documented Claude Code integration (the canonical hook setup — e.g. an `rtk init`-style
+command that registers RTK's Bash-output hook), so the user can copy-run it. Print it with an explicit
+note: **"you must run this yourself — it edits your global Claude Code config, and mango will not."**
+
+This stays inside `budget`'s boundary: **detect + inform usefully, never execute.** Wiring is host
+administration (it changes the user's global config), which is the user's job — exactly like
+`version-check` prints the `/plugin` commands but never runs them. `budget` **prints** the wiring
+command; it **never runs it, never installs RTK, and never edits the global config itself.**
 
 ## Caveman critic guardrail (HARD — invariant)
 

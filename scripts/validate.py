@@ -35,16 +35,17 @@ SKILL_CONTRACTS = {
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline"],
-    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline"],
-    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt"],
-    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew"],
+    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain"],
+    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
     "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend"],
     "budget": [r"[Dd]etect", r"[Ii]nform", r"recorded", r"never.{0,15}install", r"depend",
                r"RTK", r"[Cc]aveman", r"safety axis", r"degrade clean", r"PROVISIONAL",
-               r"non-critic-only", r"descriptive"],
+               r"non-critic-only", r"descriptive", r"wire", r"you must run this",
+               r"dispatch-scoped", r"rtk gain"],
 }
 
 # Critic agents whose output must never be terse-compressed. Each brief MUST carry the
@@ -225,6 +226,26 @@ def validate_critic_guardrail():
               f"critic-guardrail: agents/{agent}.md must state critic output retains full evidence detail")
 
 
+def validate_ledger_label():
+    """The Cost-ledger column must be labelled to match what is measured: a single per-dispatch figure
+    with NO in/out split. Guards Fix v1.4-4 — the false-precision `(out)` / `(in / out)` label may not
+    reappear over an unsplit metric, and the plain `Tokens` column header must be present."""
+    ticket = ROOT / "plugins" / "mango" / "templates" / "ticket.md"
+    if not check(ticket.exists(), "ledger-label: templates/ticket.md is missing"):
+        return
+    try:
+        body = ticket.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"ledger-label: cannot read templates/ticket.md ({exc})")
+        return
+    check(re.search(r"Tokens\s*\(out\)", body) is None,
+          "ledger-label: templates/ticket.md ledger must not label the column 'Tokens (out)' (false precision over an unsplit metric)")
+    check(re.search(r"Tokens\s*\(in\s*/\s*out\)", body) is None,
+          "ledger-label: templates/ticket.md ledger must not label the column 'Tokens (in / out)' (harness exposes no in/out split)")
+    check(re.search(r"\|\s*Tokens\s*\|", body) is not None,
+          "ledger-label: templates/ticket.md ledger must carry a plain '| Tokens |' column header")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -280,6 +301,7 @@ def main():
     validate_skill_contracts()
     validate_token_optimizer()
     validate_critic_guardrail()
+    validate_ledger_label()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")
