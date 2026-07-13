@@ -32,7 +32,10 @@ touch something material, demand a full re-review instead.
 The **verify-only re-review round is normally carried out in the main loop without re-dispatching you**:
 when the fixes stay inside the findings you named, the orchestrator confirms them + runs a regression
 scan directly. You are **re-dispatched only when a named fix changed scope** (touched a file or
-behaviour beyond the findings), and then you do a **full re-review**, not a verify-only pass. When you
+behaviour beyond the findings), and then you do a **full re-review**, not a verify-only pass. A fix that
+touches **only exempt bookkeeping** files (the working doc, `config.lessons_path`, the rule-book
+drift-list — zero runtime surface) is **not** a scope change and does **not** re-dispatch you; the round
+stays main-loop. When you
 *are* asked to verify-only, keep it scoped so it is consistently cheap: **reuse round-1's verified
 facts** (requirement reconstruction, the passing proving test, layer-match verdicts, baseline) and
 re-run **only the proof affected by the named fixes** plus a regression scan. Do **not** re-derive

@@ -90,7 +90,17 @@ the challenger payload (`review`) can always exclude the working-doc portion.
   is mechanical: **a ledger row is emitted per dispatch return; a run that dispatched N subagents ends
   with N rows.** (This is the ledger's "teeth" — not a gate that blocks, but a mechanical emission so it
   can't silently not-happen; the harness surfaces each subagent's token usage on return, so the row is
-  transcribed from that, not invented.) The ledger stays **descriptive**: it records facts and never
+  transcribed from that, not invented.) **Every row carries a value or an honest marker — never a
+  silent blank.** A dispatch retrieved by **blocking** on its result (a synchronous `TaskOutput`-style
+  retrieval) can return **no `<usage>` block**, whereas one that lands as a **`task-notification`
+  carries it** — and the orchestrator **blocks on its first dispatch**, so that one row systematically
+  loses its tokens if nothing recovers them. To keep every row honest, in priority order: **(a)** prefer
+  a retrieval path that carries `<usage>` — let a dispatch complete as a `task-notification`, or
+  **re-query the completed task's usage record** after a blocking return — so even a blocked dispatch
+  gets a real number; **(b)** only if the environment truly cannot surface usage for a blocked dispatch,
+  record that cell as the explicit value **`unmeasured (blocking retrieval)`** — never a fabricated
+  number and never a silent blank. Every dispatch row thus ends with either a real token count or that
+  explicit `unmeasured (blocking retrieval)` marker naming the reason. The ledger stays **descriptive**: it records facts and never
   itself decides to cut a check, a gate, a critic, or evidence detail. It measures **subagent dispatch
   only** — main-loop output noise is **not** measured by mango (see `finalise`). `finalise` surfaces the
   one-line summary (total + top cost driver). See `/mango:budget` for the safety axis and the

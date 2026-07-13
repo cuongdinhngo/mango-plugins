@@ -4,7 +4,7 @@ A Claude Code **marketplace** hosting the [`mango`](./plugins/mango) plugin — 
 ticket-lifecycle harness. The repo root *is* the marketplace; the plugin lives in
 [`plugins/mango/`](./plugins/mango).
 
-> **Status: 1.5.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
+> **Status: 1.6.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
 > with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
 > API has been stable since 1.0. Independent-operator validation is ongoing.
 
@@ -74,8 +74,8 @@ when under-covered.
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation (each acceptance value **falsifiable** or a recorded **manual-check exclusion** — neither → flagged, no bare `✅`), clarification tally, universal inventory, root-cause/gap, blast radius, scope, and a `BASELINE` capture (`green \| red \| flaky` from the untouched checkout; not-green → delta-green DoD). |
 | `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and blocks Gate 2), rollback + porting. On the **frontend** track also creates/updates the **`DESIGN.md`** contract and lays out the plan **one row per (AC × surface)** with an under-coverage banner. |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep on **both axes** (file set: diff ⊆ approved list; **behaviour**: a design-conformance self-check that records any deviation from an approved Gate-2 Approach bullet even when the file diff is clean), a **baseline-aware DoD** (delta-green when `BASELINE ≠ green`), commits with no AI co-author trailer. Runs the project's formatter **only on authored/edited files** — never a wholesale reformat of a shared file (**format-scope rule**); whole-file conformance is a separate concern (CI / a chore ticket). STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). On the **frontend** track emits the **proof manifest** (highest tier per surface; never stops for a missing runner). |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation on **both axes** (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against the recorded `BASELINE`, `k/N` coverage. Round 1 may return a **conditional LGTM**, making the re-review a **verify-only pass** (named-fix check + regression scan, no full re-derivation). On the **frontend** track also scores the **M1–M10** a11y/token rubric against `DESIGN.md` and the **`N == M + X`** surface-coverage check. |
-| `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` on every run. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation on **both axes** (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against the recorded `BASELINE`, `k/N` coverage. Round 1 may return a **conditional LGTM**, making the re-review a **verify-only pass** (named-fix check + regression scan, no full re-derivation) — main-loop-by-default, with a **docs/bookkeeping carve-out** (a fix touching only exempt bookkeeping files stays main-loop; any non-exempt out-of-scope file re-dispatches). On the **frontend** track also scores the **M1–M10** a11y/token rubric against `DESIGN.md` and the **`N == M + X`** surface-coverage check. |
+| `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, a **Cost-ledger content-completeness gate** (blocks unless every dispatch row carries a token value — a real count or the explicit `unmeasured (blocking retrieval)` marker; a blank cell blocks like an unfilled matrix column), follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and landed on a **shared/pushed ref** (never an orphaned local branch) on every run. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
 | `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
 
@@ -147,7 +147,13 @@ ledger has fewer rows than the run's dispatch count, a complete ledger proceeds;
 **verify-only round is main-loop-by-default** — an in-scope round verifies in the main loop with no
 re-dispatch, a scope-changing fix the only re-dispatch trigger; a standard applied at a gate with no
 codified rule is **surfaced as an uncodified-standard item** into codify's provisional→ratify flow, not
-silently enforced). It
+silently enforced) — and the four **v1.6** honest-ledger behaviours — one fixture each — (finalise's
+ledger gate is a **content-completeness** check: a ledger with all rows present but a **blank token cell
+blocks** like an unfilled matrix column, a value-or-marker in every cell proceeds; a **blocking**-retrieved
+dispatch with no `<usage>` gets its tokens recovered or its cell marked the explicit **`unmeasured
+(blocking retrieval)`**, never a silent blank; the verify-only re-dispatch trigger has a
+**docs/bookkeeping carve-out**; and the durable lesson must land on a **shared/pushed ref**, not an
+orphaned local-only branch). It
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
 (they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct

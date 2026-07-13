@@ -127,6 +127,17 @@ re-confirmation. Two options, chosen by the reviewer:
   that skips a real re-check: if it finds a named fix missing or a regression, it escalates back to a
   full review.
 
+  **Docs/bookkeeping carve-out (a file outside the approved set is not always a scope change).** The
+  re-dispatch trigger reuses `finalise`'s **staleness exemption set** — the working doc, `config.lessons_path`,
+  and the rule-book **drift-list** section (`codify`'s tech-debt list) — pure **bookkeeping** files with
+  **zero runtime surface**. A verify-only fix that touches **only** these **exempt** bookkeeping files
+  stays **main-loop** (verify by inspection + re-run only the affected proof + the regression scan) and
+  does **not** trigger a full re-dispatch — recording a durable lesson or updating the drift list is not
+  a scope change. A fix touching **any non-exempt** file outside the approved set (product source, a
+  test, config, a new surface/behaviour) still **changes scope** and reverts the round to a full,
+  re-dispatched re-review. The carve-out narrows the trigger to exempt bookkeeping only; it never widens
+  what a real scope change is.
+
   **The cheap path is the default, not luck (main-loop + scope the re-run — do not re-do round 1).** A
   verify-only round runs **in the main loop** and must **carry forward round-1's verified facts** (the
   requirement reconstruction, the passing proving test, the layer-match verdicts, the baseline) and

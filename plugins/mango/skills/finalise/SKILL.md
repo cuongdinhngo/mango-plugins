@@ -52,6 +52,10 @@ goes through `config.tracker.cli` — **never** an MCP.
    blanket "all green" the baseline never supported.
 4. **List planned outward actions.** Enumerate every outward action the ticket needs, e.g.:
    - push the branch;
+   - **push the bookkeeping commit** carrying the durable lesson / BACKLOG to a **shared ref** — so the
+     lesson is not orphaned on a soon-deleted local branch (see step 8). Fold it into the branch-push
+     above when it rides the same branch; otherwise list it as its own action. Idempotent: skip if the
+     shared ref already carries it;
    - open a PR via `config.pr_host`;
    - tracker comment (via `config.tracker.cli`);
    - tracker transition (via `config.tracker.cli`).
@@ -73,16 +77,33 @@ goes through `config.tracker.cli` — **never** an MCP.
    *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory. (Observed
    failure: a run discovered a durable constraint — two live rich-text editors corrupt each other —
    but had no deferred rows, so it nearly never reached the repo's shared `LESSONS.md`.)
-9. **Cost ledger — completeness gate (dispatch count), then the descriptive summary (dispatch-only).**
-   Before surfacing the summary, enforce the **dispatch-count check** — the ledger's *teeth*. Count the
-   subagent dispatches this run actually made (knowable from the run — every `reviewer` / `challenger` /
-   `extractor` / Explore fan-out / per-review-round dispatch return) and compare it to the number of
-   Cost-ledger rows. **Refuse to proceed if the ledger has fewer rows than the run made dispatches:** an
-   incomplete ledger **blocks finalise exactly as an unfilled matrix column blocks a gate** — name the
-   missing dispatches and require their rows to be transcribed from each return's usage block before
-   continuing. This checks **ledger completeness, not content** — it never inspects, judges, ranks, or
-   auto-cuts a row; the ledger stays **descriptive** and the gate never cuts a check, a critic, or
-   evidence. A ledger whose row count is ≥ the dispatch count proceeds. Then read the working-doc **Cost
+
+   **The durable lesson must land on a shared ref, not only a local branch.** A lesson (or BACKLOG entry)
+   committed to a branch that finalise never offers to push is **orphaned** — a merge that deletes the
+   branch takes the lesson with it, so it never reaches `main` and is not a repo artifact at all.
+   (Observed failure, #12: the lesson/BACKLOG write rode a branch never pushed before the human merged
+   the PR → the lesson never reached `main`.) So the durable-lesson / bookkeeping write must reach a
+   **shared ref** by **one** of two routes: **either** fold it into a commit the approved **branch-push**
+   (step 4) already carries **before** PR-open, **or** enumerate an explicit **"push bookkeeping"
+   outward action** at the final gate — taken under the **same per-action approval + idempotency check**
+   as every other outward action. Never let the durable lesson depend on a commit finalise never offered
+   to push.
+9. **Cost ledger — completeness gate (content, not just row count), then the descriptive summary (dispatch-only).**
+   Before surfacing the summary, enforce the **ledger-completeness check** — the ledger's *teeth*, and a
+   **dispatch-count** check widened to the **content** of each row. Count the subagent dispatches this run
+   actually made (knowable from the run — every `reviewer` / `challenger` / `extractor` / Explore fan-out /
+   per-review-round dispatch return). The ledger is **complete** only when **both** hold: **(i)** every
+   dispatch has a row (row count ≥ dispatch count), **and** **(ii)** every dispatch row carries a **token
+   value** — a real count from that return's usage block **or** the explicit `unmeasured (blocking
+   retrieval)` marker from `solve`'s usage-surfacing step. **Refuse to proceed if the ledger has fewer
+   rows than the run made dispatches OR any dispatch row has a blank/absent token cell:** a missing row
+   **or** a blank token value is an **incomplete** ledger and **blocks finalise exactly as an unfilled
+   matrix column blocks a gate** — name the missing dispatches / blank cells and require each to be
+   transcribed from its return's usage block (or marked `unmeasured (blocking retrieval)`) before
+   continuing. This checks **ledger completeness** — the *presence* of a value or an honest marker in
+   every row — and stays **descriptive**: it never **inspects, judges, ranks, invents, or auto-cuts** a
+   row, and the gate never cuts a check, a critic, or evidence. A ledger with a row per dispatch and a
+   value (or the explicit marker) in every token cell proceeds. Then read the working-doc **Cost
    ledger** and print a one-line summary — `LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>`
    — at the final gate, plus any recorded optimizer saving. This is **facts only**: it makes the cost
    visible so a human can decide where to trim; it **never** triggers an automatic cut of a check, a

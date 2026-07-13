@@ -188,13 +188,15 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 - PR draft: `/tmp/pr-<KEY>.md`
 - Planned outward actions (each needs separate approval):
   - [ ] push branch
+  - [ ] push bookkeeping commit (durable lesson / BACKLOG → shared ref; idempotent; fold into the
+        branch-push when it rides the same branch)
   - [ ] open PR via pr_host
   - [ ] tracker comment (via tracker.cli)
   - [ ] tracker transition (via tracker.cli)
 - Follow-up tickets drafted for deferred (⚠) rows:
 - **Durable lesson** (asked on EVERY run, independent of deferred rows — a constraint discovered, a
   wrong assumption, or a process gap): none / `<lesson>` written to `config.lessons_path` (a repo
-  artifact, never only personal memory):
+  artifact, never only personal memory) and landed on a **shared/pushed ref**, not only a local branch:
 - Revert path:
 
 ---
@@ -220,7 +222,12 @@ optimizer, don't trust its claim.
 
 The **Tokens** column carries the single figure the harness surfaces per dispatch return; it is **not**
 split into in/out, so the column is labelled plainly `Tokens` (no unsupported `(out)` — don't claim a
-precision the measurement doesn't have).
+precision the measurement doesn't have). Each row's Tokens cell carries **either** the real figure from
+that return's `<usage>` block **or**, when the dispatch was retrieved by blocking and the environment
+could not surface usage, the explicit marker **`unmeasured (blocking retrieval)`** — **never a silent
+blank and never a fabricated number** (see `solve` for recovering a blocked dispatch's usage first). A
+blank/absent token cell is an **incomplete** ledger and blocks finalise exactly as an unfilled matrix
+cell blocks a gate (see `finalise`'s content-completeness gate).
 
 | Phase | Subagent / dispatch | Round | Tokens | Optimizer applied · est./measured saving |
 |-------|---------------------|-------|--------|------------------------------------------|

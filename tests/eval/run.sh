@@ -85,6 +85,17 @@
 #                     and a scope-changing fix is the only re-dispatch trigger (verify-only-main-loop); a standard
 #                     applied at a gate with NO codified rule is SURFACED as an uncodified-standard item into
 #                     codify's provisional→ratify flow, never silently enforced or ignored (uncodified-standard-nudge).
+#   v1.6            — honest ledger + 2 small fixes: finalise's ledger gate is a CONTENT-completeness check — a
+#                     ledger with all rows present but a BLANK token cell BLOCKS like an unfilled matrix column
+#                     (injected, the first non-vacuous test of the teeth), a value-or-marker in every cell proceeds
+#                     (ledger-content-gate); a dispatch retrieved by BLOCKING (no <usage> block) gets its tokens
+#                     recovered OR its cell marked the explicit `unmeasured (blocking retrieval)`, never a silent
+#                     blank or an invented number (usage-unmeasured-marker); the verify-only re-dispatch trigger has
+#                     a docs/bookkeeping CARVE-OUT reusing finalise's staleness exemption set — a fix touching only
+#                     exempt bookkeeping files (working doc / lessons_path / drift-list) stays main-loop, a non-exempt
+#                     out-of-scope fix still re-dispatches (verify-only-bookkeeping-carveout); and the durable lesson
+#                     must land on a SHARED/PUSHED ref (branch-push or a per-action "push bookkeeping"), not an
+#                     orphaned local-only branch (finalise-lesson-pushed).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -471,7 +482,7 @@ assert_contains "ledger-auto-append: N dispatches → N rows"      "$t" '4 rows|
 t="$(run_fixture ledger-dispatch-only-honesty 'Run the mango finalise Cost-ledger summary for this completed ticket, then answer the operator honestly per mango. Do not stop for my input.')"
 assert_contains "dispatch-only: declares dispatch-only"          "$t" 'dispatch[ -]only|subagent dispatch only|dispatch-scoped'
 # Decision-level: it does not fabricate a split (guard) over the noise/main-loop side (subject).
-assert_all "dispatch-only: no fabricated dispatch-vs-noise split" "$t" 'not measured|does not measure|not measure|instrumentation artifact|no .*split' 'noise|main[- ]loop|dispatch.?vs.?noise'
+assert_all "dispatch-only: no fabricated dispatch-vs-noise split" "$t" 'not[ _*]*measured?|does[ _*]*not[ _*]*(measure|instrument)|not[ _*]*instrument|instrumentation artifact|artifact of only|no .*split|won.?t merge|would be a fiction' 'noise|main[- ]loop|dispatch.?vs.?noise'
 assert_contains "dispatch-only: points at optimizer analytics"   "$t" 'rtk gain|optimizer.?s own|its own analytics|own savings|own analytics'
 
 # verify-only-scoped (v1.4 Fix 3): a conditional-LGTM verify-only round must REUSE round-1's verified
@@ -496,8 +507,8 @@ assert_all "ledger-label: column not labelled (out)"            "$t" 'tokens' 'n
 t="$(run_fixture budget-rtk-wire-guidance 'Run the mango budget skill for this project: RTK is installed but not wired. Per mango, state exactly what budget outputs and what it does NOT do. Do not stop for my input.')"
 assert_contains "rtk-wire: prints the wiring command"            "$t" 'rtk init|wire|wiring|hook setup|register.*hook'
 # Decision-level: the user runs it (subject) and mango will not / it edits the global config (guard).
-assert_all "rtk-wire: you run it, not mango"                     "$t" 'you (must )?run|user (must )?run|run (it|this) yourself|must run it' 'mango (will not|won.?t|does not|never)|not mango|global.*config'
-assert_contains "rtk-wire: administers nothing"                  "$t" 'install(ed|s)?[ _*]*nothing|never[ _*]*install|wires?[ _*]*nothing|administers?[ _*]*nothing|did[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)|does[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)'
+assert_all "rtk-wire: you run it, not mango"                     "$t" 'you (must |would |should )?run|user (must )?run|run (it|this|that) yourself|must run it' 'mango (will not|won.?t|does not|never)|not mango|global.*config'
+assert_contains "rtk-wire: administers nothing"                  "$t" 'install(ed|s)?[ _*]*nothing|nothing[ _*]*install|never[ _*]*install|wires?[ _*]*nothing|nothing[ _*]*wired?|global config untouched|administers?[ _*]*nothing|did[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)|does[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)'
 
 # ledger-gate (v1.5 Fix 1): the Cost ledger's teeth. finalise runs a dispatch-count check and REFUSES to
 # proceed when the ledger has fewer rows than the run's dispatch count — an incomplete ledger blocks like
@@ -533,6 +544,51 @@ assert_contains "uncodified-standard: surfaced, not silently applied" "$t" 'unco
 assert_all "uncodified-standard: routed to codify'\''s ratify flow" "$t" 'codify|ratif|provisional' 'ratif|provisional|human'
 # Decision-level: NOT silently enforced or ignored (guard) — the human ratifies, mango does not author.
 assert_all "uncodified-standard: not silently enforced or ignored" "$t" 'not silent|neither|does not silently|surface|nudge' 'enforc|apply|ignore|ratif|human|never author'
+
+# ledger-content-gate (v1.6 Fix 2): the ledger's teeth become a CONTENT-completeness check. All four
+# dispatch rows are PRESENT but one has a BLANK token cell — finalise must BLOCK (a blank token value is
+# incomplete, exactly like an unfilled matrix column), not merely count rows. This is the test the vacuous
+# row-count field runs could never provide — it INJECTS a short/blank ledger directly.
+t="$(run_fixture ledger-content-gate 'Run the mango finalise Cost-ledger completeness gate for this run. All four dispatch rows are present but the first row'\''s token cell is blank. Apply the content-completeness check and decide proceed-or-block. State your decision and why. Do not stop for my input.')"
+assert_contains "ledger-content-gate: blank token cell blocks finalise" "$t" 'block|refuse|not proceed|cannot proceed|does not proceed|incomplete'
+# Decision-level: blocked BECAUSE a token value is blank/missing (content), not merely a row count.
+assert_all "ledger-content-gate: blocks on a blank token value, not just row count" "$t" 'blank|empty|no.{0,6}(token|value)|missing.{0,6}(token|value)|absent' 'token|value|content|cell'
+assert_contains "ledger-content-gate: blocks like an unfilled matrix column"        "$t" 'matrix column|unfilled|like a.*(gate|column)|gate-?block'
+# Decision-level: still a completeness/descriptive check that never auto-cuts content.
+assert_all "ledger-content-gate: completeness check, never auto-cuts"               "$t" 'complete' 'not.*(inspect|judg|rank|cut)|never.*cut|descriptive|completeness|presence'
+# proceeds variant: every cell has a number OR the explicit unmeasured marker → proceeds.
+t="$(run_prompt ledger-content-gate-marker 'On the mango finalise content-completeness gate: a run made 4 dispatches and the Cost ledger has 4 rows, each with a token count EXCEPT the blocked first dispatch, whose cell reads the explicit marker "unmeasured (blocking retrieval)". Per mango, does finalise proceed or block? Answer and say why.')"
+assert_contains "ledger-content-gate-marker: value-or-marker in every cell proceeds" "$t" 'proceed|passes|not block|does not block'
+
+# usage-unmeasured-marker (v1.6 Fix 1): a dispatch retrieved by BLOCKING carries no <usage> block. Its
+# ledger row must show a REAL count (recovered via a usage-carrying path) or the explicit
+# `unmeasured (blocking retrieval)` marker — NEVER a silent blank and never a fabricated number.
+t="$(run_fixture usage-unmeasured-marker 'Run the mango Cost-ledger usage-surfacing step for this run. The first dispatch was retrieved by blocking and its return carried no <usage> block. Produce its ledger row and state what its token cell holds and why it may never be blank or invented. Do not stop for my input.')"
+# Decision-level: the cell holds a real recovered count OR the explicit unmeasured marker (outcome)...
+assert_contains "usage-marker: real count or explicit unmeasured marker" "$t" 'unmeasured|re-?quer|task-?notification|recover|real (count|number|token)'
+# ...and it is never a silent blank / never fabricated (the guard).
+assert_all "usage-marker: never a silent blank, never invented"          "$t" 'blank|invent|fabricat|made up|guess' 'never|not|no silent|without'
+assert_contains "usage-marker: names the blocking-retrieval reason"       "$t" 'blocking retrieval|blocked dispatch|blocking|no .*usage|without .*usage'
+
+# verify-only-bookkeeping-carveout (v1.6 Fix 3): the verify-only re-dispatch trigger has a docs/bookkeeping
+# carve-out reusing finalise's staleness exemption set (working doc, lessons_path, rule-book drift-list). A
+# verify-only fix touching ONLY exempt bookkeeping files stays MAIN-LOOP (no re-dispatch).
+t="$(run_fixture verify-only-bookkeeping-carveout 'Run the mango review verify-only re-review on this ticket. Round 1 was a conditional LGTM with two named findings; the author applied those two fixes AND touched only exempt bookkeeping files (LESSONS.md + the rule-book drift-list). State whether round 2 stays main-loop or re-dispatches a reviewer/challenger, and why. Do not stop for my input.')"
+assert_contains "carveout: stays main-loop" "$t" 'main[ -]loop'
+# Decision-level: main-loop / no re-dispatch (outcome) BECAUSE the only extra files are exempt bookkeeping (reasoning).
+assert_all "carveout: no re-dispatch for exempt-bookkeeping-only fix" "$t" 'no .{0,40}re-?dispatch|not .{0,40}re-?dispatch|dispatch(ing)? no|no subagent|without .*(dispatch|subagent)|stays[ _*]*main[ -]loop' 'bookkeeping|exempt|lessons|drift-?list|carve-?out|zero runtime'
+# non-exempt variant: a fix touching a non-exempt out-of-scope file still triggers a full re-dispatch.
+t="$(run_prompt carveout-nonexempt 'On the mango verify-only re-review docs/bookkeeping carve-out: after a conditional LGTM, the author fixes the named findings but ALSO edits a product SOURCE file OUTSIDE the approved change list (not an exempt bookkeeping file). Per mango, does round 2 stay main-loop or re-dispatch a full reviewer/challenger? Answer and say why.')"
+assert_all "carveout-nonexempt: non-exempt out-of-scope fix re-dispatches" "$t" 're-?dispatch|full re-?review' 'scope|outside the .*(set|list)|non-exempt|not .*bookkeeping|product|source'
+
+# finalise-lesson-pushed (v1.6 Fix 4): the durable lesson must land on a SHARED/PUSHED ref, not only a
+# local branch a merge would delete. finalise folds the lesson into the branch-push OR takes an explicit
+# "push bookkeeping" outward action under the same per-action approval.
+t="$(run_fixture finalise-lesson-pushed 'Run the mango finalise durable-lesson step on this working doc. The lesson is committed on a local-only feature branch. State where it must end up and how finalise ensures it, and whether the push follows the normal per-action approval. Do not stop for my input.')"
+# Decision-level: it must land on a shared/pushed ref (outcome) NOT only a local branch (the guard).
+assert_all "lesson-pushed: lands on a shared/pushed ref, not local-only" "$t" 'shared ref|pushed|push' 'not .*local|local-?only|orphan|deleted|reach .*main|not only|shared'
+assert_contains "lesson-pushed: via branch-push or a push-bookkeeping action" "$t" 'branch-?push|push bookkeeping|bookkeeping.*(action|commit|push)|fold'
+assert_contains "lesson-pushed: under the normal per-action approval"        "$t" 'per-?action|separate approval|each .*approv|approval per'
 
 echo
 if [ "$fails" -gt 0 ]; then

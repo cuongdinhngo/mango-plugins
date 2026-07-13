@@ -3,6 +3,66 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] — 2026-07-13
+
+Makes the Cost ledger **honest** — surfacing usage for blocked dispatches and giving the finalise gate
+**real teeth** — plus two small n≥2 fixes, from three independent v1.5 field-test retros (n=3). No new
+architecture: the ledger stays **descriptive** (the gate checks *presence of a value*, never inspects,
+ranks, or auto-cuts a row), critic output stays uncompressed/full-evidence, and nothing auto-installs or
+auto-cuts. Generic and stack-agnostic throughout — no project, ticket, library, framework, formatter, or
+brand is named (fixtures use `PROJ-*`). Each behavioural fix ships with its own eval fixture. **Scope
+(explicit):** v1.6 does **not** measure main-loop tokens and does **not** pre-scope review input — the
+ledger stays **dispatch-scoped by design**; this release only makes the dispatch numbers it *does*
+report complete and honest, and makes the gate's teeth real.
+
+### Changed
+- **Usage-surfacing — recover tokens for blocked dispatches, or record them honestly.** A dispatch
+  retrieved by **blocking** (a synchronous `TaskOutput`-style retrieval) returns **no `<usage>` block**,
+  while one landing as a `task-notification` carries it — and the orchestrator **blocks on its first
+  dispatch**, so that row reliably lost its tokens (a silent blank cell). `solve` now, in priority
+  order: **(a)** prefers a usage-carrying retrieval path (let the dispatch land as a `task-notification`,
+  or **re-query the completed task's usage record** after a blocking return); **(b)** only if usage truly
+  cannot be surfaced, records the cell as the explicit **`unmeasured (blocking retrieval)`** marker —
+  never a fabricated number, never a silent blank. Every dispatch row ends with a real count or that
+  explicit marker. (`solve`, `templates/ticket.md`.)
+- **Ledger gate — content check, not just row count (real teeth).** The finalise gate counted rows vs
+  dispatches; it never checked a row actually **had** a token value, so a "complete" ledger could be
+  half-blank in the data it exists to provide (it passed **vacuously 3/3** in field runs — dispatch
+  count == row count every time — and its teeth had never been tested). The gate is now a
+  **completeness check on content**: it blocks unless **every** dispatch row is present **and** each
+  carries a **token value** — a real count or the explicit `unmeasured (blocking retrieval)` marker. A
+  blank/absent token cell is incomplete and blocks exactly as an unfilled matrix column does. Still
+  descriptive — it checks *presence* of a value or an honest marker, never inspects, ranks, judges,
+  invents, or auto-cuts. (`finalise`, `PRINCIPLES.md`.)
+- **Verify-only re-dispatch trigger — docs/bookkeeping carve-out.** The verify-only rule reverted to a
+  full re-dispatch when a fix touched "any file outside the approved set" — but a fix that only edits
+  bookkeeping (working doc / `config.lessons_path` / the rule-book drift-list — zero runtime surface)
+  then wastefully forced a full re-review, so operators bypassed the rule. The trigger now reuses
+  `finalise`'s **staleness exemption set**: a verify-only fix touching **only** exempt bookkeeping files
+  stays **main-loop** (verify by inspection + the affected proof + a regression scan, no re-dispatch); a
+  fix touching **any non-exempt** file outside the approved set still triggers a full re-dispatch
+  (unchanged). The carve-out narrows the trigger; it never widens what a real scope change is. (`review`,
+  `agents/reviewer.md`, `agents/reviewer-max.md`.)
+- **Finalise — push the bookkeeping commit that carries the durable lesson.** A lesson/BACKLOG write rode
+  a branch never pushed before the human merged the PR → the lesson was orphaned and never reached
+  `main`. The durable-lesson / bookkeeping write must now land on a **shared ref**: either folded into a
+  commit the approved **branch-push** carries before PR-open, or pushed via an explicit **"push
+  bookkeeping" outward action** at the final gate — under the **same per-action approval + idempotency
+  check** as every other outward action. The lesson never depends on a commit finalise never offered to
+  push. (`finalise`, `templates/ticket.md`.)
+
+### Tests / validation
+- **Four new eval fixtures — one per behavioural fix** (generic `PROJ-*`, decision-level assertions):
+  `ledger-content-gate` (all rows present but one token cell blank → finalise **blocks**; a value-or-marker
+  in every cell proceeds — the injected, first non-vacuous test of the gate's teeth), `usage-unmeasured-marker`
+  (a blocked dispatch's row shows a recovered count or the explicit `unmeasured (blocking retrieval)`
+  marker, never a silent blank), `verify-only-bookkeeping-carveout` (an exempt-bookkeeping-only verify-only
+  fix stays main-loop; a non-exempt out-of-scope fix re-dispatches), `finalise-lesson-pushed` (the durable
+  lesson lands on a shared/pushed ref, not an orphaned local-only branch).
+- **`scripts/validate.py`** locks each fix with contract tokens (`finalise` `content` / `token value` /
+  `unmeasured` / `shared ref`; `solve` `unmeasured (blocking retrieval)`; `review` `bookkeeping` /
+  `exempt` / `carve-out`). The build fails if any is dropped.
+
 ## [1.5.0] — 2026-07-13
 
 Enforces the descriptive Cost ledger and fixes the verify-only lane's cost variance — two

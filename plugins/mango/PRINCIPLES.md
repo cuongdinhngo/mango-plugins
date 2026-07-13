@@ -260,9 +260,11 @@ run the Bash tool.
   **dispatch-scoped**: it measures subagent dispatch only — main-loop output noise is **not measured by
   mango**, so it implies no dispatch-vs-noise split; the optimizer reports its **own** savings (`rtk
   gain`) for that domain. **Ledger completeness is gate-checked at finalise** (the ledger's teeth):
-  finalise refuses to proceed if the ledger has fewer rows than the run's dispatch count — an incomplete
-  ledger blocks like an unfilled matrix column. This is a **completeness** check, not a content check;
-  it never inspects, ranks, or auto-cuts a row, so the ledger stays descriptive.
+  the ledger is complete only when **every dispatch row is present AND its token cell carries a value** —
+  a real count or the explicit `unmeasured (blocking retrieval)` marker; a missing row **or** a blank
+  token cell is incomplete and blocks like an unfilled matrix column. It checks the **presence** of a
+  value or an honest marker — it never inspects, ranks, judges, invents, or auto-cuts a value — so the
+  ledger stays descriptive.
 - **The safety axis (governs every optimizer choice).** An optimizer is **safe** only if it removes
   **representation redundancy** — *how* output is phrased — and **never** a check, a gate, a critic,
   or the **evidence detail** a critic relies on (`path:line`, measured values, per-clause verdicts,
