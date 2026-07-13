@@ -4,7 +4,7 @@ A Claude Code **marketplace** hosting the [`mango`](./plugins/mango) plugin — 
 ticket-lifecycle harness. The repo root *is* the marketplace; the plugin lives in
 [`plugins/mango/`](./plugins/mango).
 
-> **Status: 1.4.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
+> **Status: 1.5.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
 > with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
 > API has been stable since 1.0. Independent-operator validation is ongoing.
 
@@ -141,7 +141,13 @@ decision**, not silent), and the five **v1.4** ledger-truth behaviours — one f
 refuses a fabricated dispatch-vs-noise split, pointing at the optimizer's own `rtk gain`; a
 conditional-LGTM **verify-only round reuses round-1 facts** and re-runs only the affected proof; the
 **Tokens column** carries no false-precision `(out)`; and with RTK present-but-unwired **`budget`
-prints the wiring command** + a "you run this, not mango" note and administers nothing). It
+prints the wiring command** + a "you run this, not mango" note and administers nothing) — and the three
+**v1.5** behaviours — one fixture each — (the ledger's **dispatch-count gate** blocks finalise when the
+ledger has fewer rows than the run's dispatch count, a complete ledger proceeds; the conditional-LGTM
+**verify-only round is main-loop-by-default** — an in-scope round verifies in the main loop with no
+re-dispatch, a scope-changing fix the only re-dispatch trigger; a standard applied at a gate with no
+codified rule is **surfaced as an uncodified-standard item** into codify's provisional→ratify flow, not
+silently enforced). It
 costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
 (they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct

@@ -1,8 +1,8 @@
 {
   "name": "mango",
   "displayName": "Mango",
-  "version": "1.4.0",
-  "description": "A portable, gated ticket-lifecycle harness for Claude Code. Ships the machinery (gated lifecycle phases, read-only review agents, working-doc + PR templates) and reads every project-specific rule at runtime from .harness.json. Facilitates defining a project's rule book and database conventions (/mango:codify — counts the observed patterns, the human chooses, nothing is authored or binding until ratified) and offers opt-in descriptive code/schema maps (sitemap, db-map). Measures its own token cost as a descriptive per-phase ledger and human-gates adopting an external token optimizer (/mango:budget — detects and informs, never installs one, never depends on one, never lets one weaken a critic). No stack assumptions, no secrets. Trust comes from emitted, counted, gate-blocking artifacts; mango generates the descriptive and facilitates the normative, but never authors the normative.",
+  "version": "1.5.0",
+  "description": "A portable, gated ticket-lifecycle harness for Claude Code. Ships the machinery (gated lifecycle phases, read-only review agents, working-doc + PR templates) and reads every project-specific rule at runtime from .harness.json. Facilitates defining a project's rule book and database conventions (/mango:codify — counts the observed patterns, the human chooses, nothing is authored or binding until ratified) and offers opt-in descriptive code/schema maps (sitemap, db-map). Measures its own token cost as a descriptive, dispatch-scoped ledger (one row per subagent-dispatch return, gate-checked at finalise for completeness) and human-gates adopting an external token optimizer (/mango:budget — detects and informs, never installs one, never depends on one, never lets one weaken a critic). No stack assumptions, no secrets. Trust comes from emitted, counted, gate-blocking artifacts; mango generates the descriptive and facilitates the normative, but never authors the normative.",
   "author": {
     "name": "Cuong Ngo"
   },

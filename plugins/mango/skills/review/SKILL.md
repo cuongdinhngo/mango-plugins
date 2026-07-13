@@ -112,25 +112,32 @@ re-confirmation. Two options, chosen by the reviewer:
 - **Conditional LGTM.** Round 1 may return a **conditional LGTM** — *"LGTM once findings 1–N land as
   described"* — naming exactly the N findings that must be fixed and how. This is the reviewer's
   signal that nothing else is outstanding.
-- **Verify-only re-review.** When round 1 was a conditional LGTM, the re-review is a **verify-only
-  pass**: confirm the N named fixes are present **as described** and run a **regression scan** over
-  the Phase-1 callers / blast radius — **without** a full requirement re-derivation. The ticket-blind
-  **`challenger`'s full re-derivation runs once** (round 1); its independence is the value, so it is
-  **not repeated** on a verify-only round **unless a fix changed scope** (touched a file/behaviour
-  beyond the named findings). A reviewer may still **demand a full re-review** if a fix touched
-  something material — the verify-only path is an option, never a shortcut that skips a real
-  re-check. If a verify-only pass finds a named fix missing or a regression, it escalates back to a
+- **Verify-only re-review — main-loop by default (no re-dispatch).** When round 1 was a conditional
+  LGTM and the fixes stay **inside the already-named findings**, the re-review is a **verify-only pass
+  done in the main loop, dispatching no subagent**: confirm the N named fixes are present **as
+  described** by inspection, re-run **only the affected proof**, and run a **regression scan** over the
+  Phase-1 callers / blast radius — **without** a full requirement re-derivation. This is the **explicit
+  default**, not operator taste: an in-scope verify-only round does **not** re-dispatch a reviewer or a
+  challenger, so its cost does not swing on whoever ran it. A reviewer / challenger is **re-dispatched
+  only when a fix changed scope** — it touched a file outside the approved set, or introduced a new
+  surface/behaviour beyond the named findings — and that is the **only** trigger for re-dispatch; a
+  scope-changing fix reverts the round to a **full re-review**. The ticket-blind **`challenger`'s full
+  re-derivation runs once** (round 1); its independence is the value, so it is **not repeated** on a
+  verify-only round **unless a fix changed scope**. The verify-only path is an option, never a shortcut
+  that skips a real re-check: if it finds a named fix missing or a regression, it escalates back to a
   full review.
 
-  **The cheap path is the default, not luck (scope the re-run — do not re-do round 1).** A verify-only
-  round must **carry forward round-1's verified facts** (the requirement reconstruction, the passing
-  proving test, the layer-match verdicts, the baseline) and **re-run only the proof affected by the
-  named fixes** plus the regression scan. It must **not re-derive requirements** and must **not
-  blanket-re-run the full build / lint / tsc / test suite or re-read the files from scratch** — **unless
-  a named fix changed scope** (touched a file or behaviour beyond the findings), which reverts it to a
-  full re-review. Reuse what round 1 already established; re-prove only what the fixes actually changed.
-  This is what makes the verify-only round **consistently cheaper** than the full round rather than a
-  coin flip that can cost *more* by re-running everything.
+  **The cheap path is the default, not luck (main-loop + scope the re-run — do not re-do round 1).** A
+  verify-only round runs **in the main loop** and must **carry forward round-1's verified facts** (the
+  requirement reconstruction, the passing proving test, the layer-match verdicts, the baseline) and
+  **re-run only the proof affected by the named fixes** plus the regression scan. It must **not
+  re-dispatch a subagent**, **not re-derive requirements**, and **not blanket-re-run the full build /
+  lint / tsc / test suite or re-read the files from scratch** — **unless a named fix changed scope**
+  (touched a file or behaviour beyond the findings), the one condition that reverts it to a full,
+  re-dispatched re-review. Reuse what round 1 already established; re-prove only what the fixes actually
+  changed. This is what makes the verify-only round **consistently cheaper** than the full round — the
+  cost is pinned by the main-loop-default, not left to a coin flip that can cost *more* by re-dispatching
+  and re-running everything.
 
 Everything else (clean-decision criteria, the stale-review marker) is unchanged: a verify-only pass
 that confirms all N fixes + a clean regression scan yields a clean verdict and records the

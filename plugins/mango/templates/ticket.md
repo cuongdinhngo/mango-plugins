@@ -167,7 +167,7 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 ## Phase 4 — Review ✋ (stop only if not clean)
 
 - reviewer verdict (BLOCK / CHANGES REQUESTED [/ conditional LGTM] / LGTM):
-- Re-review path (if round 1 was CHANGES REQUESTED): full / **verify-only** (round 1 was a conditional LGTM → confirm findings 1–N landed + regression scan; challenger re-derivation NOT repeated unless a fix changed scope):
+- Re-review path (if round 1 was CHANGES REQUESTED): full / **verify-only** (round 1 was a conditional LGTM → **main-loop, no re-dispatch**: confirm findings 1–N landed + re-run only the affected proof + regression scan; challenger re-derivation NOT repeated; re-dispatch a reviewer/challenger ONLY if a fix changed scope):
 - challenger (ticket-blind) result:
 - security agent (if any):
 - Scope reconciliation (files outside list / reformatting):

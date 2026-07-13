@@ -46,6 +46,12 @@ bootstrap (skeleton rule book with TODOs); `codify` is the deep facilitation; `d
    entry **`PROVISIONAL (awaiting ratification)`**. Never write a dimension the human did not choose.
    Optionally emit a **drift list** of files diverging from a chosen standard as follow-up tech-debt —
    but **never change code**.
+3a. **Uncodified-standard items surfaced by the lifecycle.** A lifecycle phase (e.g. `analysis`) may
+   surface an **uncodified standard** — a standard applied at a gate with **no codified rule** in the
+   rule book. Such an item enters this **same provisional→ratify flow**: record it as a
+   `PROVISIONAL (awaiting ratification)` entry for the human to ratify, presenting *how* it was being
+   applied as **data**, never auto-authoring the rule from that observed usage. It stays provisional —
+   and cannot silently gate-block as if codified — until the human ratifies it.
 4. **Ratification gate (✋).** Nothing becomes a binding rule until the human **explicitly ratifies**
    the set. State plainly that this is a **draft for the team**, not one person's preference frozen as
    law. On ratify, remove the `PROVISIONAL (awaiting ratification)` tags; until then they stay.

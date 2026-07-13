@@ -78,6 +78,13 @@
 #                     the Tokens column is labelled plainly (no false-precision "(out)" over an unsplit
 #                     figure) (ledger-label); and with RTK present-but-unwired, budget PRINTS the wiring
 #                     command + a "you run this, not mango" note and administers nothing (budget-rtk-wire-guidance).
+#   v1.5            — the ledger's teeth: finalise runs a dispatch-count check and BLOCKS if the ledger has
+#                     fewer rows than the run's dispatch count (a completeness check, like an unfilled matrix
+#                     column), a complete ledger proceeds (ledger-gate); the conditional-LGTM verify-only round
+#                     is main-loop-by-default — an in-scope round verifies in the main loop with NO re-dispatch,
+#                     and a scope-changing fix is the only re-dispatch trigger (verify-only-main-loop); a standard
+#                     applied at a gate with NO codified rule is SURFACED as an uncodified-standard item into
+#                     codify's provisional→ratify flow, never silently enforced or ignored (uncodified-standard-nudge).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -406,7 +413,7 @@ assert_contains "red-baseline: measured (observed failing item, not narrated)" "
 assert_contains "red-baseline: DoD is delta-green"          "$t" 'delta.?green|prove the delta|delta is green'
 # Decision-level: the pre-existing failure is a recorded exclusion (outcome) that neither blocks nor
 # silently passes (the guard).
-assert_all "red-baseline: pre-existing failure is a recorded exclusion" "$t" 'exclusion|excluded|baseline exclusion' 'not a blocker|neither|not .*silent|does not block|outside the change'
+assert_all "red-baseline: pre-existing failure is a recorded exclusion" "$t" 'exclusion|excluded|baseline exclusion' 'not a blocker|neither|not.{0,4}silent|does.{0,4}not.{0,4}block|not.{0,4}block|outside the change'
 
 # conditional-LGTM (Fix v1.2): a round-1 CHANGES REQUESTED with a conditional LGTM leads to a
 # verify-only re-review (confirm findings 1–N + regression scan), NOT a full re-derivation, and the
@@ -491,6 +498,41 @@ assert_contains "rtk-wire: prints the wiring command"            "$t" 'rtk init|
 # Decision-level: the user runs it (subject) and mango will not / it edits the global config (guard).
 assert_all "rtk-wire: you run it, not mango"                     "$t" 'you (must )?run|user (must )?run|run (it|this) yourself|must run it' 'mango (will not|won.?t|does not|never)|not mango|global.*config'
 assert_contains "rtk-wire: administers nothing"                  "$t" 'install(ed|s)?[ _*]*nothing|never[ _*]*install|wires?[ _*]*nothing|administers?[ _*]*nothing|did[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)|does[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)'
+
+# ledger-gate (v1.5 Fix 1): the Cost ledger's teeth. finalise runs a dispatch-count check and REFUSES to
+# proceed when the ledger has fewer rows than the run's dispatch count — an incomplete ledger blocks like
+# an unfilled matrix column (a COMPLETENESS check, never content, never auto-cuts). A complete ledger proceeds.
+t="$(run_fixture ledger-gate 'Run the mango finalise Cost-ledger dispatch-count gate for this run. Apply it: count the run'\''s subagent dispatches, compare to the Cost-ledger row count, and decide proceed-or-block. State your decision and why. Do not stop for my input.')"
+assert_contains "ledger-gate: incomplete ledger blocks finalise" "$t" 'block|refuse|not proceed|cannot proceed|does not proceed|incomplete'
+# Decision-level: gated on dispatch count (outcome) BECAUSE rows < dispatches (reasoning) — a proceed, or a
+# block with no count reasoning, drops a token and fails.
+assert_all "ledger-gate: gated on dispatch count, fewer rows than dispatches" "$t" 'dispatch[ -]count|dispatch' 'fewer|less than|2[[:space:]]*(of|/)[[:space:]]*4|missing|incomplete|only 2'
+assert_contains "ledger-gate: blocks like an unfilled matrix column"          "$t" 'matrix column|unfilled|like a.*(gate|column)|gate-?block'
+# Decision-level: it is a completeness check (subject) that never cuts content (guard).
+assert_all "ledger-gate: completeness check, not content (never auto-cuts)"   "$t" 'complete' 'not.*content|never.*cut|not.*cut|descriptive|completeness'
+# proceeds variant: a complete ledger (rows == dispatches) proceeds.
+t="$(run_prompt ledger-gate-complete 'On the mango finalise dispatch-count gate: a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch return). Per mango, does finalise proceed or block? Answer and say why.')"
+assert_contains "ledger-gate-complete: complete ledger proceeds" "$t" 'proceed|passes|not block|does not block|complete'
+
+# verify-only-main-loop (v1.5 Fix 2): the conditional-LGTM verify-only round is MAIN-LOOP-BY-DEFAULT. An
+# in-scope round verifies in the main loop dispatching NO subagent (cost does not swing on operator choice);
+# a scope-changing fix is the ONLY trigger for re-dispatching a reviewer/challenger.
+t="$(run_fixture verify-only-main-loop 'Run the mango review verify-only re-review on this ticket. Round 1 was a conditional LGTM with two named findings; the author applied exactly those two in-scope fixes, no scope change. State exactly HOW round 2 verifies — in the main loop, or by re-dispatching a reviewer/challenger — and what WOULD trigger a re-dispatch. Do not stop for my input.')"
+assert_contains "verify-only-main-loop: verifies in the main loop" "$t" 'main[ -]loop'
+# Decision-level: main-loop (outcome) with NO re-dispatch of a subagent (guard) for in-scope fixes.
+assert_all "verify-only-main-loop: no re-dispatch for in-scope fixes" "$t" 're-?dispatch|subagent|reviewer|challenger' 'no re-?dispatch|not re-?dispatch|dispatch(ing)? no|without .*(dispatch|subagent)|no subagent'
+# Decision-level: a re-dispatch happens (subject) only on a scope change (guard).
+assert_all "verify-only-main-loop: scope change is the only re-dispatch trigger" "$t" 're-?dispatch|full re-?review' 'scope chang|changed scope|outside the .*set|new surface|beyond the .*finding'
+
+# uncodified-standard-nudge (v1.5 Fix 3): a standard applied at a gate with NO codified rule must be
+# SURFACED as an uncodified-standard item into codify's provisional→ratify flow — never silently enforced
+# and never silently ignored.
+t="$(run_fixture uncodified-standard-nudge 'Run the mango analysis uncodified-standard check on this ticket. A standard is applied at a gate but the rule book has NO codified rule for it. Per mango, state what mango does — silently enforce it, silently ignore it, or surface it — and how the human ratifies it. Do not stop for my input.')"
+assert_contains "uncodified-standard: surfaced, not silently applied" "$t" 'uncodified|surface'
+# Decision-level: routed into codify's provisional→ratify flow (outcome) for the human to ratify (guard).
+assert_all "uncodified-standard: routed to codify'\''s ratify flow" "$t" 'codify|ratif|provisional' 'ratif|provisional|human'
+# Decision-level: NOT silently enforced or ignored (guard) — the human ratifies, mango does not author.
+assert_all "uncodified-standard: not silently enforced or ignored" "$t" 'not silent|neither|does not silently|surface|nudge' 'enforc|apply|ignore|ratif|human|never author'
 
 echo
 if [ "$fails" -gt 0 ]; then

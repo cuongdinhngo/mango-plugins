@@ -67,6 +67,17 @@ count, and the requirements matrix.
    carry a matrix `✅`** — a bare self-reported `✅` cannot stand in for an unmeasurable or unbuilt
    thing. Where a vague word is the only blocker, pin it to a measurable form as a Gate-1 question
    (carrying your proposed definition), exactly as an AC-value mismatch is raised.
+
+   **Uncodified-standard nudge (detect-and-surface — never silently apply, never silently ignore).**
+   When you find yourself **applying a standard at a gate** — an AC validation, a rule-compliance
+   judgment, or a review criterion (a spacing/contrast constant, a naming convention, a threshold) —
+   that has **no codified rule** in `config.rulebook_path`, do **not** silently enforce it and do
+   **not** silently drop it. **Surface it as an uncodified-standard item** and **nudge the human to
+   ratify it** through `codify`'s provisional→ratify flow (reuse that existing machinery — do not invent
+   a parallel one). mango **detects and surfaces; the human ratifies; mango never authors the rule.**
+   Until it is ratified, the standard may **not** silently gate-block as if it were codified — an
+   uncodified standard creates gate-block ambiguity exactly because no one chose it, and this removes
+   that ambiguity by putting the choice in front of the human.
 5. **Clarification tally.** Emit:
 
    `CLARIFICATION: <M> raised | <k> self-resolved (cited) | <j> for human decision`

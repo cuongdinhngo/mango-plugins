@@ -32,16 +32,16 @@ RESERVED_NAMES = {
 # (case-insensitive regex). This guards that an edit cannot quietly drop the
 # counted, gate-blocking artifact a skill is responsible for.
 SKILL_CONTRACTS = {
-    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline"],
+    "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline"],
-    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected"],
-    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain"],
+    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet"],
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
-    "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend"],
+    "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend", r"uncodified"],
     "budget": [r"[Dd]etect", r"[Ii]nform", r"recorded", r"never.{0,15}install", r"depend",
                r"RTK", r"[Cc]aveman", r"safety axis", r"degrade clean", r"PROVISIONAL",
                r"non-critic-only", r"descriptive", r"wire", r"you must run this",
@@ -246,6 +246,29 @@ def validate_ledger_label():
           "ledger-label: templates/ticket.md ledger must carry a plain '| Tokens |' column header")
 
 
+def validate_eval_convention():
+    """The multi-run eval-variance convention (v1.5 Fix 4) must be documented where assertion authors
+    will see it: tests/eval/README.md records that every new assertion matches the decision (not one
+    phrasing), tolerates markdown emphasis, passes 3x fresh before it counts green, and is widened over
+    wording/emphasis but never over outcome. Guards that this standing practice cannot silently vanish."""
+    readme = ROOT / "tests" / "eval" / "README.md"
+    if not check(readme.exists(), "eval-convention: tests/eval/README.md is missing"):
+        return
+    try:
+        body = readme.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"eval-convention: cannot read tests/eval/README.md ({exc})")
+        return
+    check(re.search(r"decision", body, re.IGNORECASE) is not None,
+          "eval-convention: README must state assertions match the decision, not one phrasing")
+    check(re.search(r"emphasis", body, re.IGNORECASE) is not None,
+          "eval-convention: README must state assertions are emphasis-agnostic")
+    check(re.search(r"3.{0,3}fresh|three .{0,12}fresh", body, re.IGNORECASE) is not None,
+          "eval-convention: README must state a new assertion passes 3x fresh before it counts green")
+    check(re.search(r"never .{0,20}outcome|not .{0,12}over outcome|over outcome", body, re.IGNORECASE) is not None,
+          "eval-convention: README must state widening is over wording/emphasis, never over outcome")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -302,6 +325,7 @@ def main():
     validate_token_optimizer()
     validate_critic_guardrail()
     validate_ledger_label()
+    validate_eval_convention()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

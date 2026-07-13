@@ -3,6 +3,57 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] — 2026-07-13
+
+Enforces the descriptive Cost ledger and fixes the verify-only lane's cost variance — two
+evidence-backed levers from two independent v1.4 field-test retros (n=2) — plus two small backlog
+items. No new architecture: the ledger stays **descriptive** (the new gate checks *completeness*, not
+content, and never auto-cuts), critic output stays uncompressed and full-evidence, and mango still
+never depends on an optimizer. Generic and stack-agnostic throughout — no project, ticket, library,
+framework, or brand is named. Each behavioural fix ships with its own eval fixture.
+
+### Changed
+- **Ledger dispatch-count gate — the ledger's real teeth.** The Cost-ledger append was model-executed
+  narration nothing gated on; it stayed complete in the v1.4 runs only because dispatch counts were low
+  and the operator was careful — the discipline that evaporates under load. `finalise` now runs a
+  **dispatch-count check** and **refuses to proceed if the ledger has fewer rows than the run's dispatch
+  count** — an incomplete ledger blocks exactly as an unfilled matrix column does. It checks
+  **completeness, not content**: it never inspects, ranks, or auto-cuts a row, so the ledger stays
+  descriptive. (`finalise`, `PRINCIPLES.md`.)
+- **Verify-only re-review is main-loop-by-default (remove the re-dispatch coin flip).** The same
+  verify-only lane cost **0** tokens in one field run (main-loop re-check) and **~46,700** in another
+  (it re-dispatched a reviewer) — pure operator choice, because the lane never prescribed *how* to
+  verify. It now **prescribes main-loop verification** when the fixes stay inside the already-named
+  findings (confirm by inspection + re-run only the affected proof + a regression scan, dispatching no
+  subagent). A reviewer/challenger is **re-dispatched only when a fix changed scope** (touched a file
+  outside the approved set, or introduced a new surface) — the one trigger, reverting the round to a
+  full re-review. The challenger is still not repeated on a verify-only round unless scope changed.
+  (`review`, `agents/reviewer.md`, `agents/reviewer-max.md`, `templates/ticket.md`.)
+- **Uncodified-standard → codify nudge.** A standard applied at a gate but not codified in the rule book
+  created gate-block ambiguity (unclear whether it blocks). `analysis` now **detects and surfaces** such
+  a standard as an **uncodified-standard item** and nudges the human to **ratify** it via `codify`'s
+  provisional→ratify flow, rather than silently enforcing or silently ignoring it — the human ratifies,
+  mango never authors the rule. (`analysis`, `codify`.)
+
+### Docs
+- **Codified the multi-run eval-variance convention** (practised since v1.0, now written down in a new
+  `tests/eval/README.md`): every new assertion matches the decision (not one phrasing), tolerates
+  markdown emphasis, and passes 3× fresh before it counts green; widen over wording/emphasis, never over
+  outcome. Documentation of existing practice, not a behaviour change. Guarded by `validate.py`.
+
+### Tests / validation
+- **Three new eval fixtures — one per behavioural fix** (generic `PROJ-*`, decision-level assertions):
+  `ledger-gate` (an incomplete ledger blocks finalise; a complete ledger proceeds), `verify-only-main-loop`
+  (an in-scope verify-only round runs in the main loop with no re-dispatch; a scope-changing fix is the
+  only re-dispatch trigger), `uncodified-standard-nudge` (a standard applied without a codified rule is
+  surfaced for ratification, not silently enforced).
+- **`scripts/validate.py`** locks each fix with contract tokens (`finalise` `dispatch-count` /
+  `ledger complet`; `review` `main-loop` / `re-dispatch` / `changed scope`; `analysis`+`codify`
+  `uncodified` / `ratif`) plus a new `validate_eval_convention` check that the convention text exists.
+- **Applied the newly-documented convention to one existing assertion:** the `red-baseline`
+  "recorded exclusion" guard was widened to tolerate markdown emphasis around "not"
+  (`does **not** block`) — over emphasis only, never over outcome (a wrong outcome still fails).
+
 ## [1.4.0] — 2026-07-12
 
 Makes the descriptive **Cost ledger** honest and mechanical, and closes two ledger/review gaps found

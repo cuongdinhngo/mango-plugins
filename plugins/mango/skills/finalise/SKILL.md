@@ -73,7 +73,16 @@ goes through `config.tracker.cli` — **never** an MCP.
    *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory. (Observed
    failure: a run discovered a durable constraint — two live rich-text editors corrupt each other —
    but had no deferred rows, so it nearly never reached the repo's shared `LESSONS.md`.)
-9. **Surface the Cost ledger summary (descriptive, dispatch-only).** Read the working-doc **Cost
+9. **Cost ledger — completeness gate (dispatch count), then the descriptive summary (dispatch-only).**
+   Before surfacing the summary, enforce the **dispatch-count check** — the ledger's *teeth*. Count the
+   subagent dispatches this run actually made (knowable from the run — every `reviewer` / `challenger` /
+   `extractor` / Explore fan-out / per-review-round dispatch return) and compare it to the number of
+   Cost-ledger rows. **Refuse to proceed if the ledger has fewer rows than the run made dispatches:** an
+   incomplete ledger **blocks finalise exactly as an unfilled matrix column blocks a gate** — name the
+   missing dispatches and require their rows to be transcribed from each return's usage block before
+   continuing. This checks **ledger completeness, not content** — it never inspects, judges, ranks, or
+   auto-cuts a row; the ledger stays **descriptive** and the gate never cuts a check, a critic, or
+   evidence. A ledger whose row count is ≥ the dispatch count proceeds. Then read the working-doc **Cost
    ledger** and print a one-line summary — `LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>`
    — at the final gate, plus any recorded optimizer saving. This is **facts only**: it makes the cost
    visible so a human can decide where to trim; it **never** triggers an automatic cut of a check, a
