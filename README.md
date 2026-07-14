@@ -42,42 +42,31 @@ gathers).
 
 ## The lifecycle
 
-Run the whole thing with `/mango:solve`, or invoke a phase directly. mango **stops and waits at
-every ✋ gate** — silence is never approval. Each phase emits counted, gate-blocking artifacts.
+Run the whole thing with `/mango:solve`, or invoke any phase directly. mango **stops at every ✋
+gate** — silence is never approval — and each phase emits counted, gate-blocking artifacts.
 
-`analysis` declares `TIER: lite | full`. **Lite** (the `/mango:quick` lane) is chosen only when ALL
-hold: `SCOPE=S`, a single file / single requirement row, no universal requirement **with N > 1**, and
-not security-tagged — otherwise **full**. The decision keys on the **resolved inventory denominator
-N**, not on keywords: a requirement that *sounds* universal but resolves to a single site (**N = 1**)
-is lite-eligible. `/mango:quick` enforces this with a hard entry check: it **refuses** and routes to
-`/mango:solve` if the ticket is security-tagged, touches more than one file, or has a universal
-requirement that resolves to N > 1.
+**TIER** (`lite | full`, declared by `analysis`) sets process weight. Lite — the `/mango:quick`
+lane — needs *all* of: `SCOPE=S`, a single file/requirement, no universal requirement resolving to
+**N > 1**, and no security tag; anything else is full. The test is the **resolved denominator N**,
+not keywords, so a requirement that only *sounds* universal but hits one site stays lite.
+`/mango:quick` hard-refuses and routes to `/mango:solve` when those bounds are exceeded.
 
-`config.track` (`backend|frontend|fullstack`, default `backend`) selects which **gate set** applies —
-**orthogonal to TIER** (TIER = process weight; track = which gates). `backend` runs exactly as before.
-On the **frontend** track `analysis` emits a counted `TRACK` artifact, `design` builds a per-project
-**`DESIGN.md`** contract, and `review` scores a falsifiable a11y/token + **M1–M10** responsive/touch
-rubric — all riding the existing layer-match hard gate. mango embeds only the measurable/greppable
-part (**own the durable**) and **composes, never owns,** the aesthetic layer: it calls a taste skill
-if installed, else follows `DESIGN.md`, and never stops because one is missing. See the
-[plugin README](./plugins/mango/README.md#frontend-track--measurable-ui-gates-composed-taste).
-
-For a **universal / app-wide** frontend requirement, the denominator is the count of **reachable
-surfaces enumerated from the code** (`analysis` emits `SURFACES: N`) — never the surfaces the ticket
-named. `execute` records the **highest-tier proof per surface** (`automated` → recorded `render@<bp>`
-→ `excluded`) in a proof manifest — **e2e is optional, a proof is not**, and mango never stops for a
-missing runner. `review` blocks unless `N == M + X`, emitting a loud `⚠ surfaces proven: k/N` banner
-when under-covered.
+**Track** (`config.track`: `backend | frontend | fullstack`, default `backend`) picks the gate set,
+orthogonal to TIER. The frontend track adds a **`DESIGN.md`** contract and a falsifiable a11y/token +
+**M1–M10** rubric on top of the shared layer-match gate; mango owns the measurable part and
+*composes* the aesthetic layer (a taste skill if installed, else `DESIGN.md`), never blocking because
+taste is absent. For app-wide UI the denominator is the **reachable surfaces enumerated from code**,
+each carrying its highest-tier proof; `review` blocks until every surface is covered.
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
-| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) + count line, AC validation (each acceptance value **falsifiable** or a recorded **manual-check exclusion** — neither → flagged, no bare `✅`), clarification tally, universal inventory, root-cause/gap, blast radius, scope, and a `BASELINE` capture (`green \| red \| flaky` from the untouched checkout; not-green → delta-green DoD). |
-| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, **Assumptions** (`verified \| novel-untested` — a novel 3p/runtime assumption needs a spike or integration-shaped proof), smallest change-list traced to rows, rule compliance, the named proving test, a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof is `❌` and blocks Gate 2), rollback + porting. On the **frontend** track also creates/updates the **`DESIGN.md`** contract and lays out the plan **one row per (AC × surface)** with an under-coverage banner. |
-| `/mango:execute` | 3 (autonomous) | Branch, the approved change list only, the proving test, a verification sweep on **both axes** (file set: diff ⊆ approved list; **behaviour**: a design-conformance self-check that records any deviation from an approved Gate-2 Approach bullet even when the file diff is clean), a **baseline-aware DoD** (delta-green when `BASELINE ≠ green`), commits with no AI co-author trailer. Runs the project's formatter **only on authored/edited files** — never a wholesale reformat of a shared file (**format-scope rule**); whole-file conformance is a separate concern (CI / a chore ticket). STOPs to **re-gate if the design is invalidated** and via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). On the **frontend** track emits the **proof manifest** (highest tier per surface; never stops for a missing runner). |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger` (payload excludes the `.work.md`), scope reconciliation on **both axes** (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against the recorded `BASELINE`, `k/N` coverage. Round 1 may return a **conditional LGTM**, making the re-review a **verify-only pass** (named-fix check + regression scan, no full re-derivation) — main-loop-by-default, with a **docs/bookkeeping carve-out** (a fix touching only exempt bookkeeping files stays main-loop; any non-exempt out-of-scope file re-dispatches). On the **frontend** track also scores the **M1–M10** a11y/token rubric against `DESIGN.md` and the **`N == M + X`** surface-coverage check. |
-| `/mango:finalise` | 5 → final gate | PR draft, per-action approval for every outward action, tracker writes via CLI, a **Cost-ledger content-completeness gate** (blocks unless every dispatch row carries a token value — a real count or the explicit `unmeasured (blocking retrieval)` marker; a blank cell blocks like an unfilled matrix column), follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and landed on a **shared/pushed ref** (never an orphaned local branch) on every run. |
-| `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
-| `/mango:solve` | orchestrator | Doctor preflight, then runs all phases in order honouring `TIER`, holding every gate; resumes from `Session status`. |
+| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (no bare `✅`), root-cause & blast radius, scope, and a `BASELINE` capture from the untouched checkout. |
+| `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, assumptions, smallest row-traced change list, the proving test, and a **per-AC verification plan whose layer-match is a hard gate**. Frontend: builds `DESIGN.md`, one row per (AC × surface). |
+| `/mango:execute` | 3 (autonomous) | Branch + approved changes only, the proving test, a two-axis sweep (files ⊆ approved list; behaviour matches the approved design), baseline-aware DoD, scoped formatting. STOPs to re-gate on an invalidated design or a stuck-detector. Frontend: emits the proof manifest. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, two-axis scope reconciliation, regression + layer-match re-check, proving-test result vs `BASELINE`. A conditional LGTM triggers a verify-only re-review. Frontend: scores the M1–M10 rubric + surface coverage. |
+| `/mango:finalise` | 5 → final gate | PR draft, per-action approval, tracker writes, a cost-ledger completeness gate, follow-up tickets for deferred rows, and a **durable lesson** pushed to a shared ref. |
+| `/mango:quick` | lite lane | One combined pre-code gate → execute → reviewer check → final gate, for trivial tickets. |
+| `/mango:solve` | orchestrator | Doctor preflight, then every phase in order honouring `TIER`, holding each gate; resumes from `Session status`. |
 
 See the [plugin README](./plugins/mango/README.md) for the full tier details, `.harness.json` keys,
 cost profile, and model-delegation map.
