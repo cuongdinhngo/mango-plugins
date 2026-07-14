@@ -121,44 +121,8 @@ load-bearing artifact). CI additionally runs `claude plugin validate ./plugins/m
 `claude plugin validate . --strict` as a **best-effort, non-blocking** step.
 
 The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets and asserts the
-expected artifacts — the analysis happy path, the higher-risk lifecycle behaviours (proof at the
-risk layer, the ticket-blind challenger catching an unmet AC, the design-invalidated escalation, and
-the stuck-detector), the **frontend track** (a "no horizontal overflow @320 px" AC backed only by
-a unit proof is layer-matched `❌` and blocks Gate 2; the rubric flags a hover-only / mouse-only
-handler), **surface coverage** (a universal AC covering only 2 of 5 reachable surfaces reads
-`surfaces proven: 2/5` and blocks; a no-runner AC yields a tier-2 `PASS(render@<bp>)`, not a skip),
-the **format-scope rule** (execute scopes the formatter to the authored/edited files, never a
-wholesale reformat of a shared file), and the four **v1.2** behaviours — one fixture each so a red run
-is diagnosable — (a **behavioural deviation** from the approved Gate-2 bullet is recorded despite a
-clean file diff; a **vague AC** is pinned to a measurable or logged as a manual-check exclusion and
-cannot carry a bare `✅`; a **red baseline** — a verification command genuinely red on a clean
-checkout — is **measured by running it** (not read from the ticket) and recorded with a delta-green
-DoD; a **conditional LGTM** takes a verify-only re-review) — the four **v1.3** budget behaviours (the **cost ledger** is
-descriptive and never auto-cuts; an **RTK-absent** run completes identically; **Caveman is forbidden on
-critic output**, which keeps its `path:line` evidence; enabling an optimizer is a **recorded provisional
-decision**, not silent), and the five **v1.4** ledger-truth behaviours — one fixture each — (the ledger
-**auto-appends** one row per dispatch return, not narrated bookkeeping; it is **dispatch-only** and
-refuses a fabricated dispatch-vs-noise split, pointing at the optimizer's own `rtk gain`; a
-conditional-LGTM **verify-only round reuses round-1 facts** and re-runs only the affected proof; the
-**Tokens column** carries no false-precision `(out)`; and with RTK present-but-unwired **`budget`
-prints the wiring command** + a "you run this, not mango" note and administers nothing) — and the three
-**v1.5** behaviours — one fixture each — (the ledger's **dispatch-count gate** blocks finalise when the
-ledger has fewer rows than the run's dispatch count, a complete ledger proceeds; the conditional-LGTM
-**verify-only round is main-loop-by-default** — an in-scope round verifies in the main loop with no
-re-dispatch, a scope-changing fix the only re-dispatch trigger; a standard applied at a gate with no
-codified rule is **surfaced as an uncodified-standard item** into codify's provisional→ratify flow, not
-silently enforced) — and the four **v1.6** honest-ledger behaviours — one fixture each — (finalise's
-ledger gate is a **content-completeness** check: a ledger with all rows present but a **blank token cell
-blocks** like an unfilled matrix column, a value-or-marker in every cell proceeds; a **blocking**-retrieved
-dispatch with no `<usage>` gets its tokens recovered or its cell marked the explicit **`unmeasured
-(blocking retrieval)`**, never a silent blank; the verify-only re-dispatch trigger has a
-**docs/bookkeeping carve-out**; and the durable lesson must land on a **shared/pushed ref**, not an
-orphaned local-only branch). It
-costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
-`ANTHROPIC_API_KEY` secret). Assertions match at the **decision level** and are **emphasis-agnostic**
-(they tolerate markdown `**`/`_` and phrasing variants around the load-bearing token), so a correct
-behaviour passes under any wording while a wrong *outcome* still fails — green comes from stability
-across independent fresh runs, not from tuning a regex to one transcript.
+expected artifacts. It costs tokens, so CI runs it only via the manual `eval.yml` workflow
+(`workflow_dispatch`, needs the `ANTHROPIC_API_KEY` secret).
 
 **Running the eval.** One command, hands-free:
 
