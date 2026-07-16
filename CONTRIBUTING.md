@@ -44,6 +44,15 @@ Assertions match at the **decision level** and are **emphasis-agnostic** (tolera
 phrasing variants around the load-bearing token), so a green result reflects stability across
 independent fresh runs, not a regex tuned to one transcript.
 
+**Verify-incremental (build discipline).** The suite is expensive, so while building a fix run only the
+**affected fixture(s)**; run the **full suite once** at the end before push. Coverage is unchanged — only
+redundant mid-build re-runs are removed. The Finish bar is unchanged: **full suite once** green, and each
+**new fixture 3× fresh** at the decision level.
+
+The eval also runs a post-run **safety guard**: because every fixture executes inside a throwaway clone,
+the guard asserts the **live checkout** is untouched afterwards (HEAD on `main`, no stray `PROJ-*` branch,
+no leftover work doc), and it is self-tested against an injected leak so it can never pass vacuously.
+
 ## Publish
 
 For a fresh fork or a new marketplace of your own:

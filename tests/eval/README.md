@@ -35,5 +35,19 @@ written to match the *behaviour*, not one transcript's phrasing. The standing ru
    pass — that turns a green into a false green. (v1.4's `rtk-wire` fixture legitimately needed widening
    over wording twice; that is the allowed kind of widening.)
 
+## Verify-incremental (build discipline — the Finish flow)
+
+The full suite is expensive (a `claude -p` run per assertion). While **building a fix**, run only the
+**affected fixture(s)** — the one or two behaviours the change touches — not the whole suite after every
+small edit. Run the **full suite once** at the end, before push. Coverage is unchanged; only the
+redundant mid-build re-runs are removed.
+
+The v1.0 green bar is intact and non-negotiable at Finish:
+
+- **full suite once** at the end, green; and
+- **each new fixture 3× fresh** (three independent runs, green at the decision level — see rule 3 above).
+
+So: affected-fixture-only during the build, **full suite once** at the end, 3-fresh for anything new.
+
 Keep fixtures **generic** (`PROJ-*` keys; no real project, ticket, library, framework, formatter, or
 brand). The suite's coverage is catalogued in the header comment of `run.sh`.

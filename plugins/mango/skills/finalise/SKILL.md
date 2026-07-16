@@ -113,6 +113,9 @@ goes through `config.tracker.cli` — **never** an MCP.
    mango**. Do **not** fabricate or imply a dispatch-vs-noise split (a 100%-dispatch / 0%-noise number
    is an instrumentation artifact, not a finding). For the output-noise side, point the user at the
    optimizer's own analytics — **`rtk gain`** when RTK is live — rather than having mango self-instrument
-   the main loop; each layer measures its own domain.
+   the main loop; each layer measures its own domain. When surfacing the ledger into the conversation,
+   print only the **delta** plus the summary line — a new row, "ledger **unchanged except** row N" —
+   never a full reprint of the whole ledger on each update; the completeness gate reads the ledger
+   **complete on disk**, not a re-pasted copy in the response.
 10. **Update `Session status`** with a concrete next action (never "continue") and state the
    **revert path** (branch, commits, how to undo a merge/transition).

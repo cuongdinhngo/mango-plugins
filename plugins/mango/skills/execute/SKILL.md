@@ -68,9 +68,12 @@ directly — never spawn a model for a one-line shell command.
    split, and flag any branch/PR-type drift.
 6. **Commit per logical unit.** One commit per logical unit, clear messages, **no AI co-author
    trailer of any kind**.
-7. **Write back + flow to review.** Write Phase 3 into the working doc (including the sweep result
-   and `Ph3/4 proven by` progress), update `Session status`, then flow straight into the `review`
-   phase. Do not perform any outward action (no push, no PR, no tracker write).
+7. **Write back + flow to review.** Write Phase 3 **complete on disk** into the working doc (including
+   the sweep result and `Ph3/4 proven by` progress), update `Session status`, then flow straight into
+   the `review` phase. When reporting this write-back into the conversation, emit only the **delta** —
+   the changed rows/cells, "working doc **unchanged except** Phase 3" — not a full reprint of the doc
+   (see `solve`'s response-token discipline). Do not perform any outward action (no push, no PR, no
+   tracker write).
 
 ## Frontend track — token-first + input-agnostic (only when `config.track` includes frontend)
 

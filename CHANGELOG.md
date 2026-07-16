@@ -3,6 +3,49 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.1] — 2026-07-16
+
+A safety + token patch, **no new lifecycle behaviour** (no gate, check, or phase added or removed). Three
+fixes: isolate the eval from the live checkout, cut artifact re-emission into the response, and document
+verify-incremental. Generic and stack-agnostic throughout — no project, ticket, library, framework, or
+brand is named (fixtures use `PROJ-*`).
+
+### Fixed
+- **Eval isolation — the live checkout can never be mutated (safety).** The behavioural eval already ran
+  every fixture inside a throwaway local clone (`git clone --local` into a temp sandbox, `cd` there for
+  every `claude -p`, `rm -rf` on exit), so isolation was **structural** — but **unverified**. `run.sh`
+  now carries a post-run **`assert_checkout_clean`** guard that asserts the **live checkout** is pristine
+  after the whole eval (HEAD on `main`, no stray `*PROJ-*` branch, no `docs/tickets/*.work.md` or
+  `docs/EVAL_RULES.md`); on any leak it prints the recovery commands and **fails loudly** so a leak can
+  never pass silently. The guard is proven **non-vacuous** — self-tested against an injected leak in a
+  throwaway repo, never risking the live checkout. Root cause of the original leak: `execute` is designed
+  to mutate a project, so running it headless against the plugin's own repo made the plugin repo the
+  "project" (it once stranded a commit on a `feat/PROJ-*` branch). (`tests/eval/run.sh`, eval README,
+  `CONTRIBUTING.md`.)
+- **Artifact delta-emission — emit the change, not the whole artifact (token).** mango re-printed large
+  artifacts (working doc, ledger, matrix, proof manifest) in full into the response on each partial
+  update — the dominant output-vs-input cost (a field run showed output ~50× input). On a partial update,
+  the skills now emit **only the changed portion** (the new ledger row, the just-filled matrix cell) and
+  **reference the unchanged rest** ("ledger **unchanged except** row N"); the full artifact is still
+  written **complete on disk** to the working doc (single source of truth). This changes only what is
+  re-printed into the response, never what is stored: the v1.6 **content-completeness gate** still runs
+  unchanged and still blocks an incomplete on-disk ledger. (`solve`, `execute`, `finalise`, `PRINCIPLES`.)
+- **Verify-incremental — affected fixture during build, full suite once at end (token).** Documented the
+  build discipline: run only the **affected fixture(s)** while building a fix; run the **full suite once**
+  at the end before push. Coverage is unchanged — the v1.0 bar (full suite green + each new fixture 3×
+  fresh) is intact; only redundant mid-build re-runs of the whole suite are removed. (eval README,
+  `CONTRIBUTING.md`.)
+
+### Eval + validator
+- New coverage: **eval-isolation-guard** (the live checkout is untouched after the full eval; the guard
+  catches an injected leak — non-vacuous) and **artifact-delta-emission** (a partial update carries the
+  delta, not a full reprint, while the on-disk artifact stays complete and the content gate passes).
+- `scripts/validate.py`: new `validate_eval_isolation` (run.sh carries the throwaway isolation + the
+  `assert_checkout_clean` guard + a non-vacuous self-test) and `validate_verify_incremental` (README +
+  CONTRIBUTING document affected-fixture / full-suite-once / 3-fresh); skill-contract tokens lock the
+  delta-emission discipline (`delta` / `unchanged except` / `complete on disk`) in `solve`/`execute`/
+  `finalise`. 284 checks, up from 264.
+
 ## [1.6.0] — 2026-07-13
 
 Makes the Cost ledger **honest** — surfacing usage for blocked dispatches and giving the finalise gate

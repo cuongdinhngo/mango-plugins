@@ -106,3 +106,14 @@ the challenger payload (`review`) can always exclude the working-doc portion.
   one-line summary (total + top cost driver). See `/mango:budget` for the safety axis and the
   human-gated `token_optimizer` adoption; mango tolerates RTK's compact Bash output but **never depends
   on it** — RTK absent, the run is identical.
+- **Emit deltas into the response, not full artifacts (response-token discipline).** The working doc on
+  disk is the **single source of truth** and stays **complete on disk**. When you report a **partial
+  update** into the conversation — a new ledger row, a just-filled matrix cell, a new decision-log line —
+  emit **only that changed portion** (the **delta**) and **reference the unchanged rest** ("ledger
+  **unchanged except** row N"; "matrix **unchanged except** AC-3"). Do **not** reprint the whole ledger /
+  matrix / proof-manifest / working doc into the response on each update — that is the dominant
+  output-vs-input cost and adds no signal. This changes **only what is re-printed into the response**,
+  never what is **written to disk**: the full artifact is written **complete on disk** and the v1.6
+  **content-completeness gate** still runs unchanged (emit-less-into-the-response ≠ store-less-on-disk).
+  **Never** drop a row, cell, or evidence detail to save tokens — a delta references the rest, it does
+  not delete it.

@@ -34,10 +34,10 @@ RESERVED_NAMES = {
 SKILL_CONTRACTS = {
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius"],
-    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline"],
+    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk"],
     "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out"],
-    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref"],
-    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref", r"unchanged except", r"complete on disk"],
+    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
@@ -269,6 +269,51 @@ def validate_eval_convention():
           "eval-convention: README must state widening is over wording/emphasis, never over outcome")
 
 
+def validate_eval_isolation():
+    """The behavioural eval must isolate execute-touching fixtures from the live checkout (v1.6.1 Fix 1).
+    tests/eval/run.sh must run fixtures in a throwaway clone/worktree AND carry the post-run safety guard
+    that asserts the live checkout is untouched. Guards that a future edit cannot silently drop the
+    isolation or its guard — the leak that once stranded a commit on a stray branch could never recur."""
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "eval-isolation: tests/eval/run.sh is missing"):
+        return
+    try:
+        body = runsh.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"eval-isolation: cannot read tests/eval/run.sh ({exc})")
+        return
+    check(re.search(r"throwaway|worktree|git clone", body, re.IGNORECASE) is not None,
+          "eval-isolation: run.sh must run fixtures in a throwaway clone/worktree, never the live checkout")
+    check(re.search(r"live checkout", body, re.IGNORECASE) is not None,
+          "eval-isolation: run.sh must document that the live checkout is never touched")
+    check(re.search(r"assert_checkout_clean", body) is not None,
+          "eval-isolation: run.sh must define the post-run guard assert_checkout_clean (the safety check)")
+    check(re.search(r"non-vacuous|injected leak|VACUOUS", body, re.IGNORECASE) is not None,
+          "eval-isolation: run.sh must self-test the guard against an injected leak (non-vacuous)")
+
+
+def validate_verify_incremental():
+    """The verify-incremental build discipline (v1.6.1 Fix 3) must be documented where an eval author
+    will see it: run only the AFFECTED fixture(s) mid-build, the FULL SUITE ONCE at the end, and keep
+    each new fixture 3x fresh. Guards that the cost-saving discipline cannot silently vanish, and that
+    it never weakens the Finish bar (coverage unchanged)."""
+    for rel in ("tests/eval/README.md", "CONTRIBUTING.md"):
+        path = ROOT / rel
+        if not check(path.exists(), f"verify-incremental: {rel} is missing"):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"verify-incremental: cannot read {rel} ({exc})")
+            continue
+        check(re.search(r"affected fixture", body, re.IGNORECASE) is not None,
+              f"verify-incremental: {rel} must state affected-fixture-only during a build")
+        check(re.search(r"full suite once", body, re.IGNORECASE) is not None,
+              f"verify-incremental: {rel} must state the full suite runs once at the end before push")
+        check(re.search(r"3.{0,3}fresh|three .{0,12}fresh", body, re.IGNORECASE) is not None,
+              f"verify-incremental: {rel} must state each new fixture stays 3x fresh (coverage unchanged)")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -326,6 +371,8 @@ def main():
     validate_critic_guardrail()
     validate_ledger_label()
     validate_eval_convention()
+    validate_eval_isolation()
+    validate_verify_incremental()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

@@ -260,6 +260,11 @@ tries to recover the usage; if it truly cannot, the cell is marked the explicit
 a value or the marker. The gate checks *presence* only — it never inspects, ranks, or auto-cuts. The
 ledger is dispatch-scoped: main-loop output noise (lint/test/build dumps, file reads) is not measured.
 
+To keep the response cheap, mango emits **deltas, not full artifacts**: on a partial update it prints
+only the changed row/cell ("ledger **unchanged except** row N"), while the full artifact stays **complete
+on disk** in the working doc (the single source of truth the completeness gate reads). Emitting less into
+the response never means storing less on disk.
+
 `/mango:budget` (opt-in) lets a human adopt an external token optimizer with the trade-offs explicit.
 **The safety axis:** an optimizer is safe only if it removes **representation redundancy** (how output
 is phrased), never a check, a gate, a critic, or the **evidence detail** a critic relies on
@@ -291,5 +296,6 @@ toggle. `budget` detects and informs, never self-administers.
 ## Contributing
 
 `scripts/validate.py` is the cheap, always-on guard; `tests/eval/` is the behavioural eval that drives
-`claude -p` over fixture tickets. Both are documented in
+`claude -p` over fixture tickets — each fixture inside a throwaway clone, with a post-run guard that
+asserts the live checkout is untouched. Both are documented in
 [CONTRIBUTING.md](../../CONTRIBUTING.md).

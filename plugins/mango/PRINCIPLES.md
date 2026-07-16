@@ -265,6 +265,14 @@ run the Bash tool.
   token cell is incomplete and blocks like an unfilled matrix column. It checks the **presence** of a
   value or an honest marker — it never inspects, ranks, judges, invents, or auto-cuts a value — so the
   ledger stays descriptive.
+- **Emit deltas into the response, not full artifacts.** The working doc on disk is the **single source
+  of truth** and is written **complete on disk**; the conversation gets only the **delta** on a partial
+  update — the changed row/cell, "ledger **unchanged except** row N" — never a full reprint of the
+  ledger / matrix / proof-manifest / working doc each time. This is a **representation-redundancy** cut
+  on the safety axis (below): it changes only *how much of an unchanged artifact is re-pasted into the
+  response*, never a check, a gate, a critic, or the artifact **written to disk**. The content-
+  completeness gate still reads the artifact complete on disk — emit-less-into-the-response is not
+  store-less-on-disk, and a delta references the rest, it never deletes it.
 - **The safety axis (governs every optimizer choice).** An optimizer is **safe** only if it removes
   **representation redundancy** — *how* output is phrased — and **never** a check, a gate, a critic,
   or the **evidence detail** a critic relies on (`path:line`, measured values, per-clause verdicts,

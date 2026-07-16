@@ -96,6 +96,13 @@
 #                     out-of-scope fix still re-dispatches (verify-only-bookkeeping-carveout); and the durable lesson
 #                     must land on a SHARED/PUSHED ref (branch-push or a per-action "push bookkeeping"), not an
 #                     orphaned local-only branch (finalise-lesson-pushed).
+#   v1.6.1          — eval isolation + token: a post-run SAFETY guard asserts the LIVE checkout is
+#                     untouched after the whole eval (HEAD on main, no stray *PROJ-* branch, no
+#                     docs/tickets/*.work.md / docs/EVAL_RULES.md) and is proven NON-VACUOUS against an
+#                     injected leak in a throwaway repo (eval-isolation-guard); mango emits only the
+#                     CHANGED portion of an artifact into the response on a partial update ("ledger
+#                     unchanged except row N") while the full artifact stays COMPLETE on disk and the
+#                     v1.6 content-completeness gate still passes (artifact-delta-emission).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -269,6 +276,35 @@ run_prompt() {
   transcript="$(claude_run "$prompt" 2>&1 || true)"
   { echo "== scenario: $label =="; echo "$transcript"; } >"$file"
   echo "$file"
+}
+
+# --- Post-run safety guard (v1.6.1, Fix 1) -----------------------------------
+# Every fixture runs inside $SANDBOX, so the LIVE checkout must stay pristine. This
+# ASSERTS it — belt-and-suspenders over the structural isolation. If a future edit
+# ever broke the `cd "$SANDBOX"` discipline (or a fixture ran `execute` in the wrong
+# cwd), a leak into the live checkout could otherwise pass silently.
+#
+# assert_checkout_clean <repo-dir> — echoes each leak it finds and returns non-zero
+# on any; returns 0 iff <repo-dir> is pristine: HEAD on main, no stray *PROJ-*
+# branch, no docs/tickets/*.work.md, no docs/EVAL_RULES.md. Parameterized on the dir
+# so it is self-tested below on a THROWAWAY dirty repo — the guard's teeth are proven
+# without ever risking the live checkout.
+assert_checkout_clean() {
+  local dir="$1" bad=0 head stray docs
+  head="$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
+  [ "$head" = "main" ] || { echo "    LEAK: HEAD is on '$head', not main"; bad=1; }
+  stray="$(git -C "$dir" for-each-ref --format='%(refname:short)' 'refs/heads/*PROJ-*' 2>/dev/null || true)"
+  [ -z "$stray" ] || { echo "    LEAK: stray fixture branch(es): $(echo $stray)"; bad=1; }
+  docs="$(git -C "$dir" ls-files 'docs/tickets/*.work.md' 'docs/EVAL_RULES.md' 2>/dev/null || true)"
+  docs="$docs $( (cd "$dir" && ls docs/tickets/*.work.md docs/EVAL_RULES.md) 2>/dev/null || true)"
+  docs="$(echo "$docs" | tr ' ' '\n' | sort -u | grep -v '^$' || true)"
+  [ -z "$docs" ] || { echo "    LEAK: eval artifact(s) in live checkout: $(echo $docs)"; bad=1; }
+  if [ "$bad" -ne 0 ]; then
+    echo "    RECOVERY: git switch main && git branch -D <stray> && rm -f docs/EVAL_RULES.md docs/tickets/*.work.md"
+    echo "    (if a real commit stranded on the stray branch, cherry-pick it onto main FIRST)"
+    return 1
+  fi
+  return 0
 }
 
 # full: expects the SECTIONS count line and a stop at a pre-code gate. analysis stops at Gate 1
@@ -589,6 +625,51 @@ t="$(run_fixture finalise-lesson-pushed 'Run the mango finalise durable-lesson s
 assert_all "lesson-pushed: lands on a shared/pushed ref, not local-only" "$t" 'shared ref|pushed|push' 'not .*local|local-?only|orphan|deleted|reach .*main|not only|shared'
 assert_contains "lesson-pushed: via branch-push or a push-bookkeeping action" "$t" 'branch-?push|push bookkeeping|bookkeeping.*(action|commit|push)|fold'
 assert_contains "lesson-pushed: under the normal per-action approval"        "$t" 'per-?action|separate approval|each .*approv|approval per'
+
+# artifact-delta-emission (v1.6.1 Fix 2): on a PARTIAL update mid-run, mango emits only the CHANGED
+# portion into the response (the new ledger row / the just-filled matrix cell) and REFERENCES the
+# unchanged rest ("ledger unchanged except row N") — it does NOT reprint the whole artifact each time.
+# The full artifact still lives COMPLETE on disk in the working doc (single source of truth), so the
+# v1.6 content-completeness gate still passes. "Emit less into the response" ≠ "store less on disk".
+t="$(run_prompt artifact-delta-emission 'In the mango lifecycle, a full-tier run makes several partial updates to the working doc (a new ledger row per dispatch, one matrix cell filled at a time). Per mango, when you report a partial update into the conversation, do you reprint the whole working doc / ledger / matrix each time, or only the changed portion — and what stays on disk? State exactly what goes into the response versus the working doc, and whether the content-completeness gate still passes. Do not stop for my input.')"
+assert_contains "delta-emission: emits only the changed portion"        "$t" 'delta|changed portion|only the (new|changed)|unchanged except'
+# Decision-level: deltas into the response (outcome) while the full artifact stays COMPLETE on disk (guard).
+assert_all "delta-emission: full artifact stays complete on disk"       "$t" 'on disk|working doc|single source' 'complete|full|unchanged|not reprint|content|completeness'
+assert_contains "delta-emission: content-completeness gate still passes" "$t" 'content|completeness|complete on disk|gate.{0,6}(still )?pass'
+
+# eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:
+# (1) the guard is NON-VACUOUS — it catches an injected leak in a throwaway repo; (2) the LIVE checkout
+# is untouched after the full eval. Neither ever mutates the live checkout.
+echo
+echo "== eval isolation guard =="
+
+# (1) Non-vacuous: a throwaway repo with an injected leak (stray *PROJ-* branch + work doc + HEAD off
+# main) MUST be caught. Built and destroyed here; the live checkout is never touched.
+LEAKROOT="$(mktemp -d)"; LEAKREPO="$LEAKROOT/leak"
+git init -q "$LEAKREPO"
+git -C "$LEAKREPO" -c user.email=eval@example.com -c user.name=mango-eval commit -q --allow-empty -m init
+git -C "$LEAKREPO" branch -q -M main
+mkdir -p "$LEAKREPO/docs/tickets"
+: >"$LEAKREPO/docs/tickets/PROJ-999.work.md"
+git -C "$LEAKREPO" checkout -q -b feat/PROJ-999-leak
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: guard is VACUOUS — missed an injected leak"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: catches an injected leak (non-vacuous)"
+fi
+rm -rf "$LEAKROOT" 2>/dev/null || true
+
+# (2) The whole point: after the full eval, the LIVE checkout is pristine. On a leak this prints the
+# recovery commands and FAILS loudly, so a leak can never pass silently.
+total=$((total + 1))
+if assert_checkout_clean "$REPO_ROOT"; then
+  echo "  PASS: eval-isolation-guard: live checkout untouched after full eval (HEAD on main, no stray *PROJ-* branch, no work doc)"
+else
+  echo "  FAIL: eval-isolation-guard: LIVE CHECKOUT MUTATED — a fixture leaked (recovery printed above)"
+  fails=$((fails + 1))
+fi
 
 echo
 if [ "$fails" -gt 0 ]; then
