@@ -26,11 +26,17 @@ not guessed.
   is **neither** is flagged at Gate 1 and **may not carry a matrix `✅`** — a bare self-reported `✅`
   cannot stand in for an unmeasurable or unbuilt thing.
 - `SECTIONS: <n> found = <n> decomposed`. Every ticket section maps to ≥1 matrix row.
+- **`RULE SECTIONS` coverage by change type.** analysis derives the applicable rulebook sections
+  **from the change type** (migration/schema → the DB-conventions section is mandatory; new UI surface
+  → the design-token/a11y section is mandatory; …) and checks **each** — or marks it N/A-with-reason.
+  An applicable section left neither checked nor N/A is a finding (silently omitting the section that
+  mattered is the miss this removes). Detect-and-surface only — mango never authors the rule.
 - A `Rejected alternatives` line at design records what was considered and dropped.
 
 **Fails the gate when** a gate is reached with `j > 0` unresolved, an AC mismatch was silently
-changed instead of raised, sections found ≠ sections decomposed, or a vague acceptance value carries
-a `✅` without being pinned to a measurable or recorded as a manual-check exclusion.
+changed instead of raised, sections found ≠ sections decomposed, an applicable rulebook section is
+neither checked nor N/A-with-reason, or a vague acceptance value carries a `✅` without being pinned to
+a measurable or recorded as a manual-check exclusion.
 
 > **Challenger independence is procedural, backed by a path separation — not cryptographic.** The
 > working doc lives at `<config.work_dir>/<KEY>.work.md`, a **separate path** from the ticket spec,
@@ -161,7 +167,7 @@ and no schema.
 ## The refine phase — expose the decisions, never author the intent
 
 > **refine (Phase 0, the FIRST phase) turns a raw request into a refined ticket by EXPOSING the
-> product-decisions for the human to chốt — it never authors intent. This is the same
+> product-decisions for the human to decide — it never authors intent. This is the same
 > descriptive/normative boundary `codify` holds for rules, applied to a ticket: derivable = refine may
 > resolve + cite; intent = the human's alone.**
 
@@ -180,15 +186,19 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
   **self-skips on a clear ticket** so it is never a tax on every ticket — the skip is a counted
   decision.
 - **The derivable/intent boundary — classify before asking.** Every surfaced decision is either
-  **loại-B (HOW)** — answerable from convention / code / the rule book, or a tool choice → refine
-  **resolves it and CITES** the source, and **does not ask**; asking a HOW-question launders a decision
-  — or **loại-A (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user** in
-  want-language (`AskUserQuestion` typed fork). A handed-back loại-A is marked **`ASSUMED (awaiting
-  ratification)`** (reusing `codify`'s provisional→ratify) and re-surfaces at a later gate — never
-  silent-adopted; a tripwire fires if it would reverse a prior human decision.
+  a **how-decision (HOW)** — answerable from convention / code / the rule book / the ticket text, or a
+  tool choice → refine **resolves it and CITES** the source, and **does not ask**; asking a
+  HOW-question launders a decision (an **uncited** how-decision resolution is itself a finding) — or a
+  **want-decision (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user** in
+  want-language (`AskUserQuestion` typed fork). **Tie-breaker: a decision about the acceptance BAR
+  itself (what counts as done / a threshold / a sourcing standard) is a want-decision by default, even
+  when it looks derivable — the user owns the bar.** A handed-back want-decision **must** be marked
+  **`ASSUMED (awaiting ratification)`** (reusing `codify`'s provisional→ratify; recording it as settled
+  prose is a finding) and requires an **explicit next-gate confirm** before it counts as ratified —
+  never silent-adopted; a tripwire fires if it would reverse a prior human decision.
 - **Direction, not tool.** refine stops at solution DIRECTIONS a non-technical user can feel; the
   specific tool/library is analysis's job.
-- **Every decision is a counted artifact.** The refined ticket (chốt / cited / ASSUMED / constraints)
+- **Every decision is a counted artifact.** The refined ticket (settled wants / cited / ASSUMED / constraints)
   and the `REFINE:` counting line are emitted, not prose — visible and challengeable at Gate 1.
 - **Backstop = 1-dispatch exposure-checker, NOT a debate.** The completeness-of-exposure check the
   newbie can't self-run reuses the **ticket-blind `challenger`** as an exposure-checker with **one**
@@ -200,7 +210,8 @@ per-ticket **INVEST** self-check, **human-approved before any ticket executes** 
 gate). Ticket-boundary sizing has no exact metric; INVEST is the heuristic and **retro corrects
 mis-splits**.
 
-Enforced at `refine` (the scan, the loại-A/loại-B classification + citation, the `ASSUMED` marking, the
+Enforced at `refine` (the scan, the want-decision/how-decision classification + the acceptance-bar
+tie-breaker + citation, the mandatory `ASSUMED` marking with an explicit next-gate confirm, the
 `REFINE:` count, the 1-dispatch exposure-checker) and `breakdown` (the counted ticket list + INVEST +
 the human split-gate); guarded by `scripts/validate.py` (the refine + breakdown boundary tokens).
 refine writes no code and no tracker entry.

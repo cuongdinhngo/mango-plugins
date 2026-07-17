@@ -149,11 +149,28 @@ count, and the requirements matrix.
    width is a **small viewport** (or the 320 px floor applies), note that the **width-parametric gates
    (M2 no horizontal scroll, M3 reflow @320 px) are in scope** — so the challenger counts them at
    review. On `track=backend` this is a one-line declaration and nothing else in the phase changes.
-11. **Scope.** Declare `SCOPE: S|M|L`. This is the scope baseline the *outgrew-its-ticket* nudge
+11. **Rule-compliance section coverage — enumerate the applicable rulebook sections by change type.**
+    The rule-compliance check must not enumerate an ad-hoc subset of `config.rulebook_path`. Derive the
+    **applicable rulebook sections from the change TYPE** present in the change-list / blast radius
+    (step 8), and check **each one explicitly** — or mark it **N/A with a reason**. Concretely: a
+    **migration / schema change** in the change-list makes the **DB-conventions section mandatory**
+    (grants/permissions, soft-delete, naming, indexing — a migration that ships without that section's
+    GRANT breaks in prod with permission-denied); a **new UI surface** makes the **design-token / a11y
+    section mandatory**; and so on for each change type the rulebook covers. The applicable-section list
+    is **derived from the change type**, not hand-picked. Emit the coverage as a counted artifact:
+
+    `RULE SECTIONS: <applicable §s by change-type> — each checked ✅ / N/A (reason)`
+
+    A rulebook section that applies to this change type but is **neither checked nor marked
+    N/A-with-reason** is a **finding** — silently omitting an applicable section is exactly the miss
+    this removes (a migration that shipped with no GRANT and a missing soft-delete, caught only at
+    review). This detects-and-surfaces; it never authors the rule (an uncodified standard still routes
+    through the step-4 `codify` provisional→ratify nudge).
+12. **Scope.** Declare `SCOPE: S|M|L`. This is the scope baseline the *outgrew-its-ticket* nudge
    (`solve`) compares the realized scope against at later gates: if the realized scope crosses up a
    tier (S/M → L) or the diff materially exceeds the approved one, a later gate stops to re-scope or
    split rather than silently absorbing the growth.
-12. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
+13. **Tier.** After SCOPE, declare `TIER: lite | full`. Key the lite/full decision on the
     **resolved inventory denominator N** (from the step-6 numbered inventory), **not** on the mere
     presence of universal wording. A requirement that *sounds* universal ("all/every/no") but
     resolves to **N = 1** is lite-eligible — a single-site change already covers "all". Choose
@@ -161,10 +178,12 @@ count, and the requirements matrix.
     requirement with N > 1** (N=1 does not disqualify), and the ticket is not security-tagged.
     Otherwise **full** (the existing five-phase behaviour). Lite routes through the `quick` skill;
     full keeps the full matrix, challenger, sweep, and gates.
-13. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete with
+14. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete with
     every acceptance value **falsifiable or a recorded manual-check exclusion** (none carrying a bare
     `✅`), `BASELINE` captured, `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status`
-    filled, `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track includes frontend with a
-    universal/app-wide requirement — `SURFACES: N` emitted from the code surface. Write Phase 1 into
+    filled, `RULE SECTIONS` coverage emitted (every rulebook section applicable to the change type
+    checked or N/A-with-reason), `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track
+    includes frontend with a universal/app-wide requirement — `SURFACES: N` emitted from the code
+    surface. Write Phase 1 into
     the working doc and the `Session status` block, then STOP and wait for the user. Do not begin
     design.

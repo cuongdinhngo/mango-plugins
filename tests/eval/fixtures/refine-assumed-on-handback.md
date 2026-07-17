@@ -6,11 +6,13 @@ one."**
 
 ## Context
 
-"What the default sort should be" is a **loại-A (WANT)** product-decision — genuine intent only the user
-can own. The requester handed it back ("your call"). Per refine this must **NOT be silently adopted**:
-refine picks per its recommendation BUT marks the choice **`ASSUMED (awaiting ratification)`** (reusing
-codify's provisional→ratify), and the assumption **surfaces again at a later gate** (Gate 1 / design)
-for the user to confirm once it is concrete — never a silent settle.
+"What the default sort should be" is a **want-decision (WANT)** product-decision — genuine intent only
+the user can own. The requester handed it back ("your call"). Per refine this must **NOT be silently
+adopted** and the `ASSUMED` handling is **mandatory, not incidental**: refine picks per its
+recommendation BUT **MUST record the choice tagged `ASSUMED (awaiting ratification)`** (reusing codify's
+provisional→ratify) — recording it as settled prose is a finding. The assumption is only ratified by an
+**explicit human confirm at the next gate** (Gate 1 / design) once it is concrete — never because a
+gate "happened to re-mention it" or an organic "approve" brushed past it.
 
 **Tripwire:** a prior human decision in an earlier ticket already set the feed to open **newest-first**.
 If the recommendation would **reverse that prior human decision**, refine must flag it `ASSUMED` and

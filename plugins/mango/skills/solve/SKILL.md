@@ -39,9 +39,10 @@ branch:
 
 - **skip (0 unresolved product-decisions)** → refine records `refine skipped: 0 unresolved
   product-decisions` and hands straight to `analysis`. refine must **not** be a tax on a clear ticket.
-- **ticket-refine (≥1 unresolved, single deliverable)** → refine resolves the HOW (loại-B, cited),
-  asks the WANT (loại-A, want-language), marks any handed-back loại-A `ASSUMED (awaiting ratification)`,
-  runs the 1-dispatch exposure-checker, emits the refined ticket as counted artifacts, then → `analysis`
+- **ticket-refine (≥1 unresolved, single deliverable)** → refine resolves the HOW (how-decision, cited),
+  asks the WANT (want-decision, want-language), marks any handed-back want-decision `ASSUMED (awaiting
+  ratification)` (mandatory tag + explicit next-gate confirm), runs the 1-dispatch exposure-checker,
+  emits the refined ticket as counted artifacts, then → `analysis`
   (the refined ticket is its input).
 - **epic-path (the exposed work spans multiple independent deliverables)** → run the **epic path**:
   `analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`. `analysis(epic)`/`design(epic)`
@@ -52,8 +53,8 @@ branch:
   runs its **own** full lifecycle (one ticket per run). **Epic-path is v1 — "enough to run and learn";
   its exact boundary is expected to be refined by retro.**
 
-refine holds **no gate of its own** — its loại-A questions are its interaction, and its output is
-challenged at Gate 1. It **exposes for the human to chốt and never authors intent** (the same
+refine holds **no gate of its own** — its want-decision questions are its interaction, and its output is
+challenged at Gate 1. It **exposes for the human to decide and never authors intent** (the same
 descriptive/normative boundary `codify` holds for rules).
 
 1. `analysis` → **Gate 1** (and Gate 0 if `j > 0`) — STOP for approval; declares `TIER`.

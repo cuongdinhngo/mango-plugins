@@ -3,6 +3,64 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.1] — 2026-07-17
+
+A refine + analysis patch from the v1.7 field test (n=3, three field runs). **No new lifecycle phase**;
+this tightens refine's classifier and analysis's rule coverage, and cleans up terminology. Nothing
+removes a CHECK — each change makes classification/coverage more correct, not looser. refine still
+**exposes, never authors**: the tie-breaker changes *which bucket* a question lands in, not whether the
+human owns intent. Generic and stack-agnostic throughout (fixtures use `PROJ-*`); all plugin text is
+English-only.
+
+### Changed
+- **Terminology — the classifier buckets are renamed to self-explaining English.** The two buckets
+  shipped in v1.7.0 under mixed-language names are renamed **everywhere** in the plugin to
+  **`want-decision`** (intent-question — the user is the sole source; refine ASKS in want-language) and
+  **`how-decision`** (derivable-question — answerable from convention/code/rulebook/ticket text; refine
+  RESOLVES and CITES, does not ask). Behaviour is unchanged by the rename itself.
+
+### Fixed
+- **refine classifier — a two-way tie-breaker, applied DURING classification (the n=3 finding).** All
+  three field runs hit the SAME want/how boundary in three different directions, so the classifier was
+  under-specified (one root cause). refine now applies, before filing a decision:
+  **(a) acceptance-bar → want-decision by default, even if it looks derivable** — if the decision is
+  about WHAT COUNTS AS satisfying an AC (a sourcing standard, a threshold, an evidence type), the user
+  owns the bar; refine ASKS or marks it `ASSUMED`, and must NOT silently resolve it as a cited
+  how-decision (Run A: settling an acceptance-bar sourcing standard as a how-decision leaked to a later
+  gate). **(b) consistency/scope answerable-from-convention → how-decision, resolve-by-citation, don't
+  ask** — a documented shared recipe means "apply to all consumers", a ticket's literal "insert" leans
+  the answer (Runs B, C). **Guard:** an **uncited how-decision resolution is itself a gate finding** — a
+  HOW settled with no source is almost always a mis-classified want-decision.
+- **ASSUMED enforcement — mandatory tag + mandatory explicit next-gate confirm (recurring n=2).** A
+  handed-back want-decision was sometimes tagged `ASSUMED` and sometimes recorded as settled prose and
+  ratified by gate-luck. It is now **mechanically enforced**: any handed-back (or refine-assumed)
+  decision **MUST** carry the `ASSUMED (awaiting ratification)` tag (settled prose is a finding) and the
+  next gate **MUST** get an **explicit human confirm** before it counts as ratified — not "the gate
+  happened to re-mention it."
+- **analysis rule-compliance — enumerate the applicable rulebook sections by change type (n=1, a
+  production-breaker).** analysis's rule-compliance step once enumerated an ad-hoc subset of rulebook
+  sections and silently omitted the DB-conventions section, so a migration shipped with no GRANT
+  (permission-denied in prod) and a missing soft-delete. analysis now **derives the applicable sections
+  from the change type** and checks each (or marks it N/A-with-reason), emitting a counted
+  `RULE SECTIONS` artifact: a migration/schema change makes the DB-conventions section mandatory, a new
+  UI surface makes the design-token/a11y section mandatory, etc. Omitting an applicable section is a
+  finding.
+
+### Tests / validation
+- **Four eval fixtures added/extended** (generic `PROJ-*`, decision-level, emphasis-agnostic):
+  `refine-acceptance-bar-is-want` (an acceptance-bar/sourcing standard filed as want-decision/ASSUMED,
+  not a silent cited how-decision; a mis-classification as an uncited how-decision is flagged —
+  non-vacuous), `refine-consistency-is-how` (a scope question answerable from a documented recipe is
+  resolved-by-citation, not asked), `refine-assumed-on-handback` (extended: ASSUMED tag mandatory +
+  explicit next-gate confirm; settled prose flagged), `analysis-section-coverage` (a migration →
+  DB-conventions section enumerated + grants/soft-delete checked; omitting an applicable section is a
+  finding — non-vacuous).
+- **`scripts/validate.py`** drops the old mixed-language bucket tokens and adds `want-decision`/`how-decision`
+  plus tokens locking each fix (`acceptance-bar`, `want-decision by default`, `resolve-by-citation`,
+  `uncited how-decision`, `next-gate confirm`; analysis `applicable …section`, `change-type`,
+  `enumerate`). Both READMEs and `PRINCIPLES.md` are updated to the English bucket names; the v0.5
+  doc-consistency check stays green.
+
 ## [1.7.0] — 2026-07-17
 
 Adds a **new first phase — `refine` (Phase 0)** — to the front of the lifecycle, and an epic-path
@@ -30,18 +88,18 @@ analysis/design boundaries and breakdown sizing.
   expose** the unresolved product-decisions and **the count IS the gate**: **0 → self-skip → analysis**
   (recorded `refine skipped: 0 unresolved product-decisions`), **≥1 → refine works**, **when in doubt →
   run**. Every decision is a **counted artifact** (a `REFINE:` line + the refined-ticket tables), never
-  prose. refine holds **no gate of its own** — its loại-A questions are its interaction, and its output
-  is challenged at Gate 1. *(refine must never become a tax on a clear ticket — the self-skip is the
-  first-class behaviour.)*
-- **The derivable/intent boundary — classify EVERY decision before asking.** Each surfaced decision is
-  **loại-B (HOW)** — answerable from convention/code/the rule book or a tool choice → refine **resolves
-  it and CITES** the source, **does not ask** (asking a HOW-question launders a decision) — or **loại-A
-  (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user** in want-language
-  (`AskUserQuestion` typed fork; `(Recommended)` only here). A **self-check** precedes every question
-  ("can convention/code answer this? → loại-B → cite, don't ask"). This is the same
+  prose. refine holds **no gate of its own** — its want-decision questions are its interaction, and its
+  output is challenged at Gate 1. *(refine must never become a tax on a clear ticket — the self-skip is
+  the first-class behaviour.)*
+- **The derivable/intent boundary — classify EVERY decision before asking.** Each surfaced decision is a
+  **how-decision (HOW)** — answerable from convention/code/the rule book or a tool choice → refine
+  **resolves it and CITES** the source, **does not ask** (asking a HOW-question launders a decision) — or
+  a **want-decision (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user**
+  in want-language (`AskUserQuestion` typed fork; `(Recommended)` only here). A **self-check** precedes
+  every question ("can convention/code answer this? → how-decision → cite, don't ask"). This is the same
   descriptive/normative boundary `codify` holds for rules, applied to a ticket: **refine exposes for the
-  human to chốt and never authors intent.**
-- **`ASSUMED (awaiting ratification)` on a handed-back loại-A.** "your call" is **not** silently adopted:
+  human to decide and never authors intent.**
+- **`ASSUMED (awaiting ratification)` on a handed-back want-decision.** "your call" is **not** silently adopted:
   refine picks per its recommendation but marks the choice `ASSUMED (awaiting ratification)` (reusing
   `codify`'s provisional→ratify), and it **re-surfaces at a later gate** to confirm once concrete. A
   **tripwire** fires if a recommendation would **reverse a prior human decision** — flag ASSUMED, never
@@ -67,25 +125,25 @@ analysis/design boundaries and breakdown sizing.
   thin analysis(epic)/design(epic) → breakdown's human split-gate → N× ticket-lifecycles). Epic-path is
   labelled v1-learning in the skill.
 - **`templates/ticket.md` carries the refined-ticket shape.** A new **Phase 0 — Refine** block: the
-  `REFINE:` count line, and counted tables for **chốt** (loại-A → AC constraints), **cited** (loại-B →
-  starting premise), **ASSUMED (awaiting ratification)**, and **constraints surfaced from the scan**,
+  `REFINE:` count line, and counted tables for **settled wants** (want-decision → AC constraints),
+  **cited** (how-decision → starting premise), **ASSUMED (awaiting ratification)**, and **constraints surfaced from the scan**,
   plus the exposure-checker result — all above the requirements matrix, so the challenger stays blind to
   the working doc.
 - **`PRINCIPLES.md`** adds "The refine phase — expose the decisions, never author the intent": the new
-  lifecycle diagram, the derivable/intent (loại-A ask / loại-B cite) boundary, and the "refine exposes,
-  never authors" invariant, plus the epic-path v1 note.
+  lifecycle diagram, the derivable/intent (want-decision ask / how-decision cite) boundary, and the
+  "refine exposes, never authors" invariant, plus the epic-path v1 note.
 
 ### Tests / validation
 - **Six new eval fixtures — one per behaviour** (generic `PROJ-*`, decision-level, emphasis-agnostic):
   `refine-skip-clear-ticket` (self-skips a convention-covered ticket, no over-trigger),
-  `refine-classify-A-vs-B` (loại-B resolved+cited not asked, loại-A asked in want-language, self-check
-  catches a convention-answerable question as loại-B), `refine-assumed-on-handback` (ASSUMED recorded +
+  `refine-classify-A-vs-B` (how-decision resolved+cited not asked, want-decision asked in want-language,
+  self-check catches a convention-answerable question as a how-decision), `refine-assumed-on-handback` (ASSUMED recorded +
   surfaced, never silent-adopt, tripwire on prior-decision reversal), `refine-direction-not-tool`
   (stops at direction, does not pin a tool), `refine-epic-detect-breakdown` (epic detected → epic path,
   breakdown emits a counted ticket list + INVEST, human-approved before execute),
   `refine-backstop-challenger` (1-dispatch ticket-blind exposure-checker, not a multi-advisor debate).
 - **`scripts/validate.py`** locks each behaviour with contract tokens (`refine`
-  `scan`/`loại-A`/`loại-B`/`cite`/`ASSUMED`/`skip`/`exposure-checker`; `breakdown`
+  `scan`/`want-decision`/`how-decision`/`cite`/`ASSUMED`/`skip`/`exposure-checker`; `breakdown`
   `INVEST`/`ticket boundary`/`counted`). Both READMEs and `PRINCIPLES.md` document refine + breakdown and
   the updated lifecycle diagram; the v0.5 doc-consistency check stays green.
 

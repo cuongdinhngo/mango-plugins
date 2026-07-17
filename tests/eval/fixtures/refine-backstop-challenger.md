@@ -10,6 +10,6 @@ only *"is any product-decision still un-exposed?"* (e.g. the reset-link expiry w
 reusable link, rate limiting) — **not** to argue answers.
 
 This is the completeness-of-exposure backstop, achieved with **1 dispatch — NOT a multi-advisor
-Council / debate**. Any decision the exposure-checker surfaces re-enters refine's loại-A / loại-B
-classification. This fixture asserts the exposure-checker (ticket-blind challenger, 1 dispatch) runs and
+Council / debate**. Any decision the exposure-checker surfaces re-enters refine's want-decision /
+how-decision classification. This fixture asserts the exposure-checker (ticket-blind challenger, 1 dispatch) runs and
 can surface an un-exposed decision, and that it is not a multi-advisor debate.

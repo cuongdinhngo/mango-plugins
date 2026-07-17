@@ -89,16 +89,20 @@ A raw request rarely arrives lifecycle-ready. **`refine`** (the first phase) sca
 **is** the gate: **0 → self-skip → analysis** (recorded, so refine is never a tax on a clear ticket),
 **≥1 → refine works**, **when in doubt → run**. It classifies **every** decision before asking:
 
-- **loại-B (HOW)** — answerable from convention / code / the rule book, or a tool choice → refine
-  **resolves it and cites** the source, and **does not ask** (asking a HOW-question launders a decision).
-- **loại-A (WANT)** — intent / priority / stakes / a genuinely new choice → refine **asks you** in
-  want-language. A handed-back loại-A ("your call") is marked **`ASSUMED (awaiting ratification)`** and
-  re-surfaces at a later gate; a tripwire fires if it would reverse a prior human decision.
+- **how-decision (HOW)** — answerable from convention / code / the rule book / the ticket text, or a
+  tool choice → refine **resolves it and cites** the source, and **does not ask** (asking a
+  HOW-question launders a decision; an **uncited** how-decision resolution is itself a finding).
+- **want-decision (WANT)** — intent / priority / stakes / a genuinely new choice → refine **asks you**
+  in want-language. **Tie-breaker: a decision about the acceptance BAR itself (what counts as done / a
+  threshold / a sourcing standard) is a want-decision by default, even when it looks derivable — you
+  own the bar.** A handed-back want-decision ("your call") **must** be marked **`ASSUMED (awaiting
+  ratification)`** and requires an **explicit next-gate confirm**; a tripwire fires if it would reverse
+  a prior human decision.
 
 refine stops at solution **DIRECTIONS** (wrap vs rebuild), never the specific tool — that is analysis's
 job. Its completeness backstop is the **ticket-blind challenger as a 1-dispatch exposure-checker**, not
-a debate. It holds **no gate of its own** — its loại-A questions are its interaction and its output is
-challenged at Gate 1. **refine exposes for you to chốt; it never authors intent** (the same boundary
+a debate. It holds **no gate of its own** — its want-decision questions are its interaction and its
+output is challenged at Gate 1. **refine exposes for you to decide; it never authors intent** (the same boundary
 `codify` holds for rules). An **epic** input routes to the epic path (below).
 
 ### Tiers — right-sizing the rigor
@@ -114,8 +118,8 @@ security-tagged, touches more than one file, or has a universal requirement reso
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
-| `/mango:refine` | 0 (no gate of its own) | A **refined ticket** as counted artifacts: a `REFINE:` count line + tables for **chốt** (loại-A wants → AC constraints), **cited** (loại-B how → starting premise), **ASSUMED (awaiting ratification)**, and scan-surfaced constraints. Self-skips a clear ticket (records "0 unresolved product-decisions"). Runs a 1-dispatch ticket-blind exposure-checker. Detects an epic and routes to the epic path. |
-| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (a value that is neither falsifiable nor a recorded manual-check exclusion is flagged and may not carry `✅`), root-cause & blast radius, scope, and a `BASELINE` capture from the untouched checkout. Frontend: emits `SURFACES: N` for universal requirements. Surfaces any **uncodified standard** into `codify`'s provisional→ratify flow rather than enforcing it silently. |
+| `/mango:refine` | 0 (no gate of its own) | A **refined ticket** as counted artifacts: a `REFINE:` count line + tables for **settled wants** (want-decision → AC constraints), **cited** (how-decision → starting premise), **ASSUMED (awaiting ratification)** (mandatory tag + explicit next-gate confirm), and scan-surfaced constraints. Applies the acceptance-bar tie-breaker (bar decisions → want-decision by default). Self-skips a clear ticket (records "0 unresolved product-decisions"). Runs a 1-dispatch ticket-blind exposure-checker. Detects an epic and routes to the epic path. |
+| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (a value that is neither falsifiable nor a recorded manual-check exclusion is flagged and may not carry `✅`), root-cause & blast radius, a `RULE SECTIONS` coverage line (applicable rulebook sections derived from the change type — migration → DB-conventions mandatory, etc. — each checked or N/A), scope, and a `BASELINE` capture from the untouched checkout. Frontend: emits `SURFACES: N` for universal requirements. Surfaces any **uncodified standard** into `codify`'s provisional→ratify flow rather than enforcing it silently. |
 | `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, assumptions (`verified \| novel-untested`), smallest row-traced change list, rule compliance, the named proving test, and a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof blocks Gate 2 unless upgraded or recorded as a human-approved coverage-gap exclusion). Frontend: builds/updates `DESIGN.md`, plans one row per (AC × surface). |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved changes only, the proving test, a verification sweep on **both axes** — file set (diff ⊆ approved list) **and** a design-conformance self-check that records any deviation from a Gate-2 bullet even when the diff is clean — with a baseline-aware DoD, commits carrying no AI co-author trailer. Formats **only authored/edited files**. STOPs to re-gate on an invalidated design or via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). Frontend: emits the proof manifest. |
 | `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation on both axes (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against `BASELINE`, `k/N` coverage. A round-1 **conditional LGTM** makes the re-review a **verify-only pass** (named-fix check + affected proof + regression scan, no full re-derivation), re-dispatching a subagent only when a fix changed scope. Frontend: also scores the M1–M10 rubric + `N == M + X` surface check. On a clean verdict records a `Reviewed at <sha>` marker for the stale-review guard. |

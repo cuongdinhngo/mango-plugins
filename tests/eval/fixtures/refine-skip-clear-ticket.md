@@ -13,5 +13,5 @@ implementations) answers every "how" question by citation, and there is **no gen
 convention does not already settle.
 
 This fixture exercises refine's **self-skip**: 0 unresolved product-decisions → refine SKIPS (records
-"0 unresolved product-decisions") and hands to analysis, WITHOUT fabricating a loại-A question (no
-over-trigger). refine must not be a tax on a clear, convention-covered ticket.
+"0 unresolved product-decisions") and hands to analysis, WITHOUT fabricating a want-decision question
+(no over-trigger). refine must not be a tax on a clear, convention-covered ticket.

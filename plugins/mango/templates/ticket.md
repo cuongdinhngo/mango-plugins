@@ -21,38 +21,45 @@ ticket + the diff, never this `.work.md`. -->
 
 `refine` scans the project, TRIES to expose the unresolved product-decisions, and its count IS the
 gate. Every decision here is a **counted artifact**, never prose. refine **exposes for the human to
-chốt and never authors intent**.
+decide and never authors intent**.
 
-`REFINE: <U> unresolved surfaced | <a> loại-A asked | <b> loại-B resolved+cited | <s> ASSUMED | skip: yes/no`
+`REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
 
 <!-- skip: yes → U=0, record `refine skipped: 0 unresolved product-decisions` and hand to analysis; this line is the whole Phase-0 output. -->
 <!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles), v1-learning. -->
 
-**Ý muốn đã chốt (loại-A — from the user; become acceptance-criteria constraints analysis must honour):**
+**Settled wants (want-decision — from the user; become acceptance-criteria constraints analysis must honour).**
+Tie-breaker: a decision about the acceptance BAR itself (what counts as done / a threshold / a sourcing
+standard) is a want-decision by default, even when it looks derivable — the user owns the bar.
 
 | # | The want (in want-language) | Chosen direction (NOT a tool) | Becomes AC constraint |
 |---|-----------------------------|-------------------------------|-----------------------|
 | 1 |                             |                               |                       |
 
-**Hướng + căn cứ (loại-B — refine-resolved + CITED; a starting premise, analysis still picks the tool):**
+**Resolved direction + citation (how-decision — refine-resolved + CITED; a starting premise, analysis still
+picks the tool).** Every row MUST carry a citation — an **uncited how-decision resolution is a finding**
+(it usually means a mis-classified want-decision, e.g. an acceptance-bar decision the user owns):
 
-| # | HOW-decision | Resolution | Citation (`file:line` / convention / rulebook §) |
-|---|--------------|------------|--------------------------------------------------|
-| 1 |              |            |                                                  |
+| # | HOW-decision | Resolution | Citation (`file:line` / convention / rulebook § / ticket line) |
+|---|--------------|------------|----------------------------------------------------------------|
+| 1 |              |            |                                                                |
 
-**ASSUMED (awaiting ratification)** (a loại-A handed back — "your call"; picked per recommendation, must
-be confirmed once concrete at Gate 1 / design; tripwire: never silent-settle over a prior human decision):
+**ASSUMED (awaiting ratification) — MANDATORY, not optional.** Any want-decision the user hands back
+("your call") or that refine resolves as an assumption **MUST** be recorded here with the `ASSUMED`
+tag — recording it as settled prose is a finding. It requires an **explicit human confirm at the next
+gate** (Gate 1 / design) before it counts as ratified — not a gate that "happened to re-mention it".
+Tripwire: never silent-settle over a prior human decision.
 
-| # | Assumed choice | Why ASSUMED (handed back / recommendation) | Confirm at gate | Reverses a prior decision? |
-|---|----------------|--------------------------------------------|-----------------|----------------------------|
-| 1 |                |                                            |                 | yes / no                   |
+| # | Assumed choice | Why ASSUMED (handed back / recommendation) | Explicit confirm at gate | Reverses a prior decision? |
+|---|----------------|--------------------------------------------|--------------------------|----------------------------|
+| 1 |                |                                            |                          | yes / no                   |
 
 **Constraints surfaced from the scan** (rule book / design tokens / policy the user couldn't know to ask):
 
 -
 
 **Exposure-checker** (ticket-blind `challenger`, **1 dispatch** — NOT a debate): any still-un-exposed
-decision it found (re-classified loại-A/loại-B above): none / <list>
+decision it found (re-classified want-decision/how-decision above): none / <list>
 
 <!-- Split mixed input: an open brainstorm bundled with a targeted task is separated — refine refines only the targeted part. Record what was set aside: -->
 
@@ -129,6 +136,11 @@ if absent, enumerate reachable views read-only. The ticket's examples are a *hin
 
 - Root cause (bug, classified vs cause_taxonomy) **or** per-goal gap analysis (enhancement), with `path:line`:
 - Handler / entry point + blast radius (callers, dependents):
+- **Rule-compliance section coverage** — applicable rulebook sections **derived from the change type**
+  (migration/schema → DB-conventions mandatory; new UI surface → design-token/a11y mandatory; …), each
+  checked or N/A-with-reason; an applicable section left unchecked is a finding:
+
+  `RULE SECTIONS: <applicable §s by change-type> — each checked ✅ / N/A (reason)`
 - Self-audit:
 - **Gate 1 status:** waiting on user / cleared
 

@@ -6,7 +6,7 @@
 
 refine exposes a solution **DIRECTION** whose trade-offs a non-technical user can feel — e.g. **wrap**
 the existing legacy search (cheaper, keeps behaviour) vs **rebuild** it (costlier, changes behaviour).
-That is a loại-A WANT the user can answer immediately.
+That is a want-decision (WANT) the user can answer immediately.
 
 refine must **stop at that direction** and **NOT pin the specific TOOL / library / search engine** that
 implements it — tool selection is **analysis's** job. The test: if the user can answer immediately it

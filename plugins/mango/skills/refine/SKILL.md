@@ -1,6 +1,6 @@
 ---
 name: refine
-description: Phase 0 of the mango ticket lifecycle — the FIRST phase. Use when a request arrives raw. Scans the project for context, TRIES to expose the unresolved product-decisions, classifies each as HOW (loại-B → self-resolve + cite) or WANT (loại-A → ask the user), and emits a refined ticket as counted artifacts for analysis. Self-skips when the ticket is already clear. Detects an epic and routes to the epic path.
+description: Phase 0 of the mango ticket lifecycle — the FIRST phase. Use when a request arrives raw. Scans the project for context, TRIES to expose the unresolved product-decisions, classifies each as a how-decision (HOW → self-resolve + cite) or a want-decision (WANT → ask the user), and emits a refined ticket as counted artifacts for analysis. Self-skips when the ticket is already clear. Detects an epic and routes to the epic path.
 ---
 
 Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` — especially its **expose / ask / never-author**
@@ -16,8 +16,9 @@ and makes **no tracker write**. It reads the project read-only and records its o
 doc's Phase-0 block (from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`).
 
 > **HARD invariants (verified in Finish, guarded by `scripts/validate.py`):**
-> - refine **exposes for the human to chốt, and NEVER authors intent** — the descriptive/normative
->   (derivable/intent) boundary is the same one `codify` holds for rules.
+> - refine **exposes for the human to decide, and NEVER authors intent** — the descriptive/normative
+>   (derivable/intent) boundary is the same one `codify` holds for rules. The tie-breaker below changes
+>   WHICH bucket a decision lands in, never whether the human owns intent.
 > - refine **self-skips** when the ticket is already clear — it must NOT become a tax on every ticket.
 > - refine reuses existing machinery only (`sitemap`/`db-map`, the ticket-blind `challenger`,
 >   `codify`'s provisional→ratify, `AskUserQuestion`). It convenes **no** Council and burns **no**
@@ -46,25 +47,49 @@ IS the answer** — there is no separate "should I run refine?" question to put 
   skip decision is itself **recorded** (counted), so a skip is auditable.
 
 **Right-sizing.** Exposure depth scales with rawness: a clear ticket over a strong convention →
-near-total skip (often only one genuine loại-A question survives, no over-trigger); a raw brief → more
-exposure. refine must never fabricate loại-A questions to look busy.
+near-total skip (often only one genuine want-decision survives, no over-trigger); a raw brief → more
+exposure. refine must never fabricate want-decisions to look busy.
 
 ## Step 2 — ⭐ classify EVERY decision BEFORE asking (resolve "I don't know" up front)
 
 For **each** product-decision refine surfaces, classify it BEFORE anything is put to the user:
 
-- **Loại B (CÁCH LÀM / HOW):** the answer already exists in convention / code / the rule book, or is a
-  tool/technique choice. refine **resolves it itself and CITES the source** (`file:line`, convention,
-  rulebook §) — it **does NOT ask the user.** Asking a HOW-question forces a rubber-stamp, which is
-  **laundering** a decision refine could make.
-  - **⭐ Self-check before putting ANY question to the user:** *"Can existing convention / code / the
-    rule book answer this? If YES → it is loại-B → cite it, don't ask."* (This is the guard that stops
-    refine wrongly asking a loại-B as a loại-A — e.g. asking "do we need a win-screen?" when the
-    convention already answers it.)
-- **Loại A (Ý MUỐN / WANT):** the **user is the sole source** — intent, priority, stakes, or a
+- **how-decision (HOW):** the answer already exists in convention / code / the rule book / the ticket
+  text itself, or is a tool/technique choice. refine **resolves it itself and CITES the source**
+  (`file:line`, convention, rulebook §, ticket line) — it **does NOT ask the user.** Asking a
+  HOW-question forces a rubber-stamp, which is **laundering** a decision refine could make.
+- **want-decision (WANT):** the **user is the sole source** — intent, priority, stakes, or a
   genuinely new design choice the scan cannot answer. **Ask the user**, phrased in **want-language, not
   technical language.** Use `AskUserQuestion`'s typed, required-selection fork. `(Recommended)` may
   appear **only here**, with its reason in the option description (an informed pick, never a blind one).
+
+### ⭐ The tie-breaker — apply DURING classification, before a decision is filed
+
+Before a decision is filed as a want-decision or a how-decision:
+
+> *"Before asking: can the ticket text / a documented convention / the rulebook plausibly answer this?
+> If YES → **how-decision**, resolve-by-citation, flag for ratify. BUT if the decision is about the
+> acceptance BAR itself (what counts as done / a threshold / a sourcing standard / an evidence type),
+> it is a **want-decision** even when it looks derivable — the user owns the bar."*
+
+- **(a) Acceptance-bar → want-decision by default, even if it looks derivable.** If the decision is
+  about WHAT COUNTS AS SATISFYING an AC — a sourcing standard, a threshold definition, an evidence
+  type, "what counts as done" — the **user owns the acceptance bar.** refine MAY propose a reading, but
+  must **ASK** it (want-decision) or mark it `ASSUMED (awaiting ratification)` and surface it — it must
+  **NOT** silently resolve it as a how-decision with a citation. *(Observed failure: settling an
+  acceptance-bar sourcing standard as a how-decision leaked downstream to a later gate, where it
+  surfaced as the challenger's "AC not met.")*
+- **(b) Consistency / scope answerable-from-convention → how-decision, cite, don't ask.** If a
+  documented recipe / rulebook / the ticket text itself dictates the answer — e.g. a shared recipe
+  means "apply to ALL consumers", or the ticket says "insert" (not "toggle") so the change is not
+  reversible — **resolve-by-citation and flag for ratification.** Do **NOT** put it to the user as an
+  open want. *(Observed failures: a scope question "one consumer or all?" was asked as a want when the
+  documented shared recipe already answered "all"; a "permanent vs reversible?" was asked as a want
+  when the ticket's literal "insert" already leaned the answer.)*
+- **Guard against the quiet failure:** a how-decision resolution **MUST carry a citation.** An
+  **UNCITED how-decision resolution is itself a gate finding** — it means refine settled a HOW with no
+  source, which is almost always a **mis-classified want-decision** (an acceptance-bar decision the
+  user owns). This directly catches the leak in (a).
 
 ## Step 3 — refine stops at DIRECTION, not TOOL
 
@@ -74,16 +99,19 @@ job.** The test: if you put it to the user and they can answer immediately, it i
 (refine); if they would say *"I don't know, help me decide"*, it is a tool/HOW (analysis picks it, or
 refine self-resolves it if derivable).
 
-## Step 4 — handle "do your recommendation" / "your call" on a loại-A question
+## Step 4 — handle "do your recommendation" / "your call" on a want-decision (ASSUMED is MANDATORY)
 
-When the user hands a loại-A decision back ("your call", "do the recommended one"), refine does **NOT**
-silently adopt it. It:
+When the user hands a want-decision back ("your call", "do the recommended one"), or when refine
+resolves a want-decision as an assumption of its own, refine does **NOT** silently adopt it. **The
+`ASSUMED` handling is mechanically enforced, not incidental:**
 
-1. Picks per the recommendation **but marks the choice `ASSUMED (awaiting ratification)`** — reusing
-   `codify`'s provisional→ratify machinery, not a parallel one.
-2. The assumption **surfaces again at a later gate** (Gate 1 / design) for the user to confirm **once
-   it is concrete** — an assumption is easier to ratify against a real change list than against a raw
-   brief.
+1. Pick per the recommendation, but the choice **MUST be recorded as `ASSUMED (awaiting
+   ratification)`** — reusing `codify`'s provisional→ratify tag, not a parallel one. **Recording a
+   handed-back (or assumed) decision as settled prose is a finding** — it must carry the `ASSUMED` tag.
+2. The next gate **MUST get an explicit human confirm before that decision counts as ratified** — an
+   `ASSUMED` decision is **not** ratified because "the gate happened to re-mention it" or the user gave
+   an organic "approve." The assumption surfaces again at Gate 1 / design **for an explicit confirm**
+   once it is concrete (easier to ratify against a real change list than a raw brief).
 - **Tripwire:** if adopting the recommendation would **reverse a prior human decision**, refine MUST
   flag it `ASSUMED (awaiting ratification)` and surface it loudly — **never silent-settle** over a
   decision a human already made.
@@ -102,25 +130,27 @@ reuses the **ticket-blind `challenger`** as an **exposure-checker** — **exactl
 **not** asked to argue answers; it is asked only: *"Given this raw request and the project, is any
 product-decision still un-exposed?"* This is where council-style machinery's real value sits
 (ensure-nothing-missed) — achieved with **1 dispatch**, not a multi-advisor debate. refine does **NOT**
-convene a Council. Any decision the exposure-checker surfaces re-enters Step 2 (classify → loại-A/B).
-Emit one Cost-ledger row for this dispatch per `PRINCIPLES.md`.
+convene a Council. Any decision the exposure-checker surfaces re-enters Step 2 (classify →
+want-decision/how-decision, tie-breaker applied). Emit one Cost-ledger row for this dispatch per
+`PRINCIPLES.md`.
 
 ## Output — the refined ticket (the input to analysis)
 
 Emit all of the following as **counted artifacts** in the working doc's Phase-0 block — never prose:
 
-- **Ý muốn đã chốt (loại-A, from the user)** → become **acceptance-criteria constraints** analysis must
-  honour.
-- **Hướng + căn cứ (loại-B, refine-resolved + cited)** → a **starting premise** for analysis (which
-  still picks the tools).
-- **ASSUMED (awaiting ratification)** → questions analysis must resolve and **confirm-when-concrete** at
-  a later gate.
+- **Settled wants (want-decision, from the user)** → become **acceptance-criteria constraints**
+  analysis must honour.
+- **Resolved direction + citation (how-decision, refine-resolved + cited)** → a **starting premise**
+  for analysis (which still picks the tools). Every how-decision carries a citation (an uncited one is
+  a finding — see the Step-2 guard).
+- **ASSUMED (awaiting ratification)** → questions analysis must resolve and **confirm-when-concrete**
+  at a later gate, via an explicit human confirm (Step 4).
 - **Constraints surfaced from the scan** (rule book, design tokens, policy the user could not have
   known to ask about).
 
 Emit the counting line so the exposure is auditable:
 
-`REFINE: <U> unresolved surfaced | <a> loại-A asked | <b> loại-B resolved+cited | <s> ASSUMED | skip: yes/no`
+`REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
 
 When `skip: yes`, that single line (with `U = 0`) is the whole output and refine hands to `analysis`.
 
@@ -136,10 +166,13 @@ normal ticket path (`analysis → design → execute → review → finalize`).
 
 ## Self-check, then hand off (no gate of refine's own)
 
-refine does not hold a ✋ gate of its own — its loại-A questions ARE its interaction, and its output is
-challenged at Gate 1. Before handing off, confirm: the project was scanned; every surfaced decision was
-classified loại-A/loại-B **before** anything was asked; every loại-B carries a **citation** and was
-**not** asked; every loại-A was asked in want-language; any handed-back loại-A is `ASSUMED (awaiting
-ratification)` (tripwire checked); the exposure-checker ran (1 dispatch) unless refine skipped; and the
-`REFINE:` line is emitted. Then write Phase 0 into the working doc + `Session status` and continue to
-`analysis` (or, on an epic, the epic path).
+refine does not hold a ✋ gate of its own — its want-decision questions ARE its interaction, and its
+output is challenged at Gate 1. Before handing off, confirm: the project was scanned; every surfaced
+decision was classified want-decision/how-decision (tie-breaker applied) **before** anything was asked;
+every how-decision carries a **citation** (an uncited how-decision is flagged as a finding) and was
+**not** asked; every acceptance-bar decision was treated as a want-decision (asked or `ASSUMED`), never
+silently cited as a how-decision; every want-decision was asked in want-language; any handed-back
+want-decision is `ASSUMED (awaiting ratification)` (never settled prose) and requires an explicit
+next-gate confirm (tripwire checked); the exposure-checker ran (1 dispatch) unless refine skipped; and
+the `REFINE:` line is emitted. Then write Phase 0 into the working doc + `Session status` and continue
+to `analysis` (or, on an epic, the epic path).

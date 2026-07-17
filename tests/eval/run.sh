@@ -105,19 +105,33 @@
 #                     v1.6 content-completeness gate still passes (artifact-delta-emission).
 #   refine (v1.7.0) — the new Phase-0 refine phase + epic-path breakdown: a clear, convention-covered
 #                     ticket → refine SELF-SKIPS ("0 unresolved product-decisions") and hands to analysis
-#                     without fabricating a loại-A (refine-skip-clear-ticket); a raw ticket carrying both
-#                     kinds has loại-B (HOW) resolved-with-citation not asked and loại-A (WANT) asked in
-#                     want-language, the self-check catching a convention-answerable question as loại-B
-#                     (refine-classify-A-vs-B); a handed-back loại-A ("your call") is marked ASSUMED
-#                     (awaiting ratification) and surfaced at a later gate, never silent-adopted, with the
-#                     tripwire firing on a prior-decision reversal (refine-assumed-on-handback); refine
-#                     stops at the solution DIRECTION (wrap vs rebuild) and does NOT pin a tool — that is
-#                     analysis's job (refine-direction-not-tool); an epic input is DETECTED and routed to
-#                     the epic path, breakdown emitting a counted ticket list + per-ticket INVEST
-#                     self-check, human-approved before any ticket executes (refine-epic-detect-breakdown);
-#                     the completeness-of-exposure backstop is the ticket-blind challenger as an
+#                     without fabricating a want-decision (refine-skip-clear-ticket); a raw ticket carrying
+#                     both kinds has the how-decision (HOW) resolved-with-citation not asked and the
+#                     want-decision (WANT) asked in want-language, the self-check catching a
+#                     convention-answerable question as a how-decision (refine-classify-A-vs-B); a
+#                     handed-back want-decision ("your call") is marked ASSUMED (awaiting ratification) and
+#                     surfaced at a later gate, never silent-adopted, with the tripwire firing on a
+#                     prior-decision reversal (refine-assumed-on-handback); refine stops at the solution
+#                     DIRECTION (wrap vs rebuild) and does NOT pin a tool — that is analysis's job
+#                     (refine-direction-not-tool); an epic input is DETECTED and routed to the epic path,
+#                     breakdown emitting a counted ticket list + per-ticket INVEST self-check,
+#                     human-approved before any ticket executes (refine-epic-detect-breakdown); the
+#                     completeness-of-exposure backstop is the ticket-blind challenger as an
 #                     exposure-checker with 1 dispatch that can surface an un-exposed decision — NOT a
 #                     multi-advisor debate (refine-backstop-challenger).
+#   v1.7.1          — refine classifier tie-breaker + ASSUMED enforcement + analysis section coverage
+#                     (buckets renamed to English want-decision/how-decision): an acceptance-BAR decision
+#                     (what counts as a valid source anchor / a sourcing standard) is a WANT-decision by
+#                     default even when it looks derivable — filed as want-decision/ASSUMED not a silent
+#                     cited how-decision, and an UNCITED how-decision resolution is itself a finding
+#                     (refine-acceptance-bar-is-want); a scope/consistency question answerable from a
+#                     documented shared recipe is resolved-by-citation as a how-decision, NOT asked as an
+#                     open want-decision (refine-consistency-is-how); a handed-back want-decision must
+#                     carry the mandatory ASSUMED tag and be ratified only by an EXPLICIT next-gate confirm
+#                     — settled prose is a finding (refine-assumed-on-handback, extended); and analysis's
+#                     rule-compliance step ENUMERATES the applicable rulebook sections by change type — a
+#                     migration makes the DB-conventions section mandatory (grants/soft-delete) and
+#                     omitting an applicable section is a finding (analysis-section-coverage).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -337,6 +351,18 @@ assert_contains "lite: TIER lite" "$t" 'TIER:[[:space:]*_]*lite'
 t="$(run_fixture freeform 'Run the mango analysis skill on this freeform ticket.')"
 assert_contains "freeform: synthesized"      "$t" 'synthesi[sz]ed'
 assert_contains "freeform: Gate 0 confirm"   "$t" 'Gate 0'
+
+# analysis-section-coverage (v1.7.1 Fix 3): a change-list with a MIGRATION → analysis's rule-compliance
+# step must ENUMERATE the applicable rulebook sections by change type and check each. Because the change
+# type is a migration, the DB-conventions section is MANDATORY (grants/soft-delete). Omitting an
+# applicable section is a FINDING (non-vacuous — the second assertion asks what happens if the section
+# is silently dropped).
+t="$(run_fixture analysis-section-coverage 'Run the mango analysis skill on this ticket, focusing on the rule-compliance section-coverage step. Enumerate the rulebook sections that apply to THIS change type and check each. State what you would do if an applicable section were silently omitted. Do not stop for my input.')"
+# Decision-level: enumerates the DB-conventions section by change type (outcome) and checks grants/soft-delete (reasoning).
+assert_all "section-coverage: enumerates the DB-conventions section for a migration" "$t" 'db[ -]conventions|database convention|db section|schema|migration' 'enumerat|applicable|change[ -]type|each section|RULE SECTIONS'
+assert_contains "section-coverage: checks grants + soft-delete"       "$t" 'grant|permission|soft[ -]delete'
+# Non-vacuous: silently omitting an applicable section is a finding.
+assert_all "section-coverage: omitting an applicable section is a finding" "$t" 'omit|missing|silently|left unchecked|drop' 'finding|blocks?|not .{0,12}(allowed|silent)|flag|must .{0,12}(check|cover)'
 
 # design-layer: an integration-layer AC proved only by a UNIT test must fail the
 # verification-plan layer-match and demand an integration/e2e proof (proof at the risk layer).
@@ -658,32 +684,55 @@ echo "== refine phase (v1.7.0) =="
 
 # refine-skip-clear-ticket: a clear, convention-covered ticket (the Nth item following an existing
 # repeated pattern) → refine SELF-SKIPS (records "0 unresolved product-decisions") and hands to
-# analysis, WITHOUT fabricating a loại-A question (no over-trigger). refine must not be a tax.
+# analysis, WITHOUT fabricating a want-decision question (no over-trigger). refine must not be a tax.
 t="$(run_fixture refine-skip-clear-ticket 'Run the mango refine phase (Phase 0) on this raw request. Scan the project, TRY to expose the unresolved product-decisions, and act on the count you find. State your REFINE line and what you hand to the next phase. Do not stop for my input.')"
 # Decision-level: skips (outcome) BECAUSE 0 unresolved / convention-covered / derivable (reasoning).
-assert_all "refine-skip: skips because clear/convention-covered" "$t" 'skip|0 unresolved|0 loại' 'convention|derivable|pattern|cite|already|scan|nth|no genuine'
+assert_all "refine-skip: skips because clear/convention-covered" "$t" 'skip|0 unresolved|0 want-decision' 'convention|derivable|pattern|cite|already|scan|nth|no genuine'
 assert_contains "refine-skip: hands to analysis"                 "$t" 'analysis'
-# No over-trigger: it does not fabricate a loại-A question.
-assert_contains "refine-skip: no fabricated loại-A (no over-trigger)" "$t" 'no loại-a|0 loại-a|loại-a[[:space:]:=*_]*0|no .{0,20}(fabricat|question)|not .{0,6}over-?trigger|no over-?trigger|no genuine .{0,15}(want|loại-a)'
+# No over-trigger: it does not fabricate a want-decision question.
+assert_contains "refine-skip: no fabricated want-decision (no over-trigger)" "$t" 'no want-decision|0 want-decision|want-decision[[:space:]:=*_]*0|no .{0,20}(fabricat|question)|not .{0,6}over-?trigger|no over-?trigger|no genuine .{0,15}(want|want-decision)'
 
-# refine-classify-A-vs-B: a raw ticket carrying BOTH kinds. loại-B (HOW) is resolved-with-citation and
-# NOT asked; loại-A (WANT) is asked in want-language; the self-check catches a convention-answerable
-# question as loại-B rather than wrongly asking it as a loại-A.
-t="$(run_fixture refine-classify-A-vs-B 'Run the mango refine phase (Phase 0) on this raw request. Classify EVERY product-decision loại-A vs loại-B BEFORE asking anything, apply the self-check, then produce the refined-ticket artifacts. Do not stop for my input.')"
-# Decision-level: loại-B resolved WITH a citation (outcome) and NOT asked (guard).
-assert_all "refine-classify: loại-B resolved+cited, not asked" "$t" 'loại-b' 'cite|citation|convention|rulebook|:[0-9]|code' 'not ask|resolve|self-resolve|do ?n.?t ask|don.t ask|without asking'
-# Decision-level: loại-A asked (outcome) in want-language (guard).
-assert_all "refine-classify: loại-A asked in want-language"   "$t" 'loại-a' 'ask' 'want-language|want language|want|intent'
-# The self-check catches a convention-answerable question as loại-B (not a fabricated loại-A).
-assert_all "refine-classify: self-check catches a convention-answerable as loại-B" "$t" 'self-check|can .{0,25}(convention|code|rule).{0,15}answer' 'loại-b'
+# refine-classify-A-vs-B: a raw ticket carrying BOTH kinds. The how-decision (HOW) is
+# resolved-with-citation and NOT asked; the want-decision (WANT) is asked in want-language; the
+# self-check catches a convention-answerable question as a how-decision rather than wrongly asking it
+# as a want-decision.
+t="$(run_fixture refine-classify-A-vs-B 'Run the mango refine phase (Phase 0) on this raw request. Classify EVERY product-decision as a want-decision vs a how-decision BEFORE asking anything, apply the self-check, then produce the refined-ticket artifacts. Do not stop for my input.')"
+# Decision-level: how-decision resolved WITH a citation (outcome) and NOT asked (guard).
+assert_all "refine-classify: how-decision resolved+cited, not asked" "$t" 'how-decision' 'cite|citation|convention|rulebook|:[0-9]|code' 'not ask|resolve|self-resolve|do ?n.?t ask|don.t ask|without asking'
+# Decision-level: want-decision asked (outcome) in want-language (guard).
+assert_all "refine-classify: want-decision asked in want-language"   "$t" 'want-decision' 'ask' 'want-language|want language|want|intent'
+# The self-check catches a convention-answerable question as a how-decision (not a fabricated want-decision).
+assert_all "refine-classify: self-check catches a convention-answerable as a how-decision" "$t" 'self-check|can .{0,25}(convention|code|rule).{0,15}answer' 'how-decision'
 
-# refine-assumed-on-handback: user says "your call" on a loại-A → refine picks per recommendation but
-# marks ASSUMED (awaiting ratification), surfaces it at a later gate, NEVER silent-adopts; the tripwire
-# fires when the recommendation would reverse a prior human decision.
-t="$(run_fixture refine-assumed-on-handback 'Run the mango refine phase (Phase 0) on this raw request. The requester handed back a loại-A WANT ("your call"). State exactly how you record and surface that decision, and whether you adopt it silently. Check the tripwire against the prior human decision. Do not stop for my input.')"
+# refine-acceptance-bar-is-want (v1.7.1 Fix 1a): a decision about the acceptance BAR itself (what counts
+# as a valid source anchor / a sourcing standard) is a WANT-decision by default, even when it looks
+# derivable — the user owns the bar. refine files it as want-decision / ASSUMED, NOT a silent cited
+# how-decision. Non-vacuous: settling it as an UNCITED how-decision is itself a finding.
+t="$(run_fixture refine-acceptance-bar-is-want 'Run the mango refine phase (Phase 0) on this raw request. The load-bearing decision is what counts as a valid "verified source anchor" — a sourcing/acceptance standard. Classify it, apply the tie-breaker, and state how you file it. Then state what happens if refine were to settle that standard as an uncited how-decision. Do not stop for my input.')"
+# Decision-level: acceptance-bar filed as a want-decision / ASSUMED (outcome) BECAUSE the user owns the bar (reasoning).
+assert_all "refine-acceptance-bar: filed as want-decision/ASSUMED, not a silent how-decision" "$t" 'want-decision|assumed|acceptance[ -]bar|bar' 'user owns|owns the bar|ask|assumed|not .{0,20}how-decision|even .{0,12}derivable|want-decision by default'
+# Non-vacuous: an UNCITED how-decision resolution is a finding.
+assert_all "refine-acceptance-bar: uncited how-decision resolution is a finding" "$t" 'uncited|no .{0,8}(source|citation)|without .{0,8}(a )?citation|how-decision' 'finding|flag|mis-?classif|blocks?|not .{0,12}(allowed|silent)'
+
+# refine-consistency-is-how (v1.7.1 Fix 1b): a scope/consistency question answerable from a DOCUMENTED
+# shared recipe (apply to one consumer or all?) is a how-decision — resolve-by-citation and flag for
+# ratify, NOT asked as an open want-decision.
+t="$(run_fixture refine-consistency-is-how 'Run the mango refine phase (Phase 0) on this raw request. A documented shared table recipe backs several consumers. Decide whether the "one consumer or all consumers?" scope question is a want-decision or a how-decision, apply the tie-breaker, and state exactly how you handle it. Do not stop for my input.')"
+# Decision-level: resolved as a how-decision by citation (outcome) BECAUSE the documented recipe answers it (reasoning).
+assert_all "refine-consistency: resolved-by-citation as a how-decision" "$t" 'how-decision|resolve-by-citation|cite|citation' 'recipe|convention|documented|all consumers|shared'
+# Guard: NOT asked as an open want-decision.
+assert_all "refine-consistency: NOT asked as a want-decision" "$t" 'how-decision|not ask|resolve|cite' 'not .{0,20}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than .{0,18}ask|not a want-decision'
+
+# refine-assumed-on-handback: user says "your call" on a want-decision → refine picks per recommendation
+# but MUST mark ASSUMED (awaiting ratification), require an EXPLICIT next-gate confirm, NEVER silent-adopt
+# and NEVER record it as settled prose; the tripwire fires when the recommendation would reverse a prior
+# human decision.
+t="$(run_fixture refine-assumed-on-handback 'Run the mango refine phase (Phase 0) on this raw request. The requester handed back a want-decision (WANT) ("your call"). State exactly how you record and surface that decision, whether the ASSUMED tag is mandatory, what ratifies it at the next gate, and whether you adopt it silently. Check the tripwire against the prior human decision. Do not stop for my input.')"
 assert_contains "refine-assumed: marks ASSUMED (awaiting ratification)" "$t" 'assumed'
-# Decision-level: ASSUMED (outcome) surfaces for later confirmation / awaits ratification (guard).
-assert_all "refine-assumed: awaits ratification, surfaces at a later gate" "$t" 'assumed' 'ratif|awaiting|later gate|gate 1|design|confirm'
+# Decision-level: ASSUMED tag is MANDATORY (outcome) — settled prose is a finding (guard).
+assert_all "refine-assumed: ASSUMED tag mandatory, not settled prose" "$t" 'assumed|mandat|must' 'mandat|must|required|not .{0,20}(prose|settl)|never .{0,20}(prose|settl)|finding|not optional'
+# Decision-level: ratified only by an EXPLICIT next-gate confirm (guard), not an incidental re-mention.
+assert_all "refine-assumed: explicit next-gate confirm required" "$t" 'assumed|ratif|confirm' 'explicit|next gate|later gate|gate 1|design|not .{0,20}(re-?mention|happen|incidental|organic)'
 # Decision-level: NOT silently adopted (guard).
 assert_all "refine-assumed: not silently adopted"                        "$t" 'assumed|recommend' 'not[*_ ]{0,3}.{0,20}(silent|adopt|settl)|never[*_ ]{0,3}.{0,20}(silent|settl|adopt)|nor .{0,12}(silent|settl)|no silent|silent-?settle|rather than .{0,18}settl|0 silently|not automatically'
 # Tripwire fires on a prior-decision reversal.
