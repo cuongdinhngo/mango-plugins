@@ -17,6 +17,47 @@ ticket + the diff, never this `.work.md`. -->
 
 ---
 
+## Phase 0 — Refine (the FIRST phase; skip when the ticket is already clear)
+
+`refine` scans the project, TRIES to expose the unresolved product-decisions, and its count IS the
+gate. Every decision here is a **counted artifact**, never prose. refine **exposes for the human to
+chốt and never authors intent**.
+
+`REFINE: <U> unresolved surfaced | <a> loại-A asked | <b> loại-B resolved+cited | <s> ASSUMED | skip: yes/no`
+
+<!-- skip: yes → U=0, record `refine skipped: 0 unresolved product-decisions` and hand to analysis; this line is the whole Phase-0 output. -->
+<!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles), v1-learning. -->
+
+**Ý muốn đã chốt (loại-A — from the user; become acceptance-criteria constraints analysis must honour):**
+
+| # | The want (in want-language) | Chosen direction (NOT a tool) | Becomes AC constraint |
+|---|-----------------------------|-------------------------------|-----------------------|
+| 1 |                             |                               |                       |
+
+**Hướng + căn cứ (loại-B — refine-resolved + CITED; a starting premise, analysis still picks the tool):**
+
+| # | HOW-decision | Resolution | Citation (`file:line` / convention / rulebook §) |
+|---|--------------|------------|--------------------------------------------------|
+| 1 |              |            |                                                  |
+
+**ASSUMED (awaiting ratification)** (a loại-A handed back — "your call"; picked per recommendation, must
+be confirmed once concrete at Gate 1 / design; tripwire: never silent-settle over a prior human decision):
+
+| # | Assumed choice | Why ASSUMED (handed back / recommendation) | Confirm at gate | Reverses a prior decision? |
+|---|----------------|--------------------------------------------|-----------------|----------------------------|
+| 1 |                |                                            |                 | yes / no                   |
+
+**Constraints surfaced from the scan** (rule book / design tokens / policy the user couldn't know to ask):
+
+-
+
+**Exposure-checker** (ticket-blind `challenger`, **1 dispatch** — NOT a debate): any still-un-exposed
+decision it found (re-classified loại-A/loại-B above): none / <list>
+
+<!-- Split mixed input: an open brainstorm bundled with a targeted task is separated — refine refines only the targeted part. Record what was set aside: -->
+
+---
+
 ## Requirements matrix
 
 `SECTIONS: <n> found (names) | <n> decomposed | ROWS: C=.. R=.. G=.. AC=..`

@@ -32,6 +32,8 @@ RESERVED_NAMES = {
 # (case-insensitive regex). This guards that an edit cannot quietly drop the
 # counted, gate-blocking artifact a skill is responsible for.
 SKILL_CONTRACTS = {
+    "refine": [r"scan", r"loại-A", r"loại-B", r"cite", r"ASSUMED", r"skip", r"exposure-checker"],
+    "breakdown": [r"INVEST", r"ticket boundary", r"counted"],
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk"],

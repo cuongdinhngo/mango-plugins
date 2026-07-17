@@ -3,6 +3,92 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] — 2026-07-17
+
+Adds a **new first phase — `refine` (Phase 0)** — to the front of the lifecycle, and an epic-path
+`breakdown` phase. This is the largest change since v1.0, so right-sizing and invariant-preservation
+mattered more than usual: the four existing gated phases (`analysis`→`finalise`) are **unchanged and not
+renumbered** — refine slots in front as Phase 0 and holds no gate of its own. Generic and stack-agnostic
+throughout — no project, ticket, library, framework, or brand is named (fixtures use `PROJ-*`).
+
+The lifecycle is now:
+
+```
+refine → analysis → design → execute → review → finalize                       (ticket path)
+refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles       (epic path)
+```
+
+**Depth (explicit, honest).** The **ticket-path** refine is **fully specified** (3 dry-runs). The
+**epic-path** is **v1 — "enough to run and learn"**, designed to run and be corrected by retro. Field-
+test both branches across projects; a retro on the epic-path is expected to refine the epic-level
+analysis/design boundaries and breakdown sizing.
+
+### Added
+- **`refine` (Phase 0) — turn a raw request into a refined ticket without authoring intent.** New
+  `skills/refine/SKILL.md`. It **scans the project** first (reusing `sitemap`/`db-map`) so exposure
+  depth comes from the scan, not from asking what convention/code already answers. It then **tries to
+  expose** the unresolved product-decisions and **the count IS the gate**: **0 → self-skip → analysis**
+  (recorded `refine skipped: 0 unresolved product-decisions`), **≥1 → refine works**, **when in doubt →
+  run**. Every decision is a **counted artifact** (a `REFINE:` line + the refined-ticket tables), never
+  prose. refine holds **no gate of its own** — its loại-A questions are its interaction, and its output
+  is challenged at Gate 1. *(refine must never become a tax on a clear ticket — the self-skip is the
+  first-class behaviour.)*
+- **The derivable/intent boundary — classify EVERY decision before asking.** Each surfaced decision is
+  **loại-B (HOW)** — answerable from convention/code/the rule book or a tool choice → refine **resolves
+  it and CITES** the source, **does not ask** (asking a HOW-question launders a decision) — or **loại-A
+  (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user** in want-language
+  (`AskUserQuestion` typed fork; `(Recommended)` only here). A **self-check** precedes every question
+  ("can convention/code answer this? → loại-B → cite, don't ask"). This is the same
+  descriptive/normative boundary `codify` holds for rules, applied to a ticket: **refine exposes for the
+  human to chốt and never authors intent.**
+- **`ASSUMED (awaiting ratification)` on a handed-back loại-A.** "your call" is **not** silently adopted:
+  refine picks per its recommendation but marks the choice `ASSUMED (awaiting ratification)` (reusing
+  `codify`'s provisional→ratify), and it **re-surfaces at a later gate** to confirm once concrete. A
+  **tripwire** fires if a recommendation would **reverse a prior human decision** — flag ASSUMED, never
+  silent-settle.
+- **Direction, not tool.** refine exposes solution DIRECTIONS a non-technical user can feel (wrap vs
+  rebuild); the specific tool/library is **analysis's** job. It **splits mixed input** (an open
+  brainstorm bundled with a targeted task → refine refines only the targeted part).
+- **Backstop — 1-dispatch exposure-checker, not a debate.** The completeness-of-exposure check a newbie
+  can't self-run reuses the **ticket-blind `challenger`** as an exposure-checker with **one** dispatch,
+  asked only "is any product-decision still un-exposed?" — **not** a Council or multi-advisor debate.
+- **`breakdown` (epic path, v1) — split an epic into tickets.** New `skills/breakdown/SKILL.md`,
+  activated **only on the epic path, after `design(epic)`**. It draws **ticket boundaries** from the thin
+  epic-level architecture, emits a **counted** ticket list with a **per-ticket INVEST self-check**, and
+  **holds a ✋ human gate — the human ratifies the split before any ticket executes.** Each ratified
+  ticket then runs its own full lifecycle (one ticket per run). Marked **v1-learning**: ticket-boundary
+  sizing has no exact metric; INVEST is the heuristic and retro corrects mis-splits (SPIDR is a
+  later-if-needed, not now).
+
+### Changed
+- **`solve` wires refine as Phase 0.** The orchestrator runs `refine` FIRST and branches on what it
+  finds — **skip** (0 unresolved → straight to analysis), **ticket-refine** (≥1 unresolved, single
+  deliverable → refined ticket → analysis), or **epic-path** (multiple independent deliverables →
+  thin analysis(epic)/design(epic) → breakdown's human split-gate → N× ticket-lifecycles). Epic-path is
+  labelled v1-learning in the skill.
+- **`templates/ticket.md` carries the refined-ticket shape.** A new **Phase 0 — Refine** block: the
+  `REFINE:` count line, and counted tables for **chốt** (loại-A → AC constraints), **cited** (loại-B →
+  starting premise), **ASSUMED (awaiting ratification)**, and **constraints surfaced from the scan**,
+  plus the exposure-checker result — all above the requirements matrix, so the challenger stays blind to
+  the working doc.
+- **`PRINCIPLES.md`** adds "The refine phase — expose the decisions, never author the intent": the new
+  lifecycle diagram, the derivable/intent (loại-A ask / loại-B cite) boundary, and the "refine exposes,
+  never authors" invariant, plus the epic-path v1 note.
+
+### Tests / validation
+- **Six new eval fixtures — one per behaviour** (generic `PROJ-*`, decision-level, emphasis-agnostic):
+  `refine-skip-clear-ticket` (self-skips a convention-covered ticket, no over-trigger),
+  `refine-classify-A-vs-B` (loại-B resolved+cited not asked, loại-A asked in want-language, self-check
+  catches a convention-answerable question as loại-B), `refine-assumed-on-handback` (ASSUMED recorded +
+  surfaced, never silent-adopt, tripwire on prior-decision reversal), `refine-direction-not-tool`
+  (stops at direction, does not pin a tool), `refine-epic-detect-breakdown` (epic detected → epic path,
+  breakdown emits a counted ticket list + INVEST, human-approved before execute),
+  `refine-backstop-challenger` (1-dispatch ticket-blind exposure-checker, not a multi-advisor debate).
+- **`scripts/validate.py`** locks each behaviour with contract tokens (`refine`
+  `scan`/`loại-A`/`loại-B`/`cite`/`ASSUMED`/`skip`/`exposure-checker`; `breakdown`
+  `INVEST`/`ticket boundary`/`counted`). Both READMEs and `PRINCIPLES.md` document refine + breakdown and
+  the updated lifecycle diagram; the v0.5 doc-consistency check stays green.
+
 ## [1.6.1] — 2026-07-16
 
 A safety + token patch, **no new lifecycle behaviour** (no gate, check, or phase added or removed). Three

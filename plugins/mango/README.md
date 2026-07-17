@@ -1,9 +1,9 @@
 # mango
 
-A portable, **gated ticket-lifecycle harness** for Claude Code. mango ships the *machinery* — five
-gated lifecycle phases, read-only review agents, and a working-doc template — and reads every
-project-specific rule at runtime from a per-project `.harness.json`. The same plugin installs into any
-project unchanged.
+A portable, **gated ticket-lifecycle harness** for Claude Code. mango ships the *machinery* — a Phase-0
+`refine` phase, five gated lifecycle phases, read-only review agents, and a working-doc template — and
+reads every project-specific rule at runtime from a per-project `.harness.json`. The same plugin
+installs into any project unchanged.
 
 **Harness, not rules.** No stack assumptions are baked in (no framework, language, database, or
 region). Your rule book, repos, test command, tracker, and ticket schema all live in `.harness.json`.
@@ -75,7 +75,31 @@ conventions live in the `codify` rule book, not in these maps.
 ## The lifecycle
 
 Run the whole thing with `/mango:solve`, or invoke a phase directly. mango stops and waits at every ✋
-gate.
+gate. The lifecycle is:
+
+```
+refine → analysis → design → execute → review → finalize                       (ticket path)
+refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles       (epic path)
+```
+
+### Phase 0 — `refine` (expose the decisions, never author the intent)
+
+A raw request rarely arrives lifecycle-ready. **`refine`** (the first phase) scans the project (reusing
+`sitemap`/`db-map`) and **tries to expose the unresolved product-decisions** — and the count it finds
+**is** the gate: **0 → self-skip → analysis** (recorded, so refine is never a tax on a clear ticket),
+**≥1 → refine works**, **when in doubt → run**. It classifies **every** decision before asking:
+
+- **loại-B (HOW)** — answerable from convention / code / the rule book, or a tool choice → refine
+  **resolves it and cites** the source, and **does not ask** (asking a HOW-question launders a decision).
+- **loại-A (WANT)** — intent / priority / stakes / a genuinely new choice → refine **asks you** in
+  want-language. A handed-back loại-A ("your call") is marked **`ASSUMED (awaiting ratification)`** and
+  re-surfaces at a later gate; a tripwire fires if it would reverse a prior human decision.
+
+refine stops at solution **DIRECTIONS** (wrap vs rebuild), never the specific tool — that is analysis's
+job. Its completeness backstop is the **ticket-blind challenger as a 1-dispatch exposure-checker**, not
+a debate. It holds **no gate of its own** — its loại-A questions are its interaction and its output is
+challenged at Gate 1. **refine exposes for you to chốt; it never authors intent** (the same boundary
+`codify` holds for rules). An **epic** input routes to the epic path (below).
 
 ### Tiers — right-sizing the rigor
 
@@ -90,13 +114,24 @@ security-tagged, touches more than one file, or has a universal requirement reso
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
+| `/mango:refine` | 0 (no gate of its own) | A **refined ticket** as counted artifacts: a `REFINE:` count line + tables for **chốt** (loại-A wants → AC constraints), **cited** (loại-B how → starting premise), **ASSUMED (awaiting ratification)**, and scan-surfaced constraints. Self-skips a clear ticket (records "0 unresolved product-decisions"). Runs a 1-dispatch ticket-blind exposure-checker. Detects an epic and routes to the epic path. |
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (a value that is neither falsifiable nor a recorded manual-check exclusion is flagged and may not carry `✅`), root-cause & blast radius, scope, and a `BASELINE` capture from the untouched checkout. Frontend: emits `SURFACES: N` for universal requirements. Surfaces any **uncodified standard** into `codify`'s provisional→ratify flow rather than enforcing it silently. |
 | `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, assumptions (`verified \| novel-untested`), smallest row-traced change list, rule compliance, the named proving test, and a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof blocks Gate 2 unless upgraded or recorded as a human-approved coverage-gap exclusion). Frontend: builds/updates `DESIGN.md`, plans one row per (AC × surface). |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved changes only, the proving test, a verification sweep on **both axes** — file set (diff ⊆ approved list) **and** a design-conformance self-check that records any deviation from a Gate-2 bullet even when the diff is clean — with a baseline-aware DoD, commits carrying no AI co-author trailer. Formats **only authored/edited files**. STOPs to re-gate on an invalidated design or via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). Frontend: emits the proof manifest. |
 | `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation on both axes (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against `BASELINE`, `k/N` coverage. A round-1 **conditional LGTM** makes the re-review a **verify-only pass** (named-fix check + affected proof + regression scan, no full re-derivation), re-dispatching a subagent only when a fix changed scope. Frontend: also scores the M1–M10 rubric + `N == M + X` surface check. On a clean verdict records a `Reviewed at <sha>` marker for the stale-review guard. |
 | `/mango:finalise` | 5 → final gate | **Stale-review guard** (routes back to `review` only if a source file changed beyond the reviewed set), optional `pr_checklist_path` walk, PR draft, per-action approval for every outward action, tracker writes via CLI, a **cost-ledger completeness gate**, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and pushed to a shared ref. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
-| `/mango:solve` | orchestrator | Doctor preflight, then every phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
+| `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **INVEST** self-check, held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **v1 — sizing corrected by retro.** |
+| `/mango:solve` | orchestrator | Runs `refine` (Phase 0) FIRST and branches — **skip** / **ticket-refine** / **epic-path** — then a Doctor preflight and every gated phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
+
+### Epic path — thin by design (v1)
+
+When `refine` detects an **epic** (the exposed work spans multiple independent, each-execute-able
+deliverables), the run takes the epic path: **`analysis(epic)` → `design(epic)` → `breakdown` → N×
+ticket-lifecycles**. The epic-level analysis/design are **deliberately thin** — architecture-level, only
+enough to draw ticket boundaries — and `breakdown` emits a counted ticket list (per-ticket INVEST)
+behind a human split-gate. This whole branch is **v1 — "enough to run and learn"**: ticket-boundary
+sizing has no exact metric, INVEST is the heuristic, and retro corrects mis-splits.
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding, simplicity
 first, surgical changes, goal-driven execution.

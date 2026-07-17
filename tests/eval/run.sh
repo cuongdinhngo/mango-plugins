@@ -103,6 +103,21 @@
 #                     CHANGED portion of an artifact into the response on a partial update ("ledger
 #                     unchanged except row N") while the full artifact stays COMPLETE on disk and the
 #                     v1.6 content-completeness gate still passes (artifact-delta-emission).
+#   refine (v1.7.0) — the new Phase-0 refine phase + epic-path breakdown: a clear, convention-covered
+#                     ticket → refine SELF-SKIPS ("0 unresolved product-decisions") and hands to analysis
+#                     without fabricating a loại-A (refine-skip-clear-ticket); a raw ticket carrying both
+#                     kinds has loại-B (HOW) resolved-with-citation not asked and loại-A (WANT) asked in
+#                     want-language, the self-check catching a convention-answerable question as loại-B
+#                     (refine-classify-A-vs-B); a handed-back loại-A ("your call") is marked ASSUMED
+#                     (awaiting ratification) and surfaced at a later gate, never silent-adopted, with the
+#                     tripwire firing on a prior-decision reversal (refine-assumed-on-handback); refine
+#                     stops at the solution DIRECTION (wrap vs rebuild) and does NOT pin a tool — that is
+#                     analysis's job (refine-direction-not-tool); an epic input is DETECTED and routed to
+#                     the epic path, breakdown emitting a counted ticket list + per-ticket INVEST
+#                     self-check, human-approved before any ticket executes (refine-epic-detect-breakdown);
+#                     the completeness-of-exposure backstop is the ticket-blind challenger as an
+#                     exposure-checker with 1 dispatch that can surface an un-exposed decision — NOT a
+#                     multi-advisor debate (refine-backstop-challenger).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -636,6 +651,72 @@ assert_contains "delta-emission: emits only the changed portion"        "$t" 'de
 # Decision-level: deltas into the response (outcome) while the full artifact stays COMPLETE on disk (guard).
 assert_all "delta-emission: full artifact stays complete on disk"       "$t" 'on disk|working doc|single source' 'complete|full|unchanged|not reprint|content|completeness'
 assert_contains "delta-emission: content-completeness gate still passes" "$t" 'content|completeness|complete on disk|gate.{0,6}(still )?pass'
+
+# --- refine phase (v1.7.0) ---------------------------------------------------
+echo
+echo "== refine phase (v1.7.0) =="
+
+# refine-skip-clear-ticket: a clear, convention-covered ticket (the Nth item following an existing
+# repeated pattern) → refine SELF-SKIPS (records "0 unresolved product-decisions") and hands to
+# analysis, WITHOUT fabricating a loại-A question (no over-trigger). refine must not be a tax.
+t="$(run_fixture refine-skip-clear-ticket 'Run the mango refine phase (Phase 0) on this raw request. Scan the project, TRY to expose the unresolved product-decisions, and act on the count you find. State your REFINE line and what you hand to the next phase. Do not stop for my input.')"
+# Decision-level: skips (outcome) BECAUSE 0 unresolved / convention-covered / derivable (reasoning).
+assert_all "refine-skip: skips because clear/convention-covered" "$t" 'skip|0 unresolved|0 loại' 'convention|derivable|pattern|cite|already|scan|nth|no genuine'
+assert_contains "refine-skip: hands to analysis"                 "$t" 'analysis'
+# No over-trigger: it does not fabricate a loại-A question.
+assert_contains "refine-skip: no fabricated loại-A (no over-trigger)" "$t" 'no loại-a|0 loại-a|loại-a[[:space:]:=*_]*0|no .{0,20}(fabricat|question)|not .{0,6}over-?trigger|no over-?trigger|no genuine .{0,15}(want|loại-a)'
+
+# refine-classify-A-vs-B: a raw ticket carrying BOTH kinds. loại-B (HOW) is resolved-with-citation and
+# NOT asked; loại-A (WANT) is asked in want-language; the self-check catches a convention-answerable
+# question as loại-B rather than wrongly asking it as a loại-A.
+t="$(run_fixture refine-classify-A-vs-B 'Run the mango refine phase (Phase 0) on this raw request. Classify EVERY product-decision loại-A vs loại-B BEFORE asking anything, apply the self-check, then produce the refined-ticket artifacts. Do not stop for my input.')"
+# Decision-level: loại-B resolved WITH a citation (outcome) and NOT asked (guard).
+assert_all "refine-classify: loại-B resolved+cited, not asked" "$t" 'loại-b' 'cite|citation|convention|rulebook|:[0-9]|code' 'not ask|resolve|self-resolve|do ?n.?t ask|don.t ask|without asking'
+# Decision-level: loại-A asked (outcome) in want-language (guard).
+assert_all "refine-classify: loại-A asked in want-language"   "$t" 'loại-a' 'ask' 'want-language|want language|want|intent'
+# The self-check catches a convention-answerable question as loại-B (not a fabricated loại-A).
+assert_all "refine-classify: self-check catches a convention-answerable as loại-B" "$t" 'self-check|can .{0,25}(convention|code|rule).{0,15}answer' 'loại-b'
+
+# refine-assumed-on-handback: user says "your call" on a loại-A → refine picks per recommendation but
+# marks ASSUMED (awaiting ratification), surfaces it at a later gate, NEVER silent-adopts; the tripwire
+# fires when the recommendation would reverse a prior human decision.
+t="$(run_fixture refine-assumed-on-handback 'Run the mango refine phase (Phase 0) on this raw request. The requester handed back a loại-A WANT ("your call"). State exactly how you record and surface that decision, and whether you adopt it silently. Check the tripwire against the prior human decision. Do not stop for my input.')"
+assert_contains "refine-assumed: marks ASSUMED (awaiting ratification)" "$t" 'assumed'
+# Decision-level: ASSUMED (outcome) surfaces for later confirmation / awaits ratification (guard).
+assert_all "refine-assumed: awaits ratification, surfaces at a later gate" "$t" 'assumed' 'ratif|awaiting|later gate|gate 1|design|confirm'
+# Decision-level: NOT silently adopted (guard).
+assert_all "refine-assumed: not silently adopted"                        "$t" 'assumed|recommend' 'not[*_ ]{0,3}.{0,20}(silent|adopt|settl)|never[*_ ]{0,3}.{0,20}(silent|settl|adopt)|nor .{0,12}(silent|settl)|no silent|silent-?settle|rather than .{0,18}settl|0 silently|not automatically'
+# Tripwire fires on a prior-decision reversal.
+assert_all "refine-assumed: tripwire on prior-decision reversal"         "$t" 'tripwire|prior .{0,15}(human )?decision|revers' 'flag|assumed|surface|loud|never silent|not silent'
+
+# refine-direction-not-tool: refine stops at the solution DIRECTION (wrap vs rebuild) a non-technical
+# user can feel, and does NOT pin the specific tool/library — tool selection is analysis's job.
+t="$(run_fixture refine-direction-not-tool 'Run the mango refine phase (Phase 0) on this raw request. Expose the solution DIRECTION the user can feel, and state whether you pin the specific tool/library or leave that to a later phase. Do not stop for my input.')"
+assert_contains "refine-direction: stops at a direction (wrap vs rebuild)" "$t" 'wrap|rebuild|direction'
+# Decision-level: does NOT pin a tool (outcome) — tool selection is analysis's job (reasoning).
+assert_all "refine-direction: does not pin a tool"                        "$t" 'tool|library|engine' 'not .{0,14}(pin|pick|choose|select)|analysis.?s job|leave .{0,12}(tool|analysis)|defer .{0,12}tool|not .{0,10}pin.{0,10}tool|stops? at .{0,10}direction'
+assert_contains "refine-direction: tool selection is analysis's job"      "$t" 'analysis'
+
+# refine-epic-detect-breakdown: an epic input → refine detects the epic and routes to the epic path;
+# breakdown emits a COUNTED ticket list with a per-ticket INVEST self-check, human-approved before any
+# ticket executes.
+t="$(run_fixture refine-epic-detect-breakdown 'Run the mango refine phase (Phase 0) on this raw request, then describe the path it routes to. If it is an epic, state what breakdown produces and the gate before any ticket executes. Do not stop for my input.')"
+# Decision-level: detected an epic (outcome) and takes the epic path (reasoning).
+assert_all "refine-epic: detects an epic, takes the epic path" "$t" 'epic' 'epic path|analysis\(epic\)|design\(epic\)|breakdown|multiple .{0,20}(deliverable|ticket)'
+# breakdown emits a counted ticket list with a per-ticket INVEST self-check.
+assert_all "refine-epic: breakdown emits a counted ticket list + INVEST" "$t" 'invest' 'ticket list|counted|ticket|breakdown'
+# Human-approved (the human holds the gate) BEFORE any ticket executes.
+assert_all "refine-epic: human-approved before any ticket executes"      "$t" 'human|approv|ratif|gate' 'before .{0,24}(execut|any ticket)|before any ticket|human .{0,10}(hold|ratif|approv)'
+
+# refine-backstop-challenger: the completeness-of-exposure backstop is the ticket-blind challenger used
+# as an exposure-checker with exactly 1 dispatch — it can surface an un-exposed decision, and it is NOT
+# a multi-advisor Council / debate.
+t="$(run_fixture refine-backstop-challenger 'Run the mango refine phase (Phase 0) on this raw request, focusing on the completeness-of-exposure backstop. State what runs it, how many dispatches it uses, what it can surface, and whether it is a multi-advisor debate. Do not stop for my input.')"
+# Decision-level: exposure-checker = ticket-blind challenger, 1 dispatch (outcome).
+assert_all "refine-backstop: exposure-checker is the ticket-blind challenger, 1 dispatch" "$t" 'exposure-checker|challenger' '1 dispatch|one dispatch|single dispatch|ticket-blind'
+assert_contains "refine-backstop: can surface an un-exposed decision" "$t" 'un-?exposed|still .{0,15}expose|missed|surface'
+# Decision-level: NOT a multi-advisor debate (guard) over the debate/council subject.
+assert_all "refine-backstop: not a multi-advisor debate/council"     "$t" 'debate|council|advisor' 'not[*_ ]{0,4}.{0,16}(debate|council|advisor|panel)|never[*_ ]{0,4}.{0,16}(debate|council|panel)|no[*_ ]{0,4}(panel|vote|council|debate|cross)|one dispatch|1 dispatch|single dispatch|single-shot|not a[*_ ]{0,4}(council|debate)'
 
 # eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:
 # (1) the guard is NON-VACUOUS — it catches an injected leak in a throwaway repo; (2) the LIVE checkout

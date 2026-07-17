@@ -158,6 +158,55 @@ and no schema.
 
 ---
 
+## The refine phase — expose the decisions, never author the intent
+
+> **refine (Phase 0, the FIRST phase) turns a raw request into a refined ticket by EXPOSING the
+> product-decisions for the human to chốt — it never authors intent. This is the same
+> descriptive/normative boundary `codify` holds for rules, applied to a ticket: derivable = refine may
+> resolve + cite; intent = the human's alone.**
+
+The lifecycle now begins with `refine`:
+
+```
+refine → analysis → design → execute → review → finalize                        (ticket path)
+refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles        (epic path)
+```
+
+- **Scan, don't ask what the scan can answer.** refine first scans the project (reusing
+  `sitemap`/`db-map`); depth of exposure comes from the scan, not from asking the user what convention
+  or code already answers.
+- **The readiness gate is the count itself.** refine TRIES to expose the unresolved product-decisions;
+  **0 → skip → analysis** (recorded), **≥1 → refine works**, **when in doubt → run**. refine
+  **self-skips on a clear ticket** so it is never a tax on every ticket — the skip is a counted
+  decision.
+- **The derivable/intent boundary — classify before asking.** Every surfaced decision is either
+  **loại-B (HOW)** — answerable from convention / code / the rule book, or a tool choice → refine
+  **resolves it and CITES** the source, and **does not ask**; asking a HOW-question launders a decision
+  — or **loại-A (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user** in
+  want-language (`AskUserQuestion` typed fork). A handed-back loại-A is marked **`ASSUMED (awaiting
+  ratification)`** (reusing `codify`'s provisional→ratify) and re-surfaces at a later gate — never
+  silent-adopted; a tripwire fires if it would reverse a prior human decision.
+- **Direction, not tool.** refine stops at solution DIRECTIONS a non-technical user can feel; the
+  specific tool/library is analysis's job.
+- **Every decision is a counted artifact.** The refined ticket (chốt / cited / ASSUMED / constraints)
+  and the `REFINE:` counting line are emitted, not prose — visible and challengeable at Gate 1.
+- **Backstop = 1-dispatch exposure-checker, NOT a debate.** The completeness-of-exposure check the
+  newbie can't self-run reuses the **ticket-blind `challenger`** as an exposure-checker with **one**
+  dispatch — never a Council or multi-advisor debate.
+
+**Epic path is v1 — "enough to run and learn".** On an epic, `analysis(epic)`/`design(epic)` stay thin
+(architecture-level, only enough to split) and `breakdown` emits a **counted** ticket list with a
+per-ticket **INVEST** self-check, **human-approved before any ticket executes** (the human holds the
+gate). Ticket-boundary sizing has no exact metric; INVEST is the heuristic and **retro corrects
+mis-splits**.
+
+Enforced at `refine` (the scan, the loại-A/loại-B classification + citation, the `ASSUMED` marking, the
+`REFINE:` count, the 1-dispatch exposure-checker) and `breakdown` (the counted ticket list + INVEST +
+the human split-gate); guarded by `scripts/validate.py` (the refine + breakdown boundary tokens).
+refine writes no code and no tracker entry.
+
+---
+
 ## Frontend track — own the durable, compose the volatile
 
 > **mango embeds only UI knowledge that is durable + falsifiable; it composes, never owns, the

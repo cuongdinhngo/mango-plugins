@@ -33,6 +33,29 @@ Run, in strict order, holding the gate at each step. After analysis declares `TI
 
 A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
 
+**Phase 0 — `refine` runs FIRST (branch on what it finds).** Before analysis, run `refine` on the raw
+input. It scans the project, TRIES to expose the unresolved product-decisions, and its count IS the
+branch:
+
+- **skip (0 unresolved product-decisions)** → refine records `refine skipped: 0 unresolved
+  product-decisions` and hands straight to `analysis`. refine must **not** be a tax on a clear ticket.
+- **ticket-refine (≥1 unresolved, single deliverable)** → refine resolves the HOW (loại-B, cited),
+  asks the WANT (loại-A, want-language), marks any handed-back loại-A `ASSUMED (awaiting ratification)`,
+  runs the 1-dispatch exposure-checker, emits the refined ticket as counted artifacts, then → `analysis`
+  (the refined ticket is its input).
+- **epic-path (the exposed work spans multiple independent deliverables)** → run the **epic path**:
+  `analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`. `analysis(epic)`/`design(epic)`
+  are **deliberately thin** (architecture-level: vet the DIRECTION, estimate epic-wide blast radius,
+  map which modules/layers change — **only enough to split**, never per-ticket or line-level).
+  `breakdown` then emits a **counted** ticket list with a per-ticket INVEST self-check and **holds a
+  ✋ human gate — the human ratifies the split before any ticket executes.** Each ratified ticket then
+  runs its **own** full lifecycle (one ticket per run). **Epic-path is v1 — "enough to run and learn";
+  its exact boundary is expected to be refined by retro.**
+
+refine holds **no gate of its own** — its loại-A questions are its interaction, and its output is
+challenged at Gate 1. It **exposes for the human to chốt and never authors intent** (the same
+descriptive/normative boundary `codify` holds for rules).
+
 1. `analysis` → **Gate 1** (and Gate 0 if `j > 0`) — STOP for approval; declares `TIER`.
 2. `design` → **Gate 2** — STOP for approval.
 3. `execute` → Phase 3 (autonomous) → flows into review.
