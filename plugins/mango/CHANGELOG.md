@@ -1,7 +1,65 @@
 # Changelog
 
 All notable changes to the mango plugin are documented here. This project adheres to
-[Semantic Versioning](https://semver.org/).
+[Semantic Versioning](https://semver.org/). This file **ships inside the plugin**
+(`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
+independent field retro reads for "what changed this version" — read it, not a prior retro.
+
+## [1.7.3] — 2026-07-18
+
+Breakdown re-ratification + epic scaffold handoff + INVEST re-split test + a shipped CHANGELOG + an eval
+transcript-cache. **No new lifecycle phase.** Nothing removes a CHECK — each change ADDS a gate/action
+or accelerates the dev loop without dropping coverage. refine still **exposes, never authors**; every
+decision stays a counted artifact; the human holds every gate incl. the new re-ratification. Generic and
+stack-agnostic throughout (fixtures use `PROJ-*`); all plugin text is English-only.
+
+### Fixed
+- **Breakdown re-ratification when a ratified split changes (Fix A — v1, first-evidence, n=1, epic 013).**
+  After the split-gate ratified, the epic gained a 7th ticket and reversed a previously-ratified decision
+  — both rode in on a **child ticket's Gate 1** with no breakdown-level re-approval. `breakdown` now
+  treats a ratified split as a **living plan**: a ticket added/removed or a ratified decision
+  reversed/re-pointed **after** the gate triggers a **re-ratification** — surface the **delta** vs the
+  ratified split as a counted artifact and get an explicit human **re-approve** at the breakdown level,
+  never a silent ride-in on a child's Gate 1 (`RE-RATIFY:` counting line). Shipped at **v1 depth (n=1)**;
+  the exact trigger + granularity are expected to be refined by a future epic retro — a delta-surface +
+  human re-approve, not a rigid contract.
+- **Commit the epic scaffold before a child ticket branches (Fix C — n=1, epic 013).** The epic
+  bookkeeping (child-ticket stubs + BACKLOG/roadmap) was **created but not committed**, so a later
+  child's ticket-blind `challenger` could not tell a genuine retarget-edit from net-new authorship and
+  had to caveat its verdict. `breakdown` now **commits the epic scaffold to a shared ref before any
+  child ticket branches**, so a child's diff reads as a real **edit of a committed file**, preserving the
+  challenger's evidence.
+
+### Tests / validation
+- **INVEST "flag → re-split" ACT half now proven (Fix B — fixture).** The v1.7.2 enumerated INVEST check
+  could DETECT a borderline ticket, but no run had a ticket bad enough to FORCE a re-split — the ACT half
+  was untested. New `invest-force-resplit` fixture injects a genuinely oversized ticket (bundles four
+  independent deliverables → fails **Small**) and asserts breakdown **flags it AND drives the re-split
+  before ratification**; a right-sized control ticket is **not** split (non-vacuous).
+- **Two more eval fixtures added** (generic `PROJ-*`, decision-level, emphasis-agnostic):
+  `breakdown-reratify` (after a ratified split, an injected ticket-addition / ratified-decision reversal
+  → breakdown surfaces the delta + requires explicit human re-approve; a change riding in on a child
+  Gate 1 without breakdown re-ratify is flagged — non-vacuous) and `epic-scaffold-committed` (epic path
+  → scaffold committed before any child branch; a child edit of a committed stub reads as an edit, not
+  net-new).
+- **Eval transcript-cache (Fix E — eval-speed).** `tests/eval/run.sh` now caches each fixture's last
+  GREEN transcript keyed on `(fixture-id + skills-hash)`: a fixture whose exercised skill files are
+  provably unchanged is a **cache-hit** (no `claude -p` dispatch); a changed hash (or any uncertainty)
+  runs **fresh** — **fail-safe to run**, the cache only ever avoids a re-run it can prove unnecessary.
+  A **`--no-cache`** flag forces a full fresh run (the milestone/release bar); the cache is git-ignored
+  and stored outside the committed tree. A cheap runner self-test covers hash-match→skip /
+  hash-change→run / `--no-cache`→all-run.
+- **A shipped CHANGELOG (Fix D).** This `CHANGELOG.md` now ships **inside the plugin dir** (the retro
+  convention's neutral source pointed at a file that did not exist there). `scripts/validate.py` requires
+  it to exist under the plugin dir and carry an entry matching `plugin.json`'s version.
+- **`scripts/validate.py`** adds tokens locking each fix (breakdown `re-ratification` / `delta` /
+  `re-approve` / `scaffold committed before child`; run.sh `skills-hash` / `cache-hit` / `--no-cache` /
+  `fail-safe to run`; the plugin-dir CHANGELOG present + version-match). Both READMEs and `PRINCIPLES.md`
+  are updated; the v0.5 doc-consistency check stays green.
+
+> Fix A (re-ratification) is **v1 / first-evidence depth (n=1, epic 013)** — expect a future epic retro
+> to refine its trigger + granularity. Fixes B–E are mechanical / coverage / tooling and fully specified.
+> The eval cache accelerates the dev loop only; a `--no-cache` full run remains the milestone bar.
 
 ## [1.7.2] — 2026-07-18
 

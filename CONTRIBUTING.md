@@ -62,5 +62,12 @@ For a fresh fork or a new marketplace of your own:
 3. `git push -u origin main`
 4. Users install with `/plugin marketplace add <user>/<repo>` then `/plugin install mango@<repo>`.
 
-Bump the version in `plugins/mango/.claude-plugin/plugin.json` and add a `CHANGELOG.md` entry for
-every release; `scripts/validate.py` enforces semver on the manifest.
+Bump the version in `plugins/mango/.claude-plugin/plugin.json` and add an entry to the **shipped
+CHANGELOG** at `plugins/mango/CHANGELOG.md` (it ships *inside* the plugin, alongside `plugin.json` /
+`README.md`) for every release; `scripts/validate.py` enforces semver on the manifest **and** that the
+shipped CHANGELOG carries an entry matching the manifest version.
+
+**Retro convention — read the CHANGELOG, not a prior retro.** An independent field retro reads
+`plugins/mango/CHANGELOG.md` as the **neutral source** of "what changed this version" — never a previous
+retro's write-up (which would compound one reviewer's framing). Keep each entry concise, evidence-first
+(what was observed, `n=`), and English-only.

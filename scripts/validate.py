@@ -37,7 +37,7 @@ SKILL_CONTRACTS = {
                r"uncited how-decision", r"next-gate confirm", r"epic.{0,60}exposure-checker"],
     "breakdown": [r"INVEST", r"ticket boundary", r"counted", r"enumerate",
                   r"Independent", r"Negotiable", r"Valuable", r"Estimable", r"Small", r"Testable",
-                  r"re-?split"],
+                  r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child"],
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif",
                  r"applicable .{0,12}section", r"change[ -]type", r"enumerate"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius",
@@ -322,6 +322,49 @@ def validate_verify_incremental():
               f"verify-incremental: {rel} must state each new fixture stays 3x fresh (coverage unchanged)")
 
 
+def validate_changelog_shipped():
+    """The CHANGELOG must ship INSIDE the plugin dir (the retro convention's neutral source) and carry an
+    entry matching plugin.json's version. Guards Fix D (v1.7.3) — the retro convention may not point at a
+    file that does not ship under the plugin dir, and a version bump may not forget its CHANGELOG entry."""
+    plugin = ROOT / "plugins" / "mango"
+    changelog = plugin / "CHANGELOG.md"
+    if not check(changelog.exists(), "changelog: plugins/mango/CHANGELOG.md must ship inside the plugin dir"):
+        return
+    data = load_json(plugin / ".claude-plugin" / "plugin.json")
+    version = data.get("version", "") if isinstance(data, dict) else ""
+    try:
+        body = changelog.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"changelog: cannot read plugins/mango/CHANGELOG.md ({exc})")
+        return
+    check(
+        version != "" and re.search(r"^\#\#\s*\[" + re.escape(version) + r"\]", body, re.MULTILINE) is not None,
+        f"changelog: plugins/mango/CHANGELOG.md has no '## [{version}]' entry matching plugin.json version",
+    )
+
+
+def validate_eval_cache():
+    """The eval transcript-cache (Fix E, v1.7.3) must stay wired in run.sh: a per-fixture skills-hash key,
+    a cache-hit reuse path, a --no-cache full-fresh milestone flag, and the fail-safe-to-run default.
+    Guards that the cost-saving cache cannot silently drop coverage or lose its milestone escape hatch."""
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "eval-cache: tests/eval/run.sh is missing"):
+        return
+    try:
+        body = runsh.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"eval-cache: cannot read tests/eval/run.sh ({exc})")
+        return
+    check(re.search(r"skills-hash", body, re.IGNORECASE) is not None,
+          "eval-cache: run.sh must key the cache on a skills-hash")
+    check(re.search(r"cache-hit", body, re.IGNORECASE) is not None,
+          "eval-cache: run.sh must reuse a cached green transcript on a cache-hit")
+    check(re.search(r"--no-cache", body) is not None,
+          "eval-cache: run.sh must support --no-cache (a full fresh milestone run)")
+    check(re.search(r"fail-safe to run", body, re.IGNORECASE) is not None,
+          "eval-cache: run.sh must document the fail-safe-to-run default (uncertainty → run fresh)")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -381,6 +424,8 @@ def main():
     validate_eval_convention()
     validate_eval_isolation()
     validate_verify_incremental()
+    validate_changelog_shipped()
+    validate_eval_cache()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

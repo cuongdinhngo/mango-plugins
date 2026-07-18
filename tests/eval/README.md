@@ -49,5 +49,27 @@ The v1.0 green bar is intact and non-negotiable at Finish:
 
 So: affected-fixture-only during the build, **full suite once** at the end, 3-fresh for anything new.
 
+## Transcript cache (dev-loop speed — never drops coverage)
+
+The runner caches each fixture's last **GREEN** transcript keyed on `(fixture-id + skills-hash)`. On a
+run, a fixture whose exercised skill files are **provably unchanged** is a **cache-hit** — its cached
+green transcript is reused and **no `claude -p` is dispatched**; a fixture whose skills-hash changed (or
+any uncertainty — missing cache, unreadable hash, changed runner) runs **fresh**. The cache is
+**fail-safe to run**: it only ever avoids a re-run it can prove unnecessary (skills unchanged ⇒ behaviour
+unchanged — the same prose-is-behaviour invariant mango relies on), and it **never** drops a fixture from
+coverage. `PRINCIPLES.md`, every agent brief, and every template are always in the hash (a change to any
+invalidates every cache); editing `run.sh` itself invalidates the whole cache.
+
+```
+bash tests/eval/run.sh              # dev loop: cache-hits for unchanged fixtures
+bash tests/eval/run.sh --no-cache   # milestone/release: every fixture dispatches fresh
+```
+
+**`--no-cache` forces a full fresh run** — this is the milestone/release bar. The cache accelerates the
+dev loop; it does **not** replace a true full suite at a milestone. The final line reports `cache-hit(s)`
+vs `fresh run(s)`. The cache lives outside the committed tree (`tests/eval/.cache/`, git-ignored) and is
+never committed. A runner **self-test** (no `claude -p`) asserts the three guarantees each run: hash-match
+→ skip, hash-change → run, `--no-cache` → all run.
+
 Keep fixtures **generic** (`PROJ-*` keys; no real project, ticket, library, framework, formatter, or
 brand). The suite's coverage is catalogued in the header comment of `run.sh`.

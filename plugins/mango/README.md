@@ -139,10 +139,16 @@ six-letter INVEST**; a ticket failing a letter is flagged for re-split) behind a
 epic path is **not exempt from the exposure backstop** — refine dispatches the same 1-dispatch
 ticket-blind exposure-checker **before `breakdown`**, its findings ratified alongside the split. This
 whole branch is **v1 — "enough to run and learn"**: ticket-boundary sizing has no exact metric, INVEST
-is the heuristic, and retro corrects mis-splits.
+is the heuristic, and retro corrects mis-splits. A ratified breakdown is a **living plan**: if the split
+changes after the gate (a ticket added/removed, or a ratified decision reversed), `breakdown`
+**re-ratifies** — surfacing the delta for an explicit human re-approve rather than letting it ride in on
+a child's Gate 1 (v1, first-evidence n=1) — and it **commits the epic scaffold** (child stubs + BACKLOG)
+to a shared ref **before any child ticket branches**, so a child's edit reads as an edit of a committed
+file (preserving the ticket-blind challenger's evidence).
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding, simplicity
-first, surgical changes, goal-driven execution.
+first, surgical changes, goal-driven execution. Per-version changes are recorded in the shipped
+[`CHANGELOG.md`](./CHANGELOG.md) — the neutral source an independent field retro reads.
 
 ### Frontend track — measurable UI gates, composed taste
 

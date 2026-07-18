@@ -143,6 +143,12 @@ or `k < N` with no recorded decision.
 > never only in an assistant's personal memory. `finalise` asks for one on **every** run,
 > independent of whether any matrix row was deferred.
 
+> **The shipped CHANGELOG is the retro's neutral source.** An independent field retro reads
+> `${CLAUDE_PLUGIN_ROOT}/CHANGELOG.md` (shipped *inside* the plugin, alongside `plugin.json`) as the
+> neutral record of "what changed this version" — never a prior retro's write-up, which would compound
+> one reviewer's framing. `scripts/validate.py` requires that CHANGELOG to ship and to carry an entry
+> matching the manifest version.
+
 ---
 
 ## Descriptive vs normative — observe, facilitate, never author
@@ -218,13 +224,21 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
 (architecture-level, only enough to split) and `breakdown` emits a **counted** ticket list with a
 per-ticket **INVEST** self-check, **human-approved before any ticket executes** (the human holds the
 gate). Ticket-boundary sizing has no exact metric; INVEST is the heuristic and **retro corrects
-mis-splits**.
+mis-splits**. Two epic-path invariants back the split gate: (1) a **ratified breakdown is a living
+plan** — if the ticket list changes after the split-gate (a ticket added/removed, or a ratified
+decision reversed/re-pointed), `breakdown` **re-ratifies** by surfacing the **delta** as a counted
+artifact for an explicit human **re-approve**, never letting the change ride in on a child's Gate 1
+(v1 — first-evidence, n=1; refined by retro); (2) after the split ratifies, the epic **scaffold**
+(child stubs + BACKLOG) is **committed to a shared ref before any child ticket branches**, so a child's
+edit reads as an edit of a committed file — preserving the ticket-blind challenger's net-new-vs-edit
+evidence.
 
 Enforced at `refine` (the scan, the want-decision/how-decision classification + the acceptance-bar
 tie-breaker + citation, the mandatory `ASSUMED` marking with an explicit next-gate confirm, the
 `REFINE:` count, the 1-dispatch exposure-checker) and `breakdown` (the counted ticket list + INVEST +
-the human split-gate); guarded by `scripts/validate.py` (the refine + breakdown boundary tokens).
-refine writes no code and no tracker entry.
+the human split-gate + the **scaffold-committed-before-child** commit + the **re-ratification** delta on
+a changed split); guarded by `scripts/validate.py` (the refine + breakdown boundary tokens). refine
+writes no code and no tracker entry.
 
 ---
 

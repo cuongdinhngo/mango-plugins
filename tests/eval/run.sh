@@ -144,6 +144,19 @@
 #                     rule-compliance step ENUMERATES the applicable rulebook sections by change type — a
 #                     migration makes the DB-conventions section mandatory (grants/soft-delete) and
 #                     omitting an applicable section is a finding (analysis-section-coverage).
+#   v1.7.3          — breakdown re-ratification + epic scaffold commit-before-child + INVEST force-re-split
+#                     + eval transcript-cache: after a ratified split, an injected ticket-addition /
+#                     ratified-decision reversal → breakdown surfaces the delta + requires explicit human
+#                     re-approve, never a silent ride-in on a child Gate 1 (breakdown-reratify); an epic
+#                     path commits the scaffold (stubs + BACKLOG) to a shared ref BEFORE any child branch,
+#                     so a child edit reads as an edit of a committed file, not net-new
+#                     (epic-scaffold-committed); an injected oversized ticket (bundles 4 deliverables →
+#                     fails Small) is FLAGGED and DRIVEN to re-split before the gate while a right-sized
+#                     control is not split (invest-force-resplit); and the runner's transcript-cache
+#                     (keyed on fixture-id + skills-hash) reuses a fixture's last GREEN transcript when its
+#                     skills are provably unchanged (cache-hit, no dispatch), runs fresh on any change or
+#                     uncertainty (fail-safe to run), and --no-cache forces a full fresh run — proven by a
+#                     cheap runner self-test (hash-match → skip; hash-change → run; --no-cache → all run).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -155,6 +168,105 @@ TDIR="$HERE/.transcripts"
 rm -rf "$TDIR"; mkdir -p "$TDIR"
 fails=0
 total=0
+
+# --- Transcript cache (Fix E, v1.7.3) — keyed on (fixture-id + skills-hash) ----
+# The common case for a small version: only 1–2 skills change, so most fixtures'
+# skills are UNCHANGED and their last GREEN transcript can be REUSED without a
+# `claude -p` dispatch (a cache-hit). Any change — or ANY uncertainty (missing
+# cache, unreadable hash, changed file, changed runner) — runs the fixture FRESH:
+# the cache is **fail-safe to run** and only ever avoids a re-run it can PROVE is
+# unnecessary (skills unchanged ⇒ behaviour unchanged — the same prose-is-behaviour
+# invariant mango already relies on). It NEVER drops a fixture from coverage.
+#   --no-cache  forces a full fresh run (every fixture dispatches) — the
+#               milestone/release bar; the cache only accelerates the dev loop.
+# The cache lives OUTSIDE the committed tree and is git-ignored (like .transcripts).
+PLUGIN_SRC="$REPO_ROOT/plugins/mango"
+CACHE_ENABLED=1
+for _arg in "$@"; do [ "$_arg" = "--no-cache" ] && CACHE_ENABLED=0; done
+CACHE_DIR="${MANGO_EVAL_CACHE_DIR:-$HERE/.cache}"
+CACHE_HITS=0; FRESH_RUNS=0; FRESH_FIXTURES=""
+
+# The fixture→skill map keys the per-fixture skills-hash: a fixture whose mapped
+# SKILL.md file(s) are unchanged can cache-hit. An UNMAPPED fixture hashes over ALL
+# skills (fail-safe: any skill change invalidates it). PRINCIPLES.md, every agent
+# brief, and every template are ALWAYS in the hash, so a change to any of them
+# invalidates every cache — only the per-skill selectivity is the acceleration.
+declare -A FIXTURE_SKILLS=(
+  [full]="analysis" [lite]="analysis" [freeform]="analysis"
+  [analysis-section-coverage]="analysis" [vague-requirement]="analysis"
+  [red-baseline]="analysis" [uncodified-standard-nudge]="analysis"
+  [design-layer]="design" [blast-radius]="design" [frontend-layer]="design"
+  [surface-denominator]="design" [design-blastradius-shared-type]="design"
+  [design-blastradius-value-threading]="design" [per-clause]="design execute"
+  [no-runner-proof]="execute" [format-scope]="execute" [behavioural-drift]="execute"
+  [challenger-unmet]="review" [rubric-hover]="review" [conditional-LGTM]="review"
+  [caveman-critic-guard]="review" [verify-only-scoped]="review"
+  [verify-only-main-loop]="review" [verify-only-bookkeeping-carveout]="review"
+  [stale-workdoc-bump]="finalise" [stale-source-change]="finalise"
+  [ledger-descriptive]="finalise" [ledger-dispatch-only-honesty]="finalise"
+  [ledger-gate]="finalise" [ledger-content-gate]="finalise"
+  [finalise-lesson-pushed]="finalise"
+  [ledger-auto-append]="solve finalise" [ledger-label]="solve finalise"
+  [usage-unmeasured-marker]="solve finalise"
+  [rtk-degrade]="budget" [optimizer-adoption-gated]="budget"
+  [budget-rtk-wire-guidance]="budget"
+  [refine-skip-clear-ticket]="refine" [refine-classify-A-vs-B]="refine"
+  [refine-acceptance-bar-is-want]="refine" [refine-consistency-is-how]="refine"
+  [refine-assumed-on-handback]="refine" [refine-direction-not-tool]="refine"
+  [refine-backstop-challenger]="refine" [epic-exposure-checker]="refine"
+  [refine-epic-detect-breakdown]="refine breakdown"
+  [epic-scaffold-committed]="refine breakdown"
+  [breakdown-invest-enumerated]="breakdown" [breakdown-reratify]="breakdown"
+  [invest-force-resplit]="breakdown"
+)
+
+# hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
+# make `cat` block on stdin): no args → empty hash → treated as a MISS (run fresh), never a hang.
+hash_files() { [ "$#" -gt 0 ] || return 1; cat "$@" 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'; }
+skills_files() {  # <fixture-name> — the files whose contents key this fixture's cache
+  local name="$1"                         # keep on its own line: a single `local a=.. b=${a}`
+  local mapped="${FIXTURE_SKILLS[$name]:-}"  # evaluates b's RHS before a binds under `set -u`
+  local s
+  if [ -n "$mapped" ]; then
+    for s in $mapped; do echo "$PLUGIN_SRC/skills/$s/SKILL.md"; done
+  else
+    ls "$PLUGIN_SRC"/skills/*/SKILL.md 2>/dev/null
+  fi
+  echo "$PLUGIN_SRC/PRINCIPLES.md"
+  ls "$PLUGIN_SRC"/agents/*.md 2>/dev/null
+  ls "$PLUGIN_SRC"/templates/*.md 2>/dev/null
+  echo "$FIXTURES/$name.md"
+}
+# skills-hash — empty on any failure → treated as a MISS (run fresh), never a silent hit.
+skills_hash() { hash_files $(skills_files "$1"); }
+
+# cache_hit_path <candidate-green-file> — echoes it iff cache reads are ENABLED and
+# the file exists+nonempty; otherwise a miss. The single gate honouring --no-cache.
+cache_hit_path() {
+  [ "$CACHE_ENABLED" -eq 1 ] || return 1
+  [ -s "$1" ] || return 1
+  echo "$1"
+}
+# cache_get <fixture-name> — echoes the cached GREEN transcript on a cache-hit, empty on miss.
+cache_get() {
+  local name="$1" h
+  h="$(skills_hash "$name")"; [ -n "$h" ] || return 1   # unhashable → fail-safe miss
+  cache_hit_path "$CACHE_DIR/$name.$h.green"
+}
+
+# Runner fingerprint: if run.sh itself changed since the cache was written (harness
+# blocks, assertions, dispatch wiring), invalidate the WHOLE cache — fail-safe to
+# run everything fresh. So a version that edits the runner (like this one) re-runs
+# every fixture; the per-skill selectivity only bites on a skills-only version.
+if [ "$CACHE_ENABLED" -eq 1 ]; then
+  mkdir -p "$CACHE_DIR"
+  RUNNER_FP="$(hash_files "${BASH_SOURCE[0]}")"
+  FP_FILE="$CACHE_DIR/.runner.fp"
+  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$RUNNER_FP" ]; then
+    rm -f "$CACHE_DIR"/*.green 2>/dev/null || true
+    printf '%s' "$RUNNER_FP" >"$FP_FILE"
+  fi
+fi
 
 if ! command -v claude >/dev/null 2>&1; then
   echo "FAIL: 'claude' CLI not found on PATH" >&2
@@ -302,10 +414,21 @@ assert_all() {
 # $TDIR/<name>.log, and echoes that file path (assertions grep the file).
 run_fixture() {
   local name="$1" prompt="$2"
-  local ticket transcript file="$TDIR/$name.log"
+  local ticket transcript file="$TDIR/$name.log" hit
+  # Cache-hit: skills-hash unchanged ⇒ reuse the last GREEN transcript, no dispatch.
+  if hit="$(cache_get "$name")"; then
+    { echo "== fixture: $name (CACHE-HIT — skills-hash unchanged, reused GREEN transcript; no claude -p dispatch) =="
+      cat "$hit"; } >"$file"
+    CACHE_HITS=$((CACHE_HITS + 1))
+    echo "  cache-hit: $name (skills unchanged — reused green transcript, no dispatch)" >&2
+    echo "$file"; return 0
+  fi
+  # Miss (changed skills / no cache / --no-cache / any uncertainty): run FRESH.
   ticket="$(cat "$FIXTURES/$name.md")"
   transcript="$(claude_run "$prompt"$'\n\nTicket:\n'"$ticket" 2>&1 || true)"
   { echo "== fixture: $name =="; echo "$transcript"; } >"$file"
+  FRESH_RUNS=$((FRESH_RUNS + 1))
+  FRESH_FIXTURES="$FRESH_FIXTURES $name"
   echo "$file"
 }
 
@@ -830,6 +953,82 @@ assert_contains "blastradius-value: names sites beyond the owning page" "$t" 'em
 # Guard: not just the owning surface/page.
 assert_all "blastradius-value: not just the owning surface" "$t" 'not just|beyond|more than|all .{0,14}call site|every .{0,14}call site' 'owning|surface|page|reportPage'
 
+# --- v1.7.3 (breakdown re-ratification + epic scaffold commit + INVEST force-re-split) ----
+echo
+echo "== v1.7.3 (re-ratification + scaffold-commit + force-re-split) =="
+
+# breakdown-reratify (v1.7.3 Fix A): after the split-gate ratifies, an injected change to the ratified
+# ticket list (a ticket ADDED, or a ratified DECISION reversed/re-pointed) must trigger a breakdown-level
+# RE-RATIFICATION — surface the DELTA vs the ratified split as a counted artifact and require an explicit
+# human RE-APPROVE — never let the change ride in silently on a child ticket's Gate 1 (non-vacuous: the
+# silent ride-in is the failure the second assertion catches).
+t="$(run_fixture breakdown-reratify 'Run the mango breakdown phase. The split-gate ALREADY ratified the ticket list. Now a 7th ticket is added AND a previously-ratified decision is reversed. State what breakdown does with that change: does it re-ratify at the breakdown level or let it ride in on a child ticket'\''s Gate 1? Show the delta and the gate. Do not stop for my input.')"
+# Decision-level: breakdown RE-RATIFIES (outcome) by surfacing the delta for an explicit human re-approve (reasoning).
+assert_all "breakdown-reratify: surfaces the delta + re-ratifies" "$t" 're-?ratif|re-?approv|re-?approve' 'delta|changed|added .{0,12}ticket|reversed|vs the ratified'
+assert_contains "breakdown-reratify: explicit human re-approval at breakdown level" "$t" 'human|explicit|approve|gate'
+# Non-vacuous: it does NOT let the change ride in on a child's Gate 1.
+assert_all "breakdown-reratify: change does not ride in on a child Gate 1" "$t" 'gate 1|child ticket|child .{0,10}gate|ride' 'not .{0,20}(ride|silent|slip)|never .{0,20}(ride|silent|slip)|instead|re-?ratif|breakdown level|not on a child'
+
+# invest-force-resplit (v1.7.3 Fix B): the INVEST "flag → re-split" ACT half. An injected oversized
+# ticket that bundles four independent deliverables FAILS Small → breakdown must FLAG it AND DRIVE the
+# re-split (split it into smaller tickets) BEFORE the split-gate ratifies — not merely note it. A
+# right-sized control ticket is NOT split (non-vacuous).
+t="$(run_fixture invest-force-resplit 'Run the mango breakdown phase on this epic. One proposed ticket bundles FOUR independent deliverables (fails INVEST Small); another is a single right-sized deliverable. Enumerate the six-letter INVEST self-check per ticket, then state what breakdown DOES with the oversized ticket (only note it, or actually re-split it before ratification) and what it does with the right-sized control. Do not stop for my input.')"
+# Size-failure decision, emphasis-agnostic over wording (a run may say "oversized" / "bundles four
+# deliverables" / "too big" rather than the literal INVEST letter "Small") — still outcome-bound: a run
+# that never identifies the size problem matches none of these.
+assert_contains "invest-force-resplit: flags the oversized ticket (fails Small)" "$t" 'small|oversized|too (big|large)|four .{0,16}deliverabl|bundl'
+# Decision-level: it is FLAGGED (outcome) AND actually RE-SPLIT before ratification (the ACT half), not just noted.
+assert_all "invest-force-resplit: flagged AND re-split before the gate" "$t" 'flag|finding|fails? .{0,8}small|not .{0,4}small' 're-?split|split .{0,20}(into|before)|split it' 'before .{0,16}ratif|before the (split-?)?gate|pre-?ratif'
+# Non-vacuous control: the right-sized ticket is NOT split.
+assert_all "invest-force-resplit: right-sized control is not split" "$t" 'right-?sized|control|single .{0,12}deliverable|passes .{0,10}(invest|small)' 'not .{0,8}split|no re-?split|kept|left .{0,8}(intact|as-?is)|not re-?split'
+
+# epic-scaffold-committed (v1.7.3 Fix C): on the epic path, after the split ratifies, the epic scaffold
+# (child-ticket stubs + BACKLOG/roadmap) must be COMMITTED to a shared ref BEFORE any child ticket starts
+# its own branch — so a child editing a stub reads as an EDIT of a committed file, not net-new authorship
+# (preserving the ticket-blind challenger's evidence).
+t="$(run_fixture epic-scaffold-committed 'Run the mango epic-path breakdown. After the split ratifies, state exactly WHEN the epic scaffold (child-ticket stubs + the epic BACKLOG/roadmap) is committed relative to the first child ticket branching, and WHY that ordering matters for the ticket-blind challenger (net-new vs edit). Do not stop for my input.')"
+# Decision-level: the scaffold is committed (outcome) BEFORE any child branches (reasoning).
+assert_all "epic-scaffold: committed before any child branch" "$t" 'scaffold|stub|backlog' 'commit' 'before .{0,24}(child|branch)|before any child|prior to .{0,16}(child|branch)'
+# Non-vacuous: a child edit of a committed stub reads as an EDIT, not net-new.
+assert_all "epic-scaffold: a child edit reads as edit, not net-new" "$t" 'edit|committed file|retarget' 'net-?new|not net-?new|challenger|edit of a committed'
+
+# --- eval transcript-cache self-test (v1.7.3 Fix E) --------------------------
+# Runner self-test (no `claude -p`): the cache's three guarantees, tested against the REAL gate
+# functions with synthetic inputs — (a) hash-match → cache-hit (skip the dispatch); (b) hash-change →
+# run fresh (fail-safe to run); (c) --no-cache → all fresh (milestone run). Keeps coverage cheap.
+echo
+echo "== eval transcript-cache self-test =="
+_std="$TMPROOT/cache-selftest"; mkdir -p "$_std"
+_sti="$TMPROOT/st-input"; echo v1 >"$_sti"
+: >"$_std/fix.$(hash_files "$_sti").green"; echo "green transcript" >"$_std/fix.$(hash_files "$_sti").green"
+_saved_cache_enabled="$CACHE_ENABLED"; CACHE_ENABLED=1
+# (a) hash-match → cache-hit
+total=$((total + 1))
+if [ -n "$(cache_hit_path "$_std/fix.$(hash_files "$_sti").green")" ]; then
+  echo "  PASS: cache self-test: hash-match → cache-hit (reuse, no dispatch)"
+else
+  echo "  FAIL: cache self-test: hash-match should be a cache-hit"; fails=$((fails + 1))
+fi
+# (b) hash-change → run fresh (no green under the new hash)
+echo v2 >>"$_sti"
+total=$((total + 1))
+if [ -z "$(cache_hit_path "$_std/fix.$(hash_files "$_sti").green" 2>/dev/null)" ]; then
+  echo "  PASS: cache self-test: hash-change → run fresh (fail-safe to run)"
+else
+  echo "  FAIL: cache self-test: hash-change should miss (must run fresh)"; fails=$((fails + 1))
+fi
+# (c) --no-cache → miss even on a matching hash (all fresh)
+echo v1 >"$_sti"; _stg="$_std/fix.$(hash_files "$_sti").green"; echo green >"$_stg"
+CACHE_ENABLED=0
+total=$((total + 1))
+if [ -z "$(cache_hit_path "$_stg" 2>/dev/null)" ]; then
+  echo "  PASS: cache self-test: --no-cache → all fresh (milestone run)"
+else
+  echo "  FAIL: cache self-test: --no-cache must disable reuse"; fails=$((fails + 1))
+fi
+CACHE_ENABLED="$_saved_cache_enabled"
+
 # eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:
 # (1) the guard is NON-VACUOUS — it catches an injected leak in a throwaway repo; (2) the LIVE checkout
 # is untouched after the full eval. Neither ever mutates the live checkout.
@@ -864,7 +1063,23 @@ else
   fails=$((fails + 1))
 fi
 
+# Persist this run's FRESH transcripts as the new cached GREEN baseline — but only when the WHOLE suite
+# passed (never cache a transcript from a red suite) and cache reads are enabled (skipped under
+# --no-cache). A cache-hit fixture already holds a valid green entry under the current hash; only fresh
+# runs need writing. This never touches the committed tree — the cache dir is git-ignored.
+if [ "$CACHE_ENABLED" -eq 1 ] && [ "$fails" -eq 0 ]; then
+  for _name in $FRESH_FIXTURES; do
+    _h="$(skills_hash "$_name")"
+    [ -n "$_h" ] && cp "$TDIR/$_name.log" "$CACHE_DIR/$_name.$_h.green" 2>/dev/null || true
+  done
+fi
+
 echo
+if [ "$CACHE_ENABLED" -eq 1 ]; then
+  echo "EVAL cache: $CACHE_HITS cache-hit(s), $FRESH_RUNS fresh run(s)  [--no-cache forces a full fresh run]"
+else
+  echo "EVAL cache: disabled (--no-cache) — all $FRESH_RUNS fixture(s) ran fresh"
+fi
 if [ "$fails" -gt 0 ]; then
   echo "EVAL: $((total - fails))/$total assertions pass — $fails assertion(s) failed"
   exit 1
