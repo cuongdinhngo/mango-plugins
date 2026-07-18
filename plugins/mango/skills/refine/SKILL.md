@@ -134,6 +134,11 @@ convene a Council. Any decision the exposure-checker surfaces re-enters Step 2 (
 want-decision/how-decision, tie-breaker applied). Emit one Cost-ledger row for this dispatch per
 `PRINCIPLES.md`.
 
+> **This backstop runs on BOTH paths — the epic path is NOT exempt.** Whether the input is a single
+> ticket or an epic, the exposure-checker is the same **1 dispatch**. On an epic it runs **BEFORE
+> `breakdown`** (see Epic detection below) — an un-exposed decision is *most* costly at epic scale, so
+> the epic path may never be the one that skips the backstop.
+
 ## Output — the refined ticket (the input to analysis)
 
 Emit all of the following as **counted artifacts** in the working doc's Phase-0 block — never prose:
@@ -163,6 +168,14 @@ deliverables**. On an epic, record it as a counted decision and route to the **e
 (`analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`; see `breakdown`), which is marked
 **v1 — enough to run and learn** and is expected to be refined by retro. A single deliverable → the
 normal ticket path (`analysis → design → execute → review → finalize`).
+
+**Epic path is not exempt from the exposure-checker (dispatch it BEFORE breakdown).** On the epic
+path, refine dispatches the **SAME 1-dispatch ticket-blind exposure-checker** the ticket path uses
+(Step 6) — **exactly one dispatch, not a debate** — over the epic's exposed set, asking only *"is any
+product-decision still un-exposed?"* This runs **before `breakdown`**, and any decision it surfaces
+re-enters Step 2 (classify → want-decision/how-decision, tie-breaker applied). Its findings **surface
+for the human to ratify along with the breakdown** — so the epic, the costliest place for an
+un-exposed decision, gets the same backstop the ticket path already has, never zero.
 
 ## Self-check, then hand off (no gate of refine's own)
 

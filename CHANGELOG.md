@@ -3,6 +3,59 @@
 All notable changes to the mango plugin are documented here. This project adheres to
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.2] — 2026-07-18
+
+A three-fix patch from field-test evidence. **No new lifecycle phase.** Nothing removes a CHECK — each
+change ADDS coverage (an exposure-checker on the epic path; a stricter enumerated INVEST; a wider
+blast-radius). refine still **exposes, never authors**; every decision stays a counted artifact; the
+human holds every gate. Generic and stack-agnostic throughout (fixtures use `PROJ-*`); all plugin text
+is English-only.
+
+### Fixed
+- **Epic path must dispatch the exposure-checker (Fix A — first epic-run evidence, n=1).** On the first
+  epic-path field run, refine went from surfacing wants straight to `breakdown` with **zero**
+  exposure-checker dispatch — while the ticket path correctly dispatches one ticket-blind
+  exposure-checker. This was backwards: an epic is where an un-exposed decision is *most* costly, yet it
+  was the one path skipping the backstop. The epic path now dispatches the **SAME 1-dispatch
+  ticket-blind exposure-checker** the ticket path uses, **before `breakdown`**, over the epic's exposed
+  set; its findings surface for the human to ratify alongside the breakdown. One dispatch, not a debate.
+- **breakdown INVEST self-check must be ENUMERATED (Fix B — first epic-run evidence, n=1).** breakdown
+  emitted a single descriptive sentence per ticket labelled "INVEST", not an actual check of the six
+  criteria — INVEST theatre that cannot catch a boundary problem. The self-check now **enumerates all
+  six letters** (Independent / Negotiable / Valuable / Estimable / Small / Testable) per ticket, each
+  affirmed with a one-clause reason or marked N/A-with-reason (mirroring analysis's rulebook-section
+  coverage discipline). A ticket that **fails a letter** (e.g. not Small, not Independent) is a
+  breakdown finding — **re-split before ratification**.
+- **design blast-radius must trace to REAL producers/consumers (Fix C — n=2, convergent).** Two
+  independent runs (a migration/type change and a data-fan-in change) both had design **under-scope**
+  the change-list because its blast-radius estimate used a shallow grep (a table-name string in
+  `src/**/*.test.*`; the owning page) and missed the real producers/consumers — type factories across
+  all test roots, and the actual builder call sites. In both, the diff exceeded the approved change-list
+  and execute's deviation-recording had to backfill it. The blast-radius step now traces to real
+  producers/consumers: a shared **type/symbol** change greps by the exported name **and its
+  factory/fixture patterns**, enumerates **every test root** (not just `src` — including e2e/integration
+  roots), and runs **`typecheck`** as part of the design-time estimate; a **value threaded** to a
+  downstream builder enumerates **every builder call site**, not just the owning surface. This tightens
+  the estimate — execute's deviation-recording remains the backstop (not removed), but should rarely
+  fire for a blast-radius miss.
+
+### Tests / validation
+- **Four eval fixtures added** (generic `PROJ-*`, decision-level, emphasis-agnostic): `epic-exposure-checker`
+  (epic path → exactly one ticket-blind exposure-checker before breakdown, can surface an un-exposed
+  decision — non-vacuous), `breakdown-invest-enumerated` (six-letter enumerated INVEST per ticket; a
+  ticket failing "Small" flagged for re-split — non-vacuous), `design-blastradius-shared-type` (a shared
+  type with factories in a non-`src` test root → enumerate every test root + factories + typecheck;
+  shallow src-only grep missing a factory root is a finding — non-vacuous), `design-blastradius-value-threading`
+  (a value threaded to a builder called from multiple sites → all builder call sites enumerated, not
+  just the owning surface).
+- **`scripts/validate.py`** adds tokens locking each fix (refine `epic … exposure-checker`; breakdown
+  `enumerate` + the six INVEST letters + `re-split`; design `real producers` / `test root` / `typecheck`
+  / `builder call site`). Both READMEs and `PRINCIPLES.md` are updated; the v0.5 doc-consistency check
+  stays green.
+
+> Fix A & B are first-epic-run evidence (n=1) — the epic path is still young; expect a follow-up epic
+> retro. Fix C is n=2 convergent (two projects, two shapes, one root).
+
 ## [1.7.1] — 2026-07-17
 
 A refine + analysis patch from the v1.7 field test (n=3, three field runs). **No new lifecycle phase**;

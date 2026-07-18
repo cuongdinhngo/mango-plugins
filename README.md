@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.7.0-blue)
+![version](https://img.shields.io/badge/version-1.7.2-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -20,7 +20,7 @@ What you get on every ticket:
   and flags anything unmet.
 - A **PR + tracker update + durable lesson**, each behind explicit per-action approval.
 
-> **Status: 1.7.0 — stable API.** Proven across multiple real projects (two stacks) by its author,
+> **Status: 1.7.2 — stable API.** Proven across multiple real projects (two stacks) by its author,
 > with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
 > API has been stable since 1.0. The new epic-path (`breakdown`) is v1 — designed to run and be
 > corrected by retro. Independent-operator validation is ongoing.

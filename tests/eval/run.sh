@@ -119,6 +119,18 @@
 #                     completeness-of-exposure backstop is the ticket-blind challenger as an
 #                     exposure-checker with 1 dispatch that can surface an un-exposed decision — NOT a
 #                     multi-advisor debate (refine-backstop-challenger).
+#   v1.7.2          — epic-path exposure-checker + enumerated INVEST + design blast-radius trace-to-real-
+#                     producers: on the EPIC path refine dispatches the SAME 1-dispatch ticket-blind
+#                     exposure-checker (before breakdown, not a debate) that can surface an un-exposed
+#                     decision — the epic path is not the one path that skips the backstop
+#                     (epic-exposure-checker); breakdown's per-ticket INVEST self-check is ENUMERATED
+#                     across all six letters (not a one-liner) and a ticket failing a letter (not Small)
+#                     is flagged for re-split before ratification (breakdown-invest-enumerated); design's
+#                     blast-radius traces to REAL producers/consumers — a shared-type change enumerates
+#                     every test root + type factories + typecheck and a shallow src-only grep missing a
+#                     factory root is a finding (design-blastradius-shared-type), a value threaded to a
+#                     builder enumerates every builder call site not just the owning surface
+#                     (design-blastradius-value-threading).
 #   v1.7.1          — refine classifier tie-breaker + ASSUMED enforcement + analysis section coverage
 #                     (buckets renamed to English want-decision/how-decision): an acceptance-BAR decision
 #                     (what counts as a valid source anchor / a sourcing standard) is a WANT-decision by
@@ -766,6 +778,57 @@ assert_all "refine-backstop: exposure-checker is the ticket-blind challenger, 1 
 assert_contains "refine-backstop: can surface an un-exposed decision" "$t" 'un-?exposed|still .{0,15}expose|missed|surface'
 # Decision-level: NOT a multi-advisor debate (guard) over the debate/council subject.
 assert_all "refine-backstop: not a multi-advisor debate/council"     "$t" 'debate|council|advisor' 'not[*_ ]{0,4}.{0,16}(debate|council|advisor|panel)|never[*_ ]{0,4}.{0,16}(debate|council|panel)|no[*_ ]{0,4}(panel|vote|council|debate|cross)|one dispatch|1 dispatch|single dispatch|single-shot|not a[*_ ]{0,4}(council|debate)'
+
+# --- v1.7.2 (epic exposure-checker + enumerated INVEST + design blast-radius) ----
+echo
+echo "== v1.7.2 (epic exposure-checker + enumerated INVEST + design blast-radius) =="
+
+# epic-exposure-checker (v1.7.2 Fix A): on the epic path, refine dispatches the SAME 1-dispatch
+# ticket-blind exposure-checker the ticket path uses — BEFORE breakdown — over the epic's exposed set.
+# Exactly one dispatch, not a debate; it can surface an un-exposed decision (non-vacuous). The epic path
+# is NOT the one path that skips the backstop.
+t="$(run_fixture epic-exposure-checker 'Run the mango refine phase (Phase 0) on this raw request. It is an epic. State the path it routes to, and — before breakdown — whether refine dispatches an exposure-checker, how many dispatches, what runs it, and what it can surface. Do not stop for my input.')"
+# Decision-level: detected an epic and takes the epic path.
+assert_all "epic-exposure: detects an epic, takes the epic path" "$t" 'epic' 'epic path|analysis\(epic\)|design\(epic\)|breakdown|multiple .{0,20}(deliverable|ticket)'
+# Exactly one ticket-blind exposure-checker dispatch, BEFORE breakdown.
+assert_all "epic-exposure: one exposure-checker dispatch before breakdown" "$t" 'exposure-checker|ticket-blind challenger' '1 dispatch|one dispatch|single[ -].{0,24}dispatch|exactly[ _*]*(one|1)\b' 'before .{0,24}breakdown|before breakdown'
+# Not a multi-advisor debate.
+assert_contains "epic-exposure: one dispatch, not a debate"     "$t" 'not a.*(debate|council)|one dispatch|single dispatch|1 dispatch'
+# Non-vacuous: it can surface an un-exposed decision.
+assert_contains "epic-exposure: can surface an un-exposed decision" "$t" 'un-?exposed|still .{0,15}expose|who counts|internal user|surface'
+
+# breakdown-invest-enumerated (v1.7.2 Fix B): each ticket in the breakdown carries a SIX-letter
+# ENUMERATED INVEST check (not a one-line label). A ticket that fails a letter (here: not Small) is
+# FLAGGED for re-split before ratification (non-vacuous — the failing letter must be caught).
+t="$(run_fixture breakdown-invest-enumerated 'Run the mango breakdown phase on this epic (analysis(epic)/design(epic) already cleared). For each proposed ticket, emit the INVEST self-check. Show whether it is a six-letter enumerated check or a one-liner, and state what happens to a ticket that fails a letter. Do not stop for my input.')"
+# Decision-level: the INVEST check is enumerated across the six letters, not a one-liner.
+assert_all "breakdown-invest: enumerated six-letter INVEST per ticket" "$t" 'invest' 'enumerat|six letters?|all six|each letter|each of the six'
+assert_contains "breakdown-invest: names the individual letters"       "$t" 'independent|negotiable|valuable|estimable|testable'
+# Non-vacuous: a ticket failing "Small" is flagged for re-split before ratification.
+assert_all "breakdown-invest: ticket failing Small is flagged for re-split" "$t" 'small' 'flag|finding|caught|re-?split|not .{0,10}(small|ratif)' 're-?split|split'
+
+# design-blastradius-shared-type (v1.7.2 Fix C): a change touching a shared/generated TYPE with factories
+# in a NON-src test root → the design blast-radius step enumerates EVERY test root + the type factories +
+# runs typecheck, so the change-list is COMPLETE. A shallow name grep (src only) that misses the factory
+# root is a FINDING (non-vacuous).
+t="$(run_fixture design-blastradius-shared-type 'Run the mango design skill on this ticket. Assume Gate 1 cleared. Produce the Phase 2 smallest change-list and its mechanical test blast-radius sub-step for this shared-type change. State which test roots and factory/fixture patterns you enumerate, whether you run typecheck, and what happens if a shallow src-only grep missed a factory root. Do not stop for my input.')"
+# Decision-level: enumerates every test root + the type factories (not a shallow one-string grep).
+assert_all "blastradius-type: enumerates all test roots + factories" "$t" 'test root' 'factor|fixture|makeMoney|MoneyFactory'
+assert_contains "blastradius-type: names the non-src roots (e2e/integration)" "$t" 'e2e|integration'
+assert_contains "blastradius-type: runs typecheck in the estimate"           "$t" 'typecheck'
+# Non-vacuous: a shallow-grep estimate missing the factory root is a finding.
+assert_all "blastradius-type: shallow-grep miss is a finding" "$t" 'shallow|grep|miss|src.only|under-?scope' 'finding|flag|incomplete|under-?scope|not .{0,12}complete'
+
+# design-blastradius-value-threading (v1.7.2 Fix C): a VALUE threaded to a downstream builder called from
+# MULTIPLE sites → the blast-radius step enumerates EVERY builder call site, not just the surface that
+# owns the feature (non-vacuous — it must name the sites beyond the owning page).
+t="$(run_fixture design-blastradius-value-threading 'Run the mango design skill on this ticket. Assume Gate 1 cleared. Produce the Phase 2 change-list and its test blast-radius sub-step for this value-threading change. Enumerate every call site where the threaded value originates, and state whether you trace only the owning surface or all builder call sites. Do not stop for my input.')"
+# Decision-level: enumerates all builder call sites (outcome).
+assert_all "blastradius-value: enumerates all builder call sites" "$t" 'call site' 'all|every|each|multiple' 'builder|summaryBuilder'
+# Non-vacuous: names the call sites beyond the owning page (they exist only in the fixture).
+assert_contains "blastradius-value: names sites beyond the owning page" "$t" 'emailDigest|pushSummary|email digest|push summary'
+# Guard: not just the owning surface/page.
+assert_all "blastradius-value: not just the owning surface" "$t" 'not just|beyond|more than|all .{0,14}call site|every .{0,14}call site' 'owning|surface|page|reportPage'
 
 # eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:
 # (1) the guard is NON-VACUOUS — it catches an injected leak in a throwaway repo; (2) the LIVE checkout

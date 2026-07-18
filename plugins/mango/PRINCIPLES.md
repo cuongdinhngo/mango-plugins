@@ -57,9 +57,16 @@ abstraction; no indirection that serves a single call site.
 - The **smallest change-list** table plus a declared `SCOPE: S|M|L`.
 - Every change-list item traces to a matrix row (the `Ph2 covered by` column, `k/N`).
 - The `reviewer` agent flags speculative abstraction and single-use indirection.
+- **Blast-radius traces to real producers/consumers, not a name grep.** The design's change-list is
+  the smallest **COMPLETE** set: a shared **type/symbol** change enumerates its factory/fixture
+  patterns across **all test roots** (not just `src`) and runs `typecheck`; a **value threaded** to a
+  downstream consumer enumerates **every builder/producer call site**, not just the owning surface. A
+  shallow-grep estimate that misses a known producer/consumer is a Gate-2 finding — so `diff ⊆ approved
+  change-list` holds at execute without deviation-recording backfilling it.
 
-**Fails the gate when** a change-list item has no matrix row behind it, or an introduced
-abstraction serves only one call site.
+**Fails the gate when** a change-list item has no matrix row behind it, an introduced abstraction serves
+only one call site, or the blast-radius estimate under-scopes a shared type's factories/test-roots or a
+threaded value's producer call sites (a name grep standing in for tracing the real producers/consumers).
 
 ---
 
@@ -200,9 +207,12 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
   specific tool/library is analysis's job.
 - **Every decision is a counted artifact.** The refined ticket (settled wants / cited / ASSUMED / constraints)
   and the `REFINE:` counting line are emitted, not prose — visible and challengeable at Gate 1.
-- **Backstop = 1-dispatch exposure-checker, NOT a debate.** The completeness-of-exposure check the
-  newbie can't self-run reuses the **ticket-blind `challenger`** as an exposure-checker with **one**
-  dispatch — never a Council or multi-advisor debate.
+- **Backstop = 1-dispatch exposure-checker, NOT a debate — on BOTH paths.** The completeness-of-exposure
+  check the newbie can't self-run reuses the **ticket-blind `challenger`** as an exposure-checker with
+  **one** dispatch — never a Council or multi-advisor debate. **The epic path is not exempt:** refine
+  dispatches the same 1-dispatch exposure-checker **before `breakdown`**, its findings surfaced for the
+  human alongside the breakdown — an un-exposed decision is costliest at epic scale, so the epic path
+  may never be the one that skips the backstop.
 
 **Epic path is v1 — "enough to run and learn".** On an epic, `analysis(epic)`/`design(epic)` stay thin
 (architecture-level, only enough to split) and `breakdown` emits a **counted** ticket list with a

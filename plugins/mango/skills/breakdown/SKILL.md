@@ -25,14 +25,22 @@ its human gate.
    line-level design).
 2. **Split into tickets.** Draw each ticket's **ticket boundary** from that architecture so every
    ticket is an independent, execute-able deliverable.
-3. **Per-ticket INVEST self-check.** For **each** proposed ticket, emit a one-line **INVEST** self-check
-   — **I**ndependent, **N**egotiable, **V**aluable, **E**stimable, **S**mall, **T**estable. Small /
-   Testable / Independent are already mango language (right-sizing, the proving test, the clean execute
-   boundary), so reuse those — do not invent a parallel vocabulary.
+3. **Per-ticket INVEST self-check — ENUMERATED, not a one-liner.** For **each** proposed ticket,
+   **enumerate all six** INVEST criteria and check each one — Independent, Negotiable, Valuable,
+   Estimable, Small, Testable. Each letter is **either affirmed with a
+   one-clause reason or marked `N/A` with a reason** — never a single descriptive sentence labelled
+   "INVEST" (a nominal one-liner is INVEST theatre; it cannot catch a boundary problem). This mirrors
+   the exact *"enumerate every applicable item and check it"* discipline analysis applies to its
+   rulebook-section coverage. Small / Testable / Independent are already mango language (right-sizing,
+   the proving test, the clean execute boundary), so reuse those — do not invent a parallel vocabulary.
+   **A ticket that fails a letter is a breakdown finding** — e.g. not **S**mall (too big) or not
+   **I**ndependent (entangled with another ticket): **re-split before ratification**, do not carry it
+   to the gate as-is.
 4. **Emit the ticket list as a counted artifact.** The output is a **counted** ticket list (each row:
-   proposed key, one-line scope, the per-ticket INVEST self-check line). Emit the counting line:
+   proposed key, one-line scope, the **six-letter enumerated** INVEST self-check — one clause per
+   letter). Emit the counting line:
 
-   `BREAKDOWN: <N> tickets proposed | <N> INVEST self-checks emitted`
+   `BREAKDOWN: <N> tickets proposed | <N> INVEST self-checks emitted (6 letters each) | <f> tickets flagged for re-split`
 
 5. **✋ Human gate — the split is proposed, the human ratifies.** `breakdown` **proposes** the split;
    the human **holds the gate** and approves the ticket list **before any ticket executes.** No ticket

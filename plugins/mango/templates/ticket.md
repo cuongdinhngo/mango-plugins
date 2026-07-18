@@ -65,6 +65,28 @@ decision it found (re-classified want-decision/how-decision above): none / <list
 
 ---
 
+## Epic breakdown (EPIC PATH ONLY — after design(epic), before any ticket executes)
+
+<!-- Fill only on the epic path (Phase-0 INPUT KIND: epic). On a single ticket, leave this block empty. -->
+
+`breakdown` splits the epic into tickets from the thin epic-level architecture and emits a **counted**
+ticket list. The **INVEST self-check is ENUMERATED per ticket** — all six letters checked, each either
+affirmed with a one-clause reason or `N/A`-with-reason; a **one-liner labelled "INVEST" is a finding**.
+A ticket that **fails a letter** (e.g. not Small, not Independent) is **flagged for re-split before
+ratification**. The exposure-checker findings refine surfaced on the epic path (1 dispatch, before
+breakdown) are ratified here alongside the split.
+
+`BREAKDOWN: <N> tickets proposed | <N> INVEST self-checks emitted (6 letters each) | <f> flagged for re-split`
+
+| # | Proposed key | One-line scope | I | N | V | E | S | T | Re-split? |
+|---|--------------|----------------|---|---|---|---|---|---|-----------|
+| 1 |              |                | affirm/N-A + reason | affirm/N-A | affirm/N-A | affirm/N-A | affirm/N-A | affirm/N-A | yes / no |
+
+✋ **Human split-gate** — the human ratifies the ticket list (and any re-split) **before any ticket
+executes.** Silence ≠ approval. Each ratified ticket then runs its own full lifecycle.
+
+---
+
 ## Requirements matrix
 
 `SECTIONS: <n> found (names) | <n> decomposed | ROWS: C=.. R=.. G=.. AC=..`

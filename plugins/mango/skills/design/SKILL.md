@@ -34,16 +34,34 @@ this phase.
    item with no row behind it fails the gate. Prefer the smallest edit; no speculative abstraction,
    no indirection serving a single call site.
 
-   **Test blast-radius (mechanical) — fold invalidated existing assertions in as proof collateral.**
-   Before closing the change list, **mechanically enumerate the existing assertions this change will
-   invalidate**: grep the repo for the exact **copy keys, headings, route shapes, or exports** the
-   change touches (the strings/symbols being renamed, moved, or reworded), and list every existing
-   test / spec / snapshot that references them. **Fold each hit into the approved change list as an
-   explicit *proof collateral* item** (file/area + the matrix row it rides), up front — an existing
-   test whose assertion the change breaks is a **planned edit**, not an execute surprise. This
-   converts a predictable execute deviation into a Gate-2 item. *(Observed failure: a change reworded
-   a heading that an existing shell test asserted; the change list never mentioned that test, so it
-   surfaced only as an execute deviation.)*
+   **Test blast-radius (mechanical) — trace to REAL producers/consumers, not a shallow name grep.**
+   Before closing the change list, **mechanically enumerate the existing assertions and call sites this
+   change will invalidate**. A shallow grep of one string in one directory (a table-name in
+   `src/**/*.test.*`, or the owning page) **under-scopes** the change and leaves the change-list
+   incomplete — so the diff exceeds it at execute. Trace to the **real producers/consumers**:
+
+   - **Change touching a generated/shared TYPE or symbol:** grep by the exported **type/symbol NAME**
+     **and its factory/fixture patterns** (test-data builders, mother/factory helpers keyed on that
+     type), **enumerate EVERY test root** — not just `src`; include the **e2e / integration test
+     roots** and any test dir outside `src` — and run **`typecheck`** (via `config.test_command` or the
+     project's typecheck command) as part of the design-time estimate so a type change's real fan-out
+     is seen now, not at execute.
+   - **VALUE threaded to a downstream consumer** (a value fed into a builder / renderer / prompt-builder):
+     enumerate **every builder call site** (every call site of the relevant builder/producer), not just
+     the surface/page that owns the feature — the value originates there, so all builder call sites are
+     in the blast radius.
+
+   **Fold each hit into the approved change list as an explicit *proof collateral* item** (file/area +
+   the matrix row it rides), up front — an existing test whose assertion the change breaks, or a call
+   site that produces the threaded value, is a **planned edit**, not an execute surprise. The goal is a
+   change-list that is the **smallest COMPLETE set BEFORE execute** — so `diff ⊆ approved change-list`
+   holds at execute without deviation-recording having to backfill it. This tightens the **estimate**;
+   execute's deviation-recording remains the backstop (it is **not** removed), but it should rarely fire
+   for a blast-radius miss once the estimate traces real producers/consumers. *(Observed failures: a
+   change reworded a heading an existing shell test asserted and the change list never mentioned it; a
+   migration/type change missed the type factories across all test roots; a data-fan-in change missed
+   the actual builder call sites — each surfaced only as an execute deviation. A **shallow-grep-only
+   estimate that misses a known consumer is a Gate-2 finding.**)*
 5. **Rule compliance.** Check the proposed change against `config.rulebook_path` and
    `config.standards_path`; note any rule that constrains the design and how you comply.
 6. **Verification plan (per-AC, layer-matched) — fill the layer-match column BEFORE naming the
