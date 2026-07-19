@@ -129,7 +129,7 @@ security-tagged, touches more than one file, or has a universal requirement reso
 | `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **enumerated six-letter INVEST** self-check (each of Independent/Negotiable/Valuable/Estimable/Small/Testable affirmed or N/A — a one-liner is a finding; a ticket failing a letter is flagged for **re-split**), held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **v1 — sizing corrected by retro.** |
 | `/mango:solve` | orchestrator | Runs `refine` (Phase 0) FIRST and branches — **skip** / **ticket-refine** / **epic-path** — then a Doctor preflight and every gated phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
 
-### Epic path — thin by design (v1)
+### Epic path — thin by design
 
 When `refine` detects an **epic** (the exposed work spans multiple independent, each-execute-able
 deliverables), the run takes the epic path: **`analysis(epic)` → `design(epic)` → `breakdown` → N×
@@ -138,13 +138,28 @@ enough to draw ticket boundaries — and `breakdown` emits a counted ticket list
 six-letter INVEST**; a ticket failing a letter is flagged for re-split) behind a human split-gate. The
 epic path is **not exempt from the exposure backstop** — refine dispatches the same 1-dispatch
 ticket-blind exposure-checker **before `breakdown`**, its findings ratified alongside the split. This
-whole branch is **v1 — "enough to run and learn"**: ticket-boundary sizing has no exact metric, INVEST
-is the heuristic, and retro corrects mis-splits. A ratified breakdown is a **living plan**: if the split
-changes after the gate (a ticket added/removed, or a ratified decision reversed), `breakdown`
-**re-ratifies** — surfacing the delta for an explicit human re-approve rather than letting it ride in on
-a child's Gate 1 (v1, first-evidence n=1) — and it **commits the epic scaffold** (child stubs + BACKLOG)
-to a shared ref **before any child ticket branches**, so a child's edit reads as an edit of a committed
-file (preserving the ticket-blind challenger's evidence).
+whole branch is **thin by design ("enough to run and learn")**: ticket-boundary sizing has no exact
+metric, INVEST is the heuristic, and retro corrects mis-splits. A ratified breakdown is a **living
+plan**: if the split changes after the gate (a ticket added/removed, or a ratified decision reversed),
+`breakdown` **re-ratifies** — surfacing the delta for an explicit human re-approve rather than letting
+it ride in on a child's Gate 1 (this re-ratification behaviour is **Experimental** — see
+[Maturity](#maturity)) — and it **commits the epic scaffold** (child stubs + BACKLOG) to a shared ref
+**before any child ticket branches**, so a child's edit reads as an edit of a committed file (preserving
+the ticket-blind challenger's evidence).
+
+For committed-stub tickets — the child-ticket stubs the epic scaffold commits — prefer
+`work_doc_mode: separate` (a distinct `<KEY>.work.md`) over `auto`/`embed`: embedding the mutable
+working doc inside a committed, tracked stub leaves its edits as uncommitted changes to a tracked file,
+which is fragile to any stray subagent git-state operation. A separate working doc avoids that.
+
+### Maturity — Stable vs Experimental
+
+Shipped behaviour carries an honest maturity level (defined in [`PRINCIPLES.md`](./PRINCIPLES.md)):
+**Stable** = committed, field-tested behaviour, safe to rely on (the default); **Experimental** = works
+and is validated, but its exact shape may still change until further real-world use. The only
+Experimental behaviour today is **breakdown re-ratification**; everything else on the ticket and epic
+paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
+`re-ratification: Experimental → Stable`).
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding, simplicity
 first, surgical changes, goal-driven execution. Per-version changes are recorded in the shipped

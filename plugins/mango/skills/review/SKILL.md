@@ -24,6 +24,20 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
 - Otherwise dispatch **`reviewer`** (Sonnet).
 - **Never** dispatch a Haiku reviewer.
 
+## Git isolation (binding) — subagents inspect refs, never mutate the shared working tree
+
+Both the `reviewer` and the `challenger` inspect the diff/branch **read-only and ref-based** —
+`git diff <base>..<branch>`, `git show <branch>:<path>`, `git log <base>..<branch>` — or in an
+**isolated `git worktree`** (`git worktree add <scratch> <branch>`, removed afterward). A review
+subagent **MUST NOT** run `git checkout`, `git switch`, `git stash`, or any HEAD/index-mutating git in
+the **shared working tree (the live checkout)**: that switches the main worktree off the in-progress
+feature branch onto another ref, strips the in-progress source files from disk, and leaves the working
+doc untracked — a real corruption. If a subagent needs to **run** the suite against the branch (not
+just read it), it uses an **isolated `git worktree` / clone**, exactly as v1.6.1's eval isolation does —
+never the live checkout. This is stated once in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git
+isolation) — same root cause as the eval-path fix, now applied to the review surface — and is guarded by
+`scripts/validate.py`.
+
 ## Steps
 
 1. **Run the reviewer agent** on the working-tree diff — `reviewer` or `reviewer-max` per the

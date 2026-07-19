@@ -26,7 +26,7 @@ decide and never authors intent**.
 `REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
 
 <!-- skip: yes → U=0, record `refine skipped: 0 unresolved product-decisions` and hand to analysis; this line is the whole Phase-0 output. -->
-<!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles), v1-learning. -->
+<!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles); breakdown re-ratification is Experimental, the rest Stable. -->
 
 **Settled wants (want-decision — from the user; become acceptance-criteria constraints analysis must honour).**
 Tie-breaker: a decision about the acceptance BAR itself (what counts as done / a threshold / a sourcing

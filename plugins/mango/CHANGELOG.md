@@ -5,6 +5,65 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.7.4] — 2026-07-19
+
+Review-phase git isolation + maturity labels (Stable/Experimental) + a `work_doc_mode` guidance for
+committed-stub tickets. **No new lifecycle phase.** Nothing removes a CHECK — review git-isolation
+**ADDS** safety, maturity labels **ADD** honesty, and no gate is loosened. refine still **exposes, never
+authors**; every decision stays a counted artifact; the human holds every gate. Generic and
+stack-agnostic throughout (fixtures use `PROJ-*`); all plugin text is English-only.
+
+### Fixed
+- **Review subagents must never run stateful git in the shared working tree (Fix 1).** In a field run,
+  the `reviewer` and `challenger` each ran stateful git (`git checkout <branch>`, `git stash`) in the
+  **shared** working tree to run the suite against the branch — switching the main worktree off the
+  feature branch onto `main`, removing the in-progress source files from disk, and leaving the working
+  doc untracked. No commits were lost, but it was a real corruption + recovery detour. A review subagent
+  now inspects a branch **ref-based** (`git diff <base>..<branch>`, `git show <branch>:<path>`, `git log
+  <base>..<branch>`) **or** in an **isolated `git worktree`** it removes afterward, and **MUST NOT** run
+  `git checkout` / `git switch` / `git stash` or any HEAD/index-mutating git in the shared working tree;
+  to *run* the suite against a branch it uses an isolated worktree/clone, never the live checkout. Stated
+  once in `PRINCIPLES.md` (Subagent git isolation) and in the `reviewer`/`challenger` briefs +
+  `review/SKILL.md`. **Same root cause** as the shipped **v1.6.1** eval-isolation fix (a process running
+  stateful git in a shared cwd) — one principle, two surfaces.
+- **`work_doc_mode` guidance for committed-stub tickets (Fix 3).** For a local-file ticket that is ALSO a
+  committed scaffold stub (an epic child-ticket stub committed by `breakdown`), `work_doc_mode: separate`
+  (a distinct `<KEY>.work.md`) is now recommended over `auto`/`embed`: embedding the mutable working doc
+  in a committed, **tracked** file leaves its edits as uncommitted changes to a tracked file, fragile to
+  a stray subagent git-state op. Documented in `config/harness.example.json`, `breakdown`/`analysis`, and
+  the README — **guidance + a sensible default on the epic-scaffold path, not a behavioural gate.**
+
+### Changed
+- **Maturity labels — Stable / Experimental replace the internal `v1-learning` jargon (Fix 2).** Shipped
+  plugin text now uses standard maturity vocabulary. **Breakdown re-ratification is `Experimental`** —
+  validated once in the field, its re-ratification trigger and granularity may change until a second epic
+  exercises it; it graduates to `Stable` (recorded here as `re-ratification: Experimental → Stable`) once
+  a second epic validates the trigger. Everything else on the ticket and epic paths — ticket-path
+  classification (want/how), `ASSUMED` handling, the exposure-checker, epic detection, the enumerated
+  INVEST self-check, and the design blast-radius trace — is **Stable**. A **Maturity** section in
+  `PRINCIPLES.md` (and the README) defines both terms. The internal `v1-learning` label and `n=1`/`n=2`
+  evidence jargon are removed from shipped plugin text (the evidence detail lives in the project backlog,
+  not in public-facing docs).
+
+### Tests / validation
+- **`review-git-isolation` eval fixture (generic `PROJ-*`).** A review subagent inspecting a branch must
+  use ref-based / worktree-isolated git and leave the shared HEAD unchanged; an injected shared-cwd
+  `git checkout` / `git stash` is FLAGGED (non-vacuous) and the live checkout stays on the original
+  branch.
+- **`scripts/validate.py`** adds tokens locking each fix: review `ref-based` / `worktree` /
+  no-`checkout`/`switch`/`stash`-in-shared-cwd across `review`/`reviewer`/`challenger`/`PRINCIPLES`;
+  maturity `Stable` / `Experimental` / `graduation` + a **zero-`v1-learning`, zero-`n=1`/`n=2`** grep over
+  shipped operational text; the committed-stub → `separate` work-doc guidance on the scaffold path. Both
+  READMEs and `PRINCIPLES.md` are updated; the v0.5 doc-consistency check stays green.
+
+> **Evidence note.** Fix 1 is first-field-evidence but the **same class** as the already-shipped v1.6.1
+> eval-isolation fix, so its shape is not speculative. Fix 3 is a low-risk config-guidance change. Both
+> are accepted at their current evidence level (the project has exhausted fresh epics that would produce a
+> second data point) and their limits are recorded in the project backlog rather than held open. Fix 2 is
+> a professional-labelling change for this public repo. This is the first version since the eval
+> transcript-cache shipped where unchanged-skill fixtures can be reused; a `--no-cache` full run remains
+> the milestone bar.
+
 ## [1.7.3] — 2026-07-18
 
 Breakdown re-ratification + epic scaffold handoff + INVEST re-split test + a shipped CHANGELOG + an eval
@@ -225,7 +284,7 @@ analysis/design boundaries and breakdown sizing.
   activated **only on the epic path, after `design(epic)`**. It draws **ticket boundaries** from the thin
   epic-level architecture, emits a **counted** ticket list with a **per-ticket INVEST self-check**, and
   **holds a ✋ human gate — the human ratifies the split before any ticket executes.** Each ratified
-  ticket then runs its own full lifecycle (one ticket per run). Marked **v1-learning**: ticket-boundary
+  ticket then runs its own full lifecycle (one ticket per run). Marked **Experimental**: ticket-boundary
   sizing has no exact metric; INVEST is the heuristic and retro corrects mis-splits (SPIDR is a
   later-if-needed, not now).
 
@@ -234,7 +293,7 @@ analysis/design boundaries and breakdown sizing.
   finds — **skip** (0 unresolved → straight to analysis), **ticket-refine** (≥1 unresolved, single
   deliverable → refined ticket → analysis), or **epic-path** (multiple independent deliverables →
   thin analysis(epic)/design(epic) → breakdown's human split-gate → N× ticket-lifecycles). Epic-path is
-  labelled v1-learning in the skill.
+  labelled Experimental in the skill.
 - **`templates/ticket.md` carries the refined-ticket shape.** A new **Phase 0 — Refine** block: the
   `REFINE:` count line, and counted tables for **settled wants** (want-decision → AC constraints),
   **cited** (how-decision → starting premise), **ASSUMED (awaiting ratification)**, and **constraints surfaced from the scan**,

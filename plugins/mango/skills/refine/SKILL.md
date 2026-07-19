@@ -165,8 +165,9 @@ Having scanned and tried to expose, refine also judges whether the input is a si
 **EPIC** — a whole app / feature-suite that contains many tickets (e.g. "build the mobile app", "add a
 new game"). **Signal:** the exposed work spans **multiple independent, each-execute-able
 deliverables**. On an epic, record it as a counted decision and route to the **epic path**
-(`analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`; see `breakdown`), which is marked
-**v1 — enough to run and learn** and is expected to be refined by retro. A single deliverable → the
+(`analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`; see `breakdown`), which is thin by
+design ("enough to run and learn") — its re-ratification behaviour is **Experimental** and expected to
+be refined by retro (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`, Maturity). A single deliverable → the
 normal ticket path (`analysis → design → execute → review → finalize`).
 
 **Epic path is not exempt from the exposure-checker (dispatch it BEFORE breakdown).** On the epic

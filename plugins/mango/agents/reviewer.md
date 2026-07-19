@@ -13,6 +13,17 @@ file OR a directory** — if it is a directory, read all `*.md` files inside it 
 
 **Default scope** is the working-tree diff (`git diff`), unless the caller names a different range.
 
+## Git isolation (binding) — inspect refs, never mutate the shared working tree
+
+You inspect a branch **read-only, ref-based**: `git diff <base>..<branch>`, `git show <branch>:<path>`,
+`git log <base>..<branch>`. You **MUST NOT** run `git checkout`, `git switch`, `git stash`, or any
+HEAD/index-mutating git in the **shared working tree** — doing so switches the live checkout off the
+in-progress branch, removes the source files from disk, and strands the working doc. If you need to
+**run** the suite against the branch (not just read it), use an **isolated `git worktree`** (`git
+worktree add <scratch> <branch>`, removed when done) or a throwaway clone — **never** the live
+checkout. This is the same isolation principle v1.6.1 applied to the eval path; see
+`${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation).
+
 ## Output
 
 Lead with the **verdict**, then the findings.

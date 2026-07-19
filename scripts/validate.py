@@ -37,13 +37,15 @@ SKILL_CONTRACTS = {
                r"uncited how-decision", r"next-gate confirm", r"epic.{0,60}exposure-checker"],
     "breakdown": [r"INVEST", r"ticket boundary", r"counted", r"enumerate",
                   r"Independent", r"Negotiable", r"Valuable", r"Estimable", r"Small", r"Testable",
-                  r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child"],
+                  r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child",
+                  r"Experimental", r"work_doc_mode", r"separate"],
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif",
                  r"applicable .{0,12}section", r"change[ -]type", r"enumerate"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius",
                r"real producers", r"(all|every) .{0,8}test root", r"typecheck", r"builder call site"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk"],
-    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out"],
+    "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out",
+               r"ref-based", r"worktree", r"checkout"],
     "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref", r"unchanged except", r"complete on disk"],
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
@@ -365,6 +367,103 @@ def validate_eval_cache():
           "eval-cache: run.sh must document the fail-safe-to-run default (uncertainty → run fresh)")
 
 
+def validate_review_git_isolation():
+    """v1.7.4 Fix 1 — a review subagent inspecting a branch must use read-only, ref-based git OR an
+    isolated worktree, and MUST NOT run stateful git (checkout/switch/stash) in the shared working tree
+    (the live checkout). Guards review/SKILL.md, the reviewer/challenger briefs, and the PRINCIPLES
+    invariant — the same class as the v1.6.1 eval-isolation fix, now on the review surface. A future edit
+    cannot silently drop the isolation."""
+    plugin = ROOT / "plugins" / "mango"
+    targets = [
+        plugin / "skills" / "review" / "SKILL.md",
+        plugin / "agents" / "reviewer.md",
+        plugin / "agents" / "challenger.md",
+        plugin / "PRINCIPLES.md",
+    ]
+    for path in targets:
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"review-git-isolation: {rel} is missing"):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"review-git-isolation: cannot read {rel} ({exc})")
+            continue
+        check(re.search(r"ref-based", body, re.IGNORECASE) is not None,
+              f"review-git-isolation: {rel} must require ref-based branch inspection (git diff/show/log <base>..<branch>)")
+        check(re.search(r"worktree", body, re.IGNORECASE) is not None,
+              f"review-git-isolation: {rel} must allow an isolated git worktree for running the suite against a branch")
+        check(re.search(r"checkout|switch|stash", body, re.IGNORECASE) is not None,
+              f"review-git-isolation: {rel} must name the forbidden stateful git ops (checkout/switch/stash)")
+        check(re.search(r"MUST NOT|must not|never|not run", body) is not None,
+              f"review-git-isolation: {rel} must forbid stateful git in the shared working tree")
+        check(re.search(r"shared (working tree|cwd|git state)|live checkout", body, re.IGNORECASE) is not None,
+              f"review-git-isolation: {rel} must scope the prohibition to the shared working tree / live checkout")
+
+
+def validate_maturity_labels():
+    """v1.7.4 Fix 2 — shipped OPERATIONAL plugin text (the behavioural instruction surface a stranger
+    reads: skills, agents, templates, PRINCIPLES, README) uses standard maturity vocabulary and carries
+    NO internal jargon (`v1-learning`, `n=1`, `n=2`). breakdown re-ratification is labelled Experimental
+    with a plain graduation line; a Maturity definition (Stable + Experimental + graduation) exists in
+    PRINCIPLES.md. (Version references like `v1.6.1` are NOT jargon and are unaffected.)"""
+    plugin = ROOT / "plugins" / "mango"
+    operational = (sorted(plugin.glob("skills/*/SKILL.md"))
+                   + sorted(plugin.glob("agents/*.md"))
+                   + sorted(plugin.glob("templates/*.md"))
+                   + [plugin / "PRINCIPLES.md", plugin / "README.md"])
+    for path in operational:
+        if not path.exists():
+            continue
+        rel = path.relative_to(ROOT)
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"maturity: cannot read {rel} ({exc})")
+            continue
+        check(re.search(r"v1-learning", body, re.IGNORECASE) is None,
+              f"maturity: {rel} must not use the internal jargon 'v1-learning' (use Stable/Experimental)")
+        check(re.search(r"\bn=[12]\b", body) is None,
+              f"maturity: {rel} must not use internal evidence jargon 'n=1'/'n=2' in shipped plugin text")
+    bd = plugin / "skills" / "breakdown" / "SKILL.md"
+    if check(bd.exists(), "maturity: skills/breakdown/SKILL.md is missing"):
+        body = bd.read_text(encoding="utf-8")
+        check(re.search(r"Experimental", body) is not None,
+              "maturity: breakdown must label its re-ratification behaviour Experimental")
+        check(re.search(r"graduat", body, re.IGNORECASE) is not None,
+              "maturity: breakdown must state a plain graduation condition (Experimental → Stable)")
+    pr = plugin / "PRINCIPLES.md"
+    if check(pr.exists(), "maturity: PRINCIPLES.md is missing"):
+        body = pr.read_text(encoding="utf-8")
+        check(re.search(r"^##\s*Maturity", body, re.MULTILINE) is not None,
+              "maturity: PRINCIPLES.md must carry a Maturity section defining the vocabulary")
+        check(re.search(r"\bStable\b", body) is not None and re.search(r"\bExperimental\b", body) is not None,
+              "maturity: PRINCIPLES.md Maturity section must define both Stable and Experimental")
+        check(re.search(r"graduat", body, re.IGNORECASE) is not None,
+              "maturity: PRINCIPLES.md must state the graduation convention (CHANGELOG records it)")
+
+
+def validate_workdoc_committed_stub():
+    """v1.7.4 Fix 3 — for a local-file ticket that is ALSO a committed scaffold stub, work_doc_mode:
+    separate is recommended over auto/embed (embedding the mutable working doc in a committed tracked
+    file is fragile to a stray subagent git-state op). Guards the config comment and the epic-scaffold
+    path (breakdown). Guidance + a sensible default, never a behavioural gate."""
+    plugin = ROOT / "plugins" / "mango"
+    example = plugin / "config" / "harness.example.json"
+    if check(example.exists(), "workdoc-stub: config/harness.example.json is missing"):
+        body = example.read_text(encoding="utf-8")
+        check(re.search(r"committed .{0,24}stub", body, re.IGNORECASE) is not None
+              and re.search(r"separate", body) is not None,
+              "workdoc-stub: harness.example.json must recommend 'separate' for a committed-stub ticket")
+    bd = plugin / "skills" / "breakdown" / "SKILL.md"
+    if check(bd.exists(), "workdoc-stub: skills/breakdown/SKILL.md is missing"):
+        body = bd.read_text(encoding="utf-8")
+        check(re.search(r"work_doc_mode", body) is not None and re.search(r"separate", body) is not None,
+              "workdoc-stub: breakdown must advise work_doc_mode: separate for the committed child stubs")
+        check(re.search(r"committed .{0,30}stub|committed, tracked", body, re.IGNORECASE) is not None,
+              "workdoc-stub: breakdown must explain the committed-stub fragility")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -426,6 +525,9 @@ def main():
     validate_verify_incremental()
     validate_changelog_shipped()
     validate_eval_cache()
+    validate_review_git_isolation()
+    validate_maturity_labels()
+    validate_workdoc_committed_stub()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

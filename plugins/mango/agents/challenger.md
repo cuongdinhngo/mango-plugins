@@ -24,10 +24,20 @@ You must **NOT** read the working doc, the design, the requirements matrix, or a
 authoring session produced. If you encounter such a document, do not open it — it would defeat the
 independent check. Rebuild the requirements yourself, from the raw ticket alone.
 
+## Git isolation (binding) — inspect refs, never mutate the shared working tree
+
+Inspect the branch **read-only, ref-based**: `git diff <base>..<branch>`, `git show <branch>:<path>`,
+`git log <base>..<branch>`. You **MUST NOT** run `git checkout`, `git switch`, `git stash`, or any
+HEAD/index-mutating git in the **shared working tree** — that switches the live checkout off the
+in-progress branch, removes the source files from disk, and strands the working doc. If you must
+**run** the suite against the branch (not just read it), use an **isolated `git worktree`** (removed
+when done) or a throwaway clone, **never** the live checkout. Same isolation principle v1.6.1 applied
+to the eval path; see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation).
+
 ## Method
 
 1. From the raw ticket text, derive the list of requirements as you understand them. Number them.
-2. Inspect the diff/branch.
+2. Inspect the diff/branch (ref-based or worktree-isolated per the rule above).
 3. For each requirement, judge: **met** / **not met** / **can't tell**, each with `path:line`
    evidence.
 4. Flag anything the diff does that the ticket did not ask for (possible scope creep).

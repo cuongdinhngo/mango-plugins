@@ -30,6 +30,10 @@ count, and the requirements matrix.
      file **below a clear raw-ticket separator line** (the exact line
      `<!-- ===== MANGO WORKING DOC (below this line is NOT part of the raw ticket) ===== -->`), so
      there is one file, not a duplicate. Under `separate`, still write `<KEY>.work.md`.
+   - **committed-stub ticket** (a local-file ticket that is ALSO a committed scaffold stub, e.g. an
+     epic child-ticket stub committed by `breakdown`) → prefer **`separate`** even under `auto`:
+     embedding the mutable working doc in a committed, tracked stub leaves its edits as uncommitted
+     changes to a tracked file, fragile to a stray subagent git-state op (see `config.work_doc_mode`).
    Whichever placement is chosen, the **raw ticket portion stays above the separator** and the
    working-doc portion below it; **never** mix design/matrix/rationale into the raw ticket text. This
    separation (separate file, or below the separator line) is what lets the review phase hand the

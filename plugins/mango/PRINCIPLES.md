@@ -151,6 +151,48 @@ or `k < N` with no recorded decision.
 
 ---
 
+## Subagent git isolation — never mutate shared git state
+
+> **A subagent inspecting a branch works from refs or an isolated worktree; it NEVER mutates the
+> shared working tree's git state.**
+
+Branch/diff inspection is **ref-based** — `git diff <base>..<branch>`, `git show <branch>:<path>`,
+`git log <base>..<branch>` — or **worktree-isolated** — `git worktree add <scratch> <branch>`, removed
+afterward. A subagent — the `reviewer`, the `challenger`, or any review-phase worker — **MUST NOT** run
+`git checkout`, `git switch`, `git stash`, or any HEAD/index-mutating git in the **shared working
+tree**: that switches the live checkout off the in-progress branch, strips the in-progress source files
+from disk, and strands the working doc — a real corruption + recovery detour. If a subagent must
+**run** the suite against a branch (not just read it), it does so in an isolated `git worktree` / clone,
+never the live checkout.
+
+This is the **same root cause** the v1.6.1 eval-isolation invariant fixed for the eval path (a process
+running stateful git in a shared cwd) — **one principle, two surfaces** (review and eval). Enforced at
+`review` and the `reviewer` / `challenger` briefs; guarded by `scripts/validate.py` (the review
+git-isolation tokens) and, on the eval surface, the `assert_checkout_clean` guard in `tests/eval/run.sh`.
+
+---
+
+## Maturity — Stable vs Experimental
+
+Every shipped behaviour carries an honest maturity level so a reader knows what is settled:
+
+- **Stable** — committed behaviour, field-tested, safe to rely on. This is the default for everything
+  not marked otherwise.
+- **Experimental** — works and has been validated, but its exact shape may still change until further
+  real-world use. Marked explicitly at the behaviour.
+
+The **only Experimental behaviour** today is **breakdown re-ratification** (surfacing a post-gate split
+delta for an explicit human re-approve): validated once in the field, its re-ratification trigger and
+granularity may change until a second epic exercises it. Everything else on the ticket and epic paths
+is **Stable** — ticket-path classification (want-decision / how-decision), `ASSUMED` handling, the
+1-dispatch exposure-checker, epic detection, the enumerated six-letter INVEST self-check, and the
+design blast-radius trace-to-real-producers.
+
+When an Experimental behaviour **graduates**, the CHANGELOG records it explicitly, e.g.
+`re-ratification: Experimental → Stable`.
+
+---
+
 ## Descriptive vs normative — observe, facilitate, never author
 
 > **mango generates the descriptive and facilitates the normative, but never authors the normative.**
@@ -220,7 +262,7 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
   human alongside the breakdown — an un-exposed decision is costliest at epic scale, so the epic path
   may never be the one that skips the backstop.
 
-**Epic path is v1 — "enough to run and learn".** On an epic, `analysis(epic)`/`design(epic)` stay thin
+**Epic path — thin by design ("enough to run and learn").** On an epic, `analysis(epic)`/`design(epic)` stay thin
 (architecture-level, only enough to split) and `breakdown` emits a **counted** ticket list with a
 per-ticket **INVEST** self-check, **human-approved before any ticket executes** (the human holds the
 gate). Ticket-boundary sizing has no exact metric; INVEST is the heuristic and **retro corrects
@@ -228,7 +270,7 @@ mis-splits**. Two epic-path invariants back the split gate: (1) a **ratified bre
 plan** — if the ticket list changes after the split-gate (a ticket added/removed, or a ratified
 decision reversed/re-pointed), `breakdown` **re-ratifies** by surfacing the **delta** as a counted
 artifact for an explicit human **re-approve**, never letting the change ride in on a child's Gate 1
-(v1 — first-evidence, n=1; refined by retro); (2) after the split ratifies, the epic **scaffold**
+(**Experimental** — refined by retro; see the Maturity section above); (2) after the split ratifies, the epic **scaffold**
 (child stubs + BACKLOG) is **committed to a shared ref before any child ticket branches**, so a child's
 edit reads as an edit of a committed file — preserving the ticket-blind challenger's net-new-vs-edit
 evidence.

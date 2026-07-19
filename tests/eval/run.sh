@@ -157,6 +157,14 @@
 #                     skills are provably unchanged (cache-hit, no dispatch), runs fresh on any change or
 #                     uncertainty (fail-safe to run), and --no-cache forces a full fresh run — proven by a
 #                     cheap runner self-test (hash-match → skip; hash-change → run; --no-cache → all run).
+#   v1.7.4          — review-phase git isolation + maturity labels + work_doc_mode guidance: a review
+#                     subagent inspecting a branch uses ref-based git (git diff/show/log <base>..<branch>)
+#                     or an isolated git worktree and MUST NOT run stateful git (checkout/switch/stash) in
+#                     the SHARED working tree — the shared HEAD stays put and an injected shared-cwd
+#                     checkout is flagged, not performed (review-git-isolation; same class as the v1.6.1
+#                     eval-isolation fix, review surface). The maturity relabel (Stable/Experimental,
+#                     zero v1-learning / n=1 / n=2 in shipped text) and the committed-stub → work_doc_mode
+#                     separate guidance are locked at the validator level (scripts/validate.py).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -200,6 +208,7 @@ declare -A FIXTURE_SKILLS=(
   [design-blastradius-value-threading]="design" [per-clause]="design execute"
   [no-runner-proof]="execute" [format-scope]="execute" [behavioural-drift]="execute"
   [challenger-unmet]="review" [rubric-hover]="review" [conditional-LGTM]="review"
+  [review-git-isolation]="review"
   [caveman-critic-guard]="review" [verify-only-scoped]="review"
   [verify-only-main-loop]="review" [verify-only-bookkeeping-carveout]="review"
   [stale-workdoc-bump]="finalise" [stale-source-change]="finalise"
@@ -992,6 +1001,26 @@ t="$(run_fixture epic-scaffold-committed 'Run the mango epic-path breakdown. Aft
 assert_all "epic-scaffold: committed before any child branch" "$t" 'scaffold|stub|backlog' 'commit' 'before .{0,24}(child|branch)|before any child|prior to .{0,16}(child|branch)'
 # Non-vacuous: a child edit of a committed stub reads as an EDIT, not net-new.
 assert_all "epic-scaffold: a child edit reads as edit, not net-new" "$t" 'edit|committed file|retarget' 'net-?new|not net-?new|challenger|edit of a committed'
+
+# --- v1.7.4 (review git-isolation + maturity + workdoc guidance) -------------
+echo
+echo "== v1.7.4 (review git-isolation) =="
+
+# review-git-isolation (v1.7.4 Fix 1): a review subagent inspecting a branch must use read-only,
+# ref-based git (git diff/show/log <base>..<branch>) OR an isolated git worktree, and MUST NOT run
+# stateful git (checkout/switch/stash) in the SHARED working tree (the live checkout). The shared HEAD
+# stays put; an injected shared-cwd `git checkout` is FLAGGED (non-vacuous), never performed, and the
+# live checkout stays on the original branch. Same class as the v1.6.1 eval-isolation fix, review surface.
+t="$(run_fixture review-git-isolation 'Run the mango review phase on this ticket. State exactly how a review subagent (reviewer/challenger) inspects the feature branch, whether it may run git checkout/switch/stash in the shared working tree, and where it runs the suite if it must. Then say what happens to the shared HEAD and what you would do if a subagent were about to run `git checkout main` in the shared checkout. Do not stop for my input.')"
+# Decision-level: inspection is ref-based OR worktree-isolated (outcome + a branch/inspect token).
+assert_all "review-git-isolation: ref-based or worktree-isolated inspection" "$t" 'ref-based|git (diff|show|log)|worktree' 'branch|diff|inspect|review'
+# Decision-level: stateful git in the shared working tree is FORBIDDEN (guard) — names the ops.
+assert_all "review-git-isolation: no stateful git in the shared working tree" "$t" 'checkout|switch|stash' 'not|never|must not|forbid|avoid|would ?n.?t|do ?n.?t'
+# The shared HEAD / live checkout stays unchanged after review.
+assert_contains "review-git-isolation: shared HEAD unchanged" "$t" 'unchanged|stays|untouched|same branch|still on|remain|not .{0,12}switch|does not .{0,12}(switch|change)'
+# Non-vacuous: an injected shared-cwd `git checkout` is flagged/refused (not performed) AND the live
+# checkout stays on the original branch.
+assert_all "review-git-isolation: injected shared-cwd checkout flagged, checkout stays put (non-vacuous)" "$t" 'flag|refuse|not .{0,14}(run|perform|do)|never .{0,12}(run|checkout)|instead|worktree|isolat' 'stay|remain|original|not switch|still on|feat/'
 
 # --- eval transcript-cache self-test (v1.7.3 Fix E) --------------------------
 # Runner self-test (no `claude -p`): the cache's three guarantees, tested against the REAL gate
