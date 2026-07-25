@@ -71,5 +71,25 @@ vs `fresh run(s)`. The cache lives outside the committed tree (`tests/eval/.cach
 never committed. A runner **self-test** (no `claude -p`) asserts the three guarantees each run: hash-match
 → skip, hash-change → run, `--no-cache` → all run.
 
+The hit/fresh tallies live in **ledger files**, not shell variables: every fixture is invoked as
+`t="$(run_fixture …)"` — a command substitution, i.e. a subshell — so a `VAR=$((VAR+1))` inside
+`run_fixture` is discarded when that subshell exits. That once lost both the printed counters *and* the
+fresh-fixture list the end-of-run cache **write** iterates, so nothing was ever cached (v1.7.5 Fix 4).
+Any new per-fixture tally must use the same ledger pattern.
+
+## Dispatch-less self-tests (free coverage)
+
+Two checks run each suite with **no `claude -p` dispatch**, so they cost nothing and are deterministic:
+
+- **transcript-cache self-test** — hash-match → skip, hash-change → run, `--no-cache` → all run.
+- **validator jargon-guard self-test** — injects each banned phrase (`v1 — …`, `enough to run and
+  learn`, `n=1`, `v1-learning`) into a shipped operational file **inside the sandbox clone** and asserts
+  `scripts/validate.py` **FAILS**, then that removal restores green. This is the teeth of the v1.7.5
+  false-green fix: a validator that passes while its own claim is false is the worst defect class mango
+  can ship, so this guard is proven by **injection**, never by assertion.
+
+Prefer this shape for anything a deterministic check can prove — reserve `claude -p` fixtures for
+behaviour only a model run can demonstrate.
+
 Keep fixtures **generic** (`PROJ-*` keys; no real project, ticket, library, framework, formatter, or
 brand). The suite's coverage is catalogued in the header comment of `run.sh`.

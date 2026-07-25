@@ -166,7 +166,7 @@ Having scanned and tried to expose, refine also judges whether the input is a si
 new game"). **Signal:** the exposed work spans **multiple independent, each-execute-able
 deliverables**. On an epic, record it as a counted decision and route to the **epic path**
 (`analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`; see `breakdown`), which is thin by
-design ("enough to run and learn") — its re-ratification behaviour is **Experimental** and expected to
+design (only enough to split) — its re-ratification behaviour is **Experimental** and expected to
 be refined by retro (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`, Maturity). A single deliverable → the
 normal ticket path (`analysis → design → execute → review → finalize`).
 

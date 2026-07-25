@@ -8,8 +8,7 @@ notifications centre, and account settings.
 This input is an **EPIC**, not a single ticket: the exposed work spans multiple independent,
 each-execute-able deliverables (login, dashboard, notifications, settings). refine must **detect the
 epic** and route to the **epic path** (analysis(epic) → design(epic) → breakdown → N× ticket-
-lifecycles), which is deliberately thin — **v1, "enough to run and learn", expected to be refined by
-retro**.
+lifecycles), which is deliberately thin — **only enough to split, expected to be refined by retro**.
 
 `breakdown` splits the epic into tickets using the epic-level architecture, emits a **counted** ticket
 list with a per-ticket **INVEST** self-check (Independent, Negotiable, Valuable, Estimable, Small,

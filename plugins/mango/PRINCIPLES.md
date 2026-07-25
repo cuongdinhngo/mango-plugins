@@ -165,10 +165,21 @@ from disk, and strands the working doc — a real corruption + recovery detour. 
 **run** the suite against a branch (not just read it), it does so in an isolated `git worktree` / clone,
 never the live checkout.
 
+**Worktree ≠ environment-equivalence — carry the untracked env, or run in place.** A fresh worktree
+holds only **tracked** files, so it has none of the project's required **untracked** environment (`.env`
+/ local config, local certs, installed deps, built assets) and the app cannot boot. Before running a
+suite in one, either **run read-only in place** when the tree is already at the reviewed SHA (preferred),
+or **carry the required untracked env into the worktree**. **Sanity rule:** a **near-total** suite
+failure inside a fresh worktree is an **env-fault** (missing untracked files) **until proven otherwise**
+— it is **never** reported as a review finding or a regression. This reclassifies an environment
+artifact only; it never suppresses a real finding — a *partial, targeted* failure inside the change's
+blast radius still counts, and once env parity holds the same result is reportable.
+
 This is the **same root cause** the v1.6.1 eval-isolation invariant fixed for the eval path (a process
 running stateful git in a shared cwd) — **one principle, two surfaces** (review and eval). Enforced at
 `review` and the `reviewer` / `challenger` briefs; guarded by `scripts/validate.py` (the review
-git-isolation tokens) and, on the eval surface, the `assert_checkout_clean` guard in `tests/eval/run.sh`.
+git-isolation + env-parity tokens) and, on the eval surface, the `assert_checkout_clean` guard in
+`tests/eval/run.sh`.
 
 ---
 
@@ -262,7 +273,7 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
   human alongside the breakdown — an un-exposed decision is costliest at epic scale, so the epic path
   may never be the one that skips the backstop.
 
-**Epic path — thin by design ("enough to run and learn").** On an epic, `analysis(epic)`/`design(epic)` stay thin
+**Epic path — thin by design (only enough to split).** On an epic, `analysis(epic)`/`design(epic)` stay thin
 (architecture-level, only enough to split) and `breakdown` emits a **counted** ticket list with a
 per-ticket **INVEST** self-check, **human-approved before any ticket executes** (the human holds the
 gate). Ticket-boundary sizing has no exact metric; INVEST is the heuristic and **retro corrects

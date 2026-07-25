@@ -50,8 +50,10 @@ branch:
   map which modules/layers change — **only enough to split**, never per-ticket or line-level).
   `breakdown` then emits a **counted** ticket list with a per-ticket INVEST self-check and **holds a
   ✋ human gate — the human ratifies the split before any ticket executes.** Each ratified ticket then
-  runs its **own** full lifecycle (one ticket per run). **Epic-path is v1 — "enough to run and learn";
-  its exact boundary is expected to be refined by retro.**
+  runs its **own** full lifecycle (one ticket per run). **Epic-path maturity:** `breakdown`'s
+  **re-ratification** behaviour is **Experimental** and its exact boundary sizing is expected to be
+  refined by retro; the rest of the path is **Stable** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`,
+  Maturity).
 
 refine holds **no gate of its own** — its want-decision questions are its interaction, and its output is
 challenged at Gate 1. It **exposes for the human to decide and never authors intent** (the same
@@ -85,6 +87,22 @@ continue from there rather than restarting. The working doc's placement follows
 tracker-hosted ticket, or **appended below a raw-ticket separator line** inside a local-file ticket.
 Either way the raw ticket portion stays above the separator and is never mixed with the design, so
 the challenger payload (`review`) can always exclude the working-doc portion.
+
+**Set the mode here, and route the committed-stub shape to `separate` even under `auto`.** `auto` does
+**not** mean "always embed into a local file". Before the first phase writes anything, classify the
+ticket and set the working-doc mode accordingly:
+
+- **tracker-hosted ticket** → **`separate`** (`<config.work_dir>/<KEY>.work.md`).
+- **committed-stub ticket** — a local-file ticket that is **ALSO a committed, tracked scaffold stub**
+  (e.g. an epic child-ticket stub committed by `breakdown`) → **`separate`**, even under `auto`.
+  Embedding the mutable working doc inside a committed tracked file leaves every phase's edits as
+  uncommitted changes to a **tracked** file, fragile to any stray subagent git-state op.
+- **plain local-file ticket** (untracked, or a tracked file that is not a scaffold stub) → embed below
+  the separator, as `auto` describes above.
+
+Record the resolved `work_doc_mode` and the working-doc path in `Session status` so every later phase
+(and the challenger payload construction in `review`) reads the same answer. This is **guidance + a
+sensible default**, matching `analysis` and `breakdown` — not a behavioural gate.
 
 ## Non-negotiables
 

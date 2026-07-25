@@ -38,20 +38,27 @@ SKILL_CONTRACTS = {
     "breakdown": [r"INVEST", r"ticket boundary", r"counted", r"enumerate",
                   r"Independent", r"Negotiable", r"Valuable", r"Estimable", r"Small", r"Testable",
                   r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child",
-                  r"Experimental", r"work_doc_mode", r"separate"],
+                  r"Experimental", r"work_doc_mode", r"separate",
+                  r"EPIC LESSON:", r"lessons_path", r"durable lesson", r"close-?out"],
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif",
-                 r"applicable .{0,12}section", r"change[ -]type", r"enumerate"],
+                 r"applicable .{0,12}section", r"change[ -]type", r"enumerate",
+                 r"multi-clause", r"one row per clause", r"want-decision"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius",
                r"real producers", r"(all|every) .{0,8}test root", r"typecheck", r"builder call site"],
-    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk"],
+    "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk",
+                r"commit(ted)? .{0,24}before .{0,20}review", r"ref-based", r"empty"],
     "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out",
-               r"ref-based", r"worktree", r"checkout"],
+               r"ref-based", r"worktree", r"checkout",
+               r"env-?parity|environment-equivalence", r"env-?fault|environment fault", r"untracked",
+               r"near-total", r"git diff HEAD", r"porcelain"],
     "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref", r"unchanged except", r"complete on disk"],
-    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk"],
+    "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk",
+              r"work_doc_mode", r"committed-?stub", r"separate"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
-    "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend", r"uncodified"],
+    "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend", r"uncodified",
+               r"DRIFT:", r"counting line", r"drift"],
     "budget": [r"[Dd]etect", r"[Ii]nform", r"recorded", r"never.{0,15}install", r"depend",
                r"RTK", r"[Cc]aveman", r"safety axis", r"degrade clean", r"PROVISIONAL",
                r"non-critic-only", r"descriptive", r"wire", r"you must run this",
@@ -61,6 +68,20 @@ SKILL_CONTRACTS = {
 # Critic agents whose output must never be terse-compressed. Each brief MUST carry the
 # Caveman-critic guardrail so a token optimizer cannot strip the evidence a gate relies on.
 CRITIC_AGENTS = ["reviewer", "reviewer-max", "challenger"]
+
+# Internal jargon banned from SHIPPED OPERATIONAL TEXT (the behavioural instruction surface a stranger
+# reads). Each entry is (regex, reason, flags). v1.7.5 Fix 1b: the v1.7.4 grep carried only the first two
+# patterns, so the pre-relabel framing `v1 — "enough to run and learn"` passed straight through it in
+# shipped files while the validator reported OK — a false-green at the verify layer itself.
+# The maturity vocabulary (Stable / Experimental) is the replacement; see PRINCIPLES.md (Maturity).
+# `n=[12]` stays CASE-SENSITIVE on purpose: upper-case `N=1` / `N>1` is the requirements-matrix
+# denominator in `analysis/SKILL.md` — a different meaning, not jargon.
+BANNED_JARGON = [
+    (r"v1-learning", "the internal jargon 'v1-learning' (use Stable/Experimental)", re.IGNORECASE),
+    (r"\bn=[12]\b", "internal evidence jargon 'n=1'/'n=2'", 0),
+    (r"enough to run and learn", "the pre-relabel framing 'enough to run and learn' (say 'only enough to split', and label maturity Stable/Experimental)", re.IGNORECASE),
+    (r"\bv1\s*[—–]", "the pre-relabel maturity label 'v1 — …' (use Stable/Experimental)", re.IGNORECASE),
+]
 
 failures = []
 checks = 0
@@ -401,18 +422,187 @@ def validate_review_git_isolation():
               f"review-git-isolation: {rel} must scope the prohibition to the shared working tree / live checkout")
 
 
-def validate_maturity_labels():
-    """v1.7.4 Fix 2 — shipped OPERATIONAL plugin text (the behavioural instruction surface a stranger
-    reads: skills, agents, templates, PRINCIPLES, README) uses standard maturity vocabulary and carries
-    NO internal jargon (`v1-learning`, `n=1`, `n=2`). breakdown re-ratification is labelled Experimental
-    with a plain graduation line; a Maturity definition (Stable + Experimental + graduation) exists in
-    PRINCIPLES.md. (Version references like `v1.6.1` are NOT jargon and are unaffected.)"""
+def validate_worktree_env_parity():
+    """v1.7.5 Fix 2 — a review subagent that creates an isolated worktree in order to RUN a suite must
+    carry the project's required UNTRACKED environment into it (or run read-only in place when the tree
+    is already at the reviewed SHA), and must treat a NEAR-TOTAL worktree failure as an ENV-FAULT rather
+    than a review finding. A fresh worktree holds only tracked files, so a missing `.env` fails every
+    test for an environmental reason that reads exactly like a catastrophic regression. Guarded across
+    review/SKILL.md, the reviewer/challenger briefs, and the PRINCIPLES invariant. This only ADDS a
+    guard — it reclassifies an environment artifact and never suppresses a real finding, which is why
+    each file must ALSO keep the partial/targeted-failure-is-still-real carve-out."""
     plugin = ROOT / "plugins" / "mango"
-    operational = (sorted(plugin.glob("skills/*/SKILL.md"))
-                   + sorted(plugin.glob("agents/*.md"))
-                   + sorted(plugin.glob("templates/*.md"))
-                   + [plugin / "PRINCIPLES.md", plugin / "README.md"])
-    for path in operational:
+    targets = [
+        plugin / "skills" / "review" / "SKILL.md",
+        plugin / "agents" / "reviewer.md",
+        plugin / "agents" / "challenger.md",
+        plugin / "PRINCIPLES.md",
+    ]
+    for path in targets:
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"worktree-env-parity: {rel} is missing"):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"worktree-env-parity: cannot read {rel} ({exc})")
+            continue
+        check(re.search(r"env-?parity|environment-equivalence|environment parity", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must state that a worktree is NOT environment-equivalent")
+        check(re.search(r"untracked", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must name the missing UNTRACKED environment as the cause")
+        check(re.search(r"\.env", body) is not None,
+              f"worktree-env-parity: {rel} must name `.env` / local config as the minimum to carry in")
+        check(re.search(r"in place", body, re.IGNORECASE) is not None
+              and re.search(r"reviewed\s+SHA", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must offer running read-only in place at the reviewed SHA")
+        check(re.search(r"near-?total", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must state the near-total-failure sanity rule")
+        check(re.search(r"env-?fault|environment fault", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must classify a near-total worktree failure as an env-fault")
+        check(re.search(r"until proven otherwise", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must scope the reclassification with 'until proven otherwise'")
+        check(re.search(r"partial", body, re.IGNORECASE) is not None,
+              f"worktree-env-parity: {rel} must keep the carve-out that a PARTIAL/targeted failure is still a real finding (the rule may not suppress findings)")
+
+
+def validate_empty_diff_fallback():
+    """v1.7.5 Fix 3b — two guards against a false 'no changes' verdict. (a) `execute` COMMITS the
+    change-set BEFORE review is dispatched, so the ref-based `<base>..<branch>` inspection has a real
+    committed diff. (b) Both critic briefs (and review/SKILL.md) carry the fallback: an EMPTY range means
+    the change may be uncommitted — check `git diff HEAD` + `git status --porcelain -uall` before
+    concluding no-change. Field near-miss: an empty A..B diff nearly rubber-stamped a real two-file
+    change-set."""
+    plugin = ROOT / "plugins" / "mango"
+    ex = plugin / "skills" / "execute" / "SKILL.md"
+    if check(ex.exists(), "empty-diff: skills/execute/SKILL.md is missing"):
+        body = ex.read_text(encoding="utf-8")
+        check(re.search(r"commit(ted)?[^.\n]{0,40}before[^.\n]{0,30}review", body, re.IGNORECASE) is not None,
+              "empty-diff: execute must commit the change-set BEFORE review is dispatched")
+        check(re.search(r"empty", body, re.IGNORECASE) is not None,
+              "empty-diff: execute must explain that an uncommitted change-set makes the ref-based range EMPTY")
+    for rel_path in ("agents/reviewer.md", "agents/challenger.md", "skills/review/SKILL.md"):
+        path = plugin / rel_path
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"empty-diff: {rel} is missing"):
+            continue
+        body = path.read_text(encoding="utf-8")
+        check(re.search(r"empty", body, re.IGNORECASE) is not None,
+              f"empty-diff: {rel} must handle an EMPTY <base>..<branch> range")
+        check(re.search(r"git diff HEAD", body) is not None,
+              f"empty-diff: {rel} must name the `git diff HEAD` fallback")
+        check(re.search(r"porcelain", body) is not None,
+              f"empty-diff: {rel} must name the `git status --porcelain -uall` fallback")
+        check(re.search(r"uncommitted", body, re.IGNORECASE) is not None,
+              f"empty-diff: {rel} must state the change may simply be UNCOMMITTED")
+
+
+def validate_epic_lesson_owner():
+    """v1.7.5 Fix 3c — an epic ends at `breakdown` and never reaches `finalise`, so mango's
+    always-capture-a-durable-lesson rule had NO OWNER on the epic path: the split rationale and the
+    overlap rulings reached no `config.lessons_path`. `breakdown` now owns it at ratification/close-out
+    and emits the `EPIC LESSON:` counting line — a counted artifact, not prose, so it cannot silently
+    not-happen."""
+    bd = ROOT / "plugins" / "mango" / "skills" / "breakdown" / "SKILL.md"
+    if not check(bd.exists(), "epic-lesson: skills/breakdown/SKILL.md is missing"):
+        return
+    body = bd.read_text(encoding="utf-8")
+    check(re.search(r"EPIC LESSON:\s*<", body) is not None,
+          "epic-lesson: breakdown must emit the `EPIC LESSON: <n> lesson(s) written to …` counting line")
+    check(re.search(r"config\.lessons_path", body) is not None,
+          "epic-lesson: breakdown must write the epic lesson to config.lessons_path")
+    check(re.search(r"never reaches .{0,12}finalise|ends here|no owner", body, re.IGNORECASE) is not None,
+          "epic-lesson: breakdown must explain WHY it owns this (an epic never reaches finalise)")
+    check(re.search(r"split rationale", body, re.IGNORECASE) is not None
+          and re.search(r"overlap|boundary ruling", body, re.IGNORECASE) is not None,
+          "epic-lesson: breakdown must name the split rationale + overlap/boundary rulings as lesson content")
+
+
+def validate_drift_count_line():
+    """v1.7.5 Fix 3d — codify's drift-entry count is a PREFIXED COUNTING LINE (`DRIFT: <n> entries |
+    <m> tickets`), matching the other counted artifacts (`REFINE:` / `BREAKDOWN:` / `SECTIONS:`) that
+    resist fudging. A prose count drove a near-miss where '6' should have been '5'."""
+    cd = ROOT / "plugins" / "mango" / "skills" / "codify" / "SKILL.md"
+    if not check(cd.exists(), "drift-count: skills/codify/SKILL.md is missing"):
+        return
+    body = cd.read_text(encoding="utf-8")
+    check(re.search(r"`DRIFT:\s*<n>\s*entries\s*\|\s*<m>\s*tickets`", body) is not None,
+          "drift-count: codify must emit the `DRIFT: <n> entries | <m> tickets` counting line")
+    check(re.search(r"not prose|never .{0,12}prose|prose count", body, re.IGNORECASE) is not None,
+          "drift-count: codify must state the count is a counted line, not prose")
+    check(re.search(r"REFINE:", body) is not None and re.search(r"BREAKDOWN:", body) is not None,
+          "drift-count: codify must tie the DRIFT line to the existing counted-artifact shape (REFINE:/BREAKDOWN:)")
+
+
+def validate_multi_clause_want():
+    """v1.7.5 Fix 3e — a ratified want-decision carrying MORE THAN ONE clause is split at Gate 1 into one
+    matrix row AND one proof row PER CLAUSE, so the design-conformance self-check cannot certify the half
+    it enumerated while the other half silently drops out of the count. Same per-item-inventory discipline
+    as the 'for each of N' rule and execute's one-assertion-per-clause M-gate rule."""
+    an = ROOT / "plugins" / "mango" / "skills" / "analysis" / "SKILL.md"
+    if not check(an.exists(), "multi-clause: skills/analysis/SKILL.md is missing"):
+        return
+    body = an.read_text(encoding="utf-8")
+    check(re.search(r"multi-clause want-decision", body, re.IGNORECASE) is not None,
+          "multi-clause: analysis must name the multi-clause want-decision case")
+    check(re.search(r"one row per clause", body, re.IGNORECASE) is not None,
+          "multi-clause: analysis must require one matrix + proof row PER CLAUSE")
+    check(re.search(r"Gate 1", body) is not None,
+          "multi-clause: analysis must place the clause split at Gate 1")
+    check(re.search(r"finding", body, re.IGNORECASE) is not None,
+          "multi-clause: analysis must make a clause with no row of its own a FINDING")
+    check(re.search(r"self-check", body, re.IGNORECASE) is not None,
+          "multi-clause: analysis must explain the design-conformance self-check half-certification failure")
+
+
+def validate_solve_workdoc_route():
+    """v1.7.5 Fix 3a — the v1.7.3/v1.7.4 committed-stub → `separate` guidance lived in breakdown/analysis
+    but `solve`'s `auto` path still embedded regardless. `solve` now routes the committed-stub shape to
+    `separate` at the place it actually sets the working-doc mode, and records the resolved mode in
+    Session status so every later phase reads the same answer."""
+    sv = ROOT / "plugins" / "mango" / "skills" / "solve" / "SKILL.md"
+    if not check(sv.exists(), "solve-workdoc: skills/solve/SKILL.md is missing"):
+        return
+    body = sv.read_text(encoding="utf-8")
+    check(re.search(r"committed-?stub", body, re.IGNORECASE) is not None,
+          "solve-workdoc: solve must name the committed-stub ticket shape")
+    check(re.search(r"even under .{0,4}`?auto`?", body, re.IGNORECASE) is not None,
+          "solve-workdoc: solve must route a committed stub to `separate` EVEN UNDER `auto`")
+    check(re.search(r"tracked", body, re.IGNORECASE) is not None,
+          "solve-workdoc: solve must explain the committed/tracked-file fragility")
+    check(re.search(r"Session status", body) is not None,
+          "solve-workdoc: solve must record the resolved work_doc_mode in Session status")
+
+
+def operational_text_files():
+    """The SHIPPED OPERATIONAL TEXT set the jargon grep scans — the behavioural instruction surface a
+    stranger reads. Exactly: every `plugins/mango/skills/*/SKILL.md`, every `plugins/mango/agents/*.md`,
+    every `plugins/mango/templates/*.md`, `plugins/mango/PRINCIPLES.md`, the plugin `README.md`, AND the
+    repo-root `README.md`. The root README was MISSING from this set in v1.7.4 — part of that version's
+    false-green. `CHANGELOG.md` is deliberately EXCLUDED: a changelog documenting past versions is a
+    historical record, not operational text."""
+    plugin = ROOT / "plugins" / "mango"
+    return (sorted(plugin.glob("skills/*/SKILL.md"))
+            + sorted(plugin.glob("agents/*.md"))
+            + sorted(plugin.glob("templates/*.md"))
+            + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md"])
+
+
+def validate_maturity_labels():
+    """v1.7.4 Fix 2 + v1.7.5 Fix 1b — shipped OPERATIONAL text (see `operational_text_files`) uses
+    standard maturity vocabulary and carries NO internal jargon: every `BANNED_JARGON` pattern
+    (`v1-learning`, `n=1`/`n=2`, `enough to run and learn`, `v1 — …`) must be ABSENT from EVERY file in
+    that set. breakdown re-ratification is labelled Experimental with a plain graduation line; a Maturity
+    definition (Stable + Experimental + graduation) exists in PRINCIPLES.md.
+
+    v1.7.5 closes a false-green: v1.7.4 claimed to enforce a zero-jargon grep but its pattern set held
+    only `v1-learning` / `n=[12]`, so `v1 — "enough to run and learn"` survived in `skills/solve/SKILL.md`
+    and the plugin README while the validator reported OK, and the root README was never scanned at all.
+    (Version references like `v1.6.1` are NOT jargon and are unaffected; `N=1`/`N>1` as a matrix
+    denominator in `analysis/SKILL.md` is a different meaning, not jargon — the pattern is lower-case
+    `n=1`/`n=2` only.)"""
+    plugin = ROOT / "plugins" / "mango"
+    for path in operational_text_files():
         if not path.exists():
             continue
         rel = path.relative_to(ROOT)
@@ -421,10 +611,9 @@ def validate_maturity_labels():
         except OSError as exc:
             check(False, f"maturity: cannot read {rel} ({exc})")
             continue
-        check(re.search(r"v1-learning", body, re.IGNORECASE) is None,
-              f"maturity: {rel} must not use the internal jargon 'v1-learning' (use Stable/Experimental)")
-        check(re.search(r"\bn=[12]\b", body) is None,
-              f"maturity: {rel} must not use internal evidence jargon 'n=1'/'n=2' in shipped plugin text")
+        for pattern, reason, flags in BANNED_JARGON:
+            check(re.search(pattern, body, flags) is None,
+                  f"maturity: {rel} must not use {reason} in shipped operational text")
     bd = plugin / "skills" / "breakdown" / "SKILL.md"
     if check(bd.exists(), "maturity: skills/breakdown/SKILL.md is missing"):
         body = bd.read_text(encoding="utf-8")
@@ -526,6 +715,12 @@ def main():
     validate_changelog_shipped()
     validate_eval_cache()
     validate_review_git_isolation()
+    validate_worktree_env_parity()
+    validate_empty_diff_fallback()
+    validate_epic_lesson_owner()
+    validate_drift_count_line()
+    validate_multi_clause_want()
+    validate_solve_workdoc_route()
     validate_maturity_labels()
     validate_workdoc_committed_stub()
     validate_doc_consistency()

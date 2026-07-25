@@ -111,6 +111,18 @@ count, and the requirements matrix.
 
    A surface the change *can* affect that ends up with neither a proof nor a recorded exclusion makes
    the requirement **incomplete** — later phases (design/execute/review) prove against this N.
+
+   **Multi-clause want-decision → ONE matrix row + ONE proof row PER CLAUSE (at Gate 1).** A ratified
+   want-decision (from `refine`) frequently carries **more than one clause** joined by *and* — e.g.
+   *"place the rows under the summary **AND** make each row tappable through to detail"* is **two**
+   clauses: a placement clause and a navigation clause. **Split it here, at Gate 1**: **enumerate the
+   clauses** and give each its **own matrix row** and its **own row in the verification plan / proof
+   manifest** — **one row per clause**, never one aggregate row for the whole sentence. A single row lets the
+   design-conformance self-check certify **the half it enumerated** while the other half silently drops
+   out of the count, which is precisely how a clause ships unproven behind a green `✅`. A clause with
+   **no row of its own** is a **finding** at this step. This is the same per-item-inventory discipline
+   as the "for each of N" rule above and `execute`'s one-assertion-per-clause rule for multi-clause
+   M-gates, applied to the ratified want-decisions — do **not** invent a parallel mechanism.
 7. **Cause / gap analysis.**
    - Bug → root cause classified against `config.cause_taxonomy`, with `path:line`.
    - Enhancement → per-goal gap analysis (current vs target), with `path:line`.
@@ -186,7 +198,8 @@ count, and the requirements matrix.
     every acceptance value **falsifiable or a recorded manual-check exclusion** (none carrying a bare
     `✅`), `BASELINE` captured, `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status`
     filled, `RULE SECTIONS` coverage emitted (every rulebook section applicable to the change type
-    checked or N/A-with-reason), `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track
+    checked or N/A-with-reason), **every multi-clause ratified want-decision split into one row per
+    clause**, `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track
     includes frontend with a universal/app-wide requirement — `SURFACES: N` emitted from the code
     surface. Write Phase 1 into
     the working doc and the `Session status` block, then STOP and wait for the user. Do not begin

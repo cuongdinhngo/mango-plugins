@@ -46,6 +46,16 @@ bootstrap (skeleton rule book with TODOs); `codify` is the deep facilitation; `d
    entry **`PROVISIONAL (awaiting ratification)`**. Never write a dimension the human did not choose.
    Optionally emit a **drift list** of files diverging from a chosen standard as follow-up tech-debt —
    but **never change code**.
+
+   **The drift count is a COUNTED LINE, not prose.** Whenever you emit or update the drift list, emit
+   the count as a prefixed counting line — the same shape as `REFINE:` / `BREAKDOWN:` / `SECTIONS:`,
+   which is what makes a count resist fudging:
+
+   `DRIFT: <n> entries | <m> tickets`
+
+   `<n>` is the number of drift entries recorded; `<m>` is the number of follow-up tickets they roll up
+   into. Both are **counted from the list itself**, never narrated from memory — a prose count ("about
+   six files drift") is exactly what lets a "6" ship where the list holds 5.
 3a. **Uncodified-standard items surfaced by the lifecycle.** A lifecycle phase (e.g. `analysis`) may
    surface an **uncodified standard** — a standard applied at a gate with **no codified rule** in the
    rule book. Such an item enters this **same provisional→ratify flow**: record it as a

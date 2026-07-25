@@ -14,8 +14,7 @@ ticket-blind **`challenger`** reviews the child's diff. If the scaffold was comm
 diff reads as a genuine **edit of a committed file** — the challenger can tell a real retarget-edit from
 brand-new authorship. If the scaffold was created but **not committed**, the child's edit shows up as
 **net-new** authorship, and the challenger cannot distinguish the two and must caveat its verdict.
-*(Observed, n=1 epic 013: the scaffold was created but not committed, and a child's challenger had to
-caveat.)*
+*(Field-observed: the scaffold was created but not committed, and a child's challenger had to caveat.)*
 
 State exactly **when** the scaffold is committed relative to the first child branch, and **why** that
 ordering preserves the challenger's net-new-vs-edit evidence.

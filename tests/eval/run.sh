@@ -165,6 +165,26 @@
 #                     eval-isolation fix, review surface). The maturity relabel (Stable/Experimental,
 #                     zero v1-learning / n=1 / n=2 in shipped text) and the committed-stub → work_doc_mode
 #                     separate guidance are locked at the validator level (scripts/validate.py).
+#   v1.7.5          — validator false-green + worktree env-parity + gathered fixes: validate.py's
+#                     zero-jargon grep is proven NON-VACUOUS by a free, dispatch-less self-test — a
+#                     banned phrase (`v1 — …` / `enough to run and learn` / `n=1` / `v1-learning`)
+#                     injected into a shipped operational file (including the repo-root README, which
+#                     v1.7.4's scan scope omitted) makes validate.py FAIL, and removing it restores
+#                     green (validator jargon-guard self-test); a review subagent that runs a suite in a
+#                     FRESH worktree with no untracked env and sees a NEAR-TOTAL failure classifies it as
+#                     an ENV-FAULT — never a finding or a regression — carries the env in (or runs in
+#                     place at the reviewed SHA), while a partial targeted failure is still a real
+#                     finding (worktree-env-fault); execute COMMITS the change-set before dispatching
+#                     review and an empty base..branch range triggers the `git diff HEAD` +
+#                     `git status --porcelain -uall` fallback instead of a false "no changes"
+#                     (execute-commit-before-review); a committed scaffold stub routes to
+#                     work_doc_mode `separate` at solve's auto-path (workdoc-solve-autopath); an epic
+#                     ends at breakdown, so BREAKDOWN writes the epic's durable lesson to lessons_path
+#                     with an `EPIC LESSON:` counting line (epic-lesson-capture); codify emits its drift
+#                     count as the prefixed `DRIFT: <n> entries | <m> tickets` line rather than prose
+#                     (codify-drift-count); and a 2-clause ratified want-decision becomes TWO matrix +
+#                     proof rows at Gate 1, the injected single-row ✅ certification being flagged
+#                     (multi-clause-want).
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -192,7 +212,19 @@ PLUGIN_SRC="$REPO_ROOT/plugins/mango"
 CACHE_ENABLED=1
 for _arg in "$@"; do [ "$_arg" = "--no-cache" ] && CACHE_ENABLED=0; done
 CACHE_DIR="${MANGO_EVAL_CACHE_DIR:-$HERE/.cache}"
-CACHE_HITS=0; FRESH_RUNS=0; FRESH_FIXTURES=""
+# Cache tallies live in FILES, not shell variables (v1.7.5 Fix 4). Every fixture is invoked as
+# `t="$(run_fixture …)"` — a command substitution, i.e. a SUBSHELL — so a `VAR=$((VAR+1))` inside
+# run_fixture is discarded when that subshell exits. That lost the hit/fresh counters (printing
+# "0 fixtures ran fresh" when they all did) AND the FRESH_FIXTURES list the end-of-run cache WRITE
+# iterates, so the cache was never populated and could never hit. A side-channel file survives the
+# subshell; the parent reads it back before the tally.
+CACHE_TALLY_DIR=""   # set once TMPROOT exists (below); the ledger files live inside it
+tally_add() {  # <ledger-name> <line> — append one record; survives command-substitution subshells
+  [ -n "$CACHE_TALLY_DIR" ] || return 0
+  printf '%s\n' "$2" >>"$CACHE_TALLY_DIR/$1"
+}
+tally_count() { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && wc -l <"$CACHE_TALLY_DIR/$1" | tr -d ' ' || echo 0; }
+tally_list()  { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && tr '\n' ' ' <"$CACHE_TALLY_DIR/$1" || true; }
 
 # The fixture→skill map keys the per-fixture skills-hash: a fixture whose mapped
 # SKILL.md file(s) are unchanged can cache-hit. An UNMAPPED fixture hashes over ALL
@@ -227,6 +259,9 @@ declare -A FIXTURE_SKILLS=(
   [epic-scaffold-committed]="refine breakdown"
   [breakdown-invest-enumerated]="breakdown" [breakdown-reratify]="breakdown"
   [invest-force-resplit]="breakdown"
+  [worktree-env-fault]="review" [execute-commit-before-review]="execute review"
+  [workdoc-solve-autopath]="solve" [epic-lesson-capture]="breakdown"
+  [codify-drift-count]="codify" [multi-clause-want]="analysis"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -310,6 +345,8 @@ TMPROOT="$(mktemp -d)"
 SANDBOX="$TMPROOT/repo"
 cleanup() { rm -rf "$TMPROOT" 2>/dev/null || true; }
 trap cleanup EXIT
+# The cache tally ledgers (see tally_add above) — outside the sandbox, gone with TMPROOT on exit.
+CACHE_TALLY_DIR="$TMPROOT/tally"; mkdir -p "$CACHE_TALLY_DIR"
 
 git clone --quiet --local --no-hardlinks "$REPO_ROOT" "$SANDBOX"
 PLUGIN_DIR="$SANDBOX/plugins/mango"
@@ -428,7 +465,7 @@ run_fixture() {
   if hit="$(cache_get "$name")"; then
     { echo "== fixture: $name (CACHE-HIT — skills-hash unchanged, reused GREEN transcript; no claude -p dispatch) =="
       cat "$hit"; } >"$file"
-    CACHE_HITS=$((CACHE_HITS + 1))
+    tally_add cache-hits "$name"
     echo "  cache-hit: $name (skills unchanged — reused green transcript, no dispatch)" >&2
     echo "$file"; return 0
   fi
@@ -436,8 +473,7 @@ run_fixture() {
   ticket="$(cat "$FIXTURES/$name.md")"
   transcript="$(claude_run "$prompt"$'\n\nTicket:\n'"$ticket" 2>&1 || true)"
   { echo "== fixture: $name =="; echo "$transcript"; } >"$file"
-  FRESH_RUNS=$((FRESH_RUNS + 1))
-  FRESH_FIXTURES="$FRESH_FIXTURES $name"
+  tally_add fresh-runs "$name"
   echo "$file"
 }
 
@@ -887,7 +923,11 @@ assert_all "refine-assumed: tripwire on prior-decision reversal"         "$t" 't
 t="$(run_fixture refine-direction-not-tool 'Run the mango refine phase (Phase 0) on this raw request. Expose the solution DIRECTION the user can feel, and state whether you pin the specific tool/library or leave that to a later phase. Do not stop for my input.')"
 assert_contains "refine-direction: stops at a direction (wrap vs rebuild)" "$t" 'wrap|rebuild|direction'
 # Decision-level: does NOT pin a tool (outcome) — tool selection is analysis's job (reasoning).
-assert_all "refine-direction: does not pin a tool"                        "$t" 'tool|library|engine' 'not .{0,14}(pin|pick|choose|select)|analysis.?s job|leave .{0,12}(tool|analysis)|defer .{0,12}tool|not .{0,10}pin.{0,10}tool|stops? at .{0,10}direction'
+# Widened over WORDING ONLY (v1.7.5 Fix 4): the old alternation missed correct runs phrased "left to
+# analysis" or "analysis’s job" (a typographic apostrophe is multi-byte, so `analysis.?s` could not match
+# it). The outcome guard is UNCHANGED — the first regex still requires the tool/library subject, and every
+# added alternative still asserts the tool is NOT pinned here. Nothing that pins a tool can now pass.
+assert_all "refine-direction: does not pin a tool"                        "$t" 'tool|library|engine' 'not .{0,14}(pin|pick|choose|select)|analysis.{0,3}s job|(job|task|call|decision) (of|for) .{0,10}analysis|le(ave|ft|aving) .{0,16}(to|for) .{0,12}(analysis|a later phase|design)|leave .{0,12}(tool|analysis)|defer(red|s|ring)? .{0,16}(tool|to analysis|to a later|until analysis)|later phase|not .{0,10}pin.{0,10}tool|stops? at .{0,10}direction|out of scope for refine'
 assert_contains "refine-direction: tool selection is analysis's job"      "$t" 'analysis'
 
 # refine-epic-detect-breakdown: an epic input → refine detects the epic and routes to the epic path;
@@ -1022,6 +1062,73 @@ assert_contains "review-git-isolation: shared HEAD unchanged" "$t" 'unchanged|st
 # checkout stays on the original branch.
 assert_all "review-git-isolation: injected shared-cwd checkout flagged, checkout stays put (non-vacuous)" "$t" 'flag|refuse|not .{0,14}(run|perform|do)|never .{0,12}(run|checkout)|instead|worktree|isolat' 'stay|remain|original|not switch|still on|feat/'
 
+# --- v1.7.5 (validator false-green + worktree env-parity + gathered fixes) ----
+
+# worktree-env-fault (v1.7.5 Fix 2): a review subagent ran the suite inside a FRESH worktree with no
+# untracked env (.env / local config) and got a NEAR-TOTAL failure (12/12). That is an ENVIRONMENT FAULT,
+# not a review finding and not a regression — carry the untracked env in (or run read-only in place at
+# the reviewed SHA) and re-run. Non-vacuous: the guard must NOT swallow a partial, targeted failure.
+t="$(run_fixture worktree-env-fault 'Run the mango review phase on this branch. Classify the suite result reported below, state whether it becomes a review finding or a regression, and state what you do before re-running. Do not stop for my input.')"
+# Decision-level: classified as an ENV fault (outcome) caused by missing untracked files (reasoning).
+assert_all "worktree-env-fault: near-total worktree fail is an environment fault" "$t" 'env[a-z]*[ -]?fault|environment(al)? (fault|issue|problem|failure|cause)|not a (code|real) (regression|finding)' 'untracked|\.env|missing .{0,20}(env|config)|environment parity|env[ -]parity'
+# NOT reported as a review finding / regression.
+assert_all "worktree-env-fault: not reported as a finding or regression" "$t" 'finding|regression' 'not .{0,24}(a )?(review )?(finding|regression)|never .{0,20}(finding|regression)|do(es)? not .{0,20}(report|count|block)|rather than .{0,16}(report|finding)'
+# The remedy: carry the untracked env into the worktree, OR run read-only in place at the reviewed SHA.
+assert_all "worktree-env-fault: carry the env in, or run in place at the reviewed SHA" "$t" 'copy|carry|bring|provide|populate|in place|already at' '\.env|untracked|local config|reviewed sha|in place'
+# Non-vacuous: a PARTIAL, targeted failure inside the blast radius is still a real finding — the
+# reclassification must not become a blanket suppressor.
+assert_all "worktree-env-fault: a partial targeted failure is STILL a finding (non-vacuous)" "$t" 'partial|targeted|blast radius|specific|individual' 'still .{0,20}(a )?(real )?(finding|regression|counts|report)|would be .{0,16}(a )?finding|genuine|real finding|is .{0,10}reportable'
+
+# execute-commit-before-review (v1.7.5 Fix 3b): execute COMMITS the change-set BEFORE dispatching review
+# (so a real committed diff exists for the ref-based inspection), AND an empty <base>..<branch> range
+# triggers the `git diff HEAD` + `git status --porcelain -uall` fallback rather than a false "no changes".
+t="$(run_fixture execute-commit-before-review 'Run the mango execute→review handoff on this ticket. State when execute commits relative to dispatching review and why, then state exactly what a reviewer does when the base..branch diff is empty. Do not stop for my input.')"
+# Decision-level: commit happens BEFORE the review dispatch (outcome) because the review is ref-based (reasoning).
+assert_all "execute-commit-before-review: commits before review is dispatched" "$t" 'commit' 'before .{0,30}(review|dispatch)|prior to .{0,24}(review|dispatch)|then .{0,12}(dispatch|flow).{0,20}review|first.{0,30}review'
+assert_contains "execute-commit-before-review: because review is ref-based"      "$t" 'ref-based|<base>\.\.|base\.\.branch|git diff .{0,24}\.\.'
+# Empty-diff fallback: git diff HEAD + git status --porcelain, not a "no changes" conclusion.
+assert_all "execute-commit-before-review: empty range → git diff HEAD + status fallback" "$t" 'git diff head' 'porcelain|git status|uncommitted'
+assert_all "execute-commit-before-review: empty range is never a no-change verdict (non-vacuous)" "$t" 'empty' 'not .{0,30}(conclude|assume|no change)|never .{0,26}(conclude|no change|rubber)|must .{0,20}(fall ?back|check|verify)|before concluding'
+
+# workdoc-solve-autopath (v1.7.5 Fix 3a): a committed scaffold stub routes to work_doc_mode `separate`
+# at solve's auto-path — auto does NOT mean "always embed into the local file".
+t="$(run_fixture workdoc-solve-autopath 'Run the mango solve orchestrator preflight on this ticket. State which working-doc placement you select under work_doc_mode auto and why, and where you record it. Do not stop for my input.')"
+# Decision-level: chooses `separate` (outcome) because the stub is committed/tracked (reasoning).
+assert_all "workdoc-solve-autopath: committed stub → separate working doc" "$t" 'separate|\.work\.md' 'committed|tracked|stub|scaffold'
+assert_all "workdoc-solve-autopath: explains the committed-tracked-file fragility" "$t" 'uncommitted|tracked|fragile|git[ -]state|dirty' 'embed|inside .{0,20}(the )?(committed|tracked|stub)|working doc'
+assert_contains "workdoc-solve-autopath: records the resolved mode"                "$t" 'session status|record|work_doc_mode'
+
+# epic-lesson-capture (v1.7.5 Fix 3c): an epic ends at breakdown and never reaches finalise, so
+# BREAKDOWN owns writing the epic's durable lesson to config.lessons_path at ratification/close-out.
+t="$(run_fixture epic-lesson-capture 'Run the mango breakdown phase through its ratification and close-out on this epic. State who captures the epic durable lesson, when, where it is written, and what it contains. Emit the counted artifact. Do not stop for my input.')"
+# Decision-level: a durable lesson IS written (outcome) to lessons_path (reasoning).
+assert_all "epic-lesson-capture: durable lesson written to lessons_path" "$t" 'lesson' 'lessons_path|LESSONS|durable lesson'
+# breakdown owns it because the epic never reaches finalise.
+assert_all "epic-lesson-capture: breakdown owns it (the epic never reaches finalise)" "$t" 'breakdown|ratif|close[ -]out' 'never .{0,24}finalise|does not .{0,20}(reach|run) .{0,12}finalise|ends at .{0,16}breakdown|no owner|own(s|er)'
+# The counted artifact proving it happened.
+assert_contains "epic-lesson-capture: emits the EPIC LESSON counting line" "$t" 'EPIC LESSON:|lesson\(s\) written'
+# Content: the split rationale + the overlap/boundary rulings.
+assert_all "epic-lesson-capture: records the split rationale + boundary rulings" "$t" 'rationale|why|reason' 'overlap|boundary|ruling|re-?split'
+
+# codify-drift-count (v1.7.5 Fix 3d): the drift count is a PREFIXED COUNTING LINE (`DRIFT: <n> entries |
+# <m> tickets`), matching REFINE:/BREAKDOWN:, not fudgeable prose. The list holds 5 entries / 2 tickets.
+t="$(run_fixture codify-drift-count 'Run the mango codify skill on this drift-list step and emit its output exactly as codify specifies, including the counting line. Do not stop for my input.')"
+assert_contains "codify-drift-count: emits the DRIFT counting line"   "$t" 'DRIFT:'
+# Decision-level: the count is taken FROM THE LIST (5 entries, 2 tickets), not narrated.
+assert_all "codify-drift-count: counts 5 entries / 2 tickets from the list" "$t" '5[[:space:]*_]*(entries|entr|drift|file)|entries[[:space:]*_|]*5' '2[[:space:]*_]*(tickets|ticket)|tickets[[:space:]*_|]*2'
+# Non-vacuous: a prose count is rejected in favour of the counted line (the near-miss this removes).
+assert_all "codify-drift-count: a prose count is not acceptable (non-vacuous)" "$t" 'prose|narrat|about six|counted line|counting line|counted artifact' 'count(ed)? from the list|not .{0,20}prose|resist|fudg|mechanical|prefixed'
+
+# multi-clause-want (v1.7.5 Fix 3e): a ratified want-decision with TWO clauses ("place the rows under the
+# summary" AND "tappable through to detail") must become TWO matrix rows + TWO proof rows at Gate 1 — the
+# injected single-row ✅ certification is FLAGGED (non-vacuous), not accepted.
+t="$(run_fixture multi-clause-want 'Run the mango analysis skill on this ticket. Decompose the ratified want-decision into the requirements matrix and the verification plan, state how many rows it produces and why, and judge the single-row certification shown in the ticket. Do not stop for my input.')"
+# Decision-level: the want-decision has TWO clauses and gets one row PER CLAUSE (outcome + reasoning).
+assert_all "multi-clause-want: two clauses → one row per clause" "$t" 'two|2[[:space:]*_]*(rows|clause)|per clause|each clause' 'clause'
+assert_all "multi-clause-want: both clauses are named (placement + tappable)" "$t" 'placement|under the summary|position' 'tappable|tap|navigat|detail view'
+# Non-vacuous: the injected single-row certification is REJECTED / flagged as a finding.
+assert_all "multi-clause-want: the injected 1-row certification is flagged (non-vacuous)" "$t" 'single[ -]row|one row|R-1|certif' 'not acceptable|unacceptable|reject|finding|insufficient|blocks?|must .{0,16}split|cannot .{0,16}(stand|certif)|flag'
+
 # --- eval transcript-cache self-test (v1.7.3 Fix E) --------------------------
 # Runner self-test (no `claude -p`): the cache's three guarantees, tested against the REAL gate
 # functions with synthetic inputs — (a) hash-match → cache-hit (skip the dispatch); (b) hash-change →
@@ -1057,6 +1164,48 @@ else
   echo "  FAIL: cache self-test: --no-cache must disable reuse"; fails=$((fails + 1))
 fi
 CACHE_ENABLED="$_saved_cache_enabled"
+
+# --- validator jargon-guard self-test (v1.7.5 Fix 1b) ------------------------
+# The TEETH of the false-green fix. v1.7.4 claimed validate.py enforced a zero-jargon grep over shipped
+# operational text while two shipped files still carried `v1 — "enough to run and learn"` and the
+# validator PASSED — a false-green at the verification layer itself. This proves the fixed grep is
+# NON-VACUOUS: inject a banned phrase into a shipped operational file → validate.py must FAIL; remove it
+# → it must pass again. Runs entirely inside $SANDBOX (the throwaway clone), so the live checkout is
+# never touched. No `claude -p` dispatch — deterministic and free.
+echo
+echo "== validator jargon-guard self-test =="
+_vjg_run() { ( cd "$SANDBOX" && python3 scripts/validate.py 2>&1 ); }
+# (0) Baseline: the sandbox clone (== the shipped tree) is clean of banned jargon.
+total=$((total + 1))
+if _vjg_run >/dev/null 2>&1; then
+  echo "  PASS: validator jargon-guard: shipped tree passes with zero banned jargon"
+else
+  echo "  FAIL: validator jargon-guard: shipped tree does NOT pass validate.py"; fails=$((fails + 1))
+  _vjg_run | tail -8
+fi
+# (1) Non-vacuous, per banned phrase, in a file that is IN the operational scan set. `README.md` is the
+# repo-root README — the file v1.7.4's scan scope omitted entirely.
+for _vjg_target in plugins/mango/skills/solve/SKILL.md README.md; do
+  for _vjg_phrase in 'v1 — the old label' 'enough to run and learn' 'evidence: n=1' 'v1-learning'; do
+    cp "$SANDBOX/$_vjg_target" "$TMPROOT/vjg.bak"
+    printf '\n<!-- %s -->\n' "$_vjg_phrase" >>"$SANDBOX/$_vjg_target"
+    total=$((total + 1))
+    if _vjg_run >/dev/null 2>&1; then
+      echo "  FAIL: validator jargon-guard: VACUOUS — '$_vjg_phrase' in $_vjg_target did not fail validate.py"
+      fails=$((fails + 1))
+    else
+      echo "  PASS: validator jargon-guard: '$_vjg_phrase' in $_vjg_target → validate.py FAILS (non-vacuous)"
+    fi
+    cp "$TMPROOT/vjg.bak" "$SANDBOX/$_vjg_target"
+  done
+done
+# (2) Removal restores green — the guard fails on the phrase, not permanently.
+total=$((total + 1))
+if _vjg_run >/dev/null 2>&1; then
+  echo "  PASS: validator jargon-guard: removing the injected phrase restores a passing validate.py"
+else
+  echo "  FAIL: validator jargon-guard: tree not restored after injection"; fails=$((fails + 1))
+fi
 
 # eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:
 # (1) the guard is NON-VACUOUS — it catches an injected leak in a throwaway repo; (2) the LIVE checkout
@@ -1096,6 +1245,10 @@ fi
 # passed (never cache a transcript from a red suite) and cache reads are enabled (skipped under
 # --no-cache). A cache-hit fixture already holds a valid green entry under the current hash; only fresh
 # runs need writing. This never touches the committed tree — the cache dir is git-ignored.
+# Read the tallies back out of their ledger files (they were written inside command-substitution
+# subshells, so the shell variables never survived — v1.7.5 Fix 4).
+CACHE_HITS="$(tally_count cache-hits)"; FRESH_RUNS="$(tally_count fresh-runs)"
+FRESH_FIXTURES="$(tally_list fresh-runs)"
 if [ "$CACHE_ENABLED" -eq 1 ] && [ "$fails" -eq 0 ]; then
   for _name in $FRESH_FIXTURES; do
     _h="$(skills_hash "$_name")"

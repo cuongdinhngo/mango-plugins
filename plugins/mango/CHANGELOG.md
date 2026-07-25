@@ -5,6 +5,123 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.7.5] — 2026-07-25
+
+A **fix-only** version closing the verify-layer gaps a v1.7.4 field test surfaced. **No new lifecycle
+phase, no new idea.** Nothing removes a CHECK — every change **ADDS** a guard, **COMPLETES** an
+incomplete one, or **FIXES** one that silently passed; no gate is loosened. refine still **exposes, never
+authors**; every decision stays a counted artifact; the human holds every gate. Generic and
+stack-agnostic throughout (fixtures use `PROJ-*`); all plugin text is English-only.
+
+### Fixed
+- **⭐ The validator passed while its own claim was false — the false-green fixed (Fix 1).** v1.7.4's
+  entry claimed `scripts/validate.py` enforced a zero-jargon grep over shipped operational text. It did
+  not. Two independent causes, both now closed:
+  - **Pattern gap.** The grep held only `v1-learning` and `n=1`/`n=2`. The actual pre-relabel framing —
+    `v1 — "enough to run and learn"` — matched **neither**, so it survived in `skills/solve/SKILL.md`,
+    `skills/breakdown/SKILL.md`, `skills/refine/SKILL.md`, `PRINCIPLES.md` and the plugin `README.md`
+    while the validator reported OK. Because `solve/SKILL.md` is the orchestrator skill loaded into
+    context, the deprecated label then leaked into a committed, merged project artifact.
+  - **Scope gap.** The scan set covered the **plugin** README but never the **repo-root** `README.md`,
+    which carried both `v1 —` and `n=1`.
+
+  **What the validator now enforces, exactly:** every pattern in `BANNED_JARGON` — `v1-learning`,
+  `n=1`/`n=2` (case-**sensitive**, so the `N=1`/`N>1` matrix denominator in `analysis/SKILL.md` is
+  untouched), `enough to run and learn`, and `v1 —`/`v1 –` — must be **absent from every file** in the
+  operational set defined by `operational_text_files()`: `plugins/mango/skills/*/SKILL.md`,
+  `plugins/mango/agents/*.md`, `plugins/mango/templates/*.md`, `plugins/mango/PRINCIPLES.md`, the plugin
+  `README.md`, **and the repo-root `README.md`**. `CHANGELOG.md` is deliberately **excluded** — a
+  changelog documenting past versions is a historical record, not operational text, so the historical
+  entries below are allowed and unaffected. All shipped operational text is relabelled to the
+  Stable/Experimental vocabulary. The guard is proven **non-vacuous** by a free, dispatch-less runner
+  self-test (below) — a validator whose claim is false is the worst defect class mango can ship, so this
+  one is checked by injection, not by assertion.
+- **Worktree ≠ environment-equivalence (Fix 2).** v1.7.4 told a review subagent to use an isolated `git
+  worktree` to **run** a suite. A fresh worktree holds only **tracked** files, so it has none of the
+  project's required **untracked** environment (`.env` / local config, local certs, installed deps, built
+  assets): the app cannot boot and **every** test fails for an environmental reason that reads exactly
+  like a catastrophic regression. Two parties hit this independently in one session — a review subagent
+  reported "1 failing test file" for a file that passes 5/5, and the operator hit 12/12 phantom failures
+  until `.env` was copied in. The isolation was correct; the guidance was incomplete. A subagent must now
+  either **run read-only in place** when the tree is already at the reviewed SHA (the cheaper, safer
+  path) **or carry the required untracked environment into the run-worktree** first. **Sanity rule:** a
+  **near-total** suite failure inside a fresh worktree is an **env-fault until proven otherwise** — it is
+  fixed and re-run, and **never** reported as a review finding or a regression. This **reclassifies an
+  environment artifact only**: a *partial, targeted* failure inside the change's blast radius is still a
+  real finding, and once env parity holds the same result is reportable. Stated in `review/SKILL.md`, the
+  `reviewer`/`challenger` briefs, and `PRINCIPLES.md` (Subagent git isolation).
+- **`work_doc_mode` wiring at `solve`'s auto-path (Fix 3a).** v1.7.3's committed-stub → `separate`
+  guidance lived in `breakdown` and `analysis`, but `solve`'s `auto` mode still embedded regardless.
+  `solve` now classifies the ticket where it actually sets the working-doc mode and routes a **committed,
+  tracked scaffold stub** to **`separate` even under `auto`**, recording the resolved mode in
+  `Session status` so every later phase (and review's challenger-payload construction) reads the same
+  answer. Guidance + a sensible default, not a behavioural gate.
+- **execute commits before review is dispatched + an empty-diff fallback (Fix 3b).** Review-before-commit
+  plus a ref-based `<base>..<branch>` inspection produced an **empty** diff and very nearly rubber-stamped
+  "no changes" over a real change-set. Two guards, not one: `execute` now **commits the change-set BEFORE
+  dispatching review** so a real committed diff exists for the ref-based read; and the
+  `reviewer`/`challenger` briefs (plus `review/SKILL.md`) carry the fallback — *if a `<base>..<branch>`
+  diff is empty the change may be **uncommitted**; check `git diff HEAD` + `git status --porcelain -uall`
+  before concluding no-change.* An empty range is a reason to look harder, never a no-change verdict.
+- **The epic path had no lesson-capture owner (Fix 3c).** An epic **ends at `breakdown`** and never
+  reaches `finalise`, so mango's *"always capture a durable lesson"* rule had **no owner** on that path —
+  the split rationale and the overlap rulings reached no `config.lessons_path` and died with the run.
+  `breakdown` now owns it at ratification and after any re-ratification, reusing `finalise`'s durable-lesson
+  machinery and recording the split rationale, every overlap/boundary ruling, any forced INVEST re-split,
+  and each re-ratification delta with its human decision — emitted as the counted line
+  `EPIC LESSON: <n> lesson(s) written to <config.lessons_path>` so it cannot silently not-happen.
+- **codify's drift count is a counted line, not prose (Fix 3d).** A prose count drove a near-miss where
+  "6" should have been "5". `codify` now emits `DRIFT: <n> entries | <m> tickets`, both numbers counted
+  from the list itself — the same prefixed counting-line shape as `REFINE:` / `BREAKDOWN:` / `SECTIONS:`,
+  which is what makes a count resist fudging.
+- **A multi-clause want-decision gets one row per clause at Gate 1 (Fix 3e).** A ratified want-decision
+  joined by *and* — *"place the rows under the summary AND make each row tappable through to detail"* — is
+  two clauses. Decomposed as one aggregate matrix row, the design-conformance self-check certified the
+  placement half `✅` while the navigation half shipped unproven. `analysis` now **enumerates the clauses
+  at Gate 1** and gives each its **own matrix row and its own verification-plan / proof-manifest row**; a
+  clause with no row of its own is a **finding**. Same per-item-inventory discipline as the "for each of
+  N" rule and `execute`'s one-assertion-per-clause M-gate rule — no parallel mechanism.
+
+### Changed
+- **Eval runner — the cache tallies survive their subshell (housekeeping).** Every fixture is invoked as
+  `t="$(run_fixture …)"`, a command substitution, so the `CACHE_HITS`/`FRESH_RUNS`/`FRESH_FIXTURES`
+  assignments inside `run_fixture` were discarded when that subshell exited. The visible symptom was
+  cosmetic ("0 fixtures ran fresh" when they all did), but the same bug also emptied `FRESH_FIXTURES` —
+  the list the end-of-run **cache WRITE** iterates — so the transcript cache was **never populated and
+  could never hit**. The tallies now go to side-channel ledger files that outlive the subshell; the
+  counters print truthfully and the cache actually persists.
+- **`refine-direction-not-tool` assertion widened over WORDING only.** The old alternation missed correct
+  runs phrased "left to analysis" or "analysis’s job" (a typographic apostrophe is multi-byte, so
+  `analysis.?s` could not match it). Per the standing eval-variance convention the widening is over
+  phrasing, **never over outcome** — the outcome guard is unchanged and nothing that pins a tool can pass.
+
+### Tests / validation
+- **`validator jargon-guard` runner self-test (the teeth of Fix 1).** Eight injections — each banned
+  phrase into `skills/solve/SKILL.md` **and** into the repo-root `README.md` (the file v1.7.4's scan scope
+  omitted) — must each make `validate.py` **FAIL**, and removal must restore green. Runs entirely inside
+  the throwaway sandbox clone with **no `claude -p` dispatch**: deterministic, free, and non-vacuous.
+- **Six new behavioural fixtures (generic `PROJ-*`), each non-vacuous:** `worktree-env-fault` (a
+  near-total fresh-worktree failure is an env-fault, not a finding — while a *partial, targeted* failure
+  still is one), `execute-commit-before-review` (commit precedes dispatch; an empty range triggers the
+  `git diff HEAD` + `--porcelain -uall` fallback), `workdoc-solve-autopath` (committed stub → `separate`
+  under `auto`), `epic-lesson-capture` (breakdown writes the epic lesson + the `EPIC LESSON:` line),
+  `codify-drift-count` (the `DRIFT:` line, 5 entries / 2 tickets counted from the list), and
+  `multi-clause-want` (a 2-clause want yields 2 rows; the injected single-row `✅` certification is
+  flagged).
+- **`scripts/validate.py`** adds six guard groups locking these fixes: `validate_worktree_env_parity`
+  (env-parity / untracked / `.env` / in-place-at-reviewed-SHA / near-total / env-fault / *until proven
+  otherwise* / the partial-failure carve-out, across `review` + both critic briefs + `PRINCIPLES.md`),
+  `validate_empty_diff_fallback` (execute commits before review; `git diff HEAD` + `porcelain` +
+  `uncommitted` in both briefs and `review`), `validate_epic_lesson_owner`, `validate_drift_count_line`,
+  `validate_multi_clause_want`, `validate_solve_workdoc_route`, plus the rewritten
+  `validate_maturity_labels`. Both READMEs and `PRINCIPLES.md` are updated; the v0.5 doc-consistency check
+  stays green.
+
+> **Evidence note.** Fix 1 was found in two projects; Fix 2 was hit independently by a review subagent
+> and by the operator in one session. The Fix-3 items are single-observation but each has a clear shape,
+> gathered here because one retro pass covers them. This version hardens the verify layer that later work
+> will lean on; it adds no new surface of its own.
+
 ## [1.7.4] — 2026-07-19
 
 Review-phase git isolation + maturity labels (Stable/Experimental) + a `work_doc_mode` guidance for

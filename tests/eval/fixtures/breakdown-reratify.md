@@ -18,5 +18,5 @@ ticket's decision to make. Per mango, `breakdown` must **RE-RATIFY** at the brea
 artifact**, and get an **explicit human re-approve** before the changed list continues. The change must
 **NOT** ride in silently on a child ticket's **Gate 1** — that is exactly the failure this catches.
 
-> This re-ratification is **v1 — first-evidence (n=1)**; the exact trigger and granularity are expected
+> This re-ratification is **Experimental**; the exact trigger and granularity are expected
 > to be refined by a future epic retro. Keep it a delta-surface + human re-approve, not a rigid contract.

@@ -8,7 +8,7 @@ lifecycle — it activates **only on the epic path**, **after `design(epic)`**, 
 epic. Its job is to draw **ticket boundaries** from the epic-level architecture so each resulting ticket
 can run its own full lifecycle (`analysis → design → execute → review → finalize`).
 
-> ⚠️ **Thin by design — "enough to run and learn".** The exact epic→ticket boundary sizing has **no
+> ⚠️ **Thin by design — only enough to split.** The exact epic→ticket boundary sizing has **no
 > exact metric** (no agile method provides one). INVEST is the heuristic here; **retro corrects
 > mis-splits.** Keep this phase thin: enough to split, not more. If a retro later shows a *technique* gap
 > in how to split, consider adding SPIDR — **not now.**
@@ -83,9 +83,22 @@ its human gate.
    > `re-ratification: Experimental → Stable` — once a second epic validates the trigger. *(Field-observed:
    > after the split ratified, the epic gained a 7th ticket and reversed a previously-ratified decision —
    > both rode in on a child's Gate 1 with no breakdown-level re-approval.)*
-8. **Hand off.** On approval (and after any re-ratification above), each ticket runs its **own full
-   lifecycle** (one ticket per run). Record the approved list, the scaffold commit, and the gate
-   decision in the working doc.
+8. **Epic close-out — capture the epic's durable lesson (breakdown OWNS this on the epic path).** An
+   epic **ends here**: it never reaches `finalise`, so mango's *"always capture a durable lesson"* rule
+   has **no owner on the epic path** unless `breakdown` takes it. At ratification — and again after any
+   Step-7 re-ratification — **write the epic's durable lesson(s) to `config.lessons_path`**, using the
+   same durable-lesson machinery `finalise` uses (do not invent a parallel one). At minimum record: the
+   **split rationale** (why these boundaries), every **overlap / boundary ruling** made while splitting,
+   any **INVEST re-split** that was forced and why, and each **re-ratification delta** with its human
+   decision. A lesson that stays in the conversation is lost the moment the run ends. Emit it as a
+   counted artifact so it cannot silently not-happen:
+
+   `EPIC LESSON: <n> lesson(s) written to <config.lessons_path>`
+
+   If `config.lessons_path` is unset, say so explicitly and surface it rather than silently skipping.
+9. **Hand off.** On approval (and after any re-ratification above), each ticket runs its **own full
+   lifecycle** (one ticket per run). Record the approved list, the scaffold commit, the epic lesson, and
+   the gate decision in the working doc.
 
 > ⚠️ **Boundary sizing has no exact metric** — INVEST is the heuristic, retro corrects mis-splits.
 > Because the re-ratification behaviour here is **Experimental**, expect a retro to refine both the

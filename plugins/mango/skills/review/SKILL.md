@@ -38,6 +38,36 @@ never the live checkout. This is stated once in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLE
 isolation) — same root cause as the eval-path fix, now applied to the review surface — and is guarded by
 `scripts/validate.py`.
 
+### Worktree ≠ environment-equivalence (binding — carry the untracked env, or run in place)
+
+A fresh `git worktree` contains only **tracked** files. It therefore has **none** of the project's
+required **untracked** environment — `.env` / local config, local certs, installed dependencies, built
+assets — so the app cannot boot and **every** test fails for an environmental reason that has nothing to
+do with the diff. Two allowed paths, in order of preference:
+
+1. **Run read-only in place** when the working tree is **already at the reviewed SHA** (nothing to
+   check out, nothing to switch): the cheaper and safer path. Read-only means run the suite; still no
+   `checkout`/`switch`/`stash`.
+2. **Carry the required untracked environment into the run-worktree** — at minimum the `.env` / local
+   config the app needs to boot, plus whatever the project's setup step installs — **before** running
+   the suite. Copy it in; never commit it, and never write a secret into a tracked file.
+
+**Sanity rule — a near-total failure inside a fresh worktree is an ENVIRONMENT FAULT, not a finding.**
+If a suite run inside a fresh worktree fails **near-totally** (all or almost all test files failing,
+boot/import/connection errors, a count wildly worse than the recorded `BASELINE:`), treat it as an
+**env-fault caused by missing untracked files** **until proven otherwise** — fix the environment parity
+and re-run. It **MUST NOT** be reported as a review finding, and it **must not** be recorded as a
+regression: a near-total fail is almost never a real regression and almost always a missing `.env`. This
+**reclassifies an environment artifact only** — it never suppresses a real finding: a *partial*,
+*targeted* failure inside the change's blast radius is still a genuine finding, and once environment
+parity is established the same near-total result **is** reportable.
+
+**Empty-diff fallback (put it in every review brief).** `execute` **commits the change-set before
+dispatching review**, so a real committed diff exists for the ref-based inspection. If a
+`<base>..<branch>` diff nonetheless comes back **empty**, the change may be **uncommitted** — the brief
+you hand each subagent must say: *fall back to `git diff HEAD` + `git status --porcelain -uall` before
+concluding "no changes"*. An empty range is a reason to look harder, never a no-change verdict.
+
 ## Steps
 
 1. **Run the reviewer agent** on the working-tree diff — `reviewer` or `reviewer-max` per the

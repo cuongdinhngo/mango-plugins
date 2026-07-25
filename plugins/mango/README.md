@@ -49,7 +49,7 @@ A few terms recur throughout; here they are once.
 |-------|-----|----------|
 | `/mango:init` | Once per project | Detects the stack read-only, interviews only for the undetectable, writes `.harness.json` (guesses marked `UNVERIFIED`), asks whether it is committed or kept local, and scaffolds a starter rule book if none exists. |
 | `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation, prefaced by `mango <version> @ <base path>`. `solve` runs it as a fail-fast preflight. |
-| `/mango:codify` | When the rule book is missing / thin (opt-in) | **Counts** the conventions the code and schema actually use, asks **you** to choose each standard, and writes them tagged `PROVISIONAL (awaiting ratification)`. Facilitates; never auto-picks the majority, never changes code. |
+| `/mango:codify` | When the rule book is missing / thin (opt-in) | **Counts** the conventions the code and schema actually use, asks **you** to choose each standard, and writes them tagged `PROVISIONAL (awaiting ratification)`. Any drift list carries the counted line `DRIFT: <n> entries \| <m> tickets` (counted from the list, never narrated). Facilitates; never auto-picks the majority, never changes code. |
 | `/mango:version-check` | On demand (opt-in) | Reports running vs latest version and **prints** the host `/plugin` commands to update. Needs `update_check_url`; never updates. |
 
 `init` gives you a skeleton rule book with TODOs; `/mango:codify` is the deeper facilitation for a
@@ -120,13 +120,13 @@ security-tagged, touches more than one file, or has a universal requirement reso
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
 | `/mango:refine` | 0 (no gate of its own) | A **refined ticket** as counted artifacts: a `REFINE:` count line + tables for **settled wants** (want-decision → AC constraints), **cited** (how-decision → starting premise), **ASSUMED (awaiting ratification)** (mandatory tag + explicit next-gate confirm), and scan-surfaced constraints. Applies the acceptance-bar tie-breaker (bar decisions → want-decision by default). Self-skips a clear ticket (records "0 unresolved product-decisions"). Runs a 1-dispatch ticket-blind exposure-checker. Detects an epic and routes to the epic path. |
-| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (a value that is neither falsifiable nor a recorded manual-check exclusion is flagged and may not carry `✅`), root-cause & blast radius, a `RULE SECTIONS` coverage line (applicable rulebook sections derived from the change type — migration → DB-conventions mandatory, etc. — each checked or N/A), scope, and a `BASELINE` capture from the untouched checkout. Frontend: emits `SURFACES: N` for universal requirements. Surfaces any **uncodified standard** into `codify`'s provisional→ratify flow rather than enforcing it silently. |
+| `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (a value that is neither falsifiable nor a recorded manual-check exclusion is flagged and may not carry `✅`), root-cause & blast radius, a `RULE SECTIONS` coverage line (applicable rulebook sections derived from the change type — migration → DB-conventions mandatory, etc. — each checked or N/A), scope, and a `BASELINE` capture from the untouched checkout. A ratified **multi-clause** want-decision is split into **one matrix + proof row per clause** (a clause with no row of its own is a finding). Frontend: emits `SURFACES: N` for universal requirements. Surfaces any **uncodified standard** into `codify`'s provisional→ratify flow rather than enforcing it silently. |
 | `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, assumptions (`verified \| novel-untested`), smallest row-traced change list, rule compliance, the named proving test, and a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof blocks Gate 2 unless upgraded or recorded as a human-approved coverage-gap exclusion). Its **test blast-radius traces to real producers/consumers** — a shared type/symbol change enumerates every test root + factory patterns + `typecheck`, a threaded value enumerates every builder call site — so the change-list is the smallest **complete** set and a shallow name-grep miss is a finding. Frontend: builds/updates `DESIGN.md`, plans one row per (AC × surface). |
-| `/mango:execute` | 3 (autonomous) | Branch, the approved changes only, the proving test, a verification sweep on **both axes** — file set (diff ⊆ approved list) **and** a design-conformance self-check that records any deviation from a Gate-2 bullet even when the diff is clean — with a baseline-aware DoD, commits carrying no AI co-author trailer. Formats **only authored/edited files**. STOPs to re-gate on an invalidated design or via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). Frontend: emits the proof manifest. |
-| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation on both axes (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against `BASELINE`, `k/N` coverage. A round-1 **conditional LGTM** makes the re-review a **verify-only pass** (named-fix check + affected proof + regression scan, no full re-derivation), re-dispatching a subagent only when a fix changed scope. Frontend: also scores the M1–M10 rubric + `N == M + X` surface check. On a clean verdict records a `Reviewed at <sha>` marker for the stale-review guard. |
+| `/mango:execute` | 3 (autonomous) | Branch, the approved changes only, the proving test, a verification sweep on **both axes** — file set (diff ⊆ approved list) **and** a design-conformance self-check that records any deviation from a Gate-2 bullet even when the diff is clean — with a baseline-aware DoD, commits carrying no AI co-author trailer. Formats **only authored/edited files**. **Commits the change-set BEFORE review is dispatched**, so the ref-based review sees a real committed diff. STOPs to re-gate on an invalidated design or via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). Frontend: emits the proof manifest. |
+| `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation on both axes (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against `BASELINE`, `k/N` coverage. A round-1 **conditional LGTM** makes the re-review a **verify-only pass** (named-fix check + affected proof + regression scan, no full re-derivation), re-dispatching a subagent only when a fix changed scope. Frontend: also scores the M1–M10 rubric + `N == M + X` surface check. On a clean verdict records a `Reviewed at <sha>` marker for the stale-review guard. Subagents inspect **ref-based or worktree-isolated**; a worktree used to *run* a suite must **carry the untracked env** (or run in place at the reviewed SHA), and a **near-total** worktree failure is an **env-fault, not a finding**. An **empty** `<base>..<branch>` range falls back to `git diff HEAD` + `git status --porcelain -uall` before concluding no-change. |
 | `/mango:finalise` | 5 → final gate | **Stale-review guard** (routes back to `review` only if a source file changed beyond the reviewed set), optional `pr_checklist_path` walk, PR draft, per-action approval for every outward action, tracker writes via CLI, a **cost-ledger completeness gate**, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and pushed to a shared ref. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
-| `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **enumerated six-letter INVEST** self-check (each of Independent/Negotiable/Valuable/Estimable/Small/Testable affirmed or N/A — a one-liner is a finding; a ticket failing a letter is flagged for **re-split**), held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **v1 — sizing corrected by retro.** |
+| `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **enumerated six-letter INVEST** self-check (each of Independent/Negotiable/Valuable/Estimable/Small/Testable affirmed or N/A — a one-liner is a finding; a ticket failing a letter is flagged for **re-split**), held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **Boundary sizing is corrected by retro; the re-ratification behaviour is Experimental.** |
 | `/mango:solve` | orchestrator | Runs `refine` (Phase 0) FIRST and branches — **skip** / **ticket-refine** / **epic-path** — then a Doctor preflight and every gated phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
 
 ### Epic path — thin by design
@@ -138,7 +138,7 @@ enough to draw ticket boundaries — and `breakdown` emits a counted ticket list
 six-letter INVEST**; a ticket failing a letter is flagged for re-split) behind a human split-gate. The
 epic path is **not exempt from the exposure backstop** — refine dispatches the same 1-dispatch
 ticket-blind exposure-checker **before `breakdown`**, its findings ratified alongside the split. This
-whole branch is **thin by design ("enough to run and learn")**: ticket-boundary sizing has no exact
+whole branch is **thin by design (only enough to split)**: ticket-boundary sizing has no exact
 metric, INVEST is the heuristic, and retro corrects mis-splits. A ratified breakdown is a **living
 plan**: if the split changes after the gate (a ticket added/removed, or a ratified decision reversed),
 `breakdown` **re-ratifies** — surfacing the delta for an explicit human re-approve rather than letting
@@ -151,6 +151,32 @@ For committed-stub tickets — the child-ticket stubs the epic scaffold commits 
 `work_doc_mode: separate` (a distinct `<KEY>.work.md`) over `auto`/`embed`: embedding the mutable
 working doc inside a committed, tracked stub leaves its edits as uncommitted changes to a tracked file,
 which is fragile to any stray subagent git-state operation. A separate working doc avoids that.
+`solve` routes that shape to `separate` **even under `auto`** and records the resolved mode in
+`Session status`.
+
+An epic **ends at `breakdown`** and never reaches `finalise`, so `breakdown` also **owns the epic's
+durable lesson**: at ratification (and after any re-ratification) it writes the split rationale, the
+overlap/boundary rulings, any forced INVEST re-split, and each re-ratification delta to
+`config.lessons_path`, emitting the counted line `EPIC LESSON: <n> lesson(s) written to …`.
+
+### Subagent git isolation — refs or a worktree, and the worktree needs the env
+
+A review subagent inspects a branch **read-only and ref-based** (`git diff <base>..<branch>`,
+`git show <branch>:<path>`, `git log <base>..<branch>`) or in an **isolated `git worktree`** it removes
+afterward. It **never** runs `git checkout` / `git switch` / `git stash` in the shared working tree.
+
+A fresh worktree holds only **tracked** files, so it is **not environment-equivalent**: without the
+project's untracked `.env` / local config the app cannot boot and *every* test fails for an
+environmental reason. To run a suite, either **run read-only in place** when the tree is already at the
+reviewed SHA, or **carry the required untracked env into the worktree** first. A **near-total** failure
+inside a fresh worktree is an **env-fault until proven otherwise** — fixed and re-run, never reported as
+a finding or a regression. A *partial, targeted* failure inside the change's blast radius is still a real
+finding; the rule reclassifies an environment artifact, it never suppresses a finding.
+
+`execute` **commits the change-set before review is dispatched**, so a real committed diff exists for
+that ref-based read. If a `<base>..<branch>` range still comes back **empty**, the change may be
+**uncommitted**: each critic falls back to `git diff HEAD` + `git status --porcelain -uall` before
+concluding no-change.
 
 ### Maturity — Stable vs Experimental
 

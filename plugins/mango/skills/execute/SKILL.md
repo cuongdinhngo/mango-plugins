@@ -66,8 +66,13 @@ directly — never spawn a model for a one-line shell command.
    approved change list or the declared `SCOPE` has crossed up a tier (S/M → L), do not absorb it —
    surface the *outgrew-its-ticket* nudge at the next gate (review) so the human can re-scope or
    split, and flag any branch/PR-type drift.
-6. **Commit per logical unit.** One commit per logical unit, clear messages, **no AI co-author
-   trailer of any kind**.
+6. **Commit per logical unit — and commit the change-set BEFORE review is dispatched (binding).** One
+   commit per logical unit, clear messages, **no AI co-author trailer of any kind**. The change-set is
+   **committed before review dispatch**, never left uncommitted for the reviewer to find: review's
+   subagents inspect the branch **ref-based** (`git diff <base>..<branch>`), and an uncommitted change-set
+   makes that range **empty** — which reads as "no changes" and nearly rubber-stamps a real diff. Commit
+   first so a **real committed diff exists** for the ref-based review; only bookkeeping still-in-flight
+   (the working doc's Phase-4 slot) may remain uncommitted at dispatch.
 7. **Write back + flow to review.** Write Phase 3 **complete on disk** into the working doc (including
    the sweep result and `Ph3/4 proven by` progress), update `Session status`, then flow straight into
    the `review` phase. When reporting this write-back into the conversation, emit only the **delta** —

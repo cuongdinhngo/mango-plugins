@@ -24,6 +24,27 @@ worktree add <scratch> <branch>`, removed when done) or a throwaway clone — **
 checkout. This is the same isolation principle v1.6.1 applied to the eval path; see
 `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation).
 
+**Worktree ≠ environment-equivalence.** A fresh worktree holds only **tracked** files — none of the
+project's required **untracked** environment (`.env` / local config, local certs, installed deps, built
+assets) — so the app cannot boot and *every* test fails for an environmental reason. Before running a
+suite in a worktree, either **run read-only in place** when the working tree is already at the reviewed
+SHA (preferred, cheaper), or **carry the required untracked env into the worktree** (copy the `.env` /
+local config in; never commit it).
+
+**Sanity rule — a near-total worktree failure is an ENV-FAULT, not a finding.** If a suite run inside a
+fresh worktree fails near-totally (all/almost-all test files failing, boot/import/connection errors, a
+count wildly worse than the recorded `BASELINE:`), treat it as an **environment fault from missing
+untracked files until proven otherwise**: fix the env parity and re-run. **Do NOT report it as a review
+finding or a regression.** This reclassifies an environment artifact only — a *partial, targeted* failure
+inside the change's blast radius is still a real finding, and once env parity holds the same result is
+reportable.
+
+**Empty-diff fallback (never conclude "no changes" from an empty range).** If a three-dot / two-dot
+`<base>..<branch>` diff comes back **empty**, the change-set may simply be **uncommitted**. Before
+concluding there is nothing to review, fall back to **`git diff HEAD`** and **`git status --porcelain
+-uall`**; report what you find (including "the change-set is uncommitted"). An empty range is a reason to
+look harder, never a reason to rubber-stamp.
+
 ## Output
 
 Lead with the **verdict**, then the findings.
