@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.7.3-blue)
+![version](https://img.shields.io/badge/version-1.7.6-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -16,15 +16,17 @@ What you get on every ticket:
 
 - A **requirements matrix** with counts — nothing slips through unnamed.
 - A **proving test at the right layer** — a runtime requirement can't be closed by a unit-mock proof.
-- An independent, **ticket-blind challenger** that reconstructs the requirements from the diff alone
-  and flags anything unmet.
+- An independent, **ticket-blind challenger** that rebuilds the requirements from the raw ticket
+  alone, judges the diff against them, and flags anything unmet.
 - A **PR + tracker update + durable lesson**, each behind explicit per-action approval.
 
-> **Status: 1.7.5 — stable API.** Proven across multiple real projects (two stacks) by its author,
-> with a green behavioural eval and fault-injection-tested escalation paths; the public skill/config
-> API has been stable since 1.0. The epic-path (`breakdown`) is designed to run and be corrected by
-> retro; its re-ratification-on-change is **Experimental** (see `plugins/mango/PRINCIPLES.md`,
-> Maturity). Independent-operator validation is ongoing.
+> **Status: 1.7.6 — stable API.** Field-proven on multiple real projects across several stacks,
+> including a large-scale production codebase, with a behavioural eval suite — one fixture per
+> behaviour, green at each release — and fault-injection-tested escalation paths; the public
+> skill/config API has been stable since 1.0. **Used by engineers beyond its author** — including a
+> maintainer of a major open-source frontend framework — on their own projects. Everything on the
+> ticket and epic paths is **Stable**, except `breakdown`'s re-ratification-on-change, which is
+> **Experimental** until a second epic exercises it (see `plugins/mango/PRINCIPLES.md`, Maturity).
 
 ## The lifecycle
 
@@ -45,7 +47,7 @@ flowchart LR
 ticket is already clear, so it is never a tax. It **never authors your intent**. The four downstream
 phases are gated end to end (plus a **Gate 0** for clarifications when the ticket is ambiguous). An
 **epic** routes to the epic path (thin epic-level analysis/design → **`breakdown`** into tickets, human-
-approved before any executes — v1). `/mango:solve <KEY>` runs the whole thing; you can also invoke any
+approved before any executes). `/mango:solve <KEY>` runs the whole thing; you can also invoke any
 phase directly. Trivial fixes take the lite lane, `/mango:quick <KEY>`. Full phase-by-phase detail, the
 lite/full tiers, the frontend track, and the model-delegation map are in the
 **[plugin README](./plugins/mango/README.md)**.
