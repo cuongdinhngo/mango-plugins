@@ -4,8 +4,9 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
-A Claude Code **marketplace** hosting [`mango`](./plugins/mango) — a portable, gated
-ticket-lifecycle harness.
+**mango** is a portable, gated ticket-lifecycle harness for Claude Code — it runs a ticket from
+request to PR through phases you approve one at a time. This repo is the **marketplace** that hosts
+it ([`plugins/mango`](./plugins/mango)).
 
 **The problem it solves:** an AI coding agent will happily report "done" on a ticket it half-finished
 — a requirement skipped, a test that proves nothing, an edge it never touched. mango routes every
@@ -16,8 +17,8 @@ What you get on every ticket:
 
 - A **requirements matrix** with counts — nothing slips through unnamed.
 - A **proving test at the right layer** — a runtime requirement can't be closed by a unit-mock proof.
-- An independent, **ticket-blind challenger** that rebuilds the requirements from the raw ticket
-  alone, judges the diff against them, and flags anything unmet.
+- An independent **challenger** that never sees the work — it rebuilds the requirements from the raw
+  ticket and flags anything the diff leaves unmet.
 - A **PR + tracker update + durable lesson**, each behind explicit per-action approval.
 
 > **Status: 1.7.6 — stable API.** Field-proven on multiple real projects across several stacks,
@@ -27,30 +28,6 @@ What you get on every ticket:
 > maintainer of a major open-source frontend framework — on their own projects. Everything on the
 > ticket and epic paths is **Stable**, except `breakdown`'s re-ratification-on-change, which is
 > **Experimental** until a second epic exercises it (see `plugins/mango/PRINCIPLES.md`, Maturity).
-
-## The lifecycle
-
-```mermaid
-flowchart LR
-    T([request]) --> RF["0 · refine"]
-    RF -->|refined ticket| A["1 · analysis"]
-    RF -.->|epic| BK["epic path · breakdown ✋"]
-    A -->|✋ Gate 1| D["2 · design"]
-    D -->|✋ Gate 2| E["3 · execute"]
-    E --> R["4 · review"]
-    R -->|✋| F["5 · finalise"]
-    F -->|✋ final gate| OUT([PR + tracker + lesson])
-```
-
-**`refine` (Phase 0)** runs first: it scans the project and **exposes the unresolved product-decisions**
-— resolving the *how* ones with a citation and asking you the *want* ones — then **self-skips** when the
-ticket is already clear, so it is never a tax. It **never authors your intent**. The four downstream
-phases are gated end to end (plus a **Gate 0** for clarifications when the ticket is ambiguous). An
-**epic** routes to the epic path (thin epic-level analysis/design → **`breakdown`** into tickets, human-
-approved before any executes). `/mango:solve <KEY>` runs the whole thing; you can also invoke any
-phase directly. Trivial fixes take the lite lane, `/mango:quick <KEY>`. Full phase-by-phase detail, the
-lite/full tiers, the frontend track, and the model-delegation map are in the
-**[plugin README](./plugins/mango/README.md)**.
 
 ## Install
 
@@ -71,27 +48,48 @@ Bootstrap the per-project contract once, then run a ticket:
 /mango:solve PROJ-123
 ```
 
-`/mango:init` marks every guessed value `UNVERIFIED` for you to confirm, and asks whether
-`.harness.json` is committed (shared team config) or kept local (gitignored). Either way it writes
-**no secrets** — tokens live only in a gitignored `.env`. Prefer to fill it by hand? Copy
-`<plugin>/config/harness.example.json` to `.harness.json` and edit `rulebook_path`, `repos`,
-`test_command`, `tracker`, and `ticket_header_schema`.
+`/mango:init` marks every guessed value `UNVERIFIED` for you to confirm, asks whether `.harness.json`
+is committed or gitignored, and writes **no secrets** — tokens live only in a gitignored `.env`. To
+fill it by hand, copy `<plugin>/config/harness.example.json` to `.harness.json` and edit
+`rulebook_path`, `repos`, `test_command`, `tracker`, and `ticket_header_schema`.
 
-No rule book yet, or a thin one? Run `/mango:codify` — it **counts** the conventions your code and
-schema already use, asks **you** to choose each standard, and records them as provisional until you
-ratify. mango facilitates the rule book; it never writes the rules for you.
+No rule book yet? Run `/mango:codify` — it **counts** the conventions your code and schema already
+use, asks **you** to choose each standard, and records them as provisional until you ratify. mango
+facilitates the rule book; it never writes the rules for you.
+
+## The lifecycle
+
+Six phases per ticket — refine, analysis, design, execute, review, finalise — each ending at a ✋
+where you approve or send it back, plus a **Gate 0** for clarifications when the ticket is ambiguous.
+
+```mermaid
+flowchart LR
+    T([request]) --> RF["0 · refine"]
+    RF -->|refined ticket| A["1 · analysis"]
+    RF -.->|epic| BK["epic path · breakdown ✋"]
+    A -->|✋ Gate 1| D["2 · design"]
+    D -->|✋ Gate 2| E["3 · execute"]
+    E --> R["4 · review"]
+    R -->|✋| F["5 · finalise"]
+    F -->|✋ final gate| OUT([PR + tracker + lesson])
+```
+
+- **`refine` (Phase 0)** exposes the ticket's unresolved product decisions — resolving the *how* ones
+  with a citation, asking you the *want* ones — then **self-skips** when the ticket is already clear.
+  It never authors your intent.
+- **Epics** take the epic path: thin epic-level analysis/design → **`breakdown`** into tickets,
+  approved by you before any executes.
+- **Run it:** `/mango:solve <KEY>` for the full lifecycle, any phase directly, or `/mango:quick <KEY>`
+  for the lite lane.
 
 ## Skills at a glance
 
-**Lifecycle** (run a ticket): `refine` (Phase 0 — expose the decisions, self-skip when clear) →
-`analysis` · `design` · `execute` · `review` · `finalise` (gated end to end), orchestrated by `solve`,
-with `quick` as the lite lane and `breakdown` splitting an epic into tickets on the epic path.
+The lifecycle skills are above. The rest are **supporting** — setup, diagnostics, and maps, none of
+them gated: `init` · `doctor` · `codify` · `version-check` · `budget`, plus opt-in descriptive maps
+`sitemap` (code surface) and `db-map` (database schema).
 
-**Supporting** (setup / diagnostics / maps, not gated): `init` · `doctor` · `codify` ·
-`version-check` · `budget`, plus opt-in descriptive maps `sitemap` (code surface) and `db-map`
-(database schema).
-
-See the [plugin README](./plugins/mango/README.md) for what each produces.
+The **[plugin README](./plugins/mango/README.md)** has what each skill produces, plus phase-by-phase
+detail, the lite/full tiers, the frontend track, and the model-delegation map.
 
 ## Update
 
