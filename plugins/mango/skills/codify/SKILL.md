@@ -4,9 +4,7 @@ description: Facilitated, opt-in way to define a project's engineering rule book
 ---
 
 Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` — and especially its **observe / facilitate /
-never-author** boundary. This skill exists because the rule book is the single thing the whole plugin
-grounds in: when it is absent, thin, or genuinely inconsistent, the reviewer and challenger produce
-generic, low-value output. `codify` helps a team *define* the standard; it does **not invent** one.
+never-author** boundary. `codify` helps a team *define* the standard; it does **not invent** one.
 
 > **The boundary (binding).** mango may **generate descriptive facts** (what the code/schema *is* —
 > regenerable, falsifiable) and may **facilitate defining normative rules** by **counting the

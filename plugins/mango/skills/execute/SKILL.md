@@ -131,9 +131,7 @@ as a missing surface does** — proving the easy clause (size) does not clear th
 clause (spacing) goes unasserted. Use the clauses the rubric already names in
 `${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md`; do **not** invent new clauses. This is the
 per-item-inventory rule (which prevents aggregate-count hiding) generalized from surfaces to the
-clauses of a gate. *(Observed failure: an M4 proof asserted only the size clause and shipped green
-while a real 0 px-gap spacing failure went unproven — the reviewer had to catch it by measuring the
-DOM.)*
+clauses of a gate.
 
 ## Escalations (mandatory STOP conditions)
 
@@ -145,12 +143,9 @@ These interrupt the autonomous flow. Both record the finding in the working doc 
   NOT continue with a known-broken one.** Record the finding (with `path:line` / the test signature)
   in the working doc's Phase-3 *Design-invalidation* slot, surface the options to the user, and
   **re-open Gate 2** with a revised approach — which must re-pass design's **Assumptions** check and
-  **verification plan** (A + B). (Observed failure: execute discovered a Gate-2 "reuse the per-tab
-  mounting for two panes" design was unworkable; mango had no defined transition, so the operator
-  had to improvise stop → ask → re-approve.)
+  **verification plan** (A + B).
 - **Stuck-detector / circuit-breaker.** After **K** failed attempts against the **same** proving
   artifact / same failing-test signature (default `K=3`, configurable as `config.stuck_threshold`
   in `.harness.json`), **STOP and escalate to the user** with a summary of what was tried and the
   options — instead of continuing. The counter **resets when the failing signature changes** (a new
-  error means real progress). (Observed failure: ~7 attempts ran against the same failing e2e before
-  anyone escalated; nothing bounded repeated attempts at one proof.)
+  error means real progress).

@@ -26,9 +26,7 @@ this phase.
    (e.g. "two live editors of library X can coexist", "this API is idempotent under retry"), the
    design must EITHER (a) run a throwaway **spike** now and record the result here, OR (b) shape the
    Gate-2 proving test (step 7) as an integration/e2e proof that would **fail if the assumption is
-   false**. **Gate 2 may not pass with an unresolved `novel-untested` assumption.** (Observed
-   failure: a design leaned on an untested "two live rich-text editors coexist" assumption — the
-   exact thing that broke — because nothing forced de-risking a novel runtime assumption.)
+   false**. **Gate 2 may not pass with an unresolved `novel-untested` assumption.**
 4. **Smallest change-list table.** List the minimum set of changes. Columns: change, file/area,
    `Ph2 covered by` (which matrix row(s)), `k/N`. **Every item must trace to a matrix row** — an
    item with no row behind it fails the gate. Prefer the smallest edit; no speculative abstraction,
@@ -57,11 +55,8 @@ this phase.
    change-list that is the **smallest COMPLETE set BEFORE execute** — so `diff ⊆ approved change-list`
    holds at execute without deviation-recording having to backfill it. This tightens the **estimate**;
    execute's deviation-recording remains the backstop (it is **not** removed), but it should rarely fire
-   for a blast-radius miss once the estimate traces real producers/consumers. *(Observed failures: a
-   change reworded a heading an existing shell test asserted and the change list never mentioned it; a
-   migration/type change missed the type factories across all test roots; a data-fan-in change missed
-   the actual builder call sites — each surfaced only as an execute deviation. A **shallow-grep-only
-   estimate that misses a known consumer is a Gate-2 finding.**)*
+   for a blast-radius miss once the estimate traces real producers/consumers. A **shallow-grep-only
+   estimate that misses a known consumer is a Gate-2 finding.**
 5. **Rule compliance.** Check the proposed change against `config.rulebook_path` and
    `config.standards_path`; note any rule that constrains the design and how you comply.
 6. **Verification plan (per-AC, layer-matched) — fill the layer-match column BEFORE naming the
@@ -109,12 +104,7 @@ this phase.
    to the matching layer, OR it is recorded as a **named, human-approved coverage-gap exclusion**
    (item · risk tier · why deferred · follow-up) in the working doc's *Coverage-gap exclusions* slot.
    A layer-match `❌` that is neither upgraded nor a recorded human-approved exclusion **blocks Gate 2
-   — it does not pass silently.** (Observed failures: a named proving test was a store unit test that
-   mocked the integration layer, so it stayed green while the real integration-layer behaviour was
-   broken; separately, an "in-browser confirm" acceptance criterion had no planned proof and surfaced
-   only at Gate 4. And: a requirement whose real risk sat at an integration/behavioural tier was only
-   unit-proven, so the challenger's later "not met" read as a hard failure when it was a proof-tier
-   mismatch that should have been a recorded exclusion.)
+   — it does not pass silently.**
 7. **Proving test (at the matching layer).** With the risk layer classified (step 6), name the
    **proving test**: the specific assertion that **fails pre-change and passes post-change**,
    runnable via `config.test_command`, and **sitting at the risk layer** of the AC it proves. State

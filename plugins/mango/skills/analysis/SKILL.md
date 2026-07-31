@@ -37,10 +37,9 @@ count, and the requirements matrix.
    Whichever placement is chosen, the **raw ticket portion stays above the separator** and the
    working-doc portion below it; **never** mix design/matrix/rationale into the raw ticket text. This
    separation (separate file, or below the separator line) is what lets the review phase hand the
-   challenger only the raw ticket without leaking the design — preserving the v0.3 challenger-blind
-   guarantee in both modes (observed failure: when the ticket file doubled as the working doc with no
-   separator, the challenger's independence rested on a manual "withhold" convention rather than
-   structure). Record the chosen `work_doc_mode` and the working-doc path in `Session status`.
+   challenger only the raw ticket without leaking the design — preserving the challenger-blind
+   guarantee in both modes. Record the chosen `work_doc_mode` and the working-doc path in
+   `Session status`.
 3. **Decompose EVERY section.** Using `config.ticket_header_schema` (which maps each ticket header
    to C/R/G/AC), turn every ticket section into requirements-matrix rows. Each row: ID, Source,
    Verbatim, Interpretation, Ph1 evidence, Status. Emit the count line:

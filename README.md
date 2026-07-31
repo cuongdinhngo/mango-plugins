@@ -103,6 +103,13 @@ See the [plugin README](./plugins/mango/README.md) for what each produces.
 Validating, running the behavioural eval, and publishing are covered in
 [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+One standing rule if you edit a skill: **skills are directive-only.** Skill text is runtime-loaded and
+*is* behaviour, so a `SKILL.md` carries directives — never rationale, "observed failure" war-stories, or
+historical justification. The rule goes in the skill; the reason goes in
+[`plugins/mango/CHANGELOG.md`](./plugins/mango/CHANGELOG.md) and
+[`plugins/mango/RATIONALE.md`](./plugins/mango/RATIONALE.md) (loaded by no skill).
+`scripts/validate.py` enforces it.
+
 ## License
 
 MIT — see [LICENSE](./LICENSE).

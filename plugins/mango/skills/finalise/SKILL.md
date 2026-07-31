@@ -74,16 +74,13 @@ goes through `config.tracker.cli` — **never** an MCP.
    a durable lesson — a constraint discovered, a wrong assumption, or a process gap?"* This is
    **not** tied to deferred (⚠) rows: a run with zero deferred rows can still have learned something
    that must outlive it. If yes, write the lesson to `config.lessons_path` (and the working doc's
-   *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory. (Observed
-   failure: a run discovered a durable constraint — two live rich-text editors corrupt each other —
-   but had no deferred rows, so it nearly never reached the repo's shared `LESSONS.md`.)
+   *Durable lesson* slot) as a **repo artifact** — never only to personal/assistant memory.
 
    **The durable lesson must land on a shared ref, not only a local branch.** A lesson (or BACKLOG entry)
    committed to a branch that finalise never offers to push is **orphaned** — a merge that deletes the
    branch takes the lesson with it, so it never reaches `main` and is not a repo artifact at all.
-   (Observed failure, #12: the lesson/BACKLOG write rode a branch never pushed before the human merged
-   the PR → the lesson never reached `main`.) So the durable-lesson / bookkeeping write must reach a
-   **shared ref** by **one** of two routes: **either** fold it into a commit the approved **branch-push**
+   So the durable-lesson / bookkeeping write must reach a **shared ref** by **one** of two routes:
+   **either** fold it into a commit the approved **branch-push**
    (step 4) already carries **before** PR-open, **or** enumerate an explicit **"push bookkeeping"
    outward action** at the final gate — taken under the **same per-action approval + idempotency check**
    as every other outward action. Never let the durable lesson depend on a commit finalise never offered

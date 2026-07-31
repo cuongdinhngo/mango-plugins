@@ -76,16 +76,12 @@ Before a decision is filed as a want-decision or a how-decision:
   about WHAT COUNTS AS SATISFYING an AC — a sourcing standard, a threshold definition, an evidence
   type, "what counts as done" — the **user owns the acceptance bar.** refine MAY propose a reading, but
   must **ASK** it (want-decision) or mark it `ASSUMED (awaiting ratification)` and surface it — it must
-  **NOT** silently resolve it as a how-decision with a citation. *(Observed failure: settling an
-  acceptance-bar sourcing standard as a how-decision leaked downstream to a later gate, where it
-  surfaced as the challenger's "AC not met.")*
+  **NOT** silently resolve it as a how-decision with a citation.
 - **(b) Consistency / scope answerable-from-convention → how-decision, cite, don't ask.** If a
   documented recipe / rulebook / the ticket text itself dictates the answer — e.g. a shared recipe
   means "apply to ALL consumers", or the ticket says "insert" (not "toggle") so the change is not
   reversible — **resolve-by-citation and flag for ratification.** Do **NOT** put it to the user as an
-  open want. *(Observed failures: a scope question "one consumer or all?" was asked as a want when the
-  documented shared recipe already answered "all"; a "permanent vs reversible?" was asked as a want
-  when the ticket's literal "insert" already leaned the answer.)*
+  open want.
 - **Guard against the quiet failure:** a how-decision resolution **MUST carry a citation.** An
   **UNCITED how-decision resolution is itself a gate finding** — it means refine settled a HOW with no
   source, which is almost always a **mis-classified want-decision** (an acceptance-bar decision the

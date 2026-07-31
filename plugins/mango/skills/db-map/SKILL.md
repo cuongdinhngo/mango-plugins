@@ -4,10 +4,9 @@ description: Opt-in, descriptive map of the database schema — tables, columns 
 ---
 
 Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill is **descriptive only**: it generates
-**facts** about the schema (regenerable, falsifiable). The database is where the costliest mistakes
-live and where the reviewer/challenger are blindest — but a schema map is the most stack-specific
-thing of all, so it is opt-in and never core. The **normative** "database conventions" (naming,
-timestamps, soft-delete, FK policy, migration style) live in the `codify` rule book, **not here**.
+**facts** about the schema (regenerable, falsifiable). The **normative** "database conventions"
+(naming, timestamps, soft-delete, FK policy, migration style) live in the `codify` rule book, **not
+here**.
 
 `db-map` is **OFF by default** — it needs database access or migration files — and the lifecycle runs
 fully whether or not it has ever been generated.

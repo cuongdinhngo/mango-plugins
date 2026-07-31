@@ -18,6 +18,26 @@ artifact). CI (`.github/workflows/validate.yml`, on every push/PR) runs the same
 `claude plugin validate ./plugins/mango --strict` and `claude plugin validate . --strict` as a
 **best-effort, non-blocking** step.
 
+## Skills are directive-only — put the "why" in the CHANGELOG, not the skill
+
+Skill text is **runtime-loaded and IS behaviour** (prose-IS-behaviour), so every token of a `SKILL.md`
+is paid on every ticket run. A `SKILL.md` therefore carries **directives only** — no rationale, no
+"observed failure" war-stories, no historical justification. When a field lesson motivates a new rule:
+
+- the **RULE** goes in the skill;
+- the **REASON** goes in `plugins/mango/CHANGELOG.md`, and the incident itself (if a future maintainer
+  needs it) in `plugins/mango/RATIONALE.md` — a file **no skill loads at runtime**.
+
+`scripts/validate.py` enforces this (`validate_no_rationale_in_skills`): the build fails if a rationale
+marker (`observed failure`, `field-observed`, `exists because`, `the reason …`, `historically`,
+`war-story`, `retro-#N`) appears in any `plugins/mango/skills/*/SKILL.md`, and fails again if a skill
+ever references `RATIONALE.md` (which would put the why back on the runtime path). See `PRINCIPLES.md`
+→ *Skills are directive-only*.
+
+**Trimming a skill is a behaviour change unless the removed text is provably non-behavioural.** The
+test for any candidate cut: *"if I delete this, does any instruction, gate, condition, count, format,
+or escalation disappear?"* If yes or unsure — **keep it**.
+
 ## Behavioural eval
 
 The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets (one per behaviour,

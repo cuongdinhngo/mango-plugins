@@ -21,8 +21,7 @@ HEAD/index-mutating git in the **shared working tree** — doing so switches the
 in-progress branch, removes the source files from disk, and strands the working doc. If you need to
 **run** the suite against the branch (not just read it), use an **isolated `git worktree`** (`git
 worktree add <scratch> <branch>`, removed when done) or a throwaway clone — **never** the live
-checkout. This is the same isolation principle v1.6.1 applied to the eval path; see
-`${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation).
+checkout. See `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation).
 
 **Worktree ≠ environment-equivalence.** A fresh worktree holds only **tracked** files — none of the
 project's required **untracked** environment (`.env` / local config, local certs, installed deps, built

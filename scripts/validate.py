@@ -83,6 +83,21 @@ BANNED_JARGON = [
     (r"\bv1\s*[—–]", "the pre-relabel maturity label 'v1 — …' (use Stable/Experimental)", re.IGNORECASE),
 ]
 
+# Rationale markers banned from `skills/*/SKILL.md` (v1.7.6). Skill text is runtime-loaded and IS
+# behaviour (prose-IS-behaviour), so every token is paid on every ticket run: a SKILL.md carries
+# DIRECTIVES ONLY. The "why" — rationale, an "observed failure" war-story, a historical justification —
+# lives in CHANGELOG.md or the non-runtime RATIONALE.md. Scanned CASE-INSENSITIVELY over skills only:
+# PRINCIPLES.md is the contract doc, agents/*.md are critic briefs, and CHANGELOG.md is the history.
+RATIONALE_MARKERS = [
+    (r"observed failure", "an 'Observed failure: …' war-story"),
+    (r"field-?observed", "a 'Field-observed: …' war-story"),
+    (r"exists because", "a 'this exists because …' justification"),
+    (r"the reason (we|this|it|they|for)\b", "a 'the reason …' justification"),
+    (r"\bhistorically\b", "a historical justification"),
+    (r"war-?stor", "a war-story"),
+    (r"retro-#\d", "a past-incident reference ('retro-#N')"),
+]
+
 failures = []
 checks = 0
 
@@ -653,6 +668,56 @@ def validate_workdoc_committed_stub():
               "workdoc-stub: breakdown must explain the committed-stub fragility")
 
 
+def validate_no_rationale_in_skills():
+    """v1.7.6 — a SKILL.md is DIRECTIVES ONLY (PRINCIPLES.md, 'Skills are directive-only').
+
+    Because prose-IS-behaviour, every token of a runtime-loaded skill is paid on every ticket run.
+    Rationale, 'observed failure' war-stories, and historical justification instruct nothing, so they
+    are a permanent tax — they belong in CHANGELOG.md or the non-runtime RATIONALE.md. This check
+    fails the build if any RATIONALE_MARKERS pattern reappears in a skill body, so the bloat the
+    v1.7.6 trim removed cannot creep back one 'observed failure:' at a time.
+    """
+    for path in sorted((ROOT / "plugins" / "mango").glob("skills/*/SKILL.md")):
+        rel = path.relative_to(ROOT)
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"no-rationale: cannot read {rel} ({exc})")
+            continue
+        for pattern, reason in RATIONALE_MARKERS:
+            match = re.search(pattern, body, re.IGNORECASE)
+            check(
+                match is None,
+                f"no-rationale: {rel} carries {reason} "
+                f"({'' if match is None else match.group(0)!r}) — skills are directive-only; "
+                f"move the why to CHANGELOG.md / RATIONALE.md",
+            )
+
+
+def validate_rationale_doc():
+    """v1.7.6 — the 'why' the trim removed must still exist SOMEWHERE, just not on the runtime path.
+    RATIONALE.md ships inside the plugin dir beside CHANGELOG.md and is loaded by no skill."""
+    path = ROOT / "plugins" / "mango" / "RATIONALE.md"
+    if not check(path.exists(), "rationale-doc: plugins/mango/RATIONALE.md must exist (the non-runtime home for the why)"):
+        return
+    try:
+        body = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"rationale-doc: cannot read plugins/mango/RATIONALE.md ({exc})")
+        return
+    check(re.search(r"not (loaded|read) at runtime|never loaded at runtime", body, re.IGNORECASE) is not None,
+          "rationale-doc: RATIONALE.md must state it is not loaded at runtime")
+    check(re.search(r"observed failure", body, re.IGNORECASE) is not None,
+          "rationale-doc: RATIONALE.md must actually carry the observed-failure records the skills no longer hold")
+    for skill in ("analysis", "design", "execute", "finalise", "breakdown", "refine"):
+        check(re.search(rf"\b{skill}\b", body) is not None,
+              f"rationale-doc: RATIONALE.md must record the '{skill}' rationale it inherited from the skill")
+    # The rationale doc is NOT a skill and must never be pulled onto the runtime path.
+    for sk in sorted((ROOT / "plugins" / "mango").glob("skills/*/SKILL.md")):
+        check("RATIONALE.md" not in sk.read_text(encoding="utf-8"),
+              f"rationale-doc: {sk.relative_to(ROOT)} references RATIONALE.md — that would put the why back on the runtime path")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -723,6 +788,8 @@ def main():
     validate_solve_workdoc_route()
     validate_maturity_labels()
     validate_workdoc_committed_stub()
+    validate_no_rationale_in_skills()
+    validate_rationale_doc()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

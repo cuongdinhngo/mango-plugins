@@ -33,9 +33,8 @@ subagent **MUST NOT** run `git checkout`, `git switch`, `git stash`, or any HEAD
 the **shared working tree (the live checkout)**: that switches the main worktree off the in-progress
 feature branch onto another ref, strips the in-progress source files from disk, and leaves the working
 doc untracked — a real corruption. If a subagent needs to **run** the suite against the branch (not
-just read it), it uses an **isolated `git worktree` / clone**, exactly as v1.6.1's eval isolation does —
-never the live checkout. This is stated once in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git
-isolation) — same root cause as the eval-path fix, now applied to the review surface — and is guarded by
+just read it), it uses an **isolated `git worktree` / clone**, never the live checkout. This is stated
+once in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation) and is guarded by
 `scripts/validate.py`.
 
 ### Worktree ≠ environment-equivalence (binding — carry the untracked env, or run in place)

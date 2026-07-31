@@ -5,6 +5,62 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.7.6] — 2026-07-31
+
+A **token-runtime** version, **not a behaviour change**. It removes non-behavioural "why" text
+(rationale, `Observed failure:` / `Field-observed:` war-stories, historical justification) from the
+skills and agent briefs that load into the main loop on every ticket run, and installs a **permanent
+rule + validator check** so the bloat cannot creep back. **No CHECK is removed** — every gate, STOP
+condition, MUST/NEVER, conditional, counted-artifact line, threshold, escalation, and output format is
+intact and unchanged; the only new enforcement **ADDS** a guard.
+
+**Why this is safe.** In mango, prose **IS** behaviour — a skill's text is its behaviour, with no code
+behind it. So the trim was scoped to text that provably cannot change behaviour and was verified
+mechanically: a word-level diff of every deleted segment was scanned for behavioural markers, and the
+counted-artifact lines were counted before and after (`SECTIONS:`, `CLARIFICATION:`, `REFINE:`,
+`BREAKDOWN:`, `DRIFT:`, `EPIC LESSON:`, `RE-RATIFY:`, `BASELINE:`, `SURFACES:`, `TRACK:`,
+`RULE SECTIONS:`, `LEDGER TOTAL:`, `DOCTOR:`, `⚠ surfaces proven`, `: <n>`) along with every `MUST`,
+`NEVER`, and `STOP` — **all identical before and after**. **Zero** deleted segment contained a
+`MUST` / `NEVER` / `STOP` / count-line / output-format token. Every edit is a **pure deletion or a
+re-wrap**: **no directive was reworded**, so `scripts/validate.py` (green) plus the marker audit is the
+full proof and no eval fixture needed a fresh run.
+
+### Changed
+- **Rationale removed from 12 runtime files (21 passages, −38 lines, −632 words ≈ 2.7 % of the skill +
+  agent text loaded per run).** Per file: `design` −10, `breakdown` −8, `execute` −5, `refine` −4,
+  `finalise` −3, `budget` −2, `codify` −2, `analysis` −1, `db-map` −1, `review` −1, `agents/reviewer`
+  −1, `agents/challenger` ±0 (re-wrapped). What went: every `(Observed failure: …)` / `*(Field-observed:
+  …)*` war-story; the `This skill exists because …` justifications in `codify`, `budget`, and `db-map`;
+  the `v0.3` / `v1.6.1` / `retro-#5` historical anchors in `analysis`, `review`, `budget`, and both
+  critic briefs; and `breakdown`'s trailing blockquote, a verbatim duplicate of its opening one.
+- **One directive was moved, not changed.** `design`'s *"A shallow-grep-only estimate that misses a known
+  consumer is a **Gate-2 finding**"* was **promoted verbatim** out of the war-story parenthetical it was
+  buried in, so deleting the war-story could not take the finding with it.
+- **`skills/solve/SKILL.md` deliberately untouched.** Its *"Why this is a skill, not an agent"* section
+  reads as rationale, but *"orchestration must live here, in-conversation"* is arguably a directive
+  against delegating the orchestrator to a subagent. Unsure → kept. Same call for `analysis`'s
+  committed-stub fragility note, `design`'s *"execute's deviation-recording remains the backstop (it is
+  **not** removed)"*, and `analysis`'s *"an aggregate k/N is not enough for a 'for each' requirement"* —
+  each states a rule as well as a reason.
+
+### Added
+- **Permanent rule: skills are directive-only (`PRINCIPLES.md` → *Skills are directive-only*).** Skill
+  text is runtime-loaded and IS behaviour, so a `SKILL.md` carries **DIRECTIVES ONLY** — no rationale, no
+  war-stories, no historical justification. When a lesson motivates a new rule, the **RULE** goes in the
+  skill and the **REASON** goes in the CHANGELOG. Mirrored in the plugin README and `CONTRIBUTING.md`.
+- **`plugins/mango/RATIONALE.md`** — the non-runtime home for the "why". It ships beside `CHANGELOG.md`,
+  records every incident this version removed from a skill (with the rule each one motivated and the file
+  that still enforces it), and is **loaded by no skill**.
+- **Validator: `validate_no_rationale_in_skills`.** Fails the build if any `plugins/mango/skills/*/SKILL.md`
+  carries `observed failure`, `field-observed`, `exists because`, `the reason …`, `historically`,
+  `war-story`, or `retro-#N`. **Proven non-vacuous:** injecting `(Observed failure: …)` into
+  `skills/quick/SKILL.md` turned the run red with exactly that finding; removing it restored green.
+- **Validator: `validate_rationale_doc`.** Requires `RATIONALE.md` to exist, to state it is not loaded at
+  runtime, to actually carry the observed-failure records the skills no longer hold, and to name each of
+  the six core skills — **and fails if any `SKILL.md` ever references `RATIONALE.md`**, which would put
+  the why back on the runtime path. Also proven non-vacuous against an injected reference.
+- Validator total: **591 → 728 checks**, 0 failed.
+
 ## [1.7.5] — 2026-07-25
 
 A **fix-only** version closing the verify-layer gaps a v1.7.4 field test surfaced. **No new lifecycle

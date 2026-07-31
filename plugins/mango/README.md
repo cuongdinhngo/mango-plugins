@@ -187,6 +187,15 @@ Experimental behaviour today is **breakdown re-ratification**; everything else o
 paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
 `re-ratification: Experimental → Stable`).
 
+### Skills are directive-only
+
+Skill text is runtime-loaded and **is** behaviour (prose-IS-behaviour), so every token of a `SKILL.md`
+is paid on every ticket run. A skill therefore carries **directives only** — no rationale, no "observed
+failure" war-stories, no historical justification. When a lesson motivates a rule, the **rule** goes in
+the skill and the **reason** goes in [`CHANGELOG.md`](./CHANGELOG.md), with the incident recorded in
+[`RATIONALE.md`](./RATIONALE.md) — a file **no skill loads at runtime**. Enforced by
+`scripts/validate.py`; see [`PRINCIPLES.md`](./PRINCIPLES.md) → *Skills are directive-only*.
+
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding, simplicity
 first, surgical changes, goal-driven execution. Per-version changes are recorded in the shipped
 [`CHANGELOG.md`](./CHANGELOG.md) — the neutral source an independent field retro reads.

@@ -7,8 +7,7 @@ Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` — and especially its **des
 observe-facilitate-never-author** boundary. `budget` is to token cost what `codify` is to the rule
 book: it **measures and informs**, then lets a human choose. It **detects and informs, never
 self-administers** — exactly like `codify` (never authors a rule) and `version-check` (never installs
-a plugin). This skill exists because field cost was always an **estimate**, never measured per-phase
-(`context ≠ correctness`, applied to optimization: **don't optimize what you haven't measured**).
+a plugin).
 
 > **The boundary (binding).** `budget` may **detect** which optimizers exist and **report** measured
 > cost (the Cost ledger). It may **facilitate** adopting an optimizer by **stating its safety
@@ -104,8 +103,7 @@ command; it **never runs it, never installs RTK, and never edits the global conf
 **Caveman-style output compression must never be applied to critic output** — the `reviewer`, the
 `challenger`, and any gate-blocking artifact. Critic output **must retain full evidence detail**:
 `path:line`, measured values, per-clause verdicts, corrected snippets. A terse one-line review loses
-the evidence that *is* the review's value — and brevity applied where a **false-green could hide** is
-exactly the retro-#5 failure class. Caveman, if enabled at all, is **scoped to non-critic output
+the evidence that *is* the review's value. Caveman, if enabled at all, is **scoped to non-critic output
 only** (conversational replies, commit messages); `.harness.json` records `caveman.scope:
 "non-critic-only"` and mango enforces it. The reviewer / challenger agent briefs carry the same
 guardrail.

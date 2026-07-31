@@ -55,9 +55,7 @@ its human gate.
    **bookkeeping / BACKLOG** (the roadmap of the ratified tickets) — is **committed to a shared ref**
    *before* any child ticket starts its own branch. This way a child's diff reads as a genuine **edit
    of a committed file**, not net-new authorship, so the ticket-blind `challenger` can tell a real
-   retarget-edit from a brand-new file and need not caveat its verdict. *(Field-observed: the scaffold
-   was created but **not committed**, so a later child's challenger could not distinguish a genuine
-   retarget-edit from net-new authorship and had to caveat.)*
+   retarget-edit from a brand-new file and need not caveat its verdict.
 
    > **Working-doc mode for the committed child stubs — prefer `separate`.** A child-ticket stub is a
    > **local-file ticket that is ALSO a committed scaffold stub**. For that shape, use
@@ -80,9 +78,7 @@ its human gate.
    > **Experimental — validated once in the field; its re-ratification trigger and granularity may
    > change until a second epic exercises it. Keep it a delta-surface + human re-approve, not a rigid
    > contract.** It graduates to **Stable** — recorded in the CHANGELOG as
-   > `re-ratification: Experimental → Stable` — once a second epic validates the trigger. *(Field-observed:
-   > after the split ratified, the epic gained a 7th ticket and reversed a previously-ratified decision —
-   > both rode in on a child's Gate 1 with no breakdown-level re-approval.)*
+   > `re-ratification: Experimental → Stable` — once a second epic validates the trigger.
 8. **Epic close-out — capture the epic's durable lesson (breakdown OWNS this on the epic path).** An
    epic **ends here**: it never reaches `finalise`, so mango's *"always capture a durable lesson"* rule
    has **no owner on the epic path** unless `breakdown` takes it. At ratification — and again after any
@@ -99,7 +95,3 @@ its human gate.
 9. **Hand off.** On approval (and after any re-ratification above), each ticket runs its **own full
    lifecycle** (one ticket per run). Record the approved list, the scaffold commit, the epic lesson, and
    the gate decision in the working doc.
-
-> ⚠️ **Boundary sizing has no exact metric** — INVEST is the heuristic, retro corrects mis-splits.
-> Because the re-ratification behaviour here is **Experimental**, expect a retro to refine both the
-> epic-level analysis/design boundary and this breakdown's sizing.
