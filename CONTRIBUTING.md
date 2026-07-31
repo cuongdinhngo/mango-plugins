@@ -93,9 +93,9 @@ ones that silently go stale — check them by hand:
 3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
    enforced, and it is the *only* place the version appears in that README, so nothing else
    contradicts it when it drifts. It has silently sat two versions behind before.
-4. **Root `README.md` credibility blockquote** — the "Field-proven on…" paragraph under *What you get
-   on every ticket*. Also not enforced, and it carries no version, so it never *looks* stale. Re-read
-   it for claims that have aged: usage, stacks, eval coverage, API stability.
+4. **Root `README.md` → *Maturity*** — the "Field-proven on…" claims. Also not enforced, and they
+   carry no version, so they never *look* stale. Re-read them for claims that have aged: usage,
+   stacks, eval coverage, API stability.
 
 Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, eval coverage ↔
 `tests/eval/`). Maturity labels (**Stable** / **Experimental**) live only in
