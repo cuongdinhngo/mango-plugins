@@ -185,6 +185,15 @@
 #                     (codify-drift-count); and a 2-clause ratified want-decision becomes TWO matrix +
 #                     proof rows at Gate 1, the injected single-row ✅ certification being flagged
 #                     (multi-clause-want).
+#   v1.7.6          — skills are directive-only: the rationale trim plus its permanent guard, proven
+#                     NON-VACUOUS by a free, dispatch-less self-test — a rationale marker (an
+#                     `(Observed failure: …)` / `(Field-observed: …)` war-story, an `exists because`
+#                     justification, a `Historically …` note) injected into a runtime SKILL.md makes
+#                     validate.py FAIL, a SKILL.md referencing RATIONALE.md also FAILS (the "why" may
+#                     never return to the runtime path), and removal restores green (validator
+#                     no-rationale-guard self-test). Behaviour is unchanged by the trim itself — every
+#                     gate, count line, STOP condition and output format is untouched, which is why the
+#                     existing fixtures above are the regression net and no new model fixture is needed.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -231,6 +240,8 @@ tally_list()  { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && tr '\n' ' ' <"$C
 # skills (fail-safe: any skill change invalidates it). PRINCIPLES.md, every agent
 # brief, and every template are ALWAYS in the hash, so a change to any of them
 # invalidates every cache — only the per-skill selectivity is the acceleration.
+# RATIONALE.md is deliberately NOT in the hash: no skill loads it, so it cannot
+# change behaviour and must never invalidate a cache. Do not add it.
 declare -A FIXTURE_SKILLS=(
   [full]="analysis" [lite]="analysis" [freeform]="analysis"
   [analysis-section-coverage]="analysis" [vague-requirement]="analysis"
@@ -1205,6 +1216,61 @@ if _vjg_run >/dev/null 2>&1; then
   echo "  PASS: validator jargon-guard: removing the injected phrase restores a passing validate.py"
 else
   echo "  FAIL: validator jargon-guard: tree not restored after injection"; fails=$((fails + 1))
+fi
+
+# --- validator no-rationale-guard self-test (v1.7.6) -------------------------
+# Skill text is runtime-loaded and IS behaviour (prose-IS-behaviour), so a SKILL.md carries DIRECTIVES
+# ONLY — the "why" lives in CHANGELOG.md / the non-runtime RATIONALE.md (PRINCIPLES.md, "Skills are
+# directive-only"). v1.7.6 trimmed the accumulated rationale and added validate_no_rationale_in_skills
+# to stop it creeping back one "observed failure:" at a time. Same teeth as the jargon guard above:
+# proven by INJECTION, never by assertion. Runs entirely inside $SANDBOX; no `claude -p` — free and
+# deterministic.
+echo
+echo "== validator no-rationale-guard self-test =="
+_vnr_run() { ( cd "$SANDBOX" && python3 scripts/validate.py 2>&1 ); }
+# (0) Baseline: the shipped skills carry zero rationale markers.
+total=$((total + 1))
+if _vnr_run >/dev/null 2>&1; then
+  echo "  PASS: validator no-rationale-guard: shipped skills pass with zero rationale markers"
+else
+  echo "  FAIL: validator no-rationale-guard: shipped tree does NOT pass validate.py"; fails=$((fails + 1))
+  _vnr_run | tail -8
+fi
+# (1) Non-vacuous, per marker, in a real runtime skill.
+for _vnr_target in plugins/mango/skills/quick/SKILL.md plugins/mango/skills/analysis/SKILL.md; do
+  for _vnr_phrase in '(Observed failure: a past run shipped a wrong thing.)' \
+                     '(Field-observed: the gate was skipped once.)' \
+                     'This rule exists because an earlier version got it wrong.' \
+                     'Historically this was handled differently.'; do
+    cp "$SANDBOX/$_vnr_target" "$TMPROOT/vnr.bak"
+    printf '\n%s\n' "$_vnr_phrase" >>"$SANDBOX/$_vnr_target"
+    total=$((total + 1))
+    if _vnr_run >/dev/null 2>&1; then
+      echo "  FAIL: validator no-rationale-guard: VACUOUS — '$_vnr_phrase' in $_vnr_target did not fail validate.py"
+      fails=$((fails + 1))
+    else
+      echo "  PASS: validator no-rationale-guard: rationale in $_vnr_target → validate.py FAILS (non-vacuous)"
+    fi
+    cp "$TMPROOT/vnr.bak" "$SANDBOX/$_vnr_target"
+  done
+done
+# (2) The why must not be pulled back onto the runtime path: a SKILL.md referencing RATIONALE.md fails.
+cp "$SANDBOX/plugins/mango/skills/quick/SKILL.md" "$TMPROOT/vnr.bak"
+printf '\nSee RATIONALE.md for the background.\n' >>"$SANDBOX/plugins/mango/skills/quick/SKILL.md"
+total=$((total + 1))
+if _vnr_run >/dev/null 2>&1; then
+  echo "  FAIL: validator no-rationale-guard: VACUOUS — a SKILL.md referencing RATIONALE.md did not fail validate.py"
+  fails=$((fails + 1))
+else
+  echo "  PASS: validator no-rationale-guard: a SKILL.md referencing RATIONALE.md → validate.py FAILS (why stays off the runtime path)"
+fi
+cp "$TMPROOT/vnr.bak" "$SANDBOX/plugins/mango/skills/quick/SKILL.md"
+# (3) Removal restores green.
+total=$((total + 1))
+if _vnr_run >/dev/null 2>&1; then
+  echo "  PASS: validator no-rationale-guard: removing the injected rationale restores a passing validate.py"
+else
+  echo "  FAIL: validator no-rationale-guard: tree not restored after injection"; fails=$((fails + 1))
 fi
 
 # eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:

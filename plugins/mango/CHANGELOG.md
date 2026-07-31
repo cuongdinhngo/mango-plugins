@@ -59,7 +59,30 @@ full proof and no eval fixture needed a fresh run.
   runtime, to actually carry the observed-failure records the skills no longer hold, and to name each of
   the six core skills — **and fails if any `SKILL.md` ever references `RATIONALE.md`**, which would put
   the why back on the runtime path. Also proven non-vacuous against an injected reference.
+- **Eval: a dispatch-less `validator no-rationale-guard self-test`** in `tests/eval/run.sh`, the same
+  injection discipline as v1.7.5's jargon guard and equally free (no `claude -p`). It injects each
+  rationale marker into a runtime `SKILL.md` and asserts `validate.py` **FAILS**, asserts a `SKILL.md`
+  referencing `RATIONALE.md` **FAILS**, then that removal restores green — so the guard can never pass
+  vacuously. The dispatch-less self-test count goes **2 → 3**.
+- **Release checklist in `CONTRIBUTING.md`.** A release touches four places but only two are
+  validator-enforced; the root README's **version badge** and **status paragraph** are not, and the badge
+  had drifted two versions behind the status line beneath it. Both are now itemised, with the rule that
+  every status claim maps to a repo source.
 - Validator total: **591 → 728 checks**, 0 failed.
+
+### Docs
+- Root `README.md` status refreshed: correct version, `Stable`/`Experimental` vocabulary only (a
+  surviving `— v1` label removed — it slipped the v1.7.5 grep, whose pattern requires the dash *after*
+  `v1`), an honest real-world-usage note naming no third party, and one factual fix — the ticket-blind
+  challenger rebuilds requirements from the **raw ticket**, not "from the diff alone".
+- `RATIONALE.md` is deliberately **excluded** from the eval's skills-hash (documented in `run.sh` and
+  `tests/eval/README.md`): no skill loads it, so it cannot change behaviour and must never invalidate a
+  transcript cache.
+- `tests/eval/README.md` records that a **pure deletion of non-behavioural text** — no directive
+  reworded — is proven by `validate.py` plus a marker audit of the deleted segments and needs no fresh
+  fixture run, since the existing fixtures already cover every gate it left untouched.
+- Retired the last internal shorthand from `CONTRIBUTING.md`'s retro convention (`n=`), which sat outside
+  the validator's operational-text scan set.
 
 ## [1.7.5] — 2026-07-25
 

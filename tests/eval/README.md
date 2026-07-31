@@ -58,7 +58,9 @@ any uncertainty — missing cache, unreadable hash, changed runner) runs **fresh
 **fail-safe to run**: it only ever avoids a re-run it can prove unnecessary (skills unchanged ⇒ behaviour
 unchanged — the same prose-is-behaviour invariant mango relies on), and it **never** drops a fixture from
 coverage. `PRINCIPLES.md`, every agent brief, and every template are always in the hash (a change to any
-invalidates every cache); editing `run.sh` itself invalidates the whole cache.
+invalidates every cache); editing `run.sh` itself invalidates the whole cache. `RATIONALE.md` is
+deliberately **not** in the hash — no skill loads it, so it cannot change behaviour and must never
+invalidate a cache.
 
 ```
 bash tests/eval/run.sh              # dev loop: cache-hits for unchanged fixtures
@@ -79,7 +81,8 @@ Any new per-fixture tally must use the same ledger pattern.
 
 ## Dispatch-less self-tests (free coverage)
 
-Two checks run each suite with **no `claude -p` dispatch**, so they cost nothing and are deterministic:
+Three checks run each suite with **no `claude -p` dispatch**, so they cost nothing and are
+deterministic:
 
 - **transcript-cache self-test** — hash-match → skip, hash-change → run, `--no-cache` → all run.
 - **validator jargon-guard self-test** — injects each banned phrase (`v1 — …`, `enough to run and
@@ -87,9 +90,17 @@ Two checks run each suite with **no `claude -p` dispatch**, so they cost nothing
   `scripts/validate.py` **FAILS**, then that removal restores green. This is the teeth of the v1.7.5
   false-green fix: a validator that passes while its own claim is false is the worst defect class mango
   can ship, so this guard is proven by **injection**, never by assertion.
+- **validator no-rationale-guard self-test** — injects a rationale marker (an `(Observed failure: …)` /
+  `(Field-observed: …)` war-story, an `exists because` justification, a `Historically …` note) into a
+  runtime `SKILL.md` and asserts `validate.py` **FAILS**; also asserts that a `SKILL.md` referencing
+  `RATIONALE.md` fails, so the "why" can never be pulled back onto the runtime path. Teeth for the
+  v1.7.6 *skills are directive-only* rule — same injection discipline as the jargon guard.
 
 Prefer this shape for anything a deterministic check can prove — reserve `claude -p` fixtures for
-behaviour only a model run can demonstrate.
+behaviour only a model run can demonstrate. A change that is a **pure deletion of non-behavioural
+text** — no directive reworded — is proven by `validate.py` plus a marker audit of the deleted
+segments; it needs no fresh fixture run, because the existing fixtures are already the regression net
+for every gate it left untouched.
 
 Keep fixtures **generic** (`PROJ-*` keys; no real project, ticket, library, framework, formatter, or
 brand). The suite's coverage is catalogued in the header comment of `run.sh`.

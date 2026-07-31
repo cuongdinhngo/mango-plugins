@@ -82,12 +82,26 @@ For a fresh fork or a new marketplace of your own:
 3. `git push -u origin main`
 4. Users install with `/plugin marketplace add <user>/<repo>` then `/plugin install mango@<repo>`.
 
-Bump the version in `plugins/mango/.claude-plugin/plugin.json` and add an entry to the **shipped
-CHANGELOG** at `plugins/mango/CHANGELOG.md` (it ships *inside* the plugin, alongside `plugin.json` /
-`README.md`) for every release; `scripts/validate.py` enforces semver on the manifest **and** that the
-shipped CHANGELOG carries an entry matching the manifest version.
+### Release checklist
+
+Every release touches four places. Only the first two are validator-enforced, so the last two are the
+ones that silently go stale — check them by hand:
+
+1. **`plugins/mango/.claude-plugin/plugin.json`** — bump `version` (semver; enforced).
+2. **`plugins/mango/CHANGELOG.md`** — add a `## [<version>]` entry. It ships *inside* the plugin,
+   alongside `plugin.json` / `README.md`; `scripts/validate.py` fails if the entry is missing.
+3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
+   enforced: it once drifted two versions behind the status line below it.
+4. **Root `README.md` status line** — the `**Status: <version> — stable API.**` paragraph. Also not
+   enforced. Re-read it for claims that have gone stale, not just the number: usage, maturity labels,
+   and what is Stable vs Experimental all age.
+
+Every claim in that status line must map to a repo source (version ↔ `plugin.json`, API stability ↔
+CHANGELOG, Stable/Experimental ↔ `PRINCIPLES.md` → Maturity). A README that over- **or** under-claims is
+the same defect class mango exists to prevent — a claim that does not match reality.
 
 **Retro convention — read the CHANGELOG, not a prior retro.** An independent field retro reads
 `plugins/mango/CHANGELOG.md` as the **neutral source** of "what changed this version" — never a previous
 retro's write-up (which would compound one reviewer's framing). Keep each entry concise, evidence-first
-(what was observed, `n=`), and English-only.
+(state what was observed and how many times, in plain words), and English-only. Use the
+**Stable / Experimental** maturity vocabulary — never internal shorthand.
