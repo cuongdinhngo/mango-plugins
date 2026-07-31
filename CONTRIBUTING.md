@@ -91,14 +91,17 @@ ones that silently go stale — check them by hand:
 2. **`plugins/mango/CHANGELOG.md`** — add a `## [<version>]` entry. It ships *inside* the plugin,
    alongside `plugin.json` / `README.md`; `scripts/validate.py` fails if the entry is missing.
 3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
-   enforced: it once drifted two versions behind the status line below it.
-4. **Root `README.md` status line** — the `**Status: <version> — stable API.**` paragraph. Also not
-   enforced. Re-read it for claims that have gone stale, not just the number: usage, maturity labels,
-   and what is Stable vs Experimental all age.
+   enforced, and it is the *only* place the version appears in that README, so nothing else
+   contradicts it when it drifts. It has silently sat two versions behind before.
+4. **Root `README.md` credibility blockquote** — the "Field-proven on…" paragraph under *What you get
+   on every ticket*. Also not enforced, and it carries no version, so it never *looks* stale. Re-read
+   it for claims that have aged: usage, stacks, eval coverage, API stability.
 
-Every claim in that status line must map to a repo source (version ↔ `plugin.json`, API stability ↔
-CHANGELOG, Stable/Experimental ↔ `PRINCIPLES.md` → Maturity). A README that over- **or** under-claims is
-the same defect class mango exists to prevent — a claim that does not match reality.
+Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, eval coverage ↔
+`tests/eval/`). Maturity labels (**Stable** / **Experimental**) live only in
+`plugins/mango/PRINCIPLES.md` → *Maturity* — the README no longer repeats them, so that section is the
+single source and must stay current. A README that over- **or** under-claims is the same defect class
+mango exists to prevent — a claim that does not match reality.
 
 **Retro convention — read the CHANGELOG, not a prior retro.** An independent field retro reads
 `plugins/mango/CHANGELOG.md` as the **neutral source** of "what changed this version" — never a previous

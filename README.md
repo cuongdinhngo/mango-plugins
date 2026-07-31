@@ -21,13 +21,11 @@ What you get on every ticket:
   ticket and flags anything the diff leaves unmet.
 - A **PR + tracker update + durable lesson**, each behind explicit per-action approval.
 
-> **Status: 1.7.6 — stable API.** Field-proven on multiple real projects across several stacks,
-> including a large-scale production codebase, with a behavioural eval suite — one fixture per
-> behaviour, green at each release — and fault-injection-tested escalation paths; the public
-> skill/config API has been stable since 1.0. **Used by engineers beyond its author** — including a
-> maintainer of a major open-source frontend framework — on their own projects. Everything on the
-> ticket and epic paths is **Stable**, except `breakdown`'s re-ratification-on-change, which is
-> **Experimental** until a second epic exercises it (see `plugins/mango/PRINCIPLES.md`, Maturity).
+> Field-proven on multiple real projects across several stacks, including a large-scale production
+> codebase, with a behavioural eval suite — one fixture per behaviour, green at each release — and
+> fault-injection-tested escalation paths; the public skill/config API has been stable since 1.0.
+> **Used by engineers beyond its author** — including a maintainer of a major open-source frontend
+> framework — on their own projects.
 
 ## Install
 
