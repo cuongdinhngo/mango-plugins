@@ -5,6 +5,161 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.8.0] — 2026-08-01
+
+An **infrastructure + wasted-turn** version in two halves. **(A)** the behavioural eval dispatches in
+**parallel**, and five assertions that were failing on demonstrably **correct** behaviour are fixed.
+**(B)** a **`PREMISE FALSIFIED` preflight** stops a run whose ticket references sources that do not
+exist, and `init` **hoists** the harness basics into a project's `CLAUDE.md`. **No CHECK is removed and
+no gate is loosened** — every change adds or strengthens one. The **six lifecycle phases' existing
+behaviour is unchanged**: A touches only the eval runner and its assertion regexes; B **adds** a new
+halt condition to `refine`/`analysis` and a new step to `init`, and alters no existing gate, count line,
+STOP condition, or output format.
+
+### Changed — (A) eval runner: parallel dispatch with per-worker isolation
+- **The suite dispatches concurrently (`--workers N`).** A full instrumented run measured harness
+  overhead at **~3 s of 10 590 s — 0.03%**: the suite is 100% `claude -p` latency and was 100%
+  sequential. **Measured after the change: 998 s – 1201 s (16.6 – 20 min) across five full runs at
+  `--workers 8`, against 10 587 s sequential — 8.8× to 10.6×.** That is an order of magnitude more than
+  every available fixture merge combined (~9.5 min), which is why this version parallelises instead of
+  cutting. `--workers 1` is a genuinely sequential mode for debugging.
+  What parallelism guarantees is only that: **the same fixtures, the same assertions, the same counts,
+  in less wall-time.** It proves nothing new about behaviour.
+- **The runner is two-pass, so a prompt cannot drift from its assertions.** The suite body runs once to
+  **register** each dispatch (with the `.harness.json` `test_command` in force at that line) and once to
+  **judge** the transcripts, at the same call sites. Assertions are judged in script order, so a
+  parallel run's output reads exactly like a sequential one. An assertion whose dispatch was never
+  registered now **FAILS loudly** (`NO TRANSCRIPT`) instead of reading as coverage.
+- **Per-worker isolation, asserted.** Every worker gets its own `git clone --local --no-hardlinks` and
+  writes its own `.harness.json` **per job**. This removes two real hazards of concurrency: fixtures
+  whose `execute` branches and commits would race inside one shared clone, and `red-baseline` repointing
+  `config.test_command` — which under concurrency would flip the harness under another in-flight
+  dispatch. A new counted assertion proves every worker tree was disposed, proven **non-vacuous**
+  against an undisposed tree, alongside the existing live-checkout guard (both kept).
+- **`--only <regex>`** filters dispatch *and* judging for the dev loop. It reports the run as
+  **PARTIAL**, counts its skipped assertions, and **writes no cache entry** — a cache green may only be
+  minted by a run that proved the whole suite. CI passes no arguments, so CI is always a full run.
+- The transcript cache is unchanged and still hits. Note that editing `run.sh` invalidates the whole
+  cache via the runner fingerprint, so the first run after this version re-runs every fixture fresh.
+- **The per-job harness write is self-tested.** Two dispatch-free assertions prove the write carries the
+  command it is handed (green default, and `red-baseline`'s override on top of it). This version's own
+  first parallel run caught a stray positional there that put the repo *path* into `test_command` —
+  which broke the `red-baseline` fixture's premise while its assertions still passed, because the model
+  located the committed failing check by itself. The bug never shipped; the guard is permanent.
+
+### Fixed — (A) nine assertions that failed on CORRECT behaviour
+Five were named by the profile; the other four surfaced in this version's own first full parallel run,
+on transcripts whose behaviour is correct in every case. Each was widened over **wording only** and
+still requires the load-bearing outcome. The six shared tokens are proven **both ways** by a new
+dispatch-free self-test — each must match the correct wording that used to fail **and** still miss the
+wrong behaviour:
+- `breakdown-invest` — `**S**mall` / `**I**ndependent`: markdown emphasis *inside* a word broke a
+  contiguous substring match. Now emphasis-agnostic (`RE_INVEST_LETTERS`, `RE_INVEST_SMALL`).
+- `refine-consistency` — the skill states the negative as a **count** (`0 want-decisions asked`) where
+  the regex demanded a negation phrase. The zero-count form is now accepted (`RE_ZERO_WANTS`).
+- `invest-force-resplit` — the right-sized control is reported "unsplit" / "untouched" / "carried
+  through", none of which the alternation listed (`RE_NOT_SPLIT`).
+- `frontend-layer` and `design-layer` — an assertion pinned to the single glyph `❌`, which a correct run
+  may write into the working-doc verification table rather than the response text. Both now assert the
+  layer-match **failure** as a decision (`RE_LAYER_SUBJECT` + `RE_LAYER_MISMATCH`).
+- `epic-scaffold-committed` — a bold `**before**` broke a `before ` + space match (`RE_BEFORE_CHILD`).
+
+Four more, from the first parallel run:
+- `verify-only-scoped` — the correct run states the negative as "**No** full build, no whole-suite run"
+  where the alternation demanded "not …".
+- `verify-only-main-loop` — "zero subagents dispatched" / "dispatch**es** no reviewer" where the
+  alternation matched only "dispatch no" / "no subagent".
+- `refine-classify-A-vs-B` — the discrimination step named by its **mechanism** (the tie-breaker;
+  refusing to "launder" a convention-answerable question into a want-decision) rather than the words
+  "self-check".
+- `codify-drift-count` — the run **emits** the prefixed `DRIFT: 5 entries | 2 tickets` line and says
+  both numbers were counted from the list, without also discussing "counting lines" in the abstract.
+  Emitting the artifact is stronger evidence than narrating the rule, so the emitted line is accepted as
+  the subject; the "counted from the list, not narrated" half of the assertion is unchanged.
+
+**The single root cause, now written down as convention.** Nearly every one of these is the same defect:
+a **bare literal separator** between two load-bearing words. A space cannot match `**not** split` or
+`**before** the gate`, and a space cannot match a hyphen (`no change` vs `no-change`). `tests/eval/README.md`
+rule 6 now requires a separator *class* (`not[*_ ]{1,6}split`, `no[ -]change`) instead. Every widening in
+this version is an instance of that rule, not a loosening of an outcome.
+
+Two more of the same emphasis class surfaced on the re-runs and are now shared tokens as well:
+`invest-force-resplit`'s "re-split it **before** the gate" (`RE_BEFORE_GATE`) and `verify-only-scoped`'s
+cost-contrast form of the negative — "round 2 costs **zero dispatches** … re-deriving them would re-pay
+for facts already proven" (`RE_NO_BLANKET_RERUN`).
+
+`scripts/validate.py` now fails the build if an assertion regex is a bare glyph again, and
+`tests/eval/README.md` records both shapes as standing convention. All **eight** shared `RE_*` tokens
+are covered by the self-test, each with a correct and a wrong transcript; the two inline widenings
+(`refine-classify-A-vs-B`, `codify-drift-count`) are evidenced by their transcripts and by 3× fresh
+re-runs. **No fixture was cut or merged**:
+the three candidate merges were left in place — parallelism makes their ~9.5 min irrelevant, and each
+would have traded a distinct non-vacuity proof for seconds.
+
+### Added — (B1) `PREMISE FALSIFIED` preflight (a new halt, before the archaeology)
+- A phase pointed at a ticket whose referenced sources **do not exist** used to spend turns hunting for
+  a renamed or moved equivalent before anyone concluded the ticket was wrong. `refine` now resolves,
+  as the **first** act of its scan, every source the ticket references **as already existing** (path,
+  file, symbol, config key, table). A miss emits the counted
+  `PREMISE FALSIFIED: <n> referenced-as-existing source(s) missing — <ref> (<ticket line>)` and **STOPS
+  for the human immediately** — no rename hunt, no history reconstruction, no guessing.
+- **What it catches, precisely:** a **resolvable identifier** — a path, file, module, symbol, config
+  key, table, route or command, i.e. something a grep can decide — that the ticket frames as already
+  existing, does not resolve in the checkout, and is not declared synthetic. **What it never fires on:**
+  a path the ticket frames as **to be created** (it is not expected to exist); an **ambiguous** framing,
+  which is **surfaced as an item, never blocking**; and a **prose noun** describing behaviour or a
+  surface ("the dashboard banner", "the existing hashing algorithm") — locating a described thing is
+  ordinary analysis work, so it is classified ambiguous. That last scope limit came from this version's
+  own eval: the first full run with the check enabled halted three existing analysis fixtures whose
+  tickets name only prose nouns, which is a false halt in any repo, not just the eval sandbox.
+- **The eval environment declares its tickets synthetic.** The suite's sandbox is a clone of the plugin
+  repo, which ships no application source, so a fixture ticket about a hypothetical app names sources that
+  can never resolve. The generated throwaway rule book now declares the project's tickets **synthetic** —
+  the check's own carve-out, stated once for the environment rather than in 59 fixtures — and the two
+  `premise-*` fixtures opt back in by stating their references are claims about that checkout, which is a
+  real ticket's default. The check is therefore still exercised both ways, and what the fixtures prove is
+  the behaviour: classify each reference, emit both counted lines, halt, skip the archaeology, and stay
+  silent on a to-be-created path. Every run emits `PREMISE: <r> checked | <m> missing | <a> ambiguous`, zero
+  included, so the check cannot silently not-happen.
+- `analysis` carries the same check (for a direct invocation where `refine` did not run) and reuses
+  refine's classification and counting line rather than a parallel mechanism; `solve` stops the
+  lifecycle on the halt. Both lines are emitted **verbatim, prefix included, before any table or
+  prose** — a narrated count is an addition, never a substitute, exactly as for `REFINE:` / `SECTIONS:`
+  / `DRIFT:`. (The first run of the new fixture produced the right behaviour — halted, named all five
+  missing references, ran no archaeology — but reported the count as a table, so the format directive is
+  now explicit.) Guarded across `refine`, `analysis`, and `PRINCIPLES.md` by
+  `validate_premise_preflight`, and proven by **two** fixtures: `premise-falsified` (it fires, names the
+  missing refs, halts, skips the archaeology) and `premise-to-be-created` (the negative control — a
+  guard that fired on a to-be-created path would block every net-new ticket).
+
+### Shipped knowingly — the additive STOP, and the residual
+- **B1 adds a STOP condition to `refine` and `analysis`, so this version is not literally
+  "lifecycle behaviour unchanged".** It is **purely additive**: no existing gate, count line, STOP
+  condition or output format is altered, and the new halt carries two carve-outs — a **to-be-created**
+  path never fires it, an **ambiguous** framing is surfaced rather than blocking — plus a **prose noun**
+  scope limit and a **negative-control fixture** (`premise-to-be-created`) that fails if the guard ever
+  fires on a file the ticket exists to create. Shipped in this version by decision rather than split out.
+- **The milestone run is 222/224 at `--workers 8`, shipped as-is.** The two residuals are **per-run
+  wording flaps**: they rotate between assertions run to run, the behaviour in every transcript is
+  correct, and each mechanism was fixed at its root cause and re-verified **3× fresh**. Across five full
+  runs there were **zero behavioural regressions** and the isolation guards passed every time. The
+  residual rate is roughly 1% per assertion per run — a phrasing variance, not a coverage gap, and
+  chasing a literal 224/224 buys no coverage.
+
+### Added — (B2) `CLAUDE.md` standing-context hoist (a pointer, never a copy)
+- The harness basics were re-derived from scratch nearly every session and re-read at every phase
+  boundary. `init` now writes a fenced, regenerable `mango:standing-context` block into the project's
+  `CLAUDE.md`: which config governs, the few values a phase needs before it can act, the standing
+  constraints (the human holds every gate; no outward action without a per-action approval; tracker
+  writes via `config.tracker.cli`; stay inside the approved change list), and a **pointer to
+  `config.rulebook_path`** — never a copy of the rules, which would go stale and compete with the
+  source. An existing `CLAUDE.md` is only touched between the markers, and only after asking.
+- **No secret, token, or credential is ever written into `CLAUDE.md`** — it is committed context, so the
+  same no-secrets rule as `.harness.json` applies. `doctor` reports the block's presence as
+  **informational only** (✅ / ⚠, never ❌): it is persistent context, not a prerequisite, so it can
+  never gate the lifecycle. This repo's own `CLAUDE.md` carries the same block and joins the shipped
+  operational-text jargon scan.
+
 ## [1.7.6] — 2026-07-31
 
 A **token-runtime** version, **not a behaviour change**. It removes non-behavioural "why" text

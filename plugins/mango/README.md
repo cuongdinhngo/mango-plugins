@@ -86,7 +86,9 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
 
 A raw request rarely arrives lifecycle-ready. **`refine`** (the first phase) scans the project (reusing
 `sitemap`/`db-map`) and **tries to expose the unresolved product-decisions** — and the count it finds
-**is** the gate: **0 → self-skip → analysis** (recorded, so refine is never a tax on a clear ticket),
+**is** the gate:
+
+**0 → self-skip → analysis** (recorded, so refine is never a tax on a clear ticket),
 **≥1 → refine works**, **when in doubt → run**. It classifies **every** decision before asking:
 
 - **how-decision (HOW)** — answerable from convention / code / the rule book / the ticket text, or a
@@ -98,6 +100,15 @@ A raw request rarely arrives lifecycle-ready. **`refine`** (the first phase) sca
   own the bar.** A handed-back want-decision ("your call") **must** be marked **`ASSUMED (awaiting
   ratification)`** and requires an **explicit next-gate confirm**; a tripwire fires if it would reverse
   a prior human decision.
+
+**Premise first — a ticket whose named sources do not exist halts instead of digging.** The scan's first
+act is to resolve every source the ticket references **as already existing**, wherever a grep can decide
+it: a **path, file, symbol, config key, table, route**. A **prose noun** ("the dashboard banner") is not
+a resolvable reference — it is **surfaced as ambiguous**, never a halt — and a path the ticket frames as
+**to be created** never counts as missing. A referenced-as-existing identifier that does not resolve
+emits `PREMISE FALSIFIED: <n> … missing — <ref>` and **stops for you immediately**: no hunting for a
+renamed equivalent, no history reconstruction, no guessing what the ticket meant. Every run emits
+`PREMISE: <r> checked | <m> missing | <a> ambiguous`, zero included.
 
 refine stops at solution **DIRECTIONS** (wrap vs rebuild), never the specific tool — that is analysis's
 job. Its completeness backstop is the **ticket-blind challenger as a 1-dispatch exposure-checker**, not

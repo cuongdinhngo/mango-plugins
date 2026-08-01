@@ -271,6 +271,18 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
 - **Scan, don't ask what the scan can answer.** refine first scans the project (reusing
   `sitemap`/`db-map`); depth of exposure comes from the scan, not from asking the user what convention
   or code already answers.
+- **Premise before investigation — `PREMISE FALSIFIED` halts, it does not dig.** The first thing the
+  scan does is resolve every source the ticket references **as already existing** (path, file, symbol,
+  config key, table). Only a **resolvable identifier** counts — something a grep can decide; a
+  **prose noun** describing behaviour ("the dashboard banner") is **ambiguous**, never a falsified
+  premise. A
+  reference the ticket frames as **to-be-created** never counts as missing, and an **ambiguous** one is
+  **surfaced, never blocking**. A referenced-as-existing source that does not
+  resolve (and is not declared synthetic) emits the counted
+  `PREMISE FALSIFIED: <n> … missing — <ref>` and **STOPS for the human immediately** — no hunting for a
+  renamed equivalent, no history reconstruction, no guessing what the ticket meant. Every run emits
+  `PREMISE: <r> checked | <m> missing | <a> ambiguous`, zero included, so the check cannot silently
+  not-happen. Enforced at `refine` (Step 0) and `analysis` (step 1, when refine did not run).
 - **The readiness gate is the count itself.** refine TRIES to expose the unresolved product-decisions;
   **0 → skip → analysis** (recorded), **≥1 → refine works**, **when in doubt → run**. refine
   **self-skips on a clear ticket** so it is never a tax on every ticket — the skip is a counted

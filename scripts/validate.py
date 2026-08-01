@@ -34,7 +34,8 @@ RESERVED_NAMES = {
 SKILL_CONTRACTS = {
     "refine": [r"scan", r"want-decision", r"how-decision", r"cite", r"ASSUMED", r"skip", r"exposure-checker",
                r"acceptance-bar", r"want-decision by default", r"resolve-by-citation",
-               r"uncited how-decision", r"next-gate confirm", r"epic.{0,60}exposure-checker"],
+               r"uncited how-decision", r"next-gate confirm", r"epic.{0,60}exposure-checker",
+               r"PREMISE FALSIFIED", r"PREMISE:", r"to-be-created", r"ambiguous"],
     "breakdown": [r"INVEST", r"ticket boundary", r"counted", r"enumerate",
                   r"Independent", r"Negotiable", r"Valuable", r"Estimable", r"Small", r"Testable",
                   r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child",
@@ -42,7 +43,8 @@ SKILL_CONTRACTS = {
                   r"EPIC LESSON:", r"lessons_path", r"durable lesson", r"close-?out"],
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif",
                  r"applicable .{0,12}section", r"change[ -]type", r"enumerate",
-                 r"multi-clause", r"one row per clause", r"want-decision"],
+                 r"multi-clause", r"one row per clause", r"want-decision",
+                 r"PREMISE FALSIFIED", r"premise check"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius",
                r"real producers", r"(all|every) .{0,8}test root", r"typecheck", r"builder call site"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk",
@@ -55,7 +57,10 @@ SKILL_CONTRACTS = {
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk",
               r"work_doc_mode", r"committed-?stub", r"separate"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
-    "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}"],
+    "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}",
+               r"mango:standing-context", r"CLAUDE\.md"],
+    "init": [r"\.harness\.json", r"UNVERIFIED", r"rulebook", r"never overwrite",
+             r"CLAUDE\.md", r"mango:standing-context", r"pointer", r"secret"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
     "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend", r"uncodified",
                r"DRIFT:", r"counting line", r"drift"],
@@ -600,7 +605,8 @@ def operational_text_files():
     return (sorted(plugin.glob("skills/*/SKILL.md"))
             + sorted(plugin.glob("agents/*.md"))
             + sorted(plugin.glob("templates/*.md"))
-            + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md"])
+            + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md",
+               ROOT / "CLAUDE.md"])
 
 
 def validate_maturity_labels():
@@ -718,6 +724,190 @@ def validate_rationale_doc():
               f"rationale-doc: {sk.relative_to(ROOT)} references RATIONALE.md — that would put the why back on the runtime path")
 
 
+def validate_eval_parallel():
+    """v1.8.0 A1 — the eval dispatches CONCURRENTLY, and every worker runs in its OWN throwaway clone.
+    Two hazards make per-worker isolation load-bearing rather than tidy: fixtures whose `execute`
+    branches and commits would race inside one shared clone, and `red-baseline` repoints
+    `config.test_command`, which under concurrency would flip `.harness.json` under another in-flight
+    dispatch. So run.sh must keep: a --workers knob (with a sequential mode for debugging), a
+    per-worker provisioning step, a per-JOB harness write, the two-pass collect/assert structure that
+    keeps a prompt beside its assertions, and the worker-tree disposal guard proven non-vacuous."""
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "eval-parallel: tests/eval/run.sh is missing"):
+        return
+    try:
+        body = runsh.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"eval-parallel: cannot read tests/eval/run.sh ({exc})")
+        return
+    check(re.search(r"--workers", body) is not None,
+          "eval-parallel: run.sh must support --workers N (concurrent dispatch)")
+    check(re.search(r"--workers 1", body) is not None,
+          "eval-parallel: run.sh must document --workers 1 as the sequential debugging mode")
+    check(re.search(r"provision_sandbox", body) is not None,
+          "eval-parallel: run.sh must provision one throwaway clone PER WORKER (provision_sandbox)")
+    check(re.search(r"write_harness_at", body) is not None,
+          "eval-parallel: run.sh must write .harness.json per worker/per job (write_harness_at), so a "
+          "fixture that repoints test_command cannot flip it under another in-flight dispatch")
+    check(re.search(r"assert_worker_trees_disposed", body) is not None,
+          "eval-parallel: run.sh must assert every per-worker clone was disposed")
+    check(re.search(r"worker-isolation-guard: catches an undisposed worker tree", body) is not None,
+          "eval-parallel: run.sh must prove the disposal guard NON-VACUOUS against an undisposed tree")
+    check(re.search(r"assert_checkout_clean", body) is not None,
+          "eval-parallel: run.sh must keep the live-checkout guard alongside the per-worker guard")
+    check(re.search(r"PHASE=collect", body) is not None and re.search(r"PHASE=assert", body) is not None,
+          "eval-parallel: run.sh must keep the two-pass collect/assert structure (a prompt registered "
+          "at the same call site that asserts it, so the two cannot drift apart)")
+    check(re.search(r"NO TRANSCRIPT", body) is not None,
+          "eval-parallel: run.sh must FAIL an assertion whose dispatch was never registered (never "
+          "let a missing transcript read as coverage)")
+    check(re.search(r"PARTIAL RUN", body) is not None,
+          "eval-parallel: run.sh must report an --only run as PARTIAL (never a milestone run)")
+    check(re.search(r"cache-hit", body, re.IGNORECASE) is not None,
+          "eval-parallel: run.sh must preserve the transcript-cache path through the parallel dispatcher")
+    check(re.search(r"harness parameterisation self-test", body, re.IGNORECASE) is not None,
+          "eval-parallel: run.sh must self-test that the per-job harness write actually carries the "
+          "command it is given (a stray positional once wrote the repo PATH into test_command, "
+          "silently breaking the red-baseline fixture's premise while its assertions still passed)")
+
+
+def validate_assertion_convention():
+    """v1.8.0 A2 — assertions may be widened over WORDING/EMPHASIS, never over outcome, and they may
+    not be pinned to a single glyph or to emphasis-free spelling. Five assertions were failing on
+    demonstrably CORRECT behaviour: `**S**mall` (emphasis inside a word), `0 want-decisions asked` (a
+    count-form negative where a negation phrase was demanded), a control reported "unsplit"/"untouched",
+    a bold `**before**`, and a `❌` that landed in the work-doc table instead of the response. This
+    check locks the fix in place: the shared emphasis-agnostic tokens exist, NO assertion regex is a
+    bare glyph again, and the dispatch-free self-test proves each widened token both ways (matches the
+    correct wording, still misses the wrong behaviour)."""
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "assertion-convention: tests/eval/run.sh is missing"):
+        return
+    try:
+        body = runsh.read_text(encoding="utf-8")
+    except OSError as exc:
+        check(False, f"assertion-convention: cannot read tests/eval/run.sh ({exc})")
+        return
+    for token in ("RE_INVEST_LETTERS", "RE_INVEST_SMALL", "RE_NOT_SPLIT", "RE_ZERO_WANTS",
+                  "RE_LAYER_MISMATCH", "RE_BEFORE_CHILD", "RE_BEFORE_GATE", "RE_NO_BLANKET_RERUN"):
+        check(re.search(rf"^{token}=", body, re.MULTILINE) is not None,
+              f"assertion-convention: run.sh must define the shared emphasis-agnostic token {token}")
+    # No assertion may re-pin a single glyph: `assert_contains … '❌'` is exactly the shape that flapped.
+    glyph_pinned = re.findall(r"assert_contains[^\n]*'(?:❌|✅|✗)'", body)
+    check(not glyph_pinned,
+          "assertion-convention: an assertion regex is a bare glyph "
+          f"({glyph_pinned[:1]}) — a glyph may be written to the working doc instead of the response; "
+          "assert the decision with the layer/outcome tokens instead")
+    check(re.search(r"assertion-convention self-test", body) is not None,
+          "assertion-convention: run.sh must carry the dispatch-free assertion-convention self-test")
+    check(re.search(r"selftest_assertion", body) is not None,
+          "assertion-convention: the self-test must judge the SHIPPED regexes (selftest_assertion)")
+    check(re.search(r"VACUOUS: also matches the WRONG behaviour", body) is not None,
+          "assertion-convention: the self-test must fail a token that also matches the WRONG behaviour")
+    check(re.search(r"MISSES the correct transcript", body) is not None,
+          "assertion-convention: the self-test must fail a token that misses the CORRECT transcript")
+
+
+def validate_premise_preflight():
+    """v1.8.0 B1 — a phase pointed at a ticket whose referenced sources do not exist must say so and
+    STOP, not spend turns on archaeology. `refine` resolves every source the ticket references AS
+    ALREADY EXISTING at the top of its scan; a miss emits the counted `PREMISE FALSIFIED: …` and halts
+    for the human. Two carve-outs keep it from blocking legitimate work: a **to-be-created** path never
+    counts as missing, and an **ambiguous** framing is surfaced rather than blocking. `analysis` carries
+    the same check for the path where refine did not run, and the `PREMISE:` counting line is emitted
+    every run (zero included) so the check cannot silently not-happen."""
+    plugin = ROOT / "plugins" / "mango"
+    targets = [
+        plugin / "skills" / "refine" / "SKILL.md",
+        plugin / "skills" / "analysis" / "SKILL.md",
+        plugin / "PRINCIPLES.md",
+    ]
+    for path in targets:
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"premise-preflight: {rel} is missing"):
+            continue
+        try:
+            body = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"premise-preflight: cannot read {rel} ({exc})")
+            continue
+        check(re.search(r"PREMISE FALSIFIED", body) is not None,
+              f"premise-preflight: {rel} must emit `PREMISE FALSIFIED` on an unresolvable referenced source")
+        check(re.search(r"PREMISE:", body) is not None,
+              f"premise-preflight: {rel} must emit the `PREMISE: <r> … | <m> missing | <a> ambiguous` counting line")
+        check(re.search(r"referenced.as.existing|references? .{0,24}as already existing|already existing", body, re.IGNORECASE) is not None,
+              f"premise-preflight: {rel} must scope the check to sources referenced AS ALREADY EXISTING")
+        check(re.search(r"to.be.created", body, re.IGNORECASE) is not None,
+              f"premise-preflight: {rel} must carve out a TO-BE-CREATED path (it never counts as missing)")
+        check(re.search(r"ambiguous", body, re.IGNORECASE) is not None,
+              f"premise-preflight: {rel} must SURFACE an ambiguous reference rather than block on it")
+        check(re.search(r"resolvable", body, re.IGNORECASE) is not None,
+              f"premise-preflight: {rel} must scope the check to a RESOLVABLE identifier (a path / file / "
+              f"symbol / config key / table a grep can decide)")
+        check(re.search(r"prose noun", body, re.IGNORECASE) is not None,
+              f"premise-preflight: {rel} must classify a PROSE NOUN as ambiguous, never a falsified premise "
+              f"(locating a described thing is ordinary analysis work)")
+        check(re.search(r"STOP|halt", body) is not None,
+              f"premise-preflight: {rel} must STOP for the human on a falsified premise")
+        check(re.search(r"archaeolog|hunt|reconstruct|renamed", body, re.IGNORECASE) is not None,
+              f"premise-preflight: {rel} must forbid the archaeology (rename hunt / history reconstruction) it replaces")
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    check((fixtures / "premise-falsified.md").exists(),
+          "premise-preflight: tests/eval/fixtures/premise-falsified.md must exist (the firing case)")
+    check((fixtures / "premise-to-be-created.md").exists(),
+          "premise-preflight: tests/eval/fixtures/premise-to-be-created.md must exist (the negative control — "
+          "a guard that fires on a to-be-created path would block every net-new ticket)")
+
+
+def validate_claude_md_hoist():
+    """v1.8.0 B2 — the harness basics and mango's standing constraints are otherwise re-derived every
+    session and re-read at every phase boundary. `init` hoists them into the project's `CLAUDE.md` as a
+    fenced, regenerable `mango:standing-context` block: the governing config, the standing constraints,
+    and a POINTER to `config.rulebook_path` — never a copy of the rules (a copy goes stale and competes
+    with the source), and never a secret (CLAUDE.md is committed context). `doctor` reports the block's
+    presence as informational only, so it can never gate the lifecycle. This repo's own CLAUDE.md
+    carries the same block."""
+    plugin = ROOT / "plugins" / "mango"
+    init = plugin / "skills" / "init" / "SKILL.md"
+    if check(init.exists(), "claude-md-hoist: skills/init/SKILL.md is missing"):
+        body = init.read_text(encoding="utf-8")
+        check(re.search(r"CLAUDE\.md", body) is not None,
+              "claude-md-hoist: init must write the standing context into CLAUDE.md")
+        check(re.search(r"mango:standing-context", body) is not None,
+              "claude-md-hoist: init must fence the block with the `mango:standing-context` marker")
+        check(re.search(r"pointer", body, re.IGNORECASE) is not None
+              and re.search(r"rulebook_path", body) is not None,
+              "claude-md-hoist: init must write a POINTER to config.rulebook_path, not a copy of the rules")
+        check(re.search(r"never a copy|not a copy|never .{0,20}cop(y|ies)", body, re.IGNORECASE) is not None,
+              "claude-md-hoist: init must state the block is a pointer/summary, never a copy that goes stale")
+        check(re.search(r"secret", body, re.IGNORECASE) is not None,
+              "claude-md-hoist: init must forbid writing any secret/token into CLAUDE.md")
+        check(re.search(r"never overwrite|only .{0,20}between the markers|ask first|leave everything else", body, re.IGNORECASE) is not None,
+              "claude-md-hoist: init must not rewrite an existing CLAUDE.md outside its own block")
+    doc = plugin / "skills" / "doctor" / "SKILL.md"
+    if check(doc.exists(), "claude-md-hoist: skills/doctor/SKILL.md is missing"):
+        body = doc.read_text(encoding="utf-8")
+        check(re.search(r"mango:standing-context", body) is not None,
+              "claude-md-hoist: doctor must check for the CLAUDE.md standing-context block")
+        check(re.search(r"[Nn]ever ❌|never blocks|informational", body) is not None,
+              "claude-md-hoist: doctor's CLAUDE.md check must be informational — it may never gate the lifecycle")
+    own = ROOT / "CLAUDE.md"
+    if check(own.exists(), "claude-md-hoist: repo-root CLAUDE.md must carry this repo's standing context"):
+        body = own.read_text(encoding="utf-8")
+        check(re.search(r"mango:standing-context", body) is not None,
+              "claude-md-hoist: root CLAUDE.md must carry the `mango:standing-context` marker block")
+        check(re.search(r"scripts/validate\.py", body) is not None
+              and re.search(r"tests/eval/run\.sh", body) is not None,
+              "claude-md-hoist: root CLAUDE.md must point at both gates (validate.py and the behavioural eval)")
+        check(re.search(r"PRINCIPLES\.md", body) is not None,
+              "claude-md-hoist: root CLAUDE.md must point at PRINCIPLES.md as the binding contract")
+        check(re.search(r"prose IS behaviour|prose-IS-behaviour", body, re.IGNORECASE) is not None,
+              "claude-md-hoist: root CLAUDE.md must carry the prose-IS-behaviour standing constraint")
+        # Committed context: pointers only. A literal credential-looking assignment must never appear.
+        check(re.search(r"(?i)\b(api[_-]?key|secret|token|password)\b\s*[:=]\s*\S", body) is None,
+              "claude-md-hoist: root CLAUDE.md must contain no secret/token value (pointers only)")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -790,6 +980,10 @@ def main():
     validate_workdoc_committed_stub()
     validate_no_rationale_in_skills()
     validate_rationale_doc()
+    validate_eval_parallel()
+    validate_assertion_convention()
+    validate_premise_preflight()
+    validate_claude_md_hoist()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

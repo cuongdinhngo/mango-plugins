@@ -20,6 +20,20 @@ count, and the requirements matrix.
    re-fetch. Request `config.tracker.fields` if it is set; otherwise request a sensible full default
    (description/body, type, labels, parent, priority). Capture the raw ticket text verbatim — later
    phases re-derive from it.
+
+   **Premise check — before decomposing anything.** Resolve every source the ticket references **as
+   already existing** (path, file, symbol, config key, table, route) against the checkout, using
+   `refine`'s premise check — the same classification (**referenced-as-existing** must resolve /
+   **to-be-created** never counts as missing / **ambiguous** is surfaced, never blocking), the same
+   **resolvable-identifier** scope (a path / file / symbol / config key / table / route a grep can
+   decide — a prose noun like "the dashboard banner" is ambiguous, never a falsified premise), the same
+   `PREMISE FALSIFIED: …` halt, and the same `PREMISE: <r> checked | <m> missing | <a> ambiguous`
+   counting line — both emitted **verbatim, prefix included, before any table or prose** (a narrated
+   count is an addition, never a substitute). Do **not** invent a parallel mechanism. When `refine` already ran it this session,
+   carry its line forward instead of re-running it. On a miss, **STOP for the human before any
+   decomposition or blast-radius investigation** — do **not** hunt for a renamed or moved equivalent
+   and do **not** reconstruct history; a falsified premise is the human's to resolve (confirm the
+   reference, correct the ticket, or declare it synthetic).
 2. **Open the working doc — placement by where the ticket lives.** The working doc is the mutable
    state doc carrying all five phases, built from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`. Choose
    its placement from `config.work_doc_mode` (`auto | separate | embed`, default `auto`):

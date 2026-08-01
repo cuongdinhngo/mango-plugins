@@ -35,6 +35,47 @@ from asking the user what the scan can answer.** A README or an existing repeate
 reveals the request to be the *Nth item following an established convention* — which turns most
 would-be questions into **derivable-with-citation** answers rather than questions for the user.
 
+### ⭐ Premise check — resolve the ticket's referenced sources BEFORE any investigation
+
+As the FIRST thing the scan does, resolve every source the ticket references **as already existing** —
+a path, file, module, symbol, config key, table, route, command. Classify each reference from the
+ticket's **own framing**:
+
+- **referenced-as-existing** ("the handler in `<path>`", "the current `<X>` job", "as `<symbol>`
+  already does", "update/fix/extend `<thing>`") → it **MUST** resolve in the checkout.
+- **to-be-created** ("add", "new", "introduce", "create", "a `<path>` that will hold …") → it is **not
+  expected to exist** and **NEVER** counts as missing.
+- **ambiguous** (the framing does not settle which) → **surface it as an item; never block on it.**
+
+**Only a RESOLVABLE IDENTIFIER counts.** A reference is checkable only when a grep can decide it: a
+**path, file name, module, symbol, config key, table, route, or command**. A **prose noun** describing
+behaviour or a surface — *"the dashboard banner"*, *"the export button"*, *"the existing hashing
+algorithm"* — is **not** a resolvable reference: locating it is ordinary analysis work, not a falsified
+premise. Classify a prose noun **ambiguous** (surfaced, never blocking) and **continue**.
+`PREMISE FALSIFIED` fires **only** on a missing resolvable identifier.
+
+If any **referenced-as-existing** source does not resolve — and the ticket does not declare it
+synthetic (a fixture, an example, a hypothetical) — **STOP for the human immediately, before any
+further investigation**, and emit:
+
+`PREMISE FALSIFIED: <n> referenced-as-existing source(s) missing — <ref> (<ticket line naming it>), …`
+
+Then **STOP**. Do **NOT** hunt for a renamed or moved equivalent, reconstruct history, search for what
+the ticket "probably meant", or continue into Steps 1–6 on a falsified premise. The human resolves it:
+confirm the reference, correct the ticket, or declare it synthetic. Emit the counting line on **every**
+run — zero included — so the check is auditable and cannot silently not-happen:
+
+`PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`
+
+**Emit both lines verbatim, prefix included, as the FIRST thing in the response** — the
+`PREMISE FALSIFIED:` line (when `m > 0`) then the `PREMISE:` line — before any table, list or prose. A
+table or a narrated count is an **addition, never a substitute**: an unprefixed count is **not** the
+counted artifact, exactly as for `REFINE:` / `SECTIONS:` / `DRIFT:`. Per-reference detail (which
+reference, where the ticket names it, what the scan found) goes **after** the two lines.
+
+`m = 0` (or every miss classified to-be-created) → continue to Step 1 normally; the check adds no gate
+to a ticket whose premise holds.
+
 ## Step 1 — the readiness gate is the natural result of trying to expose (ask no one)
 
 refine **TRIES to expose** the unresolved product-decisions the request carries. **The count it finds
@@ -149,9 +190,14 @@ Emit all of the following as **counted artifacts** in the working doc's Phase-0 
 - **Constraints surfaced from the scan** (rule book, design tokens, policy the user could not have
   known to ask about).
 
-Emit the counting line so the exposure is auditable:
+Emit **both** counting lines so the exposure is auditable — the premise line **always**, on every run,
+zero included, even when nothing is missing:
 
+`PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`
 `REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
+
+A run that emits `REFINE:` without `PREMISE:` is **incomplete** — the premise check is not optional and
+its count is not inferable from the other line.
 
 When `skip: yes`, that single line (with `U = 0`) is the whole output and refine hands to `analysis`.
 
@@ -177,7 +223,9 @@ un-exposed decision, gets the same backstop the ticket path already has, never z
 ## Self-check, then hand off (no gate of refine's own)
 
 refine does not hold a ✋ gate of its own — its want-decision questions ARE its interaction, and its
-output is challenged at Gate 1. Before handing off, confirm: the project was scanned; every surfaced
+output is challenged at Gate 1. Before handing off, confirm: the project was scanned; the premise check
+ran and its `PREMISE:` line is emitted (any referenced-as-existing miss having halted the phase with
+`PREMISE FALSIFIED`); every surfaced
 decision was classified want-decision/how-decision (tie-breaker applied) **before** anything was asked;
 every how-decision carries a **citation** (an uncited how-decision is flagged as a finding) and was
 **not** asked; every acceptance-bar decision was treated as a want-decision (asked or `ASSUMED`), never

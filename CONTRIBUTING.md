@@ -53,6 +53,10 @@ It costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflo
 bash tests/eval/run.sh
 ```
 
+**Commit before you run it.** The fixtures execute against a `git clone` of this repo, i.e. **HEAD** —
+an uncommitted skill edit is not in the sandbox, so a fixture for it fails against the old shipped text.
+Commit locally first (pushing stays a separate, approved step), then run the suite and amend if needed.
+
 It works with **either** an exported `ANTHROPIC_API_KEY` **or** an OAuth/subscription login
 (`claude /login`) — the guard verifies the *capability* to run `claude -p`, not a specific credential.
 The script sets up its own throwaway environment (an isolated clone + a temp `.harness.json` + a
@@ -64,10 +68,18 @@ Assertions match at the **decision level** and are **emphasis-agnostic** (tolera
 phrasing variants around the load-bearing token), so a green result reflects stability across
 independent fresh runs, not a regex tuned to one transcript.
 
+**It dispatches in parallel.** `--workers N` (default a safe value; `--workers 8` is the milestone
+setting, `--workers 1` the sequential debugging mode) runs the fixtures concurrently, each worker in
+**its own throwaway clone** with **its own per-job `.harness.json`** — so a fixture that branches and
+commits, or one that repoints `test_command`, cannot affect another in flight. Assertions are still
+judged in script order, so the output reads like a sequential run. See
+[`tests/eval/README.md`](./tests/eval/README.md) for the two-pass structure and the isolation guards.
+
 **Verify-incremental (build discipline).** The suite is expensive, so while building a fix run only the
-**affected fixture(s)**; run the **full suite once** at the end before push. Coverage is unchanged — only
-redundant mid-build re-runs are removed. The Finish bar is unchanged: **full suite once** green, and each
-**new fixture 3× fresh** at the decision level.
+**affected fixture(s)** — `bash tests/eval/run.sh --only <regex>`, which reports the run as `PARTIAL`
+and writes nothing to the cache; run the **full suite once** at the end before push. Coverage is
+unchanged — only redundant mid-build re-runs are removed. The Finish bar is unchanged: **full suite
+once** green, and each **new fixture 3× fresh** at the decision level.
 
 The eval also runs a post-run **safety guard**: because every fixture executes inside a throwaway clone,
 the guard asserts the **live checkout** is untouched afterwards (HEAD on `main`, no stray `PROJ-*` branch,

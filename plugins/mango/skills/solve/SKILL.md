@@ -37,6 +37,12 @@ A user may invoke `/mango:quick <KEY>` directly to force the lite lane.
 input. It scans the project, TRIES to expose the unresolved product-decisions, and its count IS the
 branch:
 
+- **premise-falsified (a source the ticket references as ALREADY EXISTING does not resolve)** →
+  `refine`'s premise check emits `PREMISE FALSIFIED: …` and the lifecycle **STOPS there**, before
+  analysis and before any investigation. Do not route it into archaeology; the human confirms the
+  reference, corrects the ticket, or declares it synthetic. A **to-be-created** path never triggers
+  this, and an ambiguous one is surfaced rather than blocking.
+
 - **skip (0 unresolved product-decisions)** → refine records `refine skipped: 0 unresolved
   product-decisions` and hands straight to `analysis`. refine must **not** be a tax on a clear ticket.
 - **ticket-refine (≥1 unresolved, single deliverable)** → refine resolves the HOW (how-decision, cited),

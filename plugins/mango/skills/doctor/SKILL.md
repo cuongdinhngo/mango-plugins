@@ -49,6 +49,14 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    identically (only the saving is lost). To adopt or review an optimizer with its safety trade-offs,
    run `/mango:budget`; `doctor` never installs one.
 
+8. **Standing context hoisted into `CLAUDE.md` — informational, never blocks.** Check whether
+   `${CLAUDE_PROJECT_DIR}/CLAUDE.md` carries the `mango:standing-context` block (the marker pair) and
+   that it still names a `rulebook_path` pointer. ✅ when present; ⚠ when absent or when the block
+   holds no rule-book pointer — "run `/mango:init` to write it; without it every session re-derives the
+   harness basics." Never ❌: the block is persistent context, not a prerequisite — mango reads
+   `.harness.json` and the rule book at runtime either way. If the block contains anything that looks
+   like a secret or token, ⚠ loudly: `CLAUDE.md` is committed context and carries pointers only.
+
 ## Output
 
 Print the checklist, then a one-line summary `DOCTOR: <p> pass | <w> warn | <f> fail`. If any ❌,
