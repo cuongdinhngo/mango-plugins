@@ -92,6 +92,17 @@ its human gate.
    `EPIC LESSON: <n> lesson(s) written to <config.lessons_path>`
 
    If `config.lessons_path` is unset, say so explicitly and surface it rather than silently skipping.
+
+   **The epic lesson runs the same learning loop `finalise` runs** — reuse it, invent no parallel one:
+   split the entry into **atomic claims**, **classify** each (a proposal the human confirms at the
+   ratification gate, per the six types + tiebreaks in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`), record it
+   in the shape of `${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`, and emit:
+
+   `CLAIMS: <c> claim(s) from <e> lesson entr(ies) | T1=<n> T2=<n> T3=<n> T4=<n> T5=<n> T6=<n> | <u> unclassified`
+
+   Recurrence, the falsification check, and any promotion stay **exactly** as `finalise` defines them:
+   falsification **before** ratification, every promotion into a **PROJECT** file, a type-3 skill-gap
+   recorded as a **signal** in `config.skill_gap_path`, and **no mango file written**.
 9. **Hand off.** On approval (and after any re-ratification above), each ticket runs its **own full
    lifecycle** (one ticket per run). Record the approved list, the scaffold commit, the epic lesson, and
    the gate decision in the working doc.

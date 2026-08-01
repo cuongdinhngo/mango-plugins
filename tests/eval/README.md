@@ -29,7 +29,7 @@ checkout; everything is torn down on exit.
 > ships **no application source**, so a fixture ticket about a hypothetical app names sources that can
 > never resolve — and `refine`'s premise check would halt every one of them. The generated
 > `docs/EVAL_RULES.md` therefore declares the project's tickets **synthetic**, which is the premise
-> check's own documented carve-out, stated once for the whole environment instead of in 59 fixtures. The
+> check's own documented carve-out, stated once for the whole environment instead of in every fixture. The
 > two `premise-*` fixtures opt back in by stating that their references are claims about this checkout —
 > which is a real ticket's default — so the check is still exercised both ways: it fires and halts on a
 > missing named identifier, and stays silent on a to-be-created path.

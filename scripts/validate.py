@@ -35,16 +35,19 @@ SKILL_CONTRACTS = {
     "refine": [r"scan", r"want-decision", r"how-decision", r"cite", r"ASSUMED", r"skip", r"exposure-checker",
                r"acceptance-bar", r"want-decision by default", r"resolve-by-citation",
                r"uncited how-decision", r"next-gate confirm", r"epic.{0,60}exposure-checker",
-               r"PREMISE FALSIFIED", r"PREMISE:", r"to-be-created", r"ambiguous"],
+               r"PREMISE FALSIFIED", r"PREMISE:", r"to-be-created", r"ambiguous",
+               r"RECALL:", r"advisory", r"retired", r"by symbol", r"by area"],
     "breakdown": [r"INVEST", r"ticket boundary", r"counted", r"enumerate",
                   r"Independent", r"Negotiable", r"Valuable", r"Estimable", r"Small", r"Testable",
                   r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child",
                   r"Experimental", r"work_doc_mode", r"separate",
-                  r"EPIC LESSON:", r"lessons_path", r"durable lesson", r"close-?out"],
+                  r"EPIC LESSON:", r"lessons_path", r"durable lesson", r"close-?out",
+                  r"CLAIMS:", r"atomic claim", r"skill_gap_path"],
     "analysis": [r"SECTIONS:", r"CLARIFICATION:", r"AC validation", r"Gate 1", r"denominator", r"for each", r"TRACK", r"SURFACES", r"falsifiable", r"manual-check", r"baseline", r"uncodified", r"ratif",
                  r"applicable .{0,12}section", r"change[ -]type", r"enumerate",
                  r"multi-clause", r"one row per clause", r"want-decision",
-                 r"PREMISE FALSIFIED", r"premise check"],
+                 r"PREMISE FALSIFIED", r"premise check",
+                 r"RECALL:", r"advisory", r"retired"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius",
                r"real producers", r"(all|every) .{0,8}test root", r"typecheck", r"builder call site"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk",
@@ -53,17 +56,24 @@ SKILL_CONTRACTS = {
                r"ref-based", r"worktree", r"checkout",
                r"env-?parity|environment-equivalence", r"env-?fault|environment fault", r"untracked",
                r"near-total", r"git diff HEAD", r"porcelain"],
-    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref", r"unchanged except", r"complete on disk"],
+    "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref", r"unchanged except", r"complete on disk",
+                 r"CLAIMS:", r"RECURRENCE:", r"FALSIFY:", r"PROMOTION:", r"atomic claim",
+                 r"supersed", r"retired", r"falsif", r"skill_gap_path", r"agent_brief_path",
+                 r"mango files written: 0"],
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk",
-              r"work_doc_mode", r"committed-?stub", r"separate"],
+              r"work_doc_mode", r"committed-?stub", r"separate",
+              r"learning loop", r"falsification", r"skill_gap_path", r"no lesson edits a mango skill"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}",
-               r"mango:standing-context", r"CLAUDE\.md"],
+               r"mango:standing-context", r"CLAUDE\.md",
+               r"skill_gap_path", r"inside the project repo"],
     "init": [r"\.harness\.json", r"UNVERIFIED", r"rulebook", r"never overwrite",
              r"CLAUDE\.md", r"mango:standing-context", r"pointer", r"secret"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
     "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend", r"uncodified",
-               r"DRIFT:", r"counting line", r"drift"],
+               r"DRIFT:", r"counting line", r"drift",
+               r"promoted claim|promoted CLAIM", r"falsification", r"agent_brief_path",
+               r"expiry", r"never .{0,20}CLAUDE\.md|never into `CLAUDE\.md`"],
     "budget": [r"[Dd]etect", r"[Ii]nform", r"recorded", r"never.{0,15}install", r"depend",
                r"RTK", r"[Cc]aveman", r"safety axis", r"degrade clean", r"PROVISIONAL",
                r"non-critic-only", r"descriptive", r"wire", r"you must run this",
@@ -908,6 +918,205 @@ def validate_claude_md_hoist():
               "claude-md-hoist: root CLAUDE.md must contain no secret/token value (pointers only)")
 
 
+def validate_learning_loop():
+    """v1.9.0 — the learning loop: lessons split into atomic CLAIMS, classified (a PROPOSAL), recalled
+    ADVISORILY, deduped for recurrence/supersession, and — decisively — falsification-checked BEFORE the
+    human ratification gate, because recurrence measures how often a claim was RESTATED, not CHECKED.
+    Every destination is PROJECT-owned; nothing the loop does edits a mango file. Each assertion below is
+    falsifiable against the shipped text: the pieces exist, the ordering holds, and both non-vacuity
+    directions have a fixture."""
+    plugin = ROOT / "plugins" / "mango"
+    principles = plugin / "PRINCIPLES.md"
+    finalise = plugin / "skills" / "finalise" / "SKILL.md"
+    claim_tpl = plugin / "templates" / "claim-record.md"
+
+    def body_of(path):
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"learning-loop: {rel} is missing"):
+            return None
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"learning-loop: cannot read {rel} ({exc})")
+            return None
+
+    # --- The contract: PRINCIPLES.md carries the six types, both tiebreaks, and the five invariants.
+    pb = body_of(principles)
+    if pb is not None:
+        check(re.search(r"##\s*The learning loop", pb) is not None,
+              "learning-loop: PRINCIPLES.md must carry a `The learning loop` section (the binding contract)")
+        for label in ("tool-constraint", "generalisable heuristic", "skill-gap",
+                      "world-fact", "ground-truth", "adjudicated non-defect"):
+            check(re.search(re.escape(label), pb, re.IGNORECASE) is not None,
+                  f"learning-loop: PRINCIPLES.md must name claim type '{label}' in the six-type table")
+        check(re.search(r"1\s*vs\s*4", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must state the 1-vs-4 tiebreak (an imaginable gate → type 1)")
+        check(re.search(r"2\s*vs\s*3", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must state the 2-vs-3 tiebreak (type 3 only if a doable check "
+              "was demonstrably skipped in that run)")
+        check(re.search(r"never (auto-)?self-modif|self-modification|never self-modify", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must forbid self-modification (auto-apply / self-patch)")
+        check(re.search(r"auto-appl|self-patch", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must name auto-apply / self-patch as forbidden")
+        check(re.search(r"carr(?:ies|y)\s+nothing\s+home", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must state the loop is PROJECT-LOCAL (mango carries nothing home)")
+        check(re.search(r"never copied into `?CLAUDE\.md`?", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must state a promoted rule is NEVER copied into CLAUDE.md "
+              "(CLAUDE.md carries only the rule-book pointer)")
+        check(re.search(r"no auto-retire|there is no auto-retire", pb, re.IGNORECASE) is not None,
+              "learning-loop: PRINCIPLES.md must state a human marks a claim `retired:` — there is no auto-retire")
+
+    # --- The claim-record shape: one shape the writer and the reader share.
+    cb = body_of(claim_tpl)
+    if cb is not None:
+        for field in ("type:", "evidence:", "handle: symbol:", "area:", "sub-shape:", "re-raise:",
+                      "expiry:", "verified-at:", "seen:", "supersedes:", "retired:", "status: proposed"):
+            check(field in cb,
+                  f"learning-loop: templates/claim-record.md must define the `{field}` field")
+
+    # --- finalise owns split → classify → recurrence → FALSIFY → propose.
+    fb = body_of(finalise)
+    if fb is not None:
+        # (1) splitter
+        check(re.search(r"atomic claim", fb, re.IGNORECASE) is not None
+              and re.search(r"`CLAIMS:\s*<c>\s*claim\(s\) from\s*<e>", fb) is not None,
+              "learning-loop: finalise must split each lesson into atomic claims and emit the "
+              "`CLAIMS: <c> claim(s) from <e> lesson entr(ies) …` counting line")
+        check(re.search(r"T1=.{0,4}T2=.{0,4}T3=.{0,4}T4=.{0,4}T5=.{0,4}T6=", fb) is not None,
+              "learning-loop: the CLAIMS line must count all six types (T1..T6), so a type cannot be dropped")
+        # (2) classifier emits type + evidence + handle/area, and only PROPOSES
+        check(re.search(r"type \+ evidence \+", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise's classifier must emit type + evidence + the recall handle")
+        check(re.search(r"PROPOSAL|PROPOSES", fb) is not None
+              and re.search(r"status: proposed", fb) is not None,
+              "learning-loop: finalise's classification must be a PROPOSAL (status: proposed) the human confirms")
+        check(re.search(r"classify-and-act", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must forbid classify-and-act")
+        # (3) recurrence + supersession
+        check(re.search(r"`RECURRENCE:\s*<n>\s*recurring", fb) is not None,
+              "learning-loop: finalise must emit the `RECURRENCE: <n> recurring | …` counting line")
+        check(re.search(r"supersed", fb, re.IGNORECASE) is not None
+              and re.search(r"retired", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must REPLACE a narrowed/falsified claim (supersedes) and mark the old "
+              "one retired")
+        check(re.search(r"never delete", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must state retiring never deletes the old record (history stays)")
+        # (4) the falsification gate, and its ORDERING before ratification
+        check(re.search(r"`FALSIFY:\s*<c>\s*candidate\(s\) checked", fb) is not None,
+              "learning-loop: finalise must emit the `FALSIFY: <c> candidate(s) checked | …` counting line")
+        check(re.search(r"still true", fb, re.IGNORECASE) is not None
+              and re.search(r"cheaply verifiable|cheaply check", fb, re.IGNORECASE) is not None
+              and re.search(r"only repeated|not just repeated|or only repeated", fb, re.IGNORECASE) is not None,
+              "learning-loop: the falsification check must ask all three questions — still true? cheaply "
+              "verifiable? checked, or only repeated?")
+        check(re.search(r"BLOCKED from\s+promotion", fb) is not None,
+              "learning-loop: a falsified / not-cheaply-checkable candidate must be BLOCKED from promotion")
+        i_falsify = fb.find("FALSIFY:")
+        i_promote = fb.find("PROMOTION:")
+        check(i_falsify != -1 and i_promote != -1 and i_falsify < i_promote,
+              "learning-loop: the FALSIFY gate must be documented BEFORE the PROMOTION step — falsification "
+              "sits in FRONT of the human ratification gate, never after it")
+        check(re.search(r"restated", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must state recurrence measures RESTATEMENT, not truth")
+        # (5) promotion is human-gated, and every destination is PROJECT-owned
+        check(re.search(r"`PROMOTION:\s*<p>\s*proposed\s*\|\s*<k>\s*human-ratified", fb) is not None,
+              "learning-loop: finalise must emit the `PROMOTION: <p> proposed | <k> human-ratified | …` line")
+        check(re.search(r"mango files written: 0", fb) is not None,
+              "learning-loop: the PROMOTION line must carry `mango files written: 0` — the falsifiable form "
+              "of lessons-never-modify-mango")
+        check(re.search(r"only after an explicit per-claim ratify", fb, re.IGNORECASE) is not None,
+              "learning-loop: a promotion write may happen ONLY after an explicit per-claim human ratify")
+        for key in ("config.rulebook_path", "config.agent_brief_path", "config.gotchas_path",
+                    "config.drift_path", "config.design_doc_path", "config.skill_gap_path"):
+            check(key in fb,
+                  f"learning-loop: finalise must name the PROJECT-owned destination {key}")
+        # (6) type 3 never reaches mango; type 5 sub-shapes split; type 6 carries an expiry
+        check(re.search(r"does NOT promote into mango", fb) is not None,
+              "learning-loop: finalise must state type 3 does NOT promote into mango (it is a maintainer SIGNAL)")
+        check(re.search(r"no lesson,?\s*\n?\s*however", fb, re.IGNORECASE) is not None
+              or re.search(r"however recurrent or ratified, modifies mango", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must state no lesson — however recurrent or ratified — modifies mango")
+        check(re.search(r"descriptive / normative / environment|descriptive.{0,40}normative.{0,40}environment",
+                        fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must split type 5's sub-shapes (descriptive / normative / environment)")
+        check(re.search(r"verified-at", fb) is not None,
+              "learning-loop: finalise must stamp a type-5 ENVIRONMENT claim with `verified-at:` (it rots)")
+        check(re.search(r"mandatory `expiry:`|`expiry:`\*\*|carrying its `expiry:`", fb) is not None,
+              "learning-loop: finalise must require an `expiry:` condition on every type-6 claim")
+        check(re.search(r"process claim in the code rule book", fb, re.IGNORECASE) is not None,
+              "learning-loop: finalise must forbid filing a PROCESS claim in the code rule book")
+
+    # --- Advisory recall at refine AND analysis: surfaces only, blocks nothing, skips retired.
+    for name in ("refine", "analysis"):
+        rb = body_of(plugin / "skills" / name / "SKILL.md")
+        if rb is None:
+            continue
+        check(re.search(r"`RECALL:\s*<n>\s*claim\(s\) surfaced", rb) is not None,
+              f"learning-loop: {name} must emit the `RECALL: <n> claim(s) surfaced | …` counting line")
+        check(re.search(r"advisory \(blocks nothing\)", rb) is not None,
+              f"learning-loop: {name}'s RECALL line must declare itself advisory (blocks nothing)")
+        check(re.search(r"never (injects|inject)", rb, re.IGNORECASE) is not None
+              and re.search(r"never block", rb, re.IGNORECASE) is not None,
+              f"learning-loop: {name} must state recall never injects a requirement and never blocks a gate")
+        check(re.search(r"by\s*\*{0,2}SYMBOL|by \*\*symbol\*\*|handle: symbol", rb, re.IGNORECASE) is not None,
+              f"learning-loop: {name} must recall type 1 by SYMBOL")
+        check(re.search(r"by\s*\*{0,2}AREA", rb, re.IGNORECASE) is not None
+              and re.search(r"not (by )?a? ?symbol|not by symbol", rb, re.IGNORECASE) is not None,
+              f"learning-loop: {name} must recall type 5 by AREA, explicitly NOT by symbol")
+        check(re.search(r"re-raise|would otherwise be re-raised", rb, re.IGNORECASE) is not None,
+              f"learning-loop: {name} must recall type 6 by the finding that would otherwise be re-raised")
+        check(re.search(r"`retired:`", rb) is not None
+              and re.search(r"SKIPPED|skipped", rb) is not None,
+              f"learning-loop: {name} must SKIP a `retired:` claim during recall")
+
+    # --- Reuse, not rebuild: codify lands the rule-book write; init/doctor own the CLAUDE.md wiring.
+    cd = body_of(plugin / "skills" / "codify" / "SKILL.md")
+    if cd is not None:
+        check(re.search(r"learning loop", cd, re.IGNORECASE) is not None,
+              "learning-loop: codify must accept a promoted claim into its provisional→ratify flow")
+        check(re.search(r"never into `CLAUDE\.md`", cd) is not None,
+              "learning-loop: codify must state the promoted rule goes in the rule book, never into CLAUDE.md")
+        check(re.search(r"doctor.{0,80}pointer|pointer.{0,80}doctor", cd, re.IGNORECASE | re.DOTALL) is not None,
+              "learning-loop: codify must require doctor green on the CLAUDE.md → rule-book pointer before a "
+              "promotion counts as done")
+
+    # --- The PROJECT-owned destination keys ship in the example harness (and are README-documented by
+    #     validate_doc_consistency, which reads every top-level key).
+    example = load_json(plugin / "config" / "harness.example.json")
+    if isinstance(example, dict):
+        for key in ("skill_gap_path", "gotchas_path", "drift_path", "agent_brief_path"):
+            check(key in example,
+                  f"learning-loop: harness.example.json must ship the loop-destination key '{key}'")
+
+    # --- Fixtures: every piece has one, and both non-vacuity directions are covered.
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    required = {
+        "lesson-claim-split": "a bundled lesson splits into the right claim count",
+        "recall-symbol-type1": "type-1 recall fires on a matching symbol and NOT otherwise",
+        "recall-area-type5": "type-5 recall fires by AREA while symbol recall does not",
+        "recall-type6-expiry": "type-6 is recalled by the re-raised finding and carries its expiry",
+        "recall-retired-skipped": "a `retired:` claim is skipped by recall",
+        "recurrence-supersession": "recurrence flags a twice-seen claim; supersession replaces + retires",
+        "falsify-blocks-promotion": "a recurring-but-FALSE claim is BLOCKED from promotion",
+        "falsify-true-claim-promotes": "the non-vacuous control — a recurring-and-TRUE claim passes the gate",
+        "promotion-human-gated": "promotion PROPOSES only; no project file written without a human ratify",
+        "promotion-rulebook-wiring": "a ratified rule lands in rulebook_path, never in CLAUDE.md",
+        "loop-project-local": "every loop output path is inside the PROJECT repo; no mango file is written",
+    }
+    for name, why in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"learning-loop: tests/eval/fixtures/{name}.md must exist ({why})")
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    rs = body_of(runsh)
+    if rs is not None:
+        for name in required:
+            check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+                  f"learning-loop: tests/eval/run.sh must dispatch the {name} fixture "
+                  "(an unregistered fixture is not coverage)")
+            check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+                  f"learning-loop: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -984,6 +1193,7 @@ def main():
     validate_assertion_convention()
     validate_premise_preflight()
     validate_claude_md_hoist()
+    validate_learning_loop()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

@@ -85,7 +85,12 @@ descriptive/normative boundary `codify` holds for rules).
    live tree against the `Reviewed at` marker, **exempts** the working doc / bookkeeping paths, and
    **refuses** the PR (routing back to `review`) iff any *remaining* source file changed **beyond the
    reviewed set** — the working-doc/marker bump alone never trips it, and a bare "go" does not override
-   it. Always captures a **durable lesson** (independent of deferred rows) to `config.lessons_path`.
+   it. Always captures a **durable lesson** (independent of deferred rows) to `config.lessons_path`, and
+   runs the **learning loop** on it: split into atomic claims → classify (a **proposal**) → recurrence /
+   supersession → the **falsification check in front of** the ratification gate → **propose** each
+   promotion into a **PROJECT** file. Every classification and promotion is ratified **per claim** at the
+   final gate; a type-3 skill-gap is a **signal** in `config.skill_gap_path`, and **no lesson edits a
+   mango skill**.
 
 **Resume** from the working-doc `Session status` block: read it, determine the current phase, and
 continue from there rather than restarting. The working doc's placement follows
@@ -129,7 +134,12 @@ sensible default**, matching `analysis` and `breakdown` — not a behavioural ga
 - **One ticket per run.**
 - **Reject any phase that reaches a gate with an unfilled matrix column.**
 - **Process corrections become repo artifacts.** When the user corrects how a phase behaves, log it
-  to `config.lessons_path` AND fix the offending skill/doc in the same session.
+  to `config.lessons_path` AND fix the offending skill/doc in the same session — where "the offending
+  skill/doc" means a **PROJECT-owned** file (the rule book, the project's agent brief, a project doc).
+  **A mango skill is never the in-session fix:** a mango phase that demonstrably skipped a doable check
+  is a **type-3 skill-gap SIGNAL** recorded in `config.skill_gap_path` for mango's maintainer, who
+  changes mango only through a normal version. No lesson edits a mango skill (see `PRINCIPLES.md`, The
+  learning loop) — the correction is still logged and still lands as a repo artifact, in the project.
 - **Emit a Cost-ledger row per dispatch return (mechanical, not narrated).** The ledger is **not**
   bookkeeping to remember "as you go" — a thing the model can silently forget (an unenforced artifact
   is a coin flip). Instead: **when a subagent dispatch returns** (reviewer, challenger, extractor,

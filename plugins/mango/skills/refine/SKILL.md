@@ -76,6 +76,34 @@ reference, where the ticket names it, what the scan found) goes **after** the tw
 `m = 0` (or every miss classified to-be-created) → continue to Step 1 normally; the check adds no gate
 to a ticket whose premise holds.
 
+### Advisory recall — SURFACE the matching claims from past runs (never inject, never block)
+
+Once the premise holds, read the claim records in `config.lessons_path` (the shape is
+`${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`) and **surface** the ones this ticket matches, keyed
+per type:
+
+- **type 1 (tool-constraint) by SYMBOL** — a claim whose `handle: symbol:<import/API>` appears in the
+  ticket, the change area, or the imports the scan found. A symbol that does **not** appear surfaces
+  nothing.
+- **type 5 (project ground-truth) by AREA** — a claim whose `area:` matches the ticket's area. Type 5 is
+  matched by **area, not symbol**; on an environment sub-shape, surface its `verified-at:` stamp so a
+  rotted fact is visible as rotted.
+- **type 6 (adjudicated non-defect) by THE FINDING that would otherwise be re-raised** — surface it with
+  its `expiry:` condition when this ticket is about to re-raise that finding.
+
+**A claim marked `retired:` is SKIPPED** — it is not surfaced, and it is never auto-retired (a human
+marks it retired; the record stays for history).
+
+**Recall is ADVISORY and that is the whole of it.** It **surfaces** claims for the human and the later
+phases to weigh: it **never** injects a requirement or an acceptance criterion, **never** adds a matrix
+row, **never** blocks or gates the phase, and **never** edits a file. A surfaced claim that turns out to
+be irrelevant costs a line of output. Emit the counted artifact on every run, zero included:
+
+`RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
+
+If `config.lessons_path` is unset or absent, emit the line with zeros and say so — never skip it
+silently.
+
 ## Step 1 — the readiness gate is the natural result of trying to expose (ask no one)
 
 refine **TRIES to expose** the unresolved product-decisions the request carries. **The count it finds
@@ -190,16 +218,23 @@ Emit all of the following as **counted artifacts** in the working doc's Phase-0 
 - **Constraints surfaced from the scan** (rule book, design tokens, policy the user could not have
   known to ask about).
 
-Emit **both** counting lines so the exposure is auditable — the premise line **always**, on every run,
-zero included, even when nothing is missing:
+- **Recalled claims (advisory)** → surfaced context for analysis and the human to weigh. A recalled
+  claim is **never** promoted into an acceptance criterion or a matrix row by recall itself; it becomes
+  one only if the human or a later phase decides so on its merits.
+
+Emit **all three** counting lines so the exposure is auditable — the premise and recall lines
+**always**, on every run, zero included, even when nothing is missing:
 
 `PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`
+`RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
 `REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
 
-A run that emits `REFINE:` without `PREMISE:` is **incomplete** — the premise check is not optional and
-its count is not inferable from the other line.
+A run that emits `REFINE:` without `PREMISE:` or without `RECALL:` is **incomplete** — neither check is
+optional and neither count is inferable from the other lines.
 
-When `skip: yes`, that single line (with `U = 0`) is the whole output and refine hands to `analysis`.
+When `skip: yes`, the `REFINE:` line (with `U = 0`) plus the `PREMISE:` and `RECALL:` lines are the whole
+output and refine hands to `analysis`. A skip still recalls: the advisory surface costs nothing and is
+most useful exactly on the ticket refine had nothing to expose about.
 
 ## Epic detection — ticket vs epic (routes the rest of the lifecycle)
 
@@ -226,6 +261,8 @@ refine does not hold a ✋ gate of its own — its want-decision questions ARE i
 output is challenged at Gate 1. Before handing off, confirm: the project was scanned; the premise check
 ran and its `PREMISE:` line is emitted (any referenced-as-existing miss having halted the phase with
 `PREMISE FALSIFIED`); every surfaced
+the advisory recall ran and its `RECALL:` line is emitted (type 1 by symbol, type 5 by area, type 6 by
+the re-raised finding, `retired:` claims skipped) having **injected and blocked nothing**; every surfaced
 decision was classified want-decision/how-decision (tie-breaker applied) **before** anything was asked;
 every how-decision carries a **citation** (an uncited how-decision is flagged as a finding) and was
 **not** asked; every acceptance-bar decision was treated as a want-decision (asked or `ASSUMED`), never

@@ -24,8 +24,18 @@ gate. Every decision here is a **counted artifact**, never prose. refine **expos
 decide and never authors intent**.
 
 `REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
+`RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
 
-<!-- skip: yes → U=0, record `refine skipped: 0 unresolved product-decisions` and hand to analysis; this line is the whole Phase-0 output. -->
+**Recalled claims (ADVISORY — surfaced only).** Past claims this ticket matches: type 1 by **symbol**,
+type 5 by **area** (with its `verified-at:` stamp on an environment claim), type 6 by **the finding**
+that would otherwise be re-raised (with its `expiry:`). A `retired:` claim is **skipped**. Recall never
+injects a requirement or an AC, never adds a matrix row, never blocks a gate, never edits a file:
+
+| # | Claim (id) | Type | Matched by (symbol / area / finding) | Relevant here? (a human/phase call, not recall's) |
+|---|------------|------|--------------------------------------|---------------------------------------------------|
+| 1 |            |      |                                      |                                                   |
+
+<!-- skip: yes → U=0, record `refine skipped: 0 unresolved product-decisions` and hand to analysis; the REFINE + PREMISE + RECALL lines are the whole Phase-0 output. -->
 <!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles); breakdown re-ratification is Experimental, the rest Stable. -->
 
 **Settled wants (want-decision — from the user; become acceptance-criteria constraints analysis must honour).**
@@ -273,6 +283,27 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
   wrong assumption, or a process gap): none / `<lesson>` written to `config.lessons_path` (a repo
   artifact, never only personal memory) and landed on a **shared/pushed ref**, not only a local branch:
 - Revert path:
+
+### Learning loop (on the durable lesson — every output PROJECT-local; no mango file is written)
+
+`CLAIMS: <c> claim(s) from <e> lesson entr(ies) | T1=<n> T2=<n> T3=<n> T4=<n> T5=<n> T6=<n> | <u> unclassified`
+`RECURRENCE: <n> recurring | <s> superseded (<r> retired) | <p> promotion candidate(s)`
+`FALSIFY: <c> candidate(s) checked | <t> still-true (proceed) | <f> falsified (BLOCKED) | <u> not cheaply checkable (BLOCKED)`
+`PROMOTION: <p> proposed | <k> human-ratified | destinations: <path>, … | mango files written: 0`
+
+Claims are recorded in the shape of `templates/claim-record.md`. The classifier **PROPOSES** a type; the
+human confirms it at the final gate, per claim. Falsification runs **BEFORE** ratification — a recurring
+claim that is falsified or not cheaply checkable is **BLOCKED from promotion** and stays a lesson.
+
+| # | Claim (id) | Type (proposed) | Evidence | Handle (symbol) / area / re-raise | Recurred? (`seen:`) | Falsified? | Proposed destination (PROJECT path) | Human ratified? |
+|---|------------|-----------------|----------|-----------------------------------|---------------------|------------|-------------------------------------|-----------------|
+| 1 |            |                 |          |                                   |                     |            |                                     |                 |
+
+<!-- Type 1 → stays in lessons_path. 2 → rulebook_path (code) / agent_brief_path (process — never the code rule book).
+     3 → skill_gap_path as a SIGNAL for mango's maintainer; it NEVER edits a mango skill. 4 → gotchas_path.
+     5 → design_doc_path (descriptive) / rulebook_path with ID+blocking (normative) / `verified-at:` (environment).
+     6 → drift_path, carrying a mandatory `expiry:`. A ratified rule goes in the RULE BOOK, never copied into
+     CLAUDE.md — CLAUDE.md carries only init's pointer, and the promotion is not done until doctor is green on it. -->
 
 ---
 

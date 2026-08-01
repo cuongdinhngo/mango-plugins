@@ -57,6 +57,17 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    `.harness.json` and the rule book at runtime either way. If the block contains anything that looks
    like a secret or token, ⚠ loudly: `CLAUDE.md` is committed context and carries pointers only.
 
+9. **Learning-loop destinations — informational, never blocks.** For each **set** loop-destination key
+   (`lessons_path`, `skill_gap_path`, `gotchas_path`, `drift_path`, `agent_brief_path`) print one line
+   noting whether the file exists. ⚠ when a key is set but the file is absent — "the loop will report the
+   destination as not configured and surface the claim instead of writing it"; skip a key that is unset.
+   Never ❌: every destination is created on first write, and the lifecycle runs fully without any of
+   them. Two things this check **does** assert, because they are the loop's safety boundary: every
+   configured destination path is **inside the project repo** (a path outside it, or any path under a
+   mango plugin directory, is a ❌ — no loop output may leave the project or reach mango), and
+   `rulebook_path` is reachable from `CLAUDE.md` per check 8, since a promoted rule lives in the rule
+   book and `CLAUDE.md` carries only the pointer.
+
 ## Output
 
 Print the checklist, then a one-line summary `DOCTOR: <p> pass | <w> warn | <f> fail`. If any ❌,

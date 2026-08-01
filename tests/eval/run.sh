@@ -214,6 +214,29 @@
 #                     (codify-drift-count); and a 2-clause ratified want-decision becomes TWO matrix +
 #                     proof rows at Gate 1, the injected single-row ✅ certification being flagged
 #                     (multi-clause-want).
+#   v1.9.0          — the LEARNING LOOP, end to end. One bundled lesson splits into FOUR atomic claims,
+#                     each classified by type as a PROPOSAL the human confirms (lesson-claim-split).
+#                     Advisory recall fires on the right key and only on it: type 1 on a matching SYMBOL
+#                     and not on a non-matching one (recall-symbol-type1), type 5 by AREA while the
+#                     symbol-keyed claim stays silent on a ticket naming no symbol (recall-area-type5),
+#                     type 6 by the finding about to be re-raised, carrying its expiry and closing
+#                     nothing (recall-type6-expiry), and a `retired:` claim is SKIPPED while its
+#                     superseder surfaces, the record kept and nothing auto-retired
+#                     (recall-retired-skipped). Dedup flags a twice-seen claim and lets a measured claim
+#                     REPLACE an inferred one, retiring it without deleting it
+#                     (recurrence-supersession). The decisive gate: the MOST-repeated claim is the FALSE
+#                     one and is BLOCKED from promotion, as is a claim with no cheap check, with the
+#                     gate sitting IN FRONT of the ratification gate (falsify-blocks-promotion) — and
+#                     the same gate PASSES a recurring, still-true, cheaply-checkable claim, which is
+#                     still not in effect until the human ratifies it (falsify-true-claim-promotes, the
+#                     non-vacuous control). Promotion PROPOSES only: nothing is written before an
+#                     explicit per-claim ratify, a type-3 skill-gap is a project SIGNAL that edits no
+#                     mango skill, and a PROCESS heuristic goes to the project agent brief rather than
+#                     the code rule book (promotion-human-gated). A ratified rule lands in
+#                     rulebook_path, is never copied into CLAUDE.md, and is not done until doctor is
+#                     green on the pointer init already wrote (promotion-rulebook-wiring). Every
+#                     destination is inside the PROJECT repo, an unset key is surfaced rather than
+#                     redirected, and nothing is carried home (loop-project-local).
 #   v1.8.0          — PREMISE-FALSIFIED preflight + the runner's own parallel/assertion guards: a ticket
 #                     whose referenced-as-EXISTING sources do not resolve in the checkout makes refine
 #                     emit `PREMISE FALSIFIED` with the missing refs and STOP for the human BEFORE any
@@ -354,6 +377,12 @@ declare -A FIXTURE_SKILLS=(
   [workdoc-solve-autopath]="solve" [epic-lesson-capture]="breakdown"
   [codify-drift-count]="codify" [multi-clause-want]="analysis"
   [premise-falsified]="refine" [premise-to-be-created]="refine"
+  [lesson-claim-split]="finalise" [recurrence-supersession]="finalise"
+  [falsify-blocks-promotion]="finalise" [falsify-true-claim-promotes]="finalise"
+  [promotion-human-gated]="finalise" [loop-project-local]="finalise"
+  [promotion-rulebook-wiring]="finalise codify"
+  [recall-symbol-type1]="refine" [recall-area-type5]="refine"
+  [recall-type6-expiry]="refine" [recall-retired-skipped]="refine"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -458,7 +487,7 @@ Minimal rule set so the mango skills execute end-to-end during the eval.
   a ticket references may legitimately be absent from this checkout, so treat its references as synthetic
   and continue — UNLESS a ticket states that its references are claims about THIS checkout, in which case
   resolve them against it. (This is the premise check's `declared synthetic` carve-out, declared once for
-  the whole throwaway project instead of in 59 fixtures. Without it, every fixture ticket about an
+  the whole throwaway project instead of in every fixture. Without it, every fixture ticket about an
   application halts on a premise the eval sandbox can never satisfy — it ships no application source.)
 RULES
 )"
@@ -1519,6 +1548,127 @@ assert_contains "premise-new-file: PREMISE line records 0 missing" "$t" 'PREMISE
 assert_absent "premise-new-file: no PREMISE FALSIFIED halt (non-vacuous, other direction)" "$t" 'PREMISE FALSIFIED:[ *_]*[1-9]'
 # And refine gets on with its actual Phase-0 job.
 assert_contains "premise-new-file: refine continues into Phase 0" "$t" 'REFINE:|want-decision|how-decision|skip'
+
+# --- v1.9.0 (the learning loop) -----------------------------------------------
+banner "== v1.9.0 (learning loop: claims → recall → recurrence → falsify → human-gated promotion) =="
+
+# lesson-claim-split (v1.9.0): the unit is the ATOMIC CLAIM, not the entry. One bundled lesson carrying a
+# tool fact + a principle + a project fact + a demonstrably-skipped check must split into FOUR claims and
+# classify each by type — and the classification must be a PROPOSAL the human confirms, never a decision.
+t="$(run_fixture lesson-claim-split 'Run the mango finalise phase learning loop on the bundled durable lesson in this ticket. Split it, classify each claim with its type and evidence and recall handle, and emit the counted lines. Do not stop for my input.')"
+assert_contains "claim-split: emits the CLAIMS counting line" "$t" 'CLAIMS:'
+# Decision-level: FOUR atomic claims come out of ONE entry (outcome + the reasoning token).
+assert_all "claim-split: one entry splits into four atomic claims" "$t" 'four|4[ *_]*(atomic[ *_]*)?claim' 'claim'
+assert_all "claim-split: the helper fact is type 1 (tool-constraint)" "$t" 'get_or_set|cache client|swallow' 'tool.constraint|type[ *_:]*1'
+assert_all "claim-split: the guard principle is type 2 (heuristic)" "$t" 'guard' 'heuristic|type[ *_:]*2'
+assert_all "claim-split: the settings-table fact is type 5 (project ground-truth)" "$t" 'settings' 'ground.truth|type[ *_:]*5|project/domain'
+assert_all "claim-split: the skipped rule-book check is type 3 (skill-gap SIGNAL)" "$t" 'skill.gap|type[ *_:]*3' 'signal|skill_gap_path|maintainer'
+# Non-vacuous the other way: the classification PROPOSES; it does not decide.
+assert_all "claim-split: classification is a proposal, not a decision" "$t" 'propos' 'confirm|ratif|human|you '
+
+# recall-symbol-type1 (v1.9.0): a type-1 claim is recalled BY SYMBOL — it surfaces when its handle appears
+# in the ticket and does NOT surface when it doesn't (the non-vacuity: a recall that fires on everything is
+# noise, not recall). And recall is ADVISORY — it injects no requirement and blocks no gate.
+t="$(run_fixture recall-symbol-type1 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State what you surface, what you do not, and what recall does to this ticket'"'"'s requirements and gates. Do not stop for my input; show the artifacts you would produce.')"
+assert_contains "recall-symbol: emits the RECALL counting line" "$t" 'RECALL:'
+assert_all "recall-symbol: the matching-symbol claim IS surfaced" "$t" 'CLM-014|local_store_client' 'surfac|recall'
+# The other direction: the non-matching symbol claim is explicitly NOT surfaced.
+assert_all "recall-symbol: the non-matching symbol claim is NOT surfaced" "$t" 'CLM-015|layout_grid' 'not[^.]{0,28}(surfac|recall|match)|no[ *_]{1,4}match|does not (match|appear)|skip|exclud|irrelevant'
+assert_all "recall-symbol: recall is advisory — injects nothing, blocks nothing" "$t" 'advisory|surfaces only|surface only' 'blocks nothing|never[^.]{0,28}(block|inject)|not[^.]{0,28}(block|inject)|adds no|no new (requirement|acceptance)'
+
+# recall-area-type5 (v1.9.0): a type-5 claim is recalled BY AREA, not by symbol. The ticket names NO symbol
+# at all, so the symbol-keyed claim must not surface while the area-keyed one must — which is exactly the
+# distinction that makes type 5 its own type rather than a type-1 with a vague handle.
+t="$(run_fixture recall-area-type5 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State which claims you surface and what each was matched by. Do not stop for my input; show the artifacts you would produce.')"
+assert_contains "recall-area: emits the RECALL counting line" "$t" 'RECALL:'
+assert_all "recall-area: the type-5 claim is surfaced BY AREA" "$t" 'CLM-021|loyalty' 'area'
+# Non-vacuous: the symbol-keyed claim does NOT surface on a ticket that names no symbol.
+assert_all "recall-area: the symbol-keyed claim is NOT surfaced" "$t" 'CLM-023|band_total' 'not[^.]{0,28}(surfac|recall|match)|no[ *_]{1,4}match|does not (match|appear)|skip|exclud'
+assert_contains "recall-area: the RECALL line records zero by-symbol matches" "$t" '0[ *_]*by symbol|by symbol[ *_:=|]*0|symbol[ *_:=]*0'
+
+# recall-type6-expiry (v1.9.0): an adjudicated non-defect is recalled by THE FINDING that would otherwise
+# be re-raised, and it carries its EXPIRY condition — so an accepted deviation is not a permanent exemption.
+# It still only SURFACES: it does not close the ticket or overrule the human raising it again.
+t="$(run_fixture recall-type6-expiry 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State what you surface, what it was matched by, and what it does and does not do to this ticket. Do not stop for my input; show the artifacts you would produce.')"
+assert_contains "recall-type6: emits the RECALL counting line" "$t" 'RECALL:'
+assert_all "recall-type6: recalled by the finding about to be re-raised" "$t" 'CLM-031|sanctioned|adjudicat' 're.rais|the finding|already (examined|accepted)|not be re.litigat'
+assert_all "recall-type6: carries its expiry condition" "$t" 'expir' 'token|surface value|accessibility target|revisit|condition'
+assert_all "recall-type6: surfaces only — does not close or block the ticket" "$t" 'advisory|surfac' 'blocks nothing|not[^.]{0,32}(block|close|overrul|reject|dismiss)|human (decides|weighs|owns)|for (you|the human)'
+
+# recall-retired-skipped (v1.9.0): two claims share the SAME symbol handle; one is `retired:`. Recall skips
+# the retired one and surfaces its superseder — and the retired record is NOT deleted (history stays), with
+# no auto-retire anywhere.
+t="$(run_fixture recall-retired-skipped 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State which claims you surface and which you skip and why, and what happened to the retired record. Do not stop for my input; show the artifacts you would produce.')"
+assert_contains "retired-skip: emits the RECALL counting line" "$t" 'RECALL:'
+assert_all "retired-skip: the retired claim is SKIPPED by recall" "$t" 'CLM-041' 'skip|not surfaced|exclud|retired'
+# Non-vacuous the other way: recall is not simply silent — the superseding claim IS surfaced.
+assert_all "retired-skip: the superseding claim IS surfaced (non-vacuous)" "$t" 'CLM-042' 'surfac|recall'
+assert_all "retired-skip: the record stays and nothing auto-retires" "$t" 'not[ *_]{1,4}delet|never[ *_]{1,4}delet|kept|stays|remains|history' 'no auto.retire|human|not automatic|never auto'
+assert_contains "retired-skip: the RECALL line counts the retired skip" "$t" 'retired[ *_]*skipped|1[ *_]*retired|retired[ *_:=]*1'
+
+# recurrence-supersession (v1.9.0): dedup across entries. A claim recorded and seen AGAIN is flagged a
+# promotion candidate (recording it was not enough); a claim that NARROWS or FALSIFIES an earlier one
+# REPLACES it and the old one is marked retired — replaced, never deleted.
+t="$(run_fixture recurrence-supersession 'Run the mango finalise phase learning loop on this run'"'"'s claims, deduped against the claims already recorded in the project. State for each whether it recurred or supersedes an earlier claim, and what happens to the earlier record. Do not stop for my input.')"
+assert_contains "recurrence: emits the RECURRENCE counting line" "$t" 'RECURRENCE:'
+assert_all "recurrence: the twice-seen claim is flagged recurring" "$t" 'CLM-051|idempotency' 'recur|seen again|promotion candidate'
+assert_all "supersession: the measured claim REPLACES the inferred one" "$t" 'CLM-052|charge_client' 'supersed|replac'
+assert_all "supersession: the old claim is retired, not deleted" "$t" 'retir' 'not[ *_]{1,4}delet|never[ *_]{1,4}delet|stays|kept|history'
+
+# falsify-blocks-promotion (v1.9.0, the decisive case): recurrence measures how often a claim was RESTATED,
+# not whether it was CHECKED — so the MOST-repeated claim here is the FALSE one. Both candidates must be
+# BLOCKED from promotion (one falsified, one with no cheap check), and the gate must sit IN FRONT of the
+# human ratification gate.
+t="$(run_fixture falsify-blocks-promotion 'Run the mango finalise phase learning loop from the dedup step onward on the two promotion candidates in this ticket. For each, state what the falsification check asks, what it finds, and the outcome for its promotion, and say where that check sits relative to the human ratification gate. Do not stop for my input.')"
+assert_contains "falsify-false: emits the FALSIFY counting line" "$t" 'FALSIFY:'
+assert_all "falsify-false: the most-repeated claim is falsified and BLOCKED" "$t" 'CLM-061|empty filter' 'block|not[ *_]{1,4}promot|refus|falsif|fails'
+assert_all "falsify-false: the uncheckable claim is BLOCKED too" "$t" 'CLM-062|responsive|feels' 'block|not[ *_]{1,4}promot|no[ *_]{1,4}(measurable|cheap)|not[^.]{0,28}(measur|verifiab|check)'
+assert_all "falsify-false: recurrence measures restatement, not truth" "$t" 'restat|repeat' 'not[^.]{0,32}(check|true|truth|quality)|never checked|only repeated|is not (quality|truth|proof)'
+assert_all "falsify-false: the check precedes the human ratification gate" "$t" 'before|in front|preced|prior to|first' 'ratif'
+assert_contains "falsify-false: emits the PROMOTION counting line" "$t" 'PROMOTION:'
+
+# falsify-true-claim-promotes (v1.9.0, NON-VACUOUS CONTROL): the same gate must PASS a recurring claim that
+# is still true, cheaply verifiable, and actually measured — a gate that blocked everything would be a
+# promotion pipeline that never promotes. It still ends at the HUMAN, not in effect on its own.
+t="$(run_fixture falsify-true-claim-promotes 'Run the mango finalise phase learning loop from the dedup step onward on the promotion candidate in this ticket. State what the falsification check asks, what it finds on each question, and the outcome for its promotion — including whether the rule is now in effect or something must happen first, and who does it. Do not stop for my input.')"
+assert_contains "falsify-true: emits the FALSIFY counting line" "$t" 'FALSIFY:'
+assert_all "falsify-true: all three falsification questions are answered" "$t" 'still[ *_-]{0,4}true' 'cheap' 'check|measur'
+assert_all "falsify-true: the candidate PASSES and reaches the promotion step" "$t" 'CLM-071|transaction' 'propos|promot|candidate|proceed'
+# Non-vacuous the other way: passing falsification is not the same as being in effect — the human ratifies.
+assert_all "falsify-true: not in effect until the human ratifies" "$t" 'not[^.]{0,32}(in effect|yet|binding|written|applied)|awaiting|PROVISIONAL|propos' 'ratif|human|you '
+assert_contains "falsify-true: emits the PROMOTION counting line" "$t" 'PROMOTION:'
+
+# promotion-human-gated (v1.9.0): promotion PROPOSES. Nothing is written before an explicit per-claim
+# ratify; a type-3 skill-gap is a project-recorded SIGNAL that never edits a mango skill; and a PROCESS
+# heuristic goes to the project agent brief, never into the code rule book.
+t="$(run_fixture promotion-human-gated 'Run the mango finalise phase learning loop promotion step on the three claims in this ticket. For each, name the destination file you propose and say whether anything is written now, then answer the four questions in the ticket. Do not stop for my input.')"
+assert_all "promotion-gated: the code heuristic is proposed for the project rule book" "$t" 'CLM-081|integration layer' 'rulebook_path|rule[ -]?book|EVAL_RULES'
+assert_all "promotion-gated: nothing is written before the explicit ratify" "$t" 'not[^.]{0,32}(writ|edit|creat)|nothing[^.]{0,28}(writ|edit)|no file|propos' 'ratif|human|explicit'
+assert_all "promotion-gated: the skill-gap is a project SIGNAL, not a mango edit" "$t" 'CLM-082|skill.gap' 'skill_gap_path|SKILL_GAP|signal'
+assert_all "promotion-gated: no mango skill is edited by the loop, ever" "$t" 'mango' 'not[^.]{0,36}(edit|modif|chang|writ)|never[^.]{0,36}(edit|modif|chang|writ)|no mango (skill|file)|maintainer|normal version'
+assert_all "promotion-gated: the PROCESS claim goes to the agent brief, not the code rule book" "$t" 'CLM-083|paraphras|PR summary|process' 'agent[ _-]?brief|agent_brief_path'
+assert_contains "promotion-gated: the PROMOTION line carries `mango files written: 0`" "$t" 'mango files written[ *_:=]*0'
+
+# promotion-rulebook-wiring (v1.9.0): a RATIFIED promotion writes the rule into rulebook_path — never into
+# CLAUDE.md, which carries only init's pointer — and is not "done" until doctor is green on that pointer.
+# The loop REUSES init/doctor's wiring; it does not rebuild it.
+t="$(run_fixture promotion-rulebook-wiring 'Carry out the ratified promotion in this ticket per the mango finalise phase learning loop. State exactly which file the rule text goes into and which files it does not, what makes the promotion done rather than merely written, which existing mango skills own that wiring, and what happens if the project has no rule book. Do not stop for my input.')"
+assert_all "wiring: the rule text is written into the project rule book" "$t" 'rulebook_path|rule[ -]?book|EVAL_RULES' 'writ|add|record|land'
+assert_all "wiring: the rule is NOT copied into CLAUDE.md (pointer only)" "$t" 'CLAUDE\.md' 'not[^.]{0,32}(cop|writ|past|includ)|never|only[^.]{0,24}point|point(er|s to)'
+assert_all "wiring: not done until doctor is green on the pointer" "$t" 'doctor' 'green|pointer'
+assert_all "wiring: init/doctor own the wiring — reused, not rebuilt" "$t" 'init' 'reus|already|not[ *_]{1,4}rebuil|own'
+assert_all "wiring: a missing rule book is created rather than skipped" "$t" 'creat' 'rule[ -]?book|rulebook_path'
+
+# loop-project-local (v1.9.0): every loop output path is inside the PROJECT repo — nothing lands under a
+# mango plugin directory, an unset destination key is SURFACED rather than redirected or dropped, and
+# nothing is carried home to the next project.
+t="$(run_fixture loop-project-local 'Run the mango finalise phase learning loop promotion step on the six claims in this ticket. Enumerate the destination path for each, then answer the four questions in the ticket and report the PROMOTION line. Do not stop for my input.')"
+assert_all "project-local: every destination is inside the project repo" "$t" 'project' 'inside|within|repo|local'
+assert_all "project-local: nothing lands under a mango plugin directory" "$t" 'mango' 'mango files written[ *_:=]*0|no mango|not[^.]{0,36}(under|inside|in) (a |the )?mango|never[^.]{0,36}mango'
+assert_all "project-local: the type-3 claim is a project-recorded maintainer signal" "$t" 'CLM-103|skill.gap' 'skill_gap_path|SKILL_GAP|signal|maintainer'
+assert_all "project-local: an unset destination key is surfaced, not redirected or dropped" "$t" 'unset|not (set|configured)|absent|missing' 'surfac|report|say so|not[^.]{0,28}(drop|silent|elsewhere)'
+assert_all "project-local: nothing is carried home to another project" "$t" 'carr|home|another project|different project' 'nothing|none|separate|isolat|project.local|no '
+assert_contains "project-local: the PROMOTION line carries `mango files written: 0`" "$t" 'mango files written[ *_:=]*0'
 
 }   # end suite()
 

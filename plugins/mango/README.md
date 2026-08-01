@@ -130,12 +130,12 @@ security-tagged, touches more than one file, or has a universal requirement reso
 
 | Skill | Phase / Gate | Produces |
 |-------|--------------|----------|
-| `/mango:refine` | 0 (no gate of its own) | A **refined ticket** as counted artifacts: a `REFINE:` count line + tables for **settled wants** (want-decision → AC constraints), **cited** (how-decision → starting premise), **ASSUMED (awaiting ratification)** (mandatory tag + explicit next-gate confirm), and scan-surfaced constraints. Applies the acceptance-bar tie-breaker (bar decisions → want-decision by default). Self-skips a clear ticket (records "0 unresolved product-decisions"). Runs a 1-dispatch ticket-blind exposure-checker. Detects an epic and routes to the epic path. |
+| `/mango:refine` | 0 (no gate of its own) | A **refined ticket** as counted artifacts: a `REFINE:` count line + tables for **settled wants** (want-decision → AC constraints), **cited** (how-decision → starting premise), **ASSUMED (awaiting ratification)** (mandatory tag + explicit next-gate confirm), and scan-surfaced constraints. Applies the acceptance-bar tie-breaker (bar decisions → want-decision by default). Self-skips a clear ticket (records "0 unresolved product-decisions"). Runs a 1-dispatch ticket-blind exposure-checker. Detects an epic and routes to the epic path. Surfaces past claims as **advisory recall** (`RECALL:` — type 1 by symbol, type 5 by area, type 6 by the re-raised finding; `retired:` skipped) which never injects a requirement and never blocks. |
 | `/mango:analysis` | 1 → Gate 1 | Requirements matrix (C/R/G/AC) with counts, falsifiable-AC check (a value that is neither falsifiable nor a recorded manual-check exclusion is flagged and may not carry `✅`), root-cause & blast radius, a `RULE SECTIONS` coverage line (applicable rulebook sections derived from the change type — migration → DB-conventions mandatory, etc. — each checked or N/A), scope, and a `BASELINE` capture from the untouched checkout. A ratified **multi-clause** want-decision is split into **one matrix + proof row per clause** (a clause with no row of its own is a finding). Frontend: emits `SURFACES: N` for universal requirements. Surfaces any **uncodified standard** into `codify`'s provisional→ratify flow rather than enforcing it silently. |
 | `/mango:design` | 2 → Gate 2 | Approach + rejected alternatives, assumptions (`verified \| novel-untested`), smallest row-traced change list, rule compliance, the named proving test, and a **per-AC verification plan whose layer-match is a hard gate** (an integration/runtime AC backed only by a logic-layer proof blocks Gate 2 unless upgraded or recorded as a human-approved coverage-gap exclusion). Its **test blast-radius traces to real producers/consumers** — a shared type/symbol change enumerates every test root + factory patterns + `typecheck`, a threaded value enumerates every builder call site — so the change-list is the smallest **complete** set and a shallow name-grep miss is a finding. Frontend: builds/updates `DESIGN.md`, plans one row per (AC × surface). |
 | `/mango:execute` | 3 (autonomous) | Branch, the approved changes only, the proving test, a verification sweep on **both axes** — file set (diff ⊆ approved list) **and** a design-conformance self-check that records any deviation from a Gate-2 bullet even when the diff is clean — with a baseline-aware DoD, commits carrying no AI co-author trailer. Formats **only authored/edited files**. **Commits the change-set BEFORE review is dispatched**, so the ref-based review sees a real committed diff. STOPs to re-gate on an invalidated design or via a **stuck-detector** (`stuck_threshold` failed attempts at the same signature). Frontend: emits the proof manifest. |
 | `/mango:review` | 4 (stop if not clean) | `reviewer` + ticket-blind `challenger`, scope reconciliation on both axes (file set **and** behavioural conformance), regression check, layer-match re-confirmation, proving-test result judged against `BASELINE`, `k/N` coverage. A round-1 **conditional LGTM** makes the re-review a **verify-only pass** (named-fix check + affected proof + regression scan, no full re-derivation), re-dispatching a subagent only when a fix changed scope. Frontend: also scores the M1–M10 rubric + `N == M + X` surface check. On a clean verdict records a `Reviewed at <sha>` marker for the stale-review guard. Subagents inspect **ref-based or worktree-isolated**; a worktree used to *run* a suite must **carry the untracked env** (or run in place at the reviewed SHA), and a **near-total** worktree failure is an **env-fault, not a finding**. An **empty** `<base>..<branch>` range falls back to `git diff HEAD` + `git status --porcelain -uall` before concluding no-change. |
-| `/mango:finalise` | 5 → final gate | **Stale-review guard** (routes back to `review` only if a source file changed beyond the reviewed set), optional `pr_checklist_path` walk, PR draft, per-action approval for every outward action, tracker writes via CLI, a **cost-ledger completeness gate**, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and pushed to a shared ref. |
+| `/mango:finalise` | 5 → final gate | **Stale-review guard** (routes back to `review` only if a source file changed beyond the reviewed set), optional `pr_checklist_path` walk, PR draft, per-action approval for every outward action, tracker writes via CLI, a **cost-ledger completeness gate**, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and pushed to a shared ref — then the **learning loop** on it: split into atomic claims → classify (a proposal) → recurrence/supersession → a **falsification check in front of** the ratification gate → each promotion **proposed** into a **project** file and ratified per claim. No lesson edits a mango skill. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. |
 | `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **enumerated six-letter INVEST** self-check (each of Independent/Negotiable/Valuable/Estimable/Small/Testable affirmed or N/A — a one-liner is a finding; a ticket failing a letter is flagged for **re-split**), held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **Boundary sizing is corrected by retro; the re-ratification behaviour is Experimental.** |
 | `/mango:solve` | orchestrator | Runs `refine` (Phase 0) FIRST and branches — **skip** / **ticket-refine** / **epic-path** — then a Doctor preflight and every gated phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
@@ -193,10 +193,13 @@ concluding no-change.
 
 Shipped behaviour carries an honest maturity level (defined in [`PRINCIPLES.md`](./PRINCIPLES.md)):
 **Stable** = committed, field-tested behaviour, safe to rely on (the default); **Experimental** = works
-and is validated, but its exact shape may still change until further real-world use. The only
-Experimental behaviour today is **breakdown re-ratification**; everything else on the ticket and epic
-paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
-`re-ratification: Experimental → Stable`).
+and is validated, but its exact shape may still change until further real-world use. Two behaviours are
+Experimental today: **breakdown re-ratification**, and the **learning loop's classification/promotion
+machinery** (where the six-type boundaries fall, which recall key each type gets, how recurrence is
+scored) — though the loop's **five invariants are not Experimental**: the classifier proposes and the
+human confirms, recall is advisory, falsification precedes ratification, lessons never modify mango, and
+everything is project-local. Everything else on the ticket and epic paths is Stable. When an Experimental
+behaviour graduates, the CHANGELOG records it (e.g. `re-ratification: Experimental → Stable`).
 
 ### Skills are directive-only
 
@@ -210,6 +213,42 @@ the skill and the **reason** goes in [`CHANGELOG.md`](./CHANGELOG.md), with the 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding, simplicity
 first, surgical changes, goal-driven execution. Per-version changes are recorded in the shipped
 [`CHANGELOG.md`](./CHANGELOG.md) — the neutral source an independent field retro reads.
+
+### The learning loop — recall, propose, never self-modify
+
+A durable lesson used to sit in `lessons_path` and be re-read by nobody. The loop makes it act on the
+next ticket — **without** mango ever changing itself. Full contract in
+[`PRINCIPLES.md`](./PRINCIPLES.md) → *The learning loop*.
+
+```
+finalise: lesson → split into atomic CLAIMS → classify (a PROPOSAL, 6 types) → recurrence / supersession
+             → FALSIFY (still true? cheaply checkable? checked, or only repeated?) → propose promotion
+             → ✋ HUMAN RATIFIES, per claim → a PROJECT file
+refine/analysis: advisory RECALL — type 1 by symbol, type 5 by area, type 6 by the re-raised finding
+```
+
+- **The unit is the atomic claim, not the entry.** A bundled lesson classified as one thing routes its
+  other halves wrong, so `finalise` splits it first and emits `CLAIMS: <c> claim(s) from <e> entr(ies) |
+  T1=… T6=… | <u> unclassified`.
+- **Six types decide the destination and the recall key:** 1 tool-constraint (stays in `lessons_path`,
+  recalled by **symbol**), 2 heuristic (`rulebook_path` for code, `agent_brief_path` for process),
+  3 skill-gap **signal** (`skill_gap_path`), 4 world-fact (`gotchas_path`), 5 project ground-truth
+  (recalled by **area**; descriptive → `design_doc_path`, normative → a rule-book entry with ID +
+  blocking, environment → a `verified-at:` stamp), 6 adjudicated non-defect (`drift_path`, with an
+  `expiry:`, recalled by the finding it pre-empts).
+- **Recall is advisory, and that is all it is.** It surfaces claims at `refine`/`analysis` with
+  `RECALL: <n> surfaced | … — advisory (blocks nothing)`; it never injects a requirement, adds a matrix
+  row, blocks a gate, or edits a file. A `retired:` claim is skipped (a human retires it; no auto-retire).
+- **Falsification sits in FRONT of the ratification gate.** Recurrence measures how often a claim was
+  *restated*, not whether it was ever *checked* — the most-repeated lesson can be the false one. A
+  recurring claim that is falsified, or that cannot be cheaply checked, is **blocked from promotion** and
+  stays a lesson.
+- **Every promotion is human-ratified and lands in a PROJECT file.** The rule goes into
+  `rulebook_path` (via `codify`'s provisional→ratify), **never copied into `CLAUDE.md`** — `CLAUDE.md`
+  carries only the pointer `init` wrote, and the promotion is not done until `doctor` is green on it.
+- **Lessons never modify mango.** No lesson — however recurrent, however ratified — edits a mango skill.
+  A type-3 skill-gap is a **signal** for mango's maintainer, who changes mango through a normal version.
+  `PROMOTION: … | mango files written: 0` is the falsifiable form of that rule.
 
 ### Frontend track — measurable UI gates, composed taste
 
@@ -328,6 +367,13 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
   Unset → no network call.
 - **Descriptive-adapter keys (optional, off by default):** `docs_dir`, `code_map_cmd`, and the
   `db-map` trio (`db_kind` + `db_introspect_cmd` or `migrations_path`).
+- **Learning-loop destinations (optional; every one a path in YOUR repo):** `skill_gap_path` (type-3
+  skill-gap **signals** for mango's maintainer — nothing here edits a mango skill), `gotchas_path`
+  (type-4 world-facts), `drift_path` (type-6 adjudicated non-defects, each carrying an `expiry:` — also
+  `codify`'s drift list), `agent_brief_path` (a **project-owned** process brief: the destination for a
+  process heuristic, which must never be filed in the code rule book — it is *not* one of mango's own
+  `agents/*.md`). Unset → the loop reports the destination as not configured and surfaces the claim
+  rather than dropping it. See [the learning loop](#the-learning-loop--recall-propose-never-self-modify).
 
 Run `/mango:init` to generate this file for you.
 

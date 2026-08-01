@@ -65,8 +65,11 @@ goes through `config.tracker.cli` — **never** an MCP.
    *outgrew-its-ticket* split rather than shipping a mixed PR. Reuse the existing per-action approval +
    dry-run below; this adds no new outward action.
 5. **Require explicit, separate approval per action.** Present the list (and any not-satisfied
-   checklist items from step 2) and **stop**. Take NO outward action until the user approves each one
+   checklist items from step 2, plus every **claim classification** and **promotion proposal** from
+   step 8) and **stop**. Take NO outward action until the user approves each one
    individually. Silence ≠ approval. Default to dry-run: show the exact command you would run for each.
+   A step-8 classification or promotion is **ratified here, per claim, explicitly** — a blanket "go" on
+   the outward actions is **not** a ratification of a claim, and an unratified claim is written nowhere.
 6. **Execute only approved actions.** For each approved action, run it. All tracker writes use
    `config.tracker.cli`. After each, report what happened.
 7. **Draft follow-up tickets** for every deferred (⚠) matrix row, so nothing silently drops.
@@ -85,6 +88,91 @@ goes through `config.tracker.cli` — **never** an MCP.
    outward action** at the final gate — taken under the **same per-action approval + idempotency check**
    as every other outward action. Never let the durable lesson depend on a commit finalise never offered
    to push.
+
+   ### 8a. Split the lesson into atomic CLAIMS (the unit of everything below)
+
+   A captured lesson is frequently **bundled** — a tool fact, a principle, and a project fact in one
+   paragraph. **Split it into atomic claims first**, each one falsifiable sentence, and write each in the
+   shape of `${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`. Every step below operates on the
+   **claim**, never the entry. Emit the counted artifact:
+
+   `CLAIMS: <c> claim(s) from <e> lesson entr(ies) | T1=<n> T2=<n> T3=<n> T4=<n> T5=<n> T6=<n> | <u> unclassified`
+
+   A bundled entry left whole is a **finding at this step**: `<c>` must cover every claim the entry
+   carries, and `<u>` must reach 0 before the gate.
+
+   ### 8b. Classify each claim — PROPOSE the type, the human confirms
+
+   Tag each claim with **type + evidence + its recall handle**, per the six-type table and the two
+   tiebreaks in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (The learning loop). Type 1 carries a
+   `handle: symbol:<import/API>`; type 5 carries an `area:` (**not** a symbol) plus its sub-shape
+   (descriptive / normative / environment, the environment shape carrying `verified-at:`); type 6 carries
+   the `re-raise:` finding **and a mandatory `expiry:`**. Apply the tiebreaks **during** classification:
+   **1 vs 4** — an imaginable gate makes it type 1, only a claim no gate could ever pre-empt is type 4;
+   **2 vs 3** — type 3 **only** when a phase demonstrably skipped a doable check **in this run**, else
+   the general principle is type 2, and a **preventive** process-lesson with nothing skipped routes to
+   `config.agent_brief_path` rather than a rule.
+
+   Every classification is a **PROPOSAL**: it is `status: proposed (awaiting human confirm)` until the
+   human confirms it at the final gate (step 5). Do **not** classify-and-act.
+
+   ### 8c. Recurrence + supersession (dedup across entries)
+
+   Read the existing claims in `config.lessons_path` and dedup this run's claims against them:
+   - a claim already recorded and **seen again** → append this ticket key to its `seen:` list and flag it
+     a **promotion candidate** (it recurred *despite* being written down, so recording it was not
+     enough);
+   - a claim that **narrows or falsifies** an earlier one → it **REPLACES** it: record `supersedes:` on
+     the new claim and mark the old one `retired: … superseded by <CLAIM-ID>`. Retiring **never deletes**
+     the old record — recall skips it, history stays.
+
+   `RECURRENCE: <n> recurring | <s> superseded (<r> retired) | <p> promotion candidate(s)`
+
+   ### 8d. ⭐ Falsification gate — BEFORE the ratification gate, never after
+
+   Recurrence measures how often a claim was **RESTATED**, not whether it was ever **CHECKED**. So every
+   promotion candidate from 8c faces a falsification check **before** it is proposed to the human:
+
+   1. **Is it still true?** Check it against the current checkout / tool / environment — do not accept
+      the claim's own restatements as evidence.
+   2. **Is it cheaply verifiable?** Name the grep, command, or test that would disprove it.
+   3. **Was it CHECKED, or only repeated?** Count the sightings that carry real evidence, not the
+      sightings.
+
+   A candidate that is **falsified**, or that **cannot be cheaply checked**, is **BLOCKED from
+   promotion** — it stays a recorded claim (a falsified one is marked `retired: falsified …`), and it
+   never reaches the ratification gate. Only a candidate that passes all three is proposed in 8e.
+
+   `FALSIFY: <c> candidate(s) checked | <t> still-true (proceed) | <f> falsified (BLOCKED) | <u> not cheaply checkable (BLOCKED)`
+
+   ### 8e. Promotion — PROPOSE the destination; the human ratifies; every destination is a PROJECT file
+
+   For each candidate that survived 8d, **propose** its destination from its type — never write first:
+   - **type 2 (code)** and **type 5-normative** → `config.rulebook_path`, through `codify`'s
+     provisional→ratify flow (reuse it; invent no parallel one). A type-5-normative entry carries an
+     **ID + blocking status**.
+   - **type 2 (process)** and any preventive process-lesson → `config.agent_brief_path`. **Never file a
+     process claim in the code rule book.**
+   - **type 4** → `config.gotchas_path`. **type 5-descriptive** → `config.design_doc_path`.
+   - **type 6** → `config.drift_path`, **carrying its `expiry:` condition**.
+   - **type 3 (skill-gap) does NOT promote into mango.** Record it as a **SIGNAL** in
+     `config.skill_gap_path` for mango's maintainer, who changes mango only through a normal version.
+
+   **Nothing the loop does edits a mango skill, agent brief, template, or `PRINCIPLES.md`** — no lesson,
+   however recurrent or ratified, modifies mango, and no loop output is ever written outside the project
+   repo. If a destination key is unset, say so and surface the claim rather than silently dropping it.
+
+   **The write happens only after an explicit per-claim ratify at the final gate (step 5).** Then:
+   **the rule goes into `config.rulebook_path`, never into `CLAUDE.md`** — `CLAUDE.md` carries only the
+   **pointer** `init` already wrote. Create the rule book at `config.rulebook_path` if it is absent. A
+   promotion is **not done** until the rule is in the rule book **and** `doctor` is green on the
+   `CLAUDE.md` → rule-book pointer; `init`/`doctor` already own that wiring, so reuse it and rebuild
+   none of it.
+
+   `PROMOTION: <p> proposed | <k> human-ratified | destinations: <path>, … | mango files written: 0`
+
+   The `mango files written: 0` figure is not decoration — a non-zero value means the loop edited mango
+   and the run is wrong.
 9. **Cost ledger — completeness gate (content, not just row count), then the descriptive summary (dispatch-only).**
    Before surfacing the summary, enforce the **ledger-completeness check** — the ledger's *teeth*, and a
    **dispatch-count** check widened to the **content** of each row. Count the subagent dispatches this run
@@ -116,3 +204,11 @@ goes through `config.tracker.cli` — **never** an MCP.
    **complete on disk**, not a re-pasted copy in the response.
 10. **Update `Session status`** with a concrete next action (never "continue") and state the
    **revert path** (branch, commits, how to undo a merge/transition).
+11. **Learning-loop self-check.** Before finishing, confirm each: every lesson entry was **split** into
+    atomic claims and `<u> unclassified` is 0; every classification is a **proposal** the human
+    confirmed; **falsification ran before** the ratification gate and every falsified / not-cheaply-checkable
+    candidate is **BLOCKED** from promotion; every ratified promotion landed in a **PROJECT** path (the
+    rule in `config.rulebook_path`, **not** copied into `CLAUDE.md`) with `doctor` green on the pointer;
+    every type-3 claim went to `config.skill_gap_path` as a signal and **no mango file was written**; and
+    all five counting lines (`CLAIMS:`, `RECURRENCE:`, `FALSIFY:`, `PROMOTION:` and the durable-lesson
+    record) are emitted.

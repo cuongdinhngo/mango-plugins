@@ -28,6 +28,8 @@
 - **Risk:** <blast radius, affected repos>
 - **Rollback:** <how to revert: branch, commits, undoing a transition>
 - **Durable lesson:** <constraint discovered / wrong assumption / process gap recorded to lessons_path — or "none">
+- **Learning loop:** <the `CLAIMS:` / `RECURRENCE:` / `FALSIFY:` / `PROMOTION:` lines — or "none". Every
+  destination is a PROJECT path; a promotion is human-ratified; no mango file is written.>
 
 ## Reviewer checklist
 

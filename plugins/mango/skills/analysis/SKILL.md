@@ -34,6 +34,22 @@ count, and the requirements matrix.
    decomposition or blast-radius investigation** — do **not** hunt for a renamed or moved equivalent
    and do **not** reconstruct history; a falsified premise is the human's to resolve (confirm the
    reference, correct the ticket, or declare it synthetic).
+
+   **Advisory recall — surface the matching claims (never inject, never block).** Using `refine`'s
+   advisory recall (the same mechanism — do **not** invent a parallel one), read the claim records in
+   `config.lessons_path` (shape: `${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`) and **surface** the
+   claims this ticket matches: **type 1 by SYMBOL** (its `handle: symbol:<import/API>` appears in the
+   ticket / change area / imports), **type 5 by AREA** (not by symbol; carry its `verified-at:` stamp on
+   the environment sub-shape), **type 6 by THE FINDING** that would otherwise be re-raised (with its
+   `expiry:`). A claim marked `retired:` is **SKIPPED**. Recall **surfaces only**: it never injects a
+   requirement or an acceptance criterion, never adds a matrix row of its own, never blocks a gate, never
+   edits a file. Emit the counted line verbatim (every run, zero included), and when `refine` already ran
+   it this session, carry its line forward instead of re-running it:
+
+   `RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
+
+   A surfaced claim that the human or this phase judges relevant on its merits may of course become a
+   matrix row — but that is a **decision recorded here**, never something recall did on its own.
 2. **Open the working doc — placement by where the ticket lives.** The working doc is the mutable
    state doc carrying all five phases, built from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`. Choose
    its placement from `config.work_doc_mode` (`auto | separate | embed`, default `auto`):
@@ -207,7 +223,8 @@ count, and the requirements matrix.
     requirement with N > 1** (N=1 does not disqualify), and the ticket is not security-tagged.
     Otherwise **full** (the existing five-phase behaviour). Lite routes through the `quick` skill;
     full keeps the full matrix, challenger, sweep, and gates.
-14. **Self-audit, then STOP at Gate 1.** Confirm: every section decomposed, AC table complete with
+14. **Self-audit, then STOP at Gate 1.** Confirm: the `RECALL:` line is emitted (or carried forward from
+    `refine`) and recall injected and blocked nothing, every section decomposed, AC table complete with
     every acceptance value **falsifiable or a recorded manual-check exclusion** (none carrying a bare
     `✅`), `BASELINE` captured, `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status`
     filled, `RULE SECTIONS` coverage emitted (every rulebook section applicable to the change type

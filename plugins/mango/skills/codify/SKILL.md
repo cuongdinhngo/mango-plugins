@@ -43,7 +43,9 @@ bootstrap (skeleton rule book with TODOs); `codify` is the deep facilitation; `d
    (a file, or a directory per the file-or-directory rule) under the appropriate section. Tag every
    entry **`PROVISIONAL (awaiting ratification)`**. Never write a dimension the human did not choose.
    Optionally emit a **drift list** of files diverging from a chosen standard as follow-up tech-debt —
-   but **never change code**.
+   written to `config.drift_path` when set — but **never change code**. That same list is where a
+   type-6 **adjudicated non-defect** lands (a deviation examined and accepted), each such entry carrying
+   its **`expiry:` condition** so an accepted deviation is never a permanent exemption nobody chose.
 
    **The drift count is a COUNTED LINE, not prose.** Whenever you emit or update the drift list, emit
    the count as a prefixed counting line — the same shape as `REFINE:` / `BREAKDOWN:` / `SECTIONS:`,
@@ -60,9 +62,27 @@ bootstrap (skeleton rule book with TODOs); `codify` is the deep facilitation; `d
    `PROVISIONAL (awaiting ratification)` entry for the human to ratify, presenting *how* it was being
    applied as **data**, never auto-authoring the rule from that observed usage. It stays provisional —
    and cannot silently gate-block as if codified — until the human ratifies it.
+3b. **A promoted CLAIM from the learning loop enters this SAME provisional→ratify flow.** `finalise`'s
+   learning loop may propose a claim for promotion into the rule book (a type-2 code heuristic, a
+   type-5-normative project fact) **after** it has passed recurrence **and** the falsification check —
+   see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (The learning loop). Record it here exactly as any other
+   provisional entry: write it into `config.rulebook_path` tagged
+   `PROVISIONAL (awaiting ratification)`, carrying its **claim ID + evidence** so the rule is traceable
+   to what produced it, and an **ID + blocking status** when the claim was type-5-normative. Three
+   constraints hold, and each is checkable:
+   - **The rule goes in the rule book, never into `CLAUDE.md`.** `CLAUDE.md` carries only the pointer
+     `init` wrote. Create the rule book at `config.rulebook_path` if it is absent. The promotion is not
+     done until the rule is in the rule book **and** `doctor` is green on the `CLAUDE.md` → rule-book
+     pointer — `init`/`doctor` own that wiring already; reuse it.
+   - **A PROCESS claim never lands in the code rule book** — it goes to `config.agent_brief_path` (a
+     PROJECT file, never one of mango's own agent briefs). Route by subject, not by convenience.
+   - **Nothing here edits a mango file.** A type-3 skill-gap claim is **not** a rule-book candidate at
+     all: it is a signal recorded in `config.skill_gap_path` for mango's maintainer.
 4. **Ratification gate (✋).** Nothing becomes a binding rule until the human **explicitly ratifies**
    the set. State plainly that this is a **draft for the team**, not one person's preference frozen as
    law. On ratify, remove the `PROVISIONAL (awaiting ratification)` tags; until then they stay.
 5. **Boundary self-check.** Confirm before finishing: no code was changed; no standard was
    auto-picked, recommended, or defaulted to the majority; every recorded entry is tagged PROVISIONAL
-   and stays provisional until human ratification.
+   and stays provisional until human ratification; every promoted claim landed in a **PROJECT** file
+   (the rule in `config.rulebook_path`, a process claim in `config.agent_brief_path`, never a copy in
+   `CLAUDE.md`) and **no mango file was written**.

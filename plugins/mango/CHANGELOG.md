@@ -5,6 +5,160 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.9.0] — 2026-08-01
+
+The **learning loop**: a durable lesson stops being a line nobody re-reads and starts acting on the next
+ticket — **without mango ever changing itself**. Lessons are split into **atomic claims**, classified as a
+**proposal**, surfaced **advisorily** at design time, deduped for **recurrence and supersession**, and —
+decisively — put through a **falsification check that sits in front of every human ratification gate**.
+**No CHECK is removed and no gate is loosened**; every piece is additive, and recall adds a *surfaced
+section*, never a gate. Grounded on three probe rounds over real project lessons rather than reasoning in
+the abstract.
+
+**The one finding that shaped the design:** in a real lessons file, the **most-repeated claim was false the
+whole time**. Recurrence measures how often a belief was **restated**, not whether it was ever **checked** —
+so a promotion pipeline keyed on recurrence alone would efficiently turn confident mistakes into binding
+rules. Hence the falsification gate, and hence its position: **in front of** the ratification gate, never
+after it.
+
+### Added — the loop, in `finalise` (steps 8a–8e) and `refine`/`analysis` (recall)
+- **Claim-splitter (8a).** A captured lesson is frequently bundled — a tool fact, a principle, and a
+  project fact in one paragraph — so `finalise` splits it into **atomic claims** first, in the shape of
+  the new `templates/claim-record.md`. Everything downstream operates on the **claim**, never the entry,
+  because a bundled entry classified as one thing routes its other halves to the wrong destination. Counted
+  artifact: `CLAIMS: <c> claim(s) from <e> lesson entr(ies) | T1=… T6=… | <u> unclassified`, with `<u>`
+  required to reach 0 before the gate.
+- **Classifier (8b) — a PROPOSAL, never a decision.** Each claim is tagged **type + evidence + its recall
+  handle** against a six-type taxonomy, with both tiebreaks applied *during* classification: **1 vs 4** (an
+  imaginable gate makes it type 1; only a claim no gate could ever pre-empt is type 4) and **2 vs 3** (type
+  3 only when a phase demonstrably skipped a **doable** check **in that run**; otherwise the general
+  principle is type 2). Every classification carries `status: proposed (awaiting human confirm)` until the
+  human confirms it at the final gate. Classify-and-act is forbidden.
+- **Advisory recall (`refine` Step 0, `analysis` step 1).** Past claims are **surfaced** on the key their
+  type dictates: **type 1 by SYMBOL** (its `handle: symbol:<import/API>`), **type 5 by AREA** — not by
+  symbol, which is what makes it its own type — and **type 6 by the finding that would otherwise be
+  re-raised**, carrying its `expiry:`. A `retired:` claim is **skipped**; a human retires a claim and the
+  record stays, so there is **no auto-retire**. Counted artifact: `RECALL: <n> claim(s) surfaced | <s> by
+  symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`, emitted every
+  run including zero. Recall **surfaces and stops there**: it injects no requirement, adds no acceptance
+  criterion, adds no matrix row, blocks no gate, and edits no file. A recalled claim becomes a matrix row
+  only if the human or the phase decides so on its merits — recorded as that decision.
+- **Recurrence + supersession (8c).** Claims are deduped against those already recorded: one seen **again**
+  gets this ticket appended to its `seen:` list and is flagged a **promotion candidate** — it recurred
+  *despite* being written down, so recording it was not enough. A claim that **narrows or falsifies** an
+  earlier one **REPLACES** it (`supersedes:`), and the earlier one is marked `retired: … superseded by …`.
+  Retiring **never deletes**: recall skips the record, history keeps it. Counted artifact:
+  `RECURRENCE: <n> recurring | <s> superseded (<r> retired) | <p> promotion candidate(s)`.
+- **⭐ Falsification gate (8d) — before ratification, never after.** Every promotion candidate faces three
+  questions: **is it still true?** (checked against the current checkout/tool, never against the claim's own
+  restatements), **is it cheaply verifiable?** (name the grep, command, or test that would disprove it), and
+  **was it CHECKED, or only repeated?** (count the sightings carrying real evidence, not the sightings). A
+  candidate that is falsified, or that cannot be cheaply checked, is **BLOCKED from promotion** and stays a
+  recorded claim. Counted artifact: `FALSIFY: <c> candidate(s) checked | <t> still-true (proceed) | <f>
+  falsified (BLOCKED) | <u> not cheaply checkable (BLOCKED)`. `validate.py` asserts the **ordering**: the
+  `FALSIFY:` step is documented before the `PROMOTION:` step, so the gate cannot drift to the wrong side of
+  the human.
+- **Promotion (8e) — proposed, human-ratified, PROJECT-owned.** A surviving candidate's destination is
+  **proposed** from its type: type 2 (code) and type-5-normative → `config.rulebook_path` through `codify`'s
+  existing provisional→ratify flow (type-5-normative carrying an **ID + blocking status**); type 2 (process)
+  and any preventive process-lesson → `config.agent_brief_path`; type 4 → `config.gotchas_path`;
+  type-5-descriptive → `config.design_doc_path`; type 6 → `config.drift_path` **with its mandatory
+  `expiry:`**. The write happens **only after an explicit per-claim ratify** at the final gate — a blanket
+  "go" on the outward actions ratifies no claim. Counted artifact: `PROMOTION: <p> proposed | <k>
+  human-ratified | destinations: … | mango files written: 0`.
+- **⭐ Lessons never modify mango.** No lesson — however recurrent, however ratified — edits a mango skill,
+  agent brief, template, or `PRINCIPLES.md`. A **type-3 skill-gap is a SIGNAL** recorded in the project's
+  `config.skill_gap_path` for mango's maintainer, who changes mango only through a normal version (build +
+  `validate.py` + the behavioural eval + retro). A lesson flowing into a skill would make mango carry one
+  project's context — breaking *harness, not rules* — and would destroy provenance, since mango's own design
+  could no longer be told apart from an injected check; auto-apply and self-patch are self-modification
+  wearing a ratification badge. `mango files written: 0` on the `PROMOTION:` line is the **falsifiable** form
+  of this rule: a non-zero value means the run is wrong.
+- **⭐ Everything is project-local.** Every loop output — claims, promoted rules, skill-gap signals, drift
+  entries — lives in the **project's** repo. mango reads them in-project and **carries nothing home**: one
+  project's claims never reach another, and nothing is ever written into mango-plugins.
+- **⭐ Rules live in the rule book; `CLAUDE.md` only points at it.** A promoted rule is written into
+  `config.rulebook_path` (created there if absent) and is **never copied into `CLAUDE.md`** — a copy goes
+  stale and competes with its source. `init` already scaffolds the rule book and hoists the **pointer**;
+  `doctor` already checks both. The loop **reuses** that wiring and rebuilds none of it, and a promotion is
+  **not done** until the rule is in the rule book **and** `doctor` is green on the pointer.
+- **`templates/claim-record.md`** — the single claim shape the writer (`finalise`) and the reader (recall)
+  share, defining `type` / `evidence` / `handle: symbol:` / `area` / `sub-shape` / `re-raise` / `expiry` /
+  `verified-at` / `seen` / `supersedes` / `retired` / `status`. A writer and reader that disagree on the
+  fields make recall silently miss.
+- **Type 5's sub-shapes are split, not lumped.** Descriptive → a design doc; **normative** (a MUST) → a
+  rule-book entry with an ID and blocking status; **environment** → the same record carrying a
+  **`verified-at:`** stamp, because an environment fact rots and an unstamped one is indistinguishable from
+  a current one.
+- **Four PROJECT-owned destination keys** in `.harness.json` (all optional; unset → the loop reports the
+  destination as not configured and **surfaces** the claim rather than silently dropping it):
+  `skill_gap_path`, `gotchas_path`, `drift_path`, `agent_brief_path`. `agent_brief_path` is a **project**
+  file — explicitly **not** one of mango's own `agents/*.md` briefs, which no loop output may touch.
+- **`doctor` check 9 — the loop's destinations, informational.** Prints one line per configured destination
+  and ⚠ when a key is set but the file is absent; never ❌ on absence, since every destination is created on
+  first write. Two things it does assert: every configured destination path is **inside the project repo**
+  (a path outside it, or any path under a mango plugin directory, is a ❌), and `rulebook_path` stays
+  reachable from `CLAUDE.md` per check 8.
+
+### Changed
+- **`solve`'s process-correction non-negotiable is scoped, and gains an artifact.** "Log it to
+  `config.lessons_path` AND fix the offending skill/doc in the same session" now names what "the offending
+  skill/doc" is: a **project-owned** file. A mango phase that demonstrably skipped a doable check is a
+  **type-3 signal** in `config.skill_gap_path`, never an in-session mango edit. The correction is still
+  logged and still lands as a repo artifact — in the project. Nothing is dropped; a redirect with a
+  recorded artifact replaces an instruction that pointed at mango.
+- **`breakdown`'s epic lesson runs the same loop.** The epic path already owned the durable-lesson write
+  (`EPIC LESSON:`); it now splits and classifies it with the identical machinery and emits `CLAIMS:`, with
+  recurrence, falsification, and promotion exactly as `finalise` defines them. No parallel mechanism.
+- **`codify` step 3b accepts a promoted claim** into its existing provisional→ratify flow, tagged
+  `PROVISIONAL (awaiting ratification)` and carrying its **claim ID + evidence** so a rule is traceable to
+  what produced it. Its drift list gains a configured home (`config.drift_path`) and is also where a type-6
+  adjudicated non-defect lands, each entry carrying its `expiry:` so an accepted deviation is never a
+  permanent exemption nobody chose.
+- **Templates.** `templates/ticket.md` gains a Phase-0 **recalled-claims** table plus the `RECALL:` line,
+  and a Phase-5 **learning-loop** block with the four counting lines and a per-claim table; `templates/pr.md`
+  reports the loop's lines alongside the durable lesson.
+
+### Maturity
+- **The loop's classification/promotion machinery ships Experimental** — where the six-type boundaries
+  fall, which recall key each type gets, and how recurrence is scored will move as more real lesson files
+  run through it. It is built on three probe rounds over real lesson files, not on abstract reasoning, but
+  one version of field use is not a settled shape.
+- **Its five invariants are NOT Experimental and never will be:** the classifier proposes and the human
+  confirms; recall is advisory; falsification precedes ratification; lessons never modify mango;
+  everything is project-local. Those are safety boundaries, not a shape to be tuned.
+
+### Verification
+- `scripts/validate.py`: **981 checks, 0 failed.** The new `validate_learning_loop()` asserts each piece
+  against the shipped text — the six types and both tiebreaks in `PRINCIPLES.md`, every claim-record field,
+  the four counting lines with their literal shapes, `type + evidence +` on the classifier, the
+  proposal-not-decision wording, supersession-without-deletion, all three falsification questions,
+  `BLOCKED from promotion`, the **FALSIFY-before-PROMOTION ordering**, every named PROJECT destination key,
+  type 3 not promoting into mango, type 5's sub-shape split, type 6's `expiry:`, the process-claim/code-rule-book
+  separation, `mango files written: 0`, recall's advisory + retired-skip + per-type keys in **both** `refine`
+  and `analysis`, `codify`'s rule-book-not-`CLAUDE.md` landing with its doctor-pointer requirement, the four
+  shipped config keys, and — for each of the eleven fixtures — that the file exists, that `run.sh`
+  **dispatches** it, and that `FIXTURE_SKILLS` keys it (an unregistered fixture is not coverage).
+- **Eleven new eval fixtures**, each injecting the state it judges and each carrying its non-vacuity in the
+  other direction: `lesson-claim-split` (a bundled entry → four claims, each typed, as a proposal),
+  `recall-symbol-type1` (fires on the matching symbol, **not** on the non-matching one),
+  `recall-area-type5` (fires by area; the symbol-keyed claim stays silent, and the `RECALL:` line records
+  zero by-symbol matches), `recall-type6-expiry` (recalled by the re-raised finding, carries its expiry,
+  closes nothing), `recall-retired-skipped` (the retired claim skipped **and** its superseder surfaced —
+  proving recall is not simply silent — record kept, nothing auto-retired), `recurrence-supersession`
+  (twice-seen flagged; a measured claim replaces an inferred one and retires it without deleting it),
+  `falsify-blocks-promotion` (**the decisive case** — the most-repeated claim is the false one and is
+  blocked, as is one with no cheap check, with the gate in front of the ratification gate),
+  `falsify-true-claim-promotes` (**the control** — the same gate passes a still-true, cheaply-checkable,
+  actually-measured claim, which is still not in effect until the human ratifies),
+  `promotion-human-gated` (proposes only; the skill-gap is a project signal editing no mango skill; a
+  process heuristic goes to the agent brief, not the code rule book), `promotion-rulebook-wiring` (the rule
+  lands in `rulebook_path`, never in `CLAUDE.md`, and is not done until `doctor` is green on the pointer),
+  and `loop-project-local` (all six destinations inside the project, none under a mango directory, an unset
+  key surfaced rather than redirected, nothing carried home).
+- Assertions follow the standing convention: decision-level (outcome **+** its reasoning token), emphasis-
+  agnostic, no bare glyph, separators written as character classes.
+
 ## [1.8.0] — 2026-08-01
 
 An **infrastructure + wasted-turn** version in two halves. **(A)** the behavioural eval dispatches in
