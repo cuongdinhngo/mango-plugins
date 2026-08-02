@@ -165,6 +165,10 @@ fault-injection-tested escalation paths; the public skill/config API has been st
 **Used by engineers beyond its author — including a maintainer of a major open-source frontend
 framework — on their own projects.**
 
+Though written for Claude Code, mango is not locked to it: it has run its full lifecycle on other
+hosts — including Cursor, driving real tasks to merged pull requests on a production codebase, with a
+different underlying model.
+
 Per-phase maturity (Stable / Experimental) is tracked in
 [`plugins/mango/PRINCIPLES.md`](./plugins/mango/PRINCIPLES.md).
 
