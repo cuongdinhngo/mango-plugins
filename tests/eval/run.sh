@@ -383,6 +383,7 @@ declare -A FIXTURE_SKILLS=(
   [promotion-rulebook-wiring]="finalise codify"
   [recall-symbol-type1]="refine" [recall-area-type5]="refine"
   [recall-type6-expiry]="refine" [recall-retired-skipped]="refine"
+  [host-context-file-default]="init doctor" [host-context-file-agents]="init doctor"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -1669,6 +1670,29 @@ assert_all "project-local: the type-3 claim is a project-recorded maintainer sig
 assert_all "project-local: an unset destination key is surfaced, not redirected or dropped" "$t" 'unset|not (set|configured)|absent|missing' 'surfac|report|say so|not[^.]{0,28}(drop|silent|elsewhere)'
 assert_all "project-local: nothing is carried home to another project" "$t" 'carr|home|another project|different project' 'nothing|none|separate|isolat|project.local|no '
 assert_contains "project-local: the PROMOTION line carries `mango files written: 0`" "$t" 'mango files written[ *_:=]*0'
+
+# host-context-file-default (v1.9.1): the DEFAULT must be unchanged. On a plain CLAUDE.md project with
+# no AGENTS.md and no `context_file` key, init still hoists into CLAUDE.md and doctor still reads it —
+# host-awareness must not have moved the Claude-Code case. This is the negative control for the pair:
+# a resolver that always answered AGENTS.md would break every existing project.
+t="$(run_fixture host-context-file-default 'Run the mango init standing-context hoist (step 6) and then the mango doctor standing-context check against the project state described in this ticket. Answer the four numbered questions. Do not stop for my input.')"
+assert_all "ctx-default: the block lands in CLAUDE.md" "$t" 'CLAUDE\.md' 'writ|hoist|land|target|into'
+assert_all "ctx-default: it got there by RESOLVING, not assuming" "$t" 'context_file|resolv|detect|default' 'AGENTS\.md|no AGENTS|absent|not (set|present)|unset'
+assert_all "ctx-default: the resolved path is recorded in config.context_file" "$t" 'context_file' 'record|writ|set|so doctor|same answer'
+assert_all "ctx-default: the block is a POINTER to the rule book, never a copy" "$t" 'point' 'not[^.]{0,24}(a )?cop|never[^.]{0,24}cop|rulebook_path|rule[ -]?book'
+assert_all "ctx-default: no secret may appear in the context file" "$t" 'secret|token|credential' 'never|no |not |forbid|\.env'
+assert_all "ctx-default: doctor reads the same file and never fails the run" "$t" 'CLAUDE\.md' 'informational|never[^.]{0,20}(fail|block|❌)|not[^.]{0,20}(fail|block)|warn|⚠'
+
+# host-context-file-agents (v1.9.1): the firing case. The host auto-loads AGENTS.md and CLAUDE.md is a
+# one-line `@AGENTS.md` import, so the hoist must target AGENTS.md — a block written only into the
+# unloaded CLAUDE.md is invisible to the host, which doctor must SURFACE (as a warn, never a ❌).
+t="$(run_fixture host-context-file-agents 'Run the mango init standing-context hoist (step 6) and then the mango doctor standing-context check against the project state described in this ticket. Answer the four numbered questions. Do not stop for my input.')"
+assert_all "ctx-agents: the block targets AGENTS.md, the file the host loads" "$t" 'AGENTS\.md' 'writ|hoist|land|target|into'
+assert_all "ctx-agents: the one-line import is what settled the resolution" "$t" 'import|@AGENTS|stub|one[ -]line' 'AGENTS\.md|resolv|actually load|auto-?load'
+assert_all "ctx-agents: the resolved path is recorded in config.context_file" "$t" 'context_file' 'record|writ|set|so doctor|same answer'
+assert_all "ctx-agents: a block only in the unloaded CLAUDE.md is surfaced, not passed" "$t" 'CLAUDE\.md' 'warn|⚠|not[^.]{0,28}(load|reach|visib)|invisib|unloaded|does not auto-?load'
+assert_all "ctx-agents: doctor warns rather than failing the run" "$t" 'warn|⚠' 'never[^.]{0,20}(fail|block|❌)|not[^.]{0,20}(fail|block)|informational'
+assert_all "ctx-agents: the block is still a POINTER, never a copy" "$t" 'point' 'not[^.]{0,24}(a )?cop|never[^.]{0,24}cop|rulebook_path|rule[ -]?book'
 
 }   # end suite()
 

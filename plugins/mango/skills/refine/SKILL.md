@@ -129,7 +129,11 @@ For **each** product-decision refine surfaces, classify it BEFORE anything is pu
   HOW-question forces a rubber-stamp, which is **laundering** a decision refine could make.
 - **want-decision (WANT):** the **user is the sole source** — intent, priority, stakes, or a
   genuinely new design choice the scan cannot answer. **Ask the user**, phrased in **want-language, not
-  technical language.** Use `AskUserQuestion`'s typed, required-selection fork. `(Recommended)` may
+  technical language.** Use the **host's typed question UI if it has one** (on Claude Code,
+  `AskUserQuestion`'s typed, required-selection fork); **if the host has no such tool, ask in plain chat
+  as a numbered list of options** and require the user to pick one. **Never assume a specific host
+  tool exists, and never skip the question because it is missing** — the mechanism varies, the
+  required selection does not. `(Recommended)` may
   appear **only here**, with its reason in the option description (an informed pick, never a blind one).
 
 ### ⭐ The tie-breaker — apply DURING classification, before a decision is filed

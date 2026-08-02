@@ -42,11 +42,22 @@ produce grounded, project-specific output instead of generic noise.
      observed patterns only; everything else is a TODO.
    - `rulebook_path` may point at a file or a directory; one file is the default (the reviewer reads
      it every run, so a single file guarantees the whole rule set loads).
-6. **Hoist the standing context into `CLAUDE.md` — a POINTER block, never a copy.** So the basics
-   survive phase boundaries instead of being re-derived each session, write a fenced, regenerable
-   block into `${CLAUDE_PROJECT_DIR}/CLAUDE.md`. **Create the file if it is absent.** If it already
-   exists, **ask first**, then touch **only** the text between the markers and leave everything else
-   byte-for-byte:
+6. **Hoist the standing context into the host's ALWAYS-ON context file — a POINTER block, never a copy.**
+   So the basics survive phase boundaries instead of being re-derived each session, write a
+   fenced, regenerable block into the file **this host auto-loads into every session**.
+
+   **Resolve that file first — do not assume `CLAUDE.md`.** In order:
+   1. `config.context_file` if set — the explicit answer always wins.
+   2. Otherwise detect: if the project has an `AGENTS.md` **and** its `CLAUDE.md` is absent or merely
+      **imports** another file (e.g. a one-line `@AGENTS.md`), the always-on file is the **imported**
+      one — target `AGENTS.md` (or whatever `CLAUDE.md` imports).
+   3. Otherwise default to `CLAUDE.md`.
+
+   Write the block into `${CLAUDE_PROJECT_DIR}/<resolved context file>`, **record the resolved path in
+   `config.context_file`** so `doctor` and every later phase read the same answer, and **name it in the
+   confirmation**. A block written into a file the host never loads is invisible — the same failure as
+   not writing it at all. **Create the file if it is absent.** If it already exists, **ask first**, then
+   touch **only** the text between the markers and leave everything else byte-for-byte:
 
    ```
    <!-- mango:standing-context (regenerate with /mango:init — do not hand-edit) -->
@@ -60,17 +71,19 @@ produce grounded, project-specific output instead of generic noise.
      needs before it can act: `test_command`, `rulebook_path`, `tickets_dir` / `work_dir`,
      `branch_strategy`.
    - a **POINTER to `config.rulebook_path`**, never its rules. The rule book is read at runtime and is
-     often long; a copy in `CLAUDE.md` goes stale and competes with the source. Name the path, state
-     that every rule judgment reads that file, and stop there.
+     often long; a copy in the context file goes stale and competes with the source. Name the path,
+     state that every rule judgment reads that file, and stop there.
    - the **standing constraints** that hold in every phase: the human holds every ✋ gate (silence ≠
      approval); no outward action without a separate explicit approval per action; tracker writes go
      through `config.tracker.cli`, never MCP; stay inside the approved change list; every claim is a
      counted artifact.
    - the pointer to `/mango:doctor` for validating the setup, and to `/mango:solve` to run a ticket.
 
-   **Never write a secret, token, or credential into `CLAUDE.md`.** It names the config file and the
-   rule-book path only — secrets live in a gitignored `.env`. `CLAUDE.md` is committed context, so the
-   same no-secrets rule as `.harness.json` applies, with no exception.
+   **Never write a secret, token, or credential into `CLAUDE.md`** — or into whichever context file was
+   resolved. It names the config file and the rule-book path only — secrets live in a gitignored `.env`.
+   The context file is committed context, so the same no-secrets rule as `.harness.json` applies, with
+   no exception.
 7. **Confirm.** Show the written `.harness.json`, list every `UNVERIFIED` value, state the chosen
-   commit policy (committed, or gitignored), say whether the `CLAUDE.md` standing-context block was
-   written or skipped, and tell the user to run `/mango:doctor` to verify the setup is all-green.
+   commit policy (committed, or gitignored), **name the resolved always-on context file** and say
+   whether its standing-context block was written or skipped, and tell the user to run `/mango:doctor`
+   to verify the setup is all-green.

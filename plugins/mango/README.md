@@ -352,6 +352,12 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 - `ticket_header_schema` — maps each ticket header to `C` / `R` / `G` / `AC`.
 
 **Optional / defaulted**
+- `context_file` — the **host's always-on context file**, the one your coding host auto-loads into every
+  session (default `CLAUDE.md`). `init` hoists its `mango:standing-context` **pointer** block into this
+  file and `doctor` checks this file. On a host that loads `AGENTS.md` instead (a project may keep a
+  `CLAUDE.md` that only imports it), set it to `AGENTS.md` — or leave it unset and `init`/`doctor` will
+  detect the import and target the file the host actually loads. Still a pointer, never a copy, never a
+  secret.
 - `standards_path`, `tickets_dir` (default `docs/tickets`), `work_dir`, `work_doc_mode`
   (`auto|separate|embed`, default `auto`), `pr_checklist_path`, `stuck_threshold` (default `3`),
   `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`, `pr_host`,

@@ -5,6 +5,77 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.9.1] — 2026-08-02
+
+**Host-adaptation, plus four output-discipline directives.** Two things of the same low-risk class, both
+additive. **(a)** mango degrades gracefully on hosts that lack a Claude-Code-only mechanism — proven on
+Cursor by two field retros — while staying **ONE mango, not a fork**: every change is a fallback that also
+holds unchanged on Claude Code. **(b)** Four directives from the same retros tighten what gets *written*.
+**No reviewer or challenger behaviour changed, no gate's decision logic changed, no CHECK removed** — 1–3
+below change *which file or which mechanism*, 4–7 add a directive. The heavier fixes those retros surfaced
+(execution duty, a mutation check, the guardrail-spirit clause, a silent-loss inventory) change review
+behaviour or add dynamic checking; they are a separate future big-idea still gathering evidence and are
+deliberately **not** here.
+
+### Added — host-adaptation (one mango, made host-aware)
+- **⭐ The always-on context file is RESOLVED, never hardcoded.** `init`'s standing-context hoist and
+  `doctor`'s check no longer assume `CLAUDE.md` is the file the host auto-loads. Both walk the same
+  three-step resolution — `config.context_file` if set → an `AGENTS.md` that a `CLAUDE.md` merely
+  **imports** (e.g. a one-line `@AGENTS.md`) → `CLAUDE.md` — and `init` **records the answer** in
+  `config.context_file` so every later phase reads the same one. `doctor` **prints the resolved path** and
+  ⚠ when the block sits only in a file the host does not auto-load: a pointer block in an unloaded file is
+  invisible, which is the same outcome as never writing it. Everything else is unchanged — it stays a
+  **pointer, never a copy**, never holds a secret, and the check remains **informational and can never
+  gate the lifecycle**. **On a plain `CLAUDE.md` project nothing moves**; the new
+  `host-context-file-default` fixture is the negative control that proves it.
+- **New optional config key `context_file`** (default `CLAUDE.md`), shipped in `harness.example.json` and
+  documented in the plugin README. Unset behaves exactly as before, with detection as the fallback.
+- **`unmeasured` is the honest, CORRECT value where usage is not surfaced.** Some hosts return no
+  `<usage>` block for a subagent at all. `solve`'s ledger rule and `finalise`'s completeness gate now say
+  so explicitly: the marker names its **condition, not a host** — `unmeasured (host does not surface
+  usage)` — a ledger whose rows all carry it is **complete and passes**, and **inventing, estimating, or
+  back-filling a plausible number is a false-green and forbidden**. The gate still checks the *presence*
+  of a value or an honest marker in every row; it never checked that a number was obtainable, and it does
+  not start now. The marker generalises to `unmeasured (<reason>)`, with `unmeasured (blocking retrieval)`
+  unchanged as its first case.
+- **No single ask-the-human tool is assumed.** `refine`'s want-decision step (and the matching clause in
+  `PRINCIPLES.md`) now reads "the **host's typed question UI** if it has one — `AskUserQuestion`'s typed,
+  required-selection fork on Claude Code — else **numbered options in plain chat**". A missing host tool
+  changes the mechanism, never cancels the question, and the **required selection holds either way**.
+
+### Added — four output-discipline directives (additive; no gate decision changed)
+- **Empirical output is PASTED, not described (`execute` step 5, `finalise` step 3).** Every claim that
+  rests on having run something records the **actual command and its actual output**, verbatim and trimmed
+  to the relevant lines — into the working doc, and from there into the PR body. "Tests pass" as prose is
+  not a record. A **failing** command is pasted verbatim too, and a command that was **not run** is said
+  so and its claim marked **unproven**. Prose can promise more than the code delivered; a real paste
+  cannot.
+- **A changed golden is a BEHAVIOUR CHANGE, not a number to bump (`execute` step 4).** A red
+  golden/snapshot is never reflexively re-recorded. Either the change altered that output **intentionally**
+  — then the old→new delta is a behaviour change to state, trace to the approved change list, and have
+  **ratified at the next gate** before the golden moves — or **unintentionally**, and it is a **defect in
+  the change** whose fix is the code, never the golden. Silently re-recording makes the test agree with
+  whatever the code now does, retiring the one assertion that would have caught the regression.
+- **A docstring describes DELIVERED behaviour — it IS the interface contract (`execute` step 3).** For any
+  surface whose description a *caller* reads — a public API/SDK docstring, a CLI `--help`, above all an
+  **MCP tool description a client LLM reads to decide when and how to call it** — write what the code
+  **actually does after this change**, not what the ticket intended: real arguments, real return shape,
+  real failure/empty cases, updated **in the same diff**. The caller cannot see the code, so the
+  description is the only thing that can be wrong about it.
+- **A blast-radius cell per change-list row (`design` step 4).** The Gate-2 change-list table gains a
+  **blast radius** column naming each change's **side-effect surface** — callers, shared types,
+  tests/goldens, tool/API descriptions, config, migrations, downstream consumers — so a reviewer knows
+  **where to look** beyond the touched file. `none identified` is allowed; blank is not.
+
+### Added — coverage
+- Two eval fixtures for the resolution, both directions: `host-context-file-default` (a plain `CLAUDE.md`
+  project still targets `CLAUDE.md` — the default is unchanged) and `host-context-file-agents` (an
+  AGENTS-first project targets `AGENTS.md`, and a block left in the unloaded `CLAUDE.md` is surfaced as a
+  ⚠, never a ❌).
+- Two new validator functions — `validate_host_adaptation` and `validate_output_discipline` — plus new
+  load-bearing tokens in the `init` / `doctor` / `refine` / `execute` / `design` / `solve` / `finalise`
+  skill contracts. `scripts/validate.py`: **1071 checks, 0 failed** (up from 982).
+
 ## [1.9.0] — 2026-08-01
 
 The **learning loop**: a durable lesson stops being a line nobody re-reads and starts acting on the next

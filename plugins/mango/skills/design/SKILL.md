@@ -28,9 +28,16 @@ this phase.
    Gate-2 proving test (step 7) as an integration/e2e proof that would **fail if the assumption is
    false**. **Gate 2 may not pass with an unresolved `novel-untested` assumption.**
 4. **Smallest change-list table.** List the minimum set of changes. Columns: change, file/area,
-   `Ph2 covered by` (which matrix row(s)), `k/N`. **Every item must trace to a matrix row** — an
-   item with no row behind it fails the gate. Prefer the smallest edit; no speculative abstraction,
-   no indirection serving a single call site.
+   **blast radius**, `Ph2 covered by` (which matrix row(s)), `k/N`. **Every item must trace to a matrix
+   row** — an item with no row behind it fails the gate. Prefer the smallest edit; no speculative
+   abstraction, no indirection serving a single call site.
+
+   **The `blast radius` cell — one line per change naming what ELSE it could affect.** For each row,
+   name the **side-effect surface**: the callers, shared types, tests/goldens, tool or API descriptions,
+   config, migrations, or downstream consumers this change could disturb. Write `none identified` only
+   when the mechanical trace below found nothing — never leave the cell blank. It tells the reviewer
+   **where to look** beyond the touched file, and a surface named here is exactly what the trace below
+   folds into the list as proof collateral.
 
    **Test blast-radius (mechanical) — trace to REAL producers/consumers, not a shallow name grep.**
    Before closing the change list, **mechanically enumerate the existing assertions and call sites this

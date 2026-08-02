@@ -35,6 +35,15 @@ directly — never spawn a model for a one-line shell command.
      into this ticket's diff. This is the same surgical discipline as the untouched-lines rule
      (Principle 3), applied to the formatter, not a parallel rule.
    - Remove only orphans your change itself created; do not delete pre-existing dead code.
+   - **A docstring on a tool/API surface describes DELIVERED behaviour — it IS the interface contract.**
+     When the change touches a surface whose description is read by a *caller* rather than
+     a maintainer — a public API/SDK docstring, a CLI `--help` string, and above all an **MCP tool
+     description a client LLM reads to decide when and how to call it** — write it from **what the code
+     actually does after this change**, not from what the ticket intended it to do. Name the real
+     arguments, the real return shape, and the real failure/empty cases. A description that promises
+     more than the code delivers is a **false-green at the interface**: the caller cannot see the code,
+     so the docstring is the only thing it can be wrong about. Update it **in the same diff** as the
+     behaviour it describes — a stale description left behind is a scope miss, not a follow-up.
 4. **Add the proving test** named at Gate 2. Confirm it fails on the pre-change state if you can,
    then passes after the change. If it keeps failing, the two **Escalations** below apply — do not
    loop indefinitely and do not silently swap in a different approach.
@@ -46,6 +55,17 @@ directly — never spawn a model for a one-line shell command.
    **outside** the change stays a **recorded baseline exclusion** — it is neither a blocker for this
    ticket nor a silent pass. Do not improvise a "baseline red, my delta green" story ad hoc; read it
    from the recorded baseline and prove your diff against it.
+
+   **A changed golden is a BEHAVIOUR CHANGE, not a number to bump.** When a golden / snapshot /
+   approved-output test goes red, **do not reflexively re-record the golden to match the new output.**
+   Establish which of two things happened: the change **intentionally** altered that output — then the
+   old→new delta **is a behaviour change**: state it explicitly, trace it to the approved Gate-2 change
+   list, and have it **ratified at the next gate** before the golden is updated — or it altered the
+   output **unintentionally**, in which case it is a **defect in the change** and the fix is the code,
+   never the golden. Record the old→new delta in the working doc either way, and if the intentional
+   change is **outside** the approved change list, record it as a deviation rather than absorbing it.
+   Re-recording a golden silently makes the test agree with whatever the code now does — which retires
+   the one assertion that would have caught the regression.
 5. **Verification sweep — scope discipline on BOTH axes.** Scope discipline is measured on **two
    axes**: the **file set** AND **conformance to the approved design behaviour**. A clean file diff
    does **not** certify behavioural conformance.
@@ -62,7 +82,17 @@ directly — never spawn a model for a one-line shell command.
      a file-scope deviation would be. Do **not** let a green Axis-1 diff (`diff ⊆ list ✅`) sit over a
      behaviour that diverges from the approved design; and never self-mark a feature `✅` that you did
      not actually implement.
-   Record **both** axes' results in the working doc. If the realized diff **materially exceeds** the
+   Record **both** axes' results in the working doc.
+
+   **Record the EMPIRICAL OUTPUT, not a prose description of it.** Every claim in this step that rests
+   on having run something — the proving test, `config.test_command`, the scope greps, a typecheck, a
+   lint — is recorded by **pasting the actual command and its actual output** (trimmed to the relevant
+   lines, never re-typed or paraphrased) into the working doc, beside the command that produced it.
+   "Tests pass" / "the sweep is clean" / "no stray references" written as prose is **not** a record —
+   prose can promise more than the code delivered, a real paste cannot. **If you did not run it, say
+   so** and mark the claim unproven rather than describing an outcome you did not observe. The same
+   holds for a command that **failed**: paste the failure verbatim, never a summary of it.
+   If the realized diff **materially exceeds** the
    approved change list or the declared `SCOPE` has crossed up a tier (S/M → L), do not absorb it —
    surface the *outgrew-its-ticket* nudge at the next gate (review) so the human can re-scope or
    split, and flag any branch/PR-type drift.

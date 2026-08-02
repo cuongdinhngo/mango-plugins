@@ -49,13 +49,22 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    identically (only the saving is lost). To adopt or review an optimizer with its safety trade-offs,
    run `/mango:budget`; `doctor` never installs one.
 
-8. **Standing context hoisted into `CLAUDE.md` — informational, never blocks.** Check whether
-   `${CLAUDE_PROJECT_DIR}/CLAUDE.md` carries the `mango:standing-context` block (the marker pair) and
-   that it still names a `rulebook_path` pointer. ✅ when present; ⚠ when absent or when the block
-   holds no rule-book pointer — "run `/mango:init` to write it; without it every session re-derives the
-   harness basics." Never ❌: the block is persistent context, not a prerequisite — mango reads
+8. **Standing context reachable from the host's ALWAYS-ON context file — informational, never blocks.**
+   **Resolve that file first, exactly as `init` does — do not assume `CLAUDE.md`:** `config.context_file`
+   if set; otherwise, if the project has an `AGENTS.md` and its `CLAUDE.md` is absent or merely
+   **imports** another file (e.g. `@AGENTS.md`), the always-on file is the imported one (`AGENTS.md`);
+   otherwise `CLAUDE.md`. **Print the resolved path** on this check's line so the human can see which
+   file was judged.
+
+   Then check whether `${CLAUDE_PROJECT_DIR}/<resolved context file>` carries the
+   `mango:standing-context` block (the marker pair) and that it still names a `rulebook_path` pointer.
+   ✅ when present; ⚠ when absent, when the block holds no rule-book pointer, **or when the block exists
+   only in a file the host does not auto-load** (e.g. written into `CLAUDE.md` on an AGENTS-first
+   project — reachable via an import chain counts as reachable, a block in an unloaded file does not) —
+   "run `/mango:init` to write it into `<resolved context file>`; without it every session re-derives
+   the harness basics." Never ❌: the block is persistent context, not a prerequisite — mango reads
    `.harness.json` and the rule book at runtime either way. If the block contains anything that looks
-   like a secret or token, ⚠ loudly: `CLAUDE.md` is committed context and carries pointers only.
+   like a secret or token, ⚠ loudly: the context file is committed context and carries pointers only.
 
 9. **Learning-loop destinations — informational, never blocks.** For each **set** loop-destination key
    (`lessons_path`, `skill_gap_path`, `gotchas_path`, `drift_path`, `agent_brief_path`) print one line
@@ -65,8 +74,8 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    them. Two things this check **does** assert, because they are the loop's safety boundary: every
    configured destination path is **inside the project repo** (a path outside it, or any path under a
    mango plugin directory, is a ❌ — no loop output may leave the project or reach mango), and
-   `rulebook_path` is reachable from `CLAUDE.md` per check 8, since a promoted rule lives in the rule
-   book and `CLAUDE.md` carries only the pointer.
+   `rulebook_path` is reachable from the resolved always-on context file per check 8, since a promoted
+   rule lives in the rule book and the context file carries only the pointer.
 
 ## Output
 

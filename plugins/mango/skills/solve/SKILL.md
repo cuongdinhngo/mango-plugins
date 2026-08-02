@@ -157,8 +157,15 @@ sensible default**, matching `analysis` and `breakdown` — not a behavioural ga
   **re-query the completed task's usage record** after a blocking return — so even a blocked dispatch
   gets a real number; **(b)** only if the environment truly cannot surface usage for a blocked dispatch,
   record that cell as the explicit value **`unmeasured (blocking retrieval)`** — never a fabricated
-  number and never a silent blank. Every dispatch row thus ends with either a real token count or that
-  explicit `unmeasured (blocking retrieval)` marker naming the reason. The ledger stays **descriptive**: it records facts and never
+  number and never a silent blank. Every dispatch row thus ends with either a real token count or an
+  explicit `unmeasured (<reason>)` marker naming the reason.
+
+  **`unmeasured` is the EXPECTED, CORRECT value on a host that does not surface subagent usage at
+  all.** Not every host returns a `<usage>` block; where none is available for any dispatch, **every**
+  row honestly reads `unmeasured (host does not surface usage)` and that ledger is **complete** — the
+  marker names the condition, not a host by name, and mango neither degrades nor blocks because of it.
+  Writing the marker is the **right** outcome there; **inventing, estimating, or back-filling a
+  plausible number is a false-green and is forbidden**, as is leaving the cell blank. The ledger stays **descriptive**: it records facts and never
   itself decides to cut a check, a gate, a critic, or evidence detail. It measures **subagent dispatch
   only** — main-loop output noise is **not** measured by mango (see `finalise`). `finalise` surfaces the
   one-line summary (total + top cost driver). See `/mango:budget` for the safety axis and the

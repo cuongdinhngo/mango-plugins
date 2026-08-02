@@ -36,7 +36,8 @@ SKILL_CONTRACTS = {
                r"acceptance-bar", r"want-decision by default", r"resolve-by-citation",
                r"uncited how-decision", r"next-gate confirm", r"epic.{0,60}exposure-checker",
                r"PREMISE FALSIFIED", r"PREMISE:", r"to-be-created", r"ambiguous",
-               r"RECALL:", r"advisory", r"retired", r"by symbol", r"by area"],
+               r"RECALL:", r"advisory", r"retired", r"by symbol", r"by area",
+               r"numbered", r"host"],
     "breakdown": [r"INVEST", r"ticket boundary", r"counted", r"enumerate",
                   r"Independent", r"Negotiable", r"Valuable", r"Estimable", r"Small", r"Testable",
                   r"re-?split", r"re-?ratif", r"delta", r"re-?approve", r"scaffold committed before child",
@@ -49,9 +50,11 @@ SKILL_CONTRACTS = {
                  r"PREMISE FALSIFIED", r"premise check",
                  r"RECALL:", r"advisory", r"retired"],
     "design": [r"proving test", r"Gate 2", r"risk layer", r"Assumptions", r"coverage-gap", r"layer-match", r"block", r"DESIGN\.md", r"data-core", r"responsive", r"blast[ -]radius",
-               r"real producers", r"(all|every) .{0,8}test root", r"typecheck", r"builder call site"],
+               r"real producers", r"(all|every) .{0,8}test root", r"typecheck", r"builder call site",
+               r"side-effect surface", r"none identified"],
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk",
-                r"commit(ted)? .{0,24}before .{0,20}review", r"ref-based", r"empty"],
+                r"commit(ted)? .{0,24}before .{0,20}review", r"ref-based", r"empty",
+                r"empirical output", r"verbatim", r"golden", r"docstring", r"interface contract"],
     "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out",
                r"ref-based", r"worktree", r"checkout",
                r"env-?parity|environment-equivalence", r"env-?fault|environment fault", r"untracked",
@@ -59,16 +62,20 @@ SKILL_CONTRACTS = {
     "finalise": [r"dry-run", r"per[- ]action", r"durable lesson", r"checklist", r"stale", r"beyond the reviewed set", r"exempt", r"dispatch[ -]only", r"not measured", r"rtk gain", r"dispatch[ -]count", r"ledger complet", r"content", r"token value", r"unmeasured", r"push", r"shared ref", r"unchanged except", r"complete on disk",
                  r"CLAIMS:", r"RECURRENCE:", r"FALSIFY:", r"PROMOTION:", r"atomic claim",
                  r"supersed", r"retired", r"falsif", r"skill_gap_path", r"agent_brief_path",
-                 r"mango files written: 0"],
+                 r"mango files written: 0",
+                 r"host does not surface usage", r"empirical output", r"verbatim"],
     "solve": [r"Session status", r"self-approve", r"TIER", r"design[ -]invalidat", r"outgrew", r"per dispatch", r"unmeasured \(blocking retrieval\)", r"delta", r"unchanged except", r"complete on disk",
               r"work_doc_mode", r"committed-?stub", r"separate",
-              r"learning loop", r"falsification", r"skill_gap_path", r"no lesson edits a mango skill"],
+              r"learning loop", r"falsification", r"skill_gap_path", r"no lesson edits a mango skill",
+              r"host does not surface usage"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}",
                r"mango:standing-context", r"CLAUDE\.md",
-               r"skill_gap_path", r"inside the project repo"],
+               r"skill_gap_path", r"inside the project repo",
+               r"config\.context_file", r"AGENTS\.md", r"always-on"],
     "init": [r"\.harness\.json", r"UNVERIFIED", r"rulebook", r"never overwrite",
-             r"CLAUDE\.md", r"mango:standing-context", r"pointer", r"secret"],
+             r"CLAUDE\.md", r"mango:standing-context", r"pointer", r"secret",
+             r"config\.context_file", r"AGENTS\.md", r"always-on"],
     "version-check": [r"update_check_url", r"never updates", r"/plugin", r"plugin\.json"],
     "codify": [r"count", r"PROVISIONAL", r"ratif", r"author", r"recommend", r"uncodified",
                r"DRIFT:", r"counting line", r"drift",
@@ -1117,6 +1124,213 @@ def validate_learning_loop():
                   f"learning-loop: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
 
 
+def validate_host_adaptation():
+    """v1.9.1 — one mango, made HOST-AWARE (never a fork). Three mechanisms that exist on some hosts and
+    not others must degrade gracefully instead of being assumed: (1) the always-on context file is
+    RESOLVED (`config.context_file` → an `AGENTS.md` a `CLAUDE.md` merely imports → `CLAUDE.md`), never
+    hardcoded, so the hoist lands in the file the host actually loads; (2) where usage is not surfaced,
+    `unmeasured` is the honest, COMPLETE value and a fabricated number is forbidden; (3) the ask-the-human
+    mechanism names no single host tool — the host's question UI if present, else numbered options in
+    chat. Every assertion is falsifiable against the shipped text. Nothing here changes a gate's
+    decision: which file / which mechanism only."""
+    plugin = ROOT / "plugins" / "mango"
+
+    def body_of(path):
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"host-adaptation: {rel} is missing"):
+            return None
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"host-adaptation: cannot read {rel} ({exc})")
+            return None
+
+    # --- (1) The always-on context file is resolved, not assumed — in BOTH init and doctor.
+    for name in ("init", "doctor"):
+        b = body_of(plugin / "skills" / name / "SKILL.md")
+        if b is None:
+            continue
+        check(re.search(r"config\.context_file", b) is not None,
+              f"host-adaptation: {name} must honour `config.context_file` as the explicit always-on-file answer")
+        check(re.search(r"AGENTS\.md", b) is not None,
+              f"host-adaptation: {name} must handle the AGENTS-first host (AGENTS.md as the always-on file)")
+        check(re.search(r"import", b, re.IGNORECASE) is not None,
+              f"host-adaptation: {name} must detect a CLAUDE.md that merely IMPORTS the real always-on file")
+        check(re.search(r"do not assume `?CLAUDE\.md`?", b, re.IGNORECASE) is not None,
+              f"host-adaptation: {name} must say plainly not to assume CLAUDE.md is the always-on file")
+        check(re.search(r"default to `?CLAUDE\.md`?|otherwise `?CLAUDE\.md`?", b, re.IGNORECASE) is not None,
+              f"host-adaptation: {name} must keep CLAUDE.md as the DEFAULT (a Claude-Code project is unchanged)")
+    ib = body_of(plugin / "skills" / "init" / "SKILL.md")
+    if ib is not None:
+        check(re.search(r"record the resolved path in\s*\n?\s*`?config\.context_file", ib, re.IGNORECASE) is not None,
+              "host-adaptation: init must RECORD the resolved context file in config.context_file so doctor "
+              "and every later phase read the same answer")
+        check(re.search(r"never a copy", ib, re.IGNORECASE) is not None,
+              "host-adaptation: the hoist stays a POINTER, never a copy, whichever file it lands in")
+    db = body_of(plugin / "skills" / "doctor" / "SKILL.md")
+    if db is not None:
+        check(re.search(r"[Pp]rint the resolved path", db) is not None,
+              "host-adaptation: doctor must print WHICH file it judged (an invisible resolution is unreviewable)")
+        check(re.search(r"host does not auto-?load", db, re.IGNORECASE) is not None,
+              "host-adaptation: doctor must ⚠ when the block sits only in a file the host does not auto-load")
+        check(re.search(r"[Nn]ever ❌|never blocks|informational", db) is not None,
+              "host-adaptation: doctor's context-file check stays INFORMATIONAL — it may never gate the lifecycle")
+
+    # --- The config key ships and is documented (doc-consistency also reads every top-level key).
+    example = load_json(plugin / "config" / "harness.example.json")
+    if isinstance(example, dict):
+        check(example.get("context_file") == "CLAUDE.md",
+              "host-adaptation: harness.example.json must ship `context_file` defaulting to CLAUDE.md")
+
+    # --- (2) `unmeasured` is the honest, COMPLETE value where no usage is surfaced; no fabrication.
+    for name in ("solve", "finalise"):
+        b = body_of(plugin / "skills" / name / "SKILL.md")
+        if b is None:
+            continue
+        check(re.search(r"unmeasured \(host does not surface usage\)", b) is not None,
+              f"host-adaptation: {name} must bless `unmeasured (host does not surface usage)` as the expected "
+              f"value on a host that surfaces no usage block")
+        check(re.search(r"invent|fabricat", b, re.IGNORECASE) is not None,
+              f"host-adaptation: {name} must forbid inventing/fabricating a token number")
+    fb = body_of(plugin / "skills" / "finalise" / "SKILL.md")
+    if fb is not None:
+        check(re.search(r"is COMPLETE and\s*\n?\s*passes", fb) is not None,
+              "host-adaptation: finalise's completeness gate must PASS a ledger whose rows all read "
+              "`unmeasured (host does not surface usage)` — the gate checks presence, never that a number "
+              "was obtained")
+
+    # --- (3) No single ask-the-human tool is assumed.
+    rb = body_of(plugin / "skills" / "refine" / "SKILL.md")
+    if rb is not None:
+        check(re.search(r"host's typed question UI", rb, re.IGNORECASE) is not None,
+              "host-adaptation: refine must phrase the ask as the HOST's question UI, not a named tool")
+        check(re.search(r"numbered", rb, re.IGNORECASE) is not None,
+              "host-adaptation: refine must give the host-neutral fallback — numbered options in plain chat")
+        check(re.search(r"[Nn]ever assume a specific host\s*\n?\s*tool", rb) is not None
+              and re.search(r"never skip the question", rb, re.IGNORECASE) is not None,
+              "host-adaptation: refine must never assume a specific host tool exists, and never skip the "
+              "question because one is missing")
+    pb = body_of(plugin / "PRINCIPLES.md")
+    if pb is not None:
+        check(re.search(r"host's typed question UI", pb, re.IGNORECASE) is not None
+              and re.search(r"numbered options", pb, re.IGNORECASE) is not None,
+              "host-adaptation: PRINCIPLES.md's want-decision contract must be host-neutral (question UI "
+              "if present, else numbered options)")
+
+    # --- Fixtures: both directions of the context-file resolution (default held AND AGENTS-first).
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    required = {
+        "host-context-file-default": "a CLAUDE.md project still targets CLAUDE.md (the default is unchanged)",
+        "host-context-file-agents": "an AGENTS-first project targets AGENTS.md, not the importing CLAUDE.md",
+    }
+    for name, why in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"host-adaptation: tests/eval/fixtures/{name}.md must exist ({why})")
+    rs = body_of(ROOT / "tests" / "eval" / "run.sh")
+    if rs is not None:
+        for name in required:
+            check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+                  f"host-adaptation: tests/eval/run.sh must dispatch the {name} fixture "
+                  "(an unregistered fixture is not coverage)")
+            check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+                  f"host-adaptation: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+
+
+def validate_output_discipline():
+    """v1.9.1 — four additive output-discipline directives. Each is a directive on what gets WRITTEN, not
+    a change to whether any gate fires: (4) a ran-it claim is recorded as PASTED empirical output, never
+    prose about it; (5) a red golden is a behaviour change to explain and ratify, never a number to bump;
+    (6) a tool/API docstring describes DELIVERED behaviour — it is the interface contract the caller
+    reads; (7) every change-list row names its blast radius, the side-effect surface a reviewer should
+    check."""
+    plugin = ROOT / "plugins" / "mango"
+
+    def body_of(path):
+        rel = path.relative_to(ROOT)
+        if not check(path.exists(), f"output-discipline: {rel} is missing"):
+            return None
+        try:
+            return path.read_text(encoding="utf-8")
+        except OSError as exc:
+            check(False, f"output-discipline: cannot read {rel} ({exc})")
+            return None
+
+    ex = body_of(plugin / "skills" / "execute" / "SKILL.md")
+    fi = body_of(plugin / "skills" / "finalise" / "SKILL.md")
+    de = body_of(plugin / "skills" / "design" / "SKILL.md")
+    tk = body_of(plugin / "templates" / "ticket.md")
+
+    # --- (4) empirical output, pasted — in execute (the record) and finalise (the PR body).
+    for name, b in (("execute", ex), ("finalise", fi)):
+        if b is None:
+            continue
+        check(re.search(r"EMPIRICAL OUTPUT|empirical output", b) is not None,
+              f"output-discipline: {name} must require the EMPIRICAL OUTPUT of a ran-it claim")
+        check(re.search(r"verbatim", b, re.IGNORECASE) is not None
+              and re.search(r"paste", b, re.IGNORECASE) is not None,
+              f"output-discipline: {name} must require the actual output PASTED VERBATIM")
+        check(re.search(r"not a (prose )?description|never a summary|prose[^.]{0,64}not[^.]{0,16}a record|"
+                        r"can promise more than", b, re.IGNORECASE) is not None,
+              f"output-discipline: {name} must reject a prose description standing in for the output")
+    if ex is not None:
+        check(re.search(r"did not run it", ex, re.IGNORECASE) is not None
+              and re.search(r"unproven", ex, re.IGNORECASE) is not None,
+              "output-discipline: execute must require saying so + marking the claim unproven when a "
+              "command was not actually run")
+        check(re.search(r"failed[^.]{0,40}verbatim|paste the failure verbatim", ex, re.IGNORECASE) is not None,
+              "output-discipline: a FAILING command's output must be pasted verbatim too (not summarised)")
+
+    # --- (5) a changed golden is a behaviour change.
+    if ex is not None:
+        check(re.search(r"golden", ex, re.IGNORECASE) is not None
+              and re.search(r"snapshot", ex, re.IGNORECASE) is not None,
+              "output-discipline: execute must cover the golden/snapshot case")
+        check(re.search(r"BEHAVIOUR CHANGE, not a number to bump", ex) is not None,
+              "output-discipline: execute must state a changed golden is a BEHAVIOUR CHANGE, not a number "
+              "to bump")
+        check(re.search(r"do not reflexively re-?record", ex, re.IGNORECASE) is not None,
+              "output-discipline: execute must forbid reflexively re-recording the golden to match new output")
+        check(re.search(r"ratif", ex, re.IGNORECASE) is not None,
+              "output-discipline: an intentional golden change must be RATIFIED at a gate before the golden "
+              "is updated")
+        check(re.search(r"defect in the change", ex, re.IGNORECASE) is not None,
+              "output-discipline: an unintentional golden change is a DEFECT — the fix is the code, never "
+              "the golden")
+
+    # --- (6) docstring = delivered behaviour; it IS the interface contract.
+    if ex is not None:
+        check(re.search(r"docstring", ex, re.IGNORECASE) is not None,
+              "output-discipline: execute must carry the docstring directive")
+        check(re.search(r"interface\s*\n?\s*contract", ex, re.IGNORECASE) is not None,
+              "output-discipline: execute must state the docstring IS the interface contract")
+        check(re.search(r"MCP tool\s*\n?\s*description", ex, re.IGNORECASE) is not None,
+              "output-discipline: execute must name the MCP tool description a client LLM reads as the "
+              "sharpest case")
+        check(re.search(r"actually does", ex, re.IGNORECASE) is not None
+              and re.search(r"not from what the ticket intended|not[^.]{0,40}intent", ex, re.IGNORECASE) is not None,
+              "output-discipline: the docstring must describe what the code ACTUALLY does, not the intent")
+
+    # --- (7) a blast-radius cell per change-list row, in the skill AND the template.
+    if de is not None:
+        check(re.search(r"\|\s*\*{0,2}blast radius\*{0,2}\s*\*{0,2},|`blast radius`|\*\*blast radius\*\*",
+                        de, re.IGNORECASE) is not None,
+              "output-discipline: design's change-list must carry a `blast radius` column")
+        check(re.search(r"side-effect surface", de, re.IGNORECASE) is not None,
+              "output-discipline: design must define the blast-radius cell as the SIDE-EFFECT SURFACE")
+        check(re.search(r"none identified", de, re.IGNORECASE) is not None
+              and re.search(r"never leave the cell blank|blank is not", de, re.IGNORECASE) is not None,
+              "output-discipline: `none identified` is allowed, a BLANK blast-radius cell is not")
+        check(re.search(r"where to look", de, re.IGNORECASE) is not None,
+              "output-discipline: design must say the blast radius tells a reviewer WHERE TO LOOK")
+    if tk is not None:
+        check(re.search(r"Blast radius \(side-effect surface\)", tk, re.IGNORECASE) is not None,
+              "output-discipline: templates/ticket.md's change-list table must carry the blast-radius column")
+        check(re.search(r"Empirical output — PASTED, not described", tk) is not None,
+              "output-discipline: templates/ticket.md Phase 3 must carry the pasted-empirical-output slot")
+        check(re.search(r"Golden/snapshot change", tk) is not None,
+              "output-discipline: templates/ticket.md Phase 3 must carry the golden/snapshot slot")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -1194,6 +1408,8 @@ def main():
     validate_premise_preflight()
     validate_claude_md_hoist()
     validate_learning_loop()
+    validate_host_adaptation()
+    validate_output_discipline()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

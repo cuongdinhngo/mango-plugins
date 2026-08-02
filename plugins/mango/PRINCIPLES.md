@@ -374,7 +374,9 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
   tool choice → refine **resolves it and CITES** the source, and **does not ask**; asking a
   HOW-question launders a decision (an **uncited** how-decision resolution is itself a finding) — or a
   **want-decision (WANT)** — intent/priority/stakes/a genuinely new choice → refine **asks the user** in
-  want-language (`AskUserQuestion` typed fork). **Tie-breaker: a decision about the acceptance BAR
+  want-language, via the **host's typed question UI** if it has one (`AskUserQuestion`'s typed fork on
+  Claude Code) and otherwise as **numbered options in plain chat** — no single host tool is assumed, and
+  a missing one never cancels the question. **Tie-breaker: a decision about the acceptance BAR
   itself (what counts as done / a threshold / a sourcing standard) is a want-decision by default, even
   when it looks derivable — the user owns the bar.** A handed-back want-decision **must** be marked
   **`ASSUMED (awaiting ratification)`** (reusing `codify`'s provisional→ratify; recording it as settled

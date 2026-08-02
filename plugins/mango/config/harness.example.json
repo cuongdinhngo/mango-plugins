@@ -1,6 +1,9 @@
 {
   "//": "Copy this file to your project repo root as .harness.json and fill in the values. It is the per-project contract mango reads at runtime. SECRETS/TOKENS DO NOT BELONG HERE: keep them in a gitignored .env. .harness.json itself is gitignored by mango's marketplace, but treat it as committed project config — never paste credentials into it.",
 
+  "//context_file": "The host's ALWAYS-ON context file — the one the coding host auto-loads into every session. Default CLAUDE.md. Some hosts load AGENTS.md instead (a project may keep a CLAUDE.md that only imports it). init hoists the mango:standing-context POINTER block into THIS file and doctor checks THIS file, so on an AGENTS-first project set it to AGENTS.md. It is still a pointer, never a copy, and never holds a secret.",
+  "context_file": "CLAUDE.md",
+
   "//rulebook_path": "May be a FILE or a DIRECTORY. If a directory, every consumer (reviewer/onboarder agents, grounding skills) reads all *.md inside it. Default to one file so the whole rule set always loads; point at a folder to split later.",
   "rulebook_path": "docs/ENGINEERING_RULES.md",
   "standards_path": "docs/CODING_STANDARDS.md",

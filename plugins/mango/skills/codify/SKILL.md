@@ -70,10 +70,12 @@ bootstrap (skeleton rule book with TODOs); `codify` is the deep facilitation; `d
    `PROVISIONAL (awaiting ratification)`, carrying its **claim ID + evidence** so the rule is traceable
    to what produced it, and an **ID + blocking status** when the claim was type-5-normative. Three
    constraints hold, and each is checkable:
-   - **The rule goes in the rule book, never into `CLAUDE.md`.** `CLAUDE.md` carries only the pointer
-     `init` wrote. Create the rule book at `config.rulebook_path` if it is absent. The promotion is not
-     done until the rule is in the rule book **and** `doctor` is green on the `CLAUDE.md` → rule-book
-     pointer — `init`/`doctor` own that wiring already; reuse it.
+   - **The rule goes in the rule book, never into `CLAUDE.md`** — nor into whichever always-on context
+     file the host loads (`config.context_file`, which may be `AGENTS.md`). That file carries only the
+     pointer `init` wrote. Create the rule book at `config.rulebook_path` if it is absent. The promotion
+     is not done until the rule is in the rule book **and** `doctor` is green on the context-file →
+     rule-book pointer — `init`/`doctor` own that wiring already, including resolving which file the
+     host actually loads; reuse it.
    - **A PROCESS claim never lands in the code rule book** — it goes to `config.agent_brief_path` (a
      PROJECT file, never one of mango's own agent briefs). Route by subject, not by convenience.
    - **Nothing here edits a mango file.** A type-3 skill-gap claim is **not** a rule-book candidate at

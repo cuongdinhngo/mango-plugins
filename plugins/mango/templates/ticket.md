@@ -188,7 +188,15 @@ resolve via a recorded spike OR an integration/e2e-shaped proving test):
 |------------|---------------------------|--------------------------------------------------------------------------------|
 |            |                           |                                                                                |
 
-- Smallest change-list (every item traces to a matrix row): see matrix `Ph2 covered by`.
+**Smallest change-list** (every item traces to a matrix row — see matrix `Ph2 covered by`). The
+**blast radius** cell names what ELSE this change could affect (callers, shared types, tests/goldens,
+tool/API descriptions, config, migrations, downstream consumers) so a reviewer knows where to look;
+`none identified` is allowed, blank is not:
+
+| Change | File/area | Blast radius (side-effect surface) | Ph2 covered by | k/N |
+|--------|-----------|------------------------------------|----------------|-----|
+|        |           |                                    |                |     |
+
 - Rule compliance (vs rulebook_path / standards_path):
 - **Proving test** (fails pre-change, passes post-change; invocation via test_command):
 
@@ -244,6 +252,18 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
   |------------------------|------------------------------|-------------|--------------------|
   |                        |                              |             |                    |
 
+- **Empirical output — PASTED, not described** (every ran-it claim above carries the actual command
+  and its actual output, trimmed to the relevant lines and verbatim; prose like "tests pass" is not a
+  record. A command that failed is pasted verbatim too. Not run → say so and mark the claim unproven):
+
+  ```
+  $ <command>
+  <actual output, verbatim>
+  ```
+
+- **Golden/snapshot change** (a red golden is a BEHAVIOUR CHANGE, never a number to bump): none /
+  intentional → old→new delta + the approved change-list item it traces to + **ratified at gate** ✅ /
+  unintentional → defect in the change, fixed in the code (golden untouched):
 - **Design-invalidation / re-gate** (fill only if a test or the proving test shows the approved
   Gate-2 approach cannot work as designed): what failed + evidence (`path:line` / test signature) ·
   STOP recorded ✅ · options surfaced to user · **Gate 2 re-opened** with a revised approach

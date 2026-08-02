@@ -50,6 +50,14 @@ goes through `config.tracker.cli` — **never** an MCP.
    was `red | flaky`, report the proving-test result **against that baseline** (delta-green: no new
    failure; claimed fixes landed) and note any pre-existing **baseline exclusions** — never claim a
    blanket "all green" the baseline never supported.
+
+   **Every ran-it claim in the PR body carries the EMPIRICAL OUTPUT, not a description of it.** The
+   proving-test result, the verification command, any checklist evidence: **paste the actual command
+   and the actual output** `execute` recorded in the working doc (trimmed to the relevant lines,
+   verbatim, never re-typed or re-summarised). A prose sentence can promise more than the run
+   delivered; a real paste cannot. If the working doc holds no such output for a claim, the claim is
+   **unproven** — say so in the PR body rather than narrating an outcome nobody observed, and never
+   reconstruct output from memory.
 4. **List planned outward actions.** Enumerate every outward action the ticket needs, e.g.:
    - push the branch;
    - **push the bookkeeping commit** carrying the durable lesson / BACKLOG to a **shared ref** — so the
@@ -163,11 +171,12 @@ goes through `config.tracker.cli` — **never** an MCP.
    repo. If a destination key is unset, say so and surface the claim rather than silently dropping it.
 
    **The write happens only after an explicit per-claim ratify at the final gate (step 5).** Then:
-   **the rule goes into `config.rulebook_path`, never into `CLAUDE.md`** — `CLAUDE.md` carries only the
-   **pointer** `init` already wrote. Create the rule book at `config.rulebook_path` if it is absent. A
-   promotion is **not done** until the rule is in the rule book **and** `doctor` is green on the
-   `CLAUDE.md` → rule-book pointer; `init`/`doctor` already own that wiring, so reuse it and rebuild
-   none of it.
+   **the rule goes into `config.rulebook_path`, never into `CLAUDE.md`** — nor into whichever always-on
+   context file the host loads (`config.context_file`, which may be `AGENTS.md`); that file carries only
+   the **pointer** `init` already wrote. Create the rule book at `config.rulebook_path` if it is absent.
+   A promotion is **not done** until the rule is in the rule book **and** `doctor` is green on the
+   context-file → rule-book pointer; `init`/`doctor` already own that wiring — including resolving which
+   file the host actually loads — so reuse it and rebuild none of it.
 
    `PROMOTION: <p> proposed | <k> human-ratified | destinations: <path>, … | mango files written: 0`
 
@@ -179,13 +188,18 @@ goes through `config.tracker.cli` — **never** an MCP.
    actually made (knowable from the run — every `reviewer` / `challenger` / `extractor` / Explore fan-out /
    per-review-round dispatch return). The ledger is **complete** only when **both** hold: **(i)** every
    dispatch has a row (row count ≥ dispatch count), **and** **(ii)** every dispatch row carries a **token
-   value** — a real count from that return's usage block **or** the explicit `unmeasured (blocking
-   retrieval)` marker from `solve`'s usage-surfacing step. **Refuse to proceed if the ledger has fewer
-   rows than the run made dispatches OR any dispatch row has a blank/absent token cell:** a missing row
+   value** — a real count from that return's usage block **or** an explicit `unmeasured (<reason>)`
+   marker (e.g. `unmeasured (blocking retrieval)`) from `solve`'s usage-surfacing step.
+   **Refuse to proceed if the ledger has fewer rows than the run made dispatches OR any dispatch row
+   has a blank/absent token cell:** a missing row
    **or** a blank token value is an **incomplete** ledger and **blocks finalise exactly as an unfilled
    matrix column blocks a gate** — name the missing dispatches / blank cells and require each to be
    transcribed from its return's usage block (or marked `unmeasured (blocking retrieval)`) before
-   continuing. This checks **ledger completeness** — the *presence* of a value or an honest marker in
+   continuing. **A ledger whose rows all read `unmeasured (host does not surface usage)` is COMPLETE and
+   passes** — on a host that surfaces no usage block, that marker is the expected and correct value, and
+   the gate checks the *presence* of an honest value, never that a number was obtained. **Never invent,
+   estimate, or back-fill a number to clear this gate** — a fabricated count is a false-green and worse
+   than an honest `unmeasured`. This checks **ledger completeness** — the *presence* of a value or an honest marker in
    every row — and stays **descriptive**: it never **inspects, judges, ranks, invents, or auto-cuts** a
    row, and the gate never cuts a check, a critic, or evidence. A ledger with a row per dispatch and a
    value (or the explicit marker) in every token cell proceeds. Then read the working-doc **Cost
