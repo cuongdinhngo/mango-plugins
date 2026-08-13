@@ -3,7 +3,12 @@ name: init
 description: Bootstrap mango in a project. Use once per repo before the lifecycle skills — detects the stack read-only, interviews the user only for what can't be detected, writes .harness.json, and scaffolds a starter engineering rule book if none exists. Marks every guessed value UNVERIFIED.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill makes mango's hardest prerequisite —
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This skill makes mango's hardest prerequisite —
 a real engineering rule book and a filled `.harness.json` — exist, so the reviewer/challenger
 produce grounded, project-specific output instead of generic noise.
 
@@ -20,9 +25,19 @@ produce grounded, project-specific output instead of generic noise.
    the `ticket_header_schema` (header → C/R/G/AC). **Mark every guessed value `UNVERIFIED`** in the
    output for the user to confirm.
 3. **Write `.harness.json`.** Write `${CLAUDE_PROJECT_DIR}/.harness.json` using
-   `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json` as the shape. **Never overwrite an existing
+   `<mango>/config/harness.example.json` as the shape. **Never overwrite an existing
    `.harness.json` without explicit confirmation.** Put no secrets in it (note that tokens live in a
    gitignored `.env`).
+
+   **Write every learning-loop destination key explicitly, with its default — never omit one.** A loop
+   destination that is absent from the file leaves a promoted claim with nowhere to go, so `init` writes
+   **all six** by name, each defaulting inside `config.docs_dir`-adjacent project paths:
+   `lessons_path` (`docs/LESSONS.md`), **`agent_brief_path` (`docs/AGENT_BRIEF.md`)** — the destination for
+   a **process** heuristic, which must never land in the code rule book — `skill_gap_path`
+   (`docs/SKILL_GAP_CANDIDATES.md`), `gotchas_path` (`docs/gotchas.md`), `drift_path` (`docs/DRIFT.md`),
+   and `design_doc_path` (`DESIGN.md`). Each is a path **inside this project repo**; none may point at a
+   mango directory. The files themselves are created on first write — `init` writes the **keys**, and
+   `doctor` reports which files do not yet exist.
 4. **Resolve the config-file commit policy — ask the user.** `.harness.json` sits at the repo root,
    so honouring "don't commit it" must not be left to manual vigilance on every `git add`. After
    writing the file, **ask** whether `.harness.json` should be **committed** (shared team config) or
@@ -34,7 +49,7 @@ produce grounded, project-specific output instead of generic noise.
    Do **not** hard-gitignore by default — the config is often a shared team file, so the human
    decides. Either way, `init` **never writes secrets into `.harness.json`.**
 5. **Scaffold a starter rule book if missing.** If `config.rulebook_path` does not exist, copy
-   `${CLAUDE_PLUGIN_ROOT}/skills/init/rulebook-template.md` there as a **single file** (e.g.
+   `<mango>/skills/init/rulebook-template.md` there as a **single file** (e.g.
    `docs/engineering-guide.md`). Then:
    - **Pre-fill only what was observed** from the codebase (detected language, test command,
      directory layout, obvious conventions).

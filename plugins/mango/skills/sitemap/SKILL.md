@@ -3,9 +3,18 @@ name: sitemap
 description: Opt-in, descriptive map of the code surface — routes/endpoints and modules — written into config.docs_dir. Generates regenerable facts (what the code IS), never normative rules. Stack-specific and off unless config.code_map_cmd (or a stack adapter) is set; not part of the lifecycle.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill is **descriptive only**: it generates
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This skill is **descriptive only**: it generates
 **facts** about the code surface (regenerable, falsifiable) — it never authors or infers a normative
 rule. Normative conventions live in the `codify` rule book, not here.
+
+**READ `<mango>/principles/descriptive-normative.md` NOW, before generating anything.** It is the binding
+descriptive/normative boundary. Unconditional, not consult-if-relevant. If `<mango>` does not resolve, say
+so and generate facts only — never a rule.
 
 `sitemap` is **opt-in and stack-specific** — it is **not** part of the lifecycle and does nothing
 unless configured. The lifecycle runs fully whether or not a sitemap has ever been generated.

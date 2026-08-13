@@ -3,14 +3,26 @@ name: doctor
 description: Health-check a project's mango setup. Use before running the lifecycle (and as solve's preflight) — validates .harness.json exists, parses, has every required key, and that rulebook_path/tracker/test_command are usable. Prints a ✅/⚠/❌ checklist with exact remediation for each failure.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill turns silent runtime drift in
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This skill turns silent runtime drift in
 `.harness.json` into a counted, visible artifact — a checklist that blocks the pipeline when red.
 
 **First output line — the authoritative running-version signal.** Before any check, read the
-running manifest at `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` for `<version>` and take
-`<base path>` from `${CLAUDE_PLUGIN_ROOT}`, then print as the very first line:
+running manifest at `<mango>/.claude-plugin/plugin.json` for `<version>` and take
+`<base path>` from `<mango>`, then print as the very first line:
 
 `mango <version> @ <base path>`
+
+**Report HOW `<mango>` resolved, on this same line** — `${CLAUDE_PLUGIN_ROOT}` / located from this skill
+file / found by search / **UNRESOLVED**. On a host that never sets `${CLAUDE_PLUGIN_ROOT}`, resolution
+continues down the order rather than stopping; if it reaches **UNRESOLVED**, print
+`mango <unknown> @ UNRESOLVED` plus a ⚠ naming which resolution steps were tried, and **continue to the
+checks below** — every one of them reads `.harness.json` and the project, not the plugin, so an
+unresolved plugin root never blocks the checklist. Never guess a path to fill this line in.
 
 State plainly, right there: *"This is the version that will run. A green doctor does not prove it is
 the version you intended — if this line is not the version you expect, resolve it from the host with
@@ -27,7 +39,7 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
 ## Checks
 
 1. **Exists & parses.** `.harness.json` is present and is valid JSON. ❌ → "create it with
-   `/mango:init` or copy `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`."
+   `/mango:init` or copy `<mango>/config/harness.example.json`."
 2. **Required keys present.** `rulebook_path`, `repos`, `test_command`, `tracker`,
    `ticket_header_schema` all exist. ❌ → name each missing key.
 3. **Rule book usable.** `rulebook_path` exists (as a file or a directory). If it exists but looks
@@ -76,6 +88,17 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    mango plugin directory, is a ❌ — no loop output may leave the project or reach mango), and
    `rulebook_path` is reachable from the resolved always-on context file per check 8, since a promoted
    rule lives in the rule book and the context file carries only the pointer.
+
+10. **Cross-ticket promotion is reachable — informational, never blocks.** Print one line stating that
+    `/mango:promote` is the **cross-ticket** pass over `config.lessons_path` (recurrence ≥ 2 on a **type-2**
+    handle), that it **proposes only** and writes nothing without a per-candidate human ratify, and that a
+    ticket's `finalise` never stands in for it. Then check its two prerequisites and report each:
+    - `config.lessons_path` is **set** — ⚠ when unset ("`/mango:promote` has no corpus to read; it will
+      report zeros and stop").
+    - at least one of `config.rulebook_path` (code subject) / `config.agent_brief_path` (process subject)
+      is **set** — ⚠ when neither is ("a recurring type-2 claim will be surfaced as
+      `cannot promote: destination key unset` rather than routed").
+    Never ❌: promotion is opt-in and off the lifecycle, and the lifecycle runs fully without it.
 
 ## Output
 

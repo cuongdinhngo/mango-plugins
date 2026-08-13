@@ -3,13 +3,18 @@ name: analysis
 description: Phase 1 of the mango ticket lifecycle. Use when starting work on a ticket — pulls the ticket, opens the working doc, and decomposes every section into a counted C/R/G/AC requirements matrix with AC validation and a clarification tally. Stops at Gate 1.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This phase enforces principle 1 (Think before
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This phase enforces principle 1 (Think before
 coding) via the `CLARIFICATION` tally, the `AC validation` table, the `SECTIONS found = decomposed`
 count, and the requirements matrix.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` and ground every rule in
 `config.rulebook_path`. If `.harness.json` is missing, STOP and tell the user to create one from
-`${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. Tracker READS may use `config.tracker.read_mcp`
+`<mango>/config/harness.example.json`. Tracker READS may use `config.tracker.read_mcp`
 (if set); never write anything in this phase.
 
 ## Steps
@@ -37,21 +42,25 @@ count, and the requirements matrix.
 
    **Advisory recall — surface the matching claims (never inject, never block).** Using `refine`'s
    advisory recall (the same mechanism — do **not** invent a parallel one), read the claim records in
-   `config.lessons_path` (shape: `${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`) and **surface** the
+   `config.lessons_path` (shape: `<mango>/templates/claim-record.md`) and **surface** the
    claims this ticket matches: **type 1 by SYMBOL** (its `handle: symbol:<import/API>` appears in the
-   ticket / change area / imports), **type 5 by AREA** (not by symbol; carry its `verified-at:` stamp on
+   ticket / change area / imports), **type 2 by HANDLE** (its `handle: <class-slug>` names a class the
+   change-list touches — keyed by neither symbol nor area, so match on the **shape of the change**: a
+   **shared vocabulary** (shared/generated type, symbol, enum, schema name), a **new core module** other
+   modules will import, or a **value threaded through callers**; none of the three present → surface
+   nothing), **type 5 by AREA** (not by symbol; carry its `verified-at:` stamp on
    the environment sub-shape), **type 6 by THE FINDING** that would otherwise be re-raised (with its
    `expiry:`). A claim marked `retired:` is **SKIPPED**. Recall **surfaces only**: it never injects a
    requirement or an acceptance criterion, never adds a matrix row of its own, never blocks a gate, never
    edits a file. Emit the counted line verbatim (every run, zero included), and when `refine` already ran
    it this session, carry its line forward instead of re-running it:
 
-   `RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
+   `RECALL: <n> claim(s) surfaced | <s> by symbol | <h> by handle | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
 
    A surfaced claim that the human or this phase judges relevant on its merits may of course become a
    matrix row — but that is a **decision recorded here**, never something recall did on its own.
 2. **Open the working doc — placement by where the ticket lives.** The working doc is the mutable
-   state doc carrying all five phases, built from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`. Choose
+   state doc carrying all five phases, built from `<mango>/templates/ticket.md`. Choose
    its placement from `config.work_doc_mode` (`auto | separate | embed`, default `auto`):
    - **tracker-hosted ticket** (the ticket lives in the tracker, not as a repo file) → always a
      **separate** file `<config.work_dir>/<KEY>.work.md` (default `work_dir` = `tickets_dir`).
@@ -125,21 +134,13 @@ count, and the requirements matrix.
    aggregate "k/N" is not enough for a "for each" requirement: the tail can ship incomplete behind a
    passing count.
 
-   **Surface inventory — for a universal / app-wide FRONTEND requirement, the denominator N comes
-   from the CODE, never the ticket.** When the track includes frontend (confirmed at step 10) and a
-   requirement is phrased all/every/no **or is inherently page-wide** (no horizontal scroll, reflow,
-   focus-visible, contrast — anything that holds across the UI), enumerate **every reachable surface**
-   — each route, full-window overlay, modal, and major mounted state — and set **N = |surfaces|**.
-   Source the surface list from the opt-in `sitemap` (`config.docs_dir/sitemap.md`) **if present**;
-   if it was never generated, run a lightweight read-only **"enumerate reachable views"** sub-step
-   (inspect the routing/entry points). The ticket's examples are a **hint, never the denominator** —
-   counting only the surfaces the ticket named is exactly the failure this removes. Emit it as a
-   counted, challenger-checkable artifact (like `TRACK`):
-
-   `SURFACES: <N> — <surface>, <surface>, …`
-
-   A surface the change *can* affect that ends up with neither a proof nor a recorded exclusion makes
-   the requirement **incomplete** — later phases (design/execute/review) prove against this N.
+   **Surface inventory (frontend track).** When `config.track` includes frontend, **READ
+   `<mango>/skills/analysis/frontend.md` **and** `<mango>/principles/frontend-track.md` NOW** and apply both — the code-derived `SURFACES: N`
+   denominator (the ticket's examples are a hint, never the denominator) and its counted artifact. This
+   is a **mandatory read**, not a consult-if-relevant: do not leave this step without either the
+   `SURFACES: <N>` line or a recorded statement that the track is backend. If `<mango>` does not
+   resolve, say so and enumerate the reachable surfaces from the code anyway. On `track=backend` it
+   does not apply and nothing else in this step changes.
 
    **Multi-clause want-decision → ONE matrix row + ONE proof row PER CLAUSE (at Gate 1).** A ratified
    want-decision (from `refine`) frequently carries **more than one clause** joined by *and* — e.g.
@@ -162,7 +163,7 @@ count, and the requirements matrix.
    present"; never require it — the lifecycle runs fully when no `db-map` exists. **Fan-out (cost knob):** on the **full** tier you may fan
    out read-only Explore agents to investigate, but only if `config.explore_fanout` is true
    (default true). The **lite** tier always skips fan-out. **Model delegation** (see
-   `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): keep the judgment work of this phase — decomposition, AC
+   `<mango>/PRINCIPLES.md`): keep the judgment work of this phase — decomposition, AC
    validation, root-cause/gap, scope — on the strong model; delegate only **bulk read-and-extract**
    (reading many files to pull facts) to the Haiku `extractor` worker, more so when
    `config.cost_tier` is `economy`. Run grep/test/lint via the Bash tool directly — never spawn a

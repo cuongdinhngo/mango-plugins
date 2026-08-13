@@ -3,16 +3,21 @@ name: execute
 description: Phase 3 of the mango ticket lifecycle. Use after design clears Gate 2. Implements ONLY the approved change list on a fresh branch, adds the proving test, runs a verification sweep proving the diff is a subset of the approved list, then flows straight to review. Autonomous (no gate).
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This phase enforces principle 3 (Surgical
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This phase enforces principle 3 (Surgical
 changes) via the verification sweep and the diff ⊆ approved-list check.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` and ground every rule in
 `config.rulebook_path`. If `.harness.json` is missing, STOP and tell the user to create one from
-`${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. This phase is autonomous — it does not stop at
+`<mango>/config/harness.example.json`. This phase is autonomous — it does not stop at
 a gate — but it implements ONLY what Gate 2 approved. Autonomy is **not** licence to thrash or to
 barrel on with a broken approach: the two STOP conditions in **Escalations** below are mandatory.
 
-**Model delegation** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): implementing the approved change
+**Model delegation** (see `<mango>/PRINCIPLES.md`): implementing the approved change
 list and drafting the PR body are **execute** work — Sonnet. Bulk read-and-extract may go to the
 Haiku `extractor` worker. Run the verification sweep's grep / tests / lint via the Bash tool
 directly — never spawn a model for a one-line shell command.
@@ -110,58 +115,16 @@ directly — never spawn a model for a one-line shell command.
    (see `solve`'s response-token discipline). Do not perform any outward action (no push, no PR, no
    tracker write).
 
-## Frontend track — token-first + input-agnostic (only when `config.track` includes frontend)
+## Frontend track (only when `config.track` includes frontend)
 
-When TRACK includes frontend, implement the approved change list under these rules (still nothing
-beyond the approved list):
-
-- **Token-first (greppable).** All colour / spacing / radius / font go through the **design tokens**
-  (theme + CSS custom properties) declared in `config.design_doc_path` (`DESIGN.md`). **No scattered
-  hardcoded hex/px** in component code — the review rubric greps for raw `#rrggbb` / `NNpx`.
-- **Input-agnostic interactions.** Use **Pointer Events**, not mouse-only handlers
-  (`mousedown`/`mousemove`/`clientX`). **No affordance gated solely on `:hover`** — every action and
-  any information shown on hover must also be reachable by tap + focus.
-- **Compose the aesthetic layer; never own it.** If a taste/design skill is installed, compose it for
-  aesthetic generation; **if none is installed, follow `DESIGN.md`** and proceed. **Never stop because
-  a taste skill is absent** — mango blocks only on a missing measurable number, never on a missing
-  aesthetic.
-
-## Surface-coverage proof manifest (frontend integration/runtime/behavioral ACs)
-
-For every frontend AC whose risk layer is integration / runtime / behavioral, **emit/update the proof
-manifest** in the working doc beside the verification plan — **one row per (AC × affected surface)**
-across the analysis `SURFACES: N` inventory. The proof **tier is elastic, but a proof is never
-optional** — produce the **highest tier the project can support** per surface:
-
-1. **`PASS(automated)` (tier-1)** — compose the **project's declared automated-UI runner** (detect it
-   from the project's declared test scripts / `config.test_command`; **mango bundles no runner**)
-   into the shape in `${CLAUDE_PLUGIN_ROOT}/templates/ui-proof-scaffold.md`, satisfying the C1–C8
-   automated-proof contract. Record a re-runnable `proof-cmd` + inspectable artifact.
-2. **`PASS(render@<bp>)` (tier-2)** — when no runner is declared (or `tests/` is off-limits), record a
-   **render/screenshot of the real affected surface at the declared breakpoint** asserting the visible
-   measurable (e.g. `scrollWidth ≤ clientWidth`, target ≥ size, indicator present). This is a
-   **first-class proof, NOT an exclusion** — the cheap reality-facing check; record the artifact path.
-3. **`EXCLUDED(approver, reason)` (tier-3)** — only when neither tier is reachable (a state that cannot
-   be driven). Human-approved; reuse the v0.6/T2 coverage-gap exclusion record.
-
-**Never silently skip a surface.** Dropping tier-1 → tier-2 because there is no runner is expected and
-fine; dropping to *nothing* is not — a frontend AC with no manifest entry at any tier blocks the gate.
-**`execute` never stops merely because no runner is installed** — it scaffolds tier-1 if a runner
-exists, else records a tier-2 `render@<bp>` proof, else records an EXCLUDED row. Fill each manifest
-row's `tier`, `proof-cmd|artifact`, `asserts`, and `status`; the surface count `N == M + X` is scored
-at review.
-
-**One assertion PER CLAUSE of a multi-clause M-gate.** An M-gate whose threshold has more than one
-clause (e.g. M4 = touch-target `size ≥ 44×44 px` **and** `spacing ≥ 8 px`; M7 = focus indicator
-`visible` **and** `contrast ≥ 3:1`) is only proven when **every clause** carries its own assertion.
-For each in-scope multi-clause M-gate, **enumerate one assertion per clause** and give the proof
-manifest **one row per clause** (M4 → a `size` row + a `spacing` row; M7 → a `visible` row + a
-`≥3:1 contrast` row). A clause with **no assertion** makes the gate **incomplete → it blocks, exactly
-as a missing surface does** — proving the easy clause (size) does not clear the gate while the other
-clause (spacing) goes unasserted. Use the clauses the rubric already names in
-`${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md`; do **not** invent new clauses. This is the
-per-item-inventory rule (which prevents aggregate-count hiding) generalized from surfaces to the
-clauses of a gate.
+When TRACK includes frontend, **READ `<mango>/skills/execute/frontend.md` **and** `<mango>/principles/frontend-track.md` NOW** — before implementing
+the change list — and apply every rule in it: token-first (no scattered hardcoded hex/px), Pointer
+Events with no hover-only affordance, compose-never-own the aesthetic, the elastic-tier
+surface-coverage **proof manifest** (`PASS(automated)` → `PASS(render@<bp>)` → `EXCLUDED`), and **one
+assertion per clause** of a multi-clause M-gate. **Never silently skip a surface.** This is a
+**mandatory read**, not a consult-if-relevant. If `<mango>` does not resolve, say so and still emit a
+manifest row per (AC × surface) at the highest tier reachable — a missing companion never turns a
+required proof into no proof. On `track=backend` this section is inert.
 
 ## Escalations (mandatory STOP conditions)
 

@@ -3,11 +3,22 @@ name: budget
 description: Facilitated, opt-in way to make mango's token cost visible and to adopt an external token optimizer with its safety trade-offs made explicit. Detects which optimizers are present, informs per a fixed safety axis (representation-redundancy only — never a check, gate, critic, or the evidence a critic relies on), and records a human's provisional adoption choice in .harness.json. It never installs an optimizer, never makes mango depend on one, and never silently changes what a critic emits.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` — and especially its **descriptive vs normative /
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md` — and especially its **descriptive vs normative /
 observe-facilitate-never-author** boundary. `budget` is to token cost what `codify` is to the rule
 book: it **measures and informs**, then lets a human choose. It **detects and informs, never
 self-administers** — exactly like `codify` (never authors a rule) and `version-check` (never installs
 a plugin).
+
+**READ `<mango>/principles/token-cost.md` NOW, before detecting or reporting anything.** It carries the
+binding safety axis, the descriptive-ledger contract, the RTK degrade-clean rule, and the Caveman critic
+guardrail this skill applies. Unconditional, not consult-if-relevant. If `<mango>` does not resolve, say so
+and hold the axis restated below: representation redundancy only — never a check, a gate, a critic, or the
+evidence a critic relies on.
 
 > **The boundary (binding).** `budget` may **detect** which optimizers exist and **report** measured
 > cost (the Cost ledger). It may **facilitate** adopting an optimizer by **stating its safety

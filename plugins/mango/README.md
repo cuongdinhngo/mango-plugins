@@ -51,6 +51,16 @@ A few terms recur throughout; here they are once.
 | `/mango:doctor` | Anytime / before a run | A ✅/⚠/❌ health check of `.harness.json` with exact remediation, prefaced by `mango <version> @ <base path>`. `solve` runs it as a fail-fast preflight. |
 | `/mango:codify` | When the rule book is missing / thin (opt-in) | **Counts** the conventions the code and schema actually use, asks **you** to choose each standard, and writes them tagged `PROVISIONAL (awaiting ratification)`. Any drift list carries the counted line `DRIFT: <n> entries \| <m> tickets` (counted from the list, never narrated). Facilitates; never auto-picks the majority, never changes code. |
 | `/mango:version-check` | On demand (opt-in) | Reports running vs latest version and **prints** the host `/plugin` commands to update. Needs `update_check_url`; never updates. |
+| `/mango:promote` | Between tickets, once a lesson class recurs (opt-in) | Groups **type-2** claims in `lessons_path` by their `handle:`, and for each class seen on **≥ 2 tickets** proposes **one** candidate rule citing every instance, then **stops for a per-candidate ratify**. Emits `PROMOTE: … \| rules written: 0`. Cross-ticket by design — a single ticket's `finalise` cannot see across tickets. Proposes; never authors a rule, never touches a mango file. |
+
+**Where mango's own contract lives.** `plugins/mango/PRINCIPLES.md` is the always-loaded core — the four
+principles, the `<mango>` path-resolution order, and the model-delegation map. The rest of the contract sits
+in `plugins/mango/principles/*.md`, each file read **on demand** by the phase that applies it under an
+explicit read instruction in that skill, so a run pays only for the contract it actually uses. Each skill's
+frontend-only rules likewise live in `skills/<name>/frontend.md`, read when `config.track` includes
+frontend. Every mango-shipped path resolves through the documented order — `${CLAUDE_PLUGIN_ROOT}` when the
+host sets it, else the plugin root located from the loaded skill file, else a read-only search — so no
+shipped file depends on one host variable.
 
 `init` gives you a skeleton rule book with TODOs; `/mango:codify` is the deeper facilitation for a
 project with no rule book, a thin one, or inconsistent conventions. It observes and counts the
@@ -321,6 +331,7 @@ project. They are **not** gated and do not run a ticket.
 | `/mango:db-map` | Generate a schema map into `docs_dir` | Opt-in, off by default; needs `db_kind` + (`db_introspect_cmd` or `migrations_path`). |
 | `/mango:version-check` | Compare running vs latest and print the host `/plugin` commands | Informs only, never updates; needs `update_check_url`. |
 | `/mango:budget` | Detect token optimizers, inform per the safety axis, record a human's provisional adoption | Descriptive + human-gated (see [Cost & models](#cost--models)). |
+| `/mango:promote` | Cross-ticket promotion of a **recurring** type-2 heuristic into a *proposed* project rule | Opt-in, off the lifecycle; entry condition is **recurrence ≥ 2**, not a schedule. Idempotent: a re-run on an unchanged corpus proposes nothing. Needs `lessons_path` plus `rulebook_path` (code) or `agent_brief_path` (process). |
 
 The `sitemap`/`db-map` outputs are **descriptive** (what the project is); `codify` is **normative**
 (what it should be). mango generates the descriptive and facilitates the normative.

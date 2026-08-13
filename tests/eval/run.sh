@@ -384,6 +384,13 @@ declare -A FIXTURE_SKILLS=(
   [recall-symbol-type1]="refine" [recall-area-type5]="refine"
   [recall-type6-expiry]="refine" [recall-retired-skipped]="refine"
   [host-context-file-default]="init doctor" [host-context-file-agents]="init doctor"
+  [recall-type2-handle]="refine" [recall-zero-no-busywork]="refine"
+  [handle-unanswered-blocks]="design" [handle-does-not-apply-closes]="design"
+  [recurring-t2-leaves-lessons]="finalise" [type5-stays-in-lessons]="finalise"
+  [template-resolve-no-plugin-root]="finalise"
+  [promote-two-lessons-one-rule]="promote" [promote-single-lesson-noop]="promote"
+  [promote-idempotent]="promote"
+  [ondemand-companion-read]="design" [ondemand-read-no-plugin-root]="review"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -394,11 +401,16 @@ skills_files() {  # <fixture-name> — the files whose contents key this fixture
   local mapped="${FIXTURE_SKILLS[$name]:-}"  # evaluates b's RHS before a binds under `set -u`
   local s
   if [ -n "$mapped" ]; then
-    for s in $mapped; do echo "$PLUGIN_SRC/skills/$s/SKILL.md"; done
+    # v1.10.0: hash the whole skill DIRECTORY, not just SKILL.md — a skill's on-demand companion
+    # (skills/<s>/frontend.md) is read at its point of use, so editing it changes behaviour.
+    for s in $mapped; do ls "$PLUGIN_SRC"/skills/"$s"/*.md 2>/dev/null; done
   else
-    ls "$PLUGIN_SRC"/skills/*/SKILL.md 2>/dev/null
+    ls "$PLUGIN_SRC"/skills/*/*.md 2>/dev/null
   fi
   echo "$PLUGIN_SRC/PRINCIPLES.md"
+  # v1.10.0: every on-demand PRINCIPLES companion keys every fixture, exactly as PRINCIPLES.md does —
+  # relocating a section may never move it outside the cache key.
+  ls "$PLUGIN_SRC"/principles/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/agents/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/templates/*.md 2>/dev/null
   echo "$FIXTURES/$name.md"
@@ -1693,6 +1705,114 @@ assert_all "ctx-agents: the resolved path is recorded in config.context_file" "$
 assert_all "ctx-agents: a block only in the unloaded CLAUDE.md is surfaced, not passed" "$t" 'CLAUDE\.md' 'warn|⚠|not[^.]{0,28}(load|reach|visib)|invisib|unloaded|does not auto-?load'
 assert_all "ctx-agents: doctor warns rather than failing the run" "$t" 'warn|⚠' 'never[^.]{0,20}(fail|block|❌)|not[^.]{0,20}(fail|block)|informational'
 assert_all "ctx-agents: the block is still a POINTER, never a copy" "$t" 'point' 'not[^.]{0,24}(a )?cop|never[^.]{0,24}cop|rulebook_path|rule[ -]?book'
+
+# ---- v1.10.0: the learning-loop pipe joined (type-2 recall by handle -> answered at design ->
+# ---- recurring claim leaves lessons_path) + cross-ticket `promote` + the on-demand preload split.
+
+# T1 recall-type2-handle: type 2 is keyed by a class HANDLE (neither symbol nor area can key a heuristic).
+# It fires on the change SHAPE — a shared vocabulary here — while the type-1 symbol and the type-5 area in
+# the same corpus stay silent. Non-vacuity in one fixture: one surfaces, two must not.
+t="$(run_fixture recall-type2-handle 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State which claims you surface, what each was matched by, and which you do not surface. Emit the counted RECALL: line. Do not stop for my input.')"
+assert_all "t2-handle: the type-2 claim surfaces, matched by its HANDLE" "$t" 'CLM-311|blast-radius-grep' 'handle'
+assert_all "t2-handle: the match is on the change SHAPE (shared vocabulary), not a symbol or an area" "$t" 'shared|vocabular|enum|consumer|thread' 'handle|class'
+assert_all "t2-handle: the type-1 symbol claim does NOT surface" "$t" 'CLM-312|queue_client' 'not[^.]{0,40}(surfac|match|appear)|no[t]? .{0,20}(present|named)|silent|skip|0 by symbol'
+assert_all "t2-handle: the type-5 area claim does NOT surface" "$t" 'CLM-313|billing' 'not[^.]{0,40}(surfac|match|appear)|different area|0 by area|skip'
+assert_contains "t2-handle: the RECALL line counts `by handle`" "$t" 'by handle'
+assert_all "t2-handle: recall stays advisory — it adds no requirement, AC or gate" "$t" 'advisory|surfac' 'not[^.]{0,30}(inject|add|block|requirement|gate)|never|only surfac|blocks nothing'
+
+# T2 handle-unanswered-blocks: a recalled handle with no trace and no `does not apply` BLOCKS Gate 2. This
+# is the adequacy half — a filled blast-radius cell naming a surface is not an answer to the handle.
+t="$(run_fixture handle-unanswered-blocks 'Run the mango design skill blast-radius step and Gate-2 self-audit on the injected design state in this ticket. State whether Gate 2 passes or is blocked and exactly what is missing, and emit the HANDLES: counting line as it stands. Do not stop for my input.')"
+assert_all "unanswered: Gate 2 is BLOCKED" "$t" 'Gate 2' 'block|❌|not[ *_]{1,4}pass|fail|cannot pass|held'
+assert_all "unanswered: the unanswered handle is named as the cause" "$t" 'blast-radius-grep|handle' 'unanswered|no trace|not answered|neither|missing'
+assert_contains "unanswered: the HANDLES line is emitted" "$t" 'HANDLES:'
+assert_all "unanswered: the filled blast-radius cell is not accepted as the answer" "$t" 'blast[ -]radius|cell|callers of the builder' 'not[^.]{0,40}(a trace|an answer|sufficient|enough)|no command|does not answer|names a surface'
+
+# T3 handle-does-not-apply-closes: the negative control that keeps this from becoming a tax. An explicit
+# `does not apply because <reason>` is a LEGAL answer and CLOSES the handle — the gate is on accounting.
+t="$(run_fixture handle-does-not-apply-closes 'Run the mango design skill blast-radius step and Gate-2 self-audit on the injected design state in this ticket. State whether Gate 2 passes or is blocked, whether the recorded answer to the recalled handle is legal, and emit the HANDLES: counting line. Do not stop for my input.')"
+assert_all "does-not-apply: the recorded answer is LEGAL and closes the handle" "$t" 'does not apply' 'legal|valid|acceptable|closes|answered|satisfies|sufficient'
+assert_all "does-not-apply: Gate 2 is NOT blocked by the handle" "$t" 'Gate 2' 'pass|clear|not[ *_]{1,4}block|no[ *_]{1,4}block|proceed|closes'
+assert_contains "does-not-apply: the HANDLES line is emitted" "$t" 'HANDLES:'
+assert_contains "does-not-apply: unanswered is zero" "$t" '0[ *_]*unanswered|unanswered[ *_:=]*0'
+
+# T4 recurring-t2-leaves-lessons: a type-2 claim with seen >= 2 may NOT resolve to `stays in lessons_path`
+# — recording it was already the treatment. It routes to the rule book (code) or the agent brief (process).
+t="$(run_fixture recurring-t2-leaves-lessons 'Run the mango finalise learning loop from the recurrence step onward on the two claims in this ticket. For each, state the destination you propose and whether stays in lessons_path is acceptable. Emit the RECURRING-T2: counting line and say whether finalise proceeds or blocks. Do not stop for my input.')"
+assert_all "recurring-t2: `stays in lessons_path` is REJECTED for both recurring type-2 claims" "$t" 'lessons_path' 'reject|not[ *_]{1,4}(accept|allow|permit)|may not|forbid|unacceptable|blocked'
+assert_all "recurring-t2: the code heuristic routes to the rule book" "$t" 'CLM-411|blast-radius-grep' 'rulebook_path|rule[ -]?book|EVAL_RULES'
+assert_contains "recurring-t2: the RECURRING-T2 line is emitted" "$t" 'RECURRING-T2:'
+assert_all "recurring-t2: recurrence, not presence, is what triggered it" "$t" 'seen|recurren|twice|two ticket' 'PROJ-069|PROJ-611|>= 2|≥ 2|2 ticket'
+
+# T5 type5-stays-in-lessons: the NEGATIVE CONTROL. All existing claim records are type-5 project facts;
+# sweeping them into a rule book would rot it. A recurring type-5 legitimately stays in lessons_path.
+t="$(run_fixture type5-stays-in-lessons 'Run the mango finalise learning loop from the recurrence step onward on the two claims in this ticket. State for each whether stays in lessons_path is accepted or rejected, say whether the recurring-type-2 destination rule applies, and emit the RECURRING-T2: counting line. Do not stop for my input.')"
+assert_all "type5-control: `stays in lessons_path` is ACCEPTED for the type-5 claims" "$t" 'lessons_path' 'accept|allow|legitimat|stays|remains|correct|valid|unchanged'
+assert_all "type5-control: the recurring-type-2 rule does NOT apply to type 5" "$t" 'type 5|type-5' 'not[^.]{0,40}(apply|affect|touch)|does not|only[^.]{0,20}type 2|type 2 only|exempt|untouched'
+assert_contains "type5-control: the RECURRING-T2 line is still emitted, with zeros" "$t" 'RECURRING-T2:'
+assert_absent "type5-control: finalise is NOT blocked by a type-5 claim staying put" "$t" 'block(s|ed|ing)? finalise|finalise (is )?blocked'
+
+# T6 template-resolve-no-plugin-root: with the plugin-root variable unset, the resolution order continues
+# down its steps and the claim record is still produced with its fields — never a hardcoded path, never prose.
+t="$(run_fixture template-resolve-no-plugin-root 'Answer the four numbered questions in this ticket, in order, as the mango finalise claim-classification step would on this host. Do not stop for my input.')"
+assert_all "no-root: the resolution order is followed, not abandoned" "$t" 'resolv|order|step' 'skill file|plugin root|search|locate|directory'
+assert_all "no-root: the unset variable is not the end of the road" "$t" 'CLAUDE_PLUGIN_ROOT|unset|not set|empty' 'else|next|fall ?back|step 2|continue|still'
+assert_all "no-root: the claim record is still produced with its fields" "$t" 'type:' 'evidence:|handle:|area:|destination:'
+assert_all "no-root: no hardcoded or guessed path is used" "$t" 'hardcod|guess|home director|invent' 'never|not|no |forbid|avoid'
+assert_all "no-root: it does not degrade to prose" "$t" 'prose|field' 'not[^.]{0,30}prose|never|inline|field'
+
+# T7 recall-zero-no-busywork: recall that matches nothing closes with zeros and adds NOTHING. Without this
+# control the recall step becomes a tax on every ticket it has no claim for.
+t="$(run_fixture recall-zero-no-busywork 'Run the mango refine phase advisory recall for this ticket. State which claims you surface, emit the counted RECALL: line, and then say whether this ticket now carries any extra step, question, trace, matrix row or gate because recall ran. Do not stop for my input.')"
+assert_contains "recall-zero: the RECALL line is emitted" "$t" 'RECALL:'
+assert_contains "recall-zero: zero claims surfaced" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
+assert_all "recall-zero: nothing is added to the ticket" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged|no change' 'step|row|gate|question|trace|work'
+assert_absent "recall-zero: no handle is invented to look busy" "$t" 'blast-radius-grep (applies|surfaces|is surfaced)'
+
+# T8 promote-two-lessons-one-rule: recurrence across tickets is the entry condition; two instances of one
+# class yield ONE candidate citing both, and nothing is written before a ratify.
+t="$(run_fixture promote-two-lessons-one-rule 'Run the mango promote skill on the corpus in this ticket. Emit its counted line and per-class table first, then any candidate rule with its destination and the lesson text behind each clause. State what has been written to disk, then answer the question about CLM-703. Do not stop for my input.')"
+assert_contains "promote-two: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
+assert_all "promote-two: exactly one candidate rule for the one recurring class" "$t" 'blast-radius-grep' '1 candidate|one candidate|single candidate|1 class'
+assert_all "promote-two: both instances are cited" "$t" 'CLM-701' 'CLM-702'
+assert_all "promote-two: nothing is written before the ratify" "$t" 'rules written[ *_:=]*0|nothing[^.]{0,24}(writ|creat)|not[^.]{0,24}writ' 'ratif|human|gate|propos'
+assert_all "promote-two: the code heuristic routes to the rule book" "$t" 'rulebook_path|EVAL_RULES|rule[ -]?book' 'destination|route|goes|written to'
+assert_all "promote-two: the type-5 claim is out of scope" "$t" 'CLM-703|type 5|type-5' 'out of scope|not[^.]{0,30}(promot|eligib|consider)|skip|excluded|only type 2'
+
+# T9 promote-single-lesson-noop: recurrence 1 proposes NOTHING. The control that stops promote inventing
+# rules from a single sighting.
+t="$(run_fixture promote-single-lesson-noop 'Run the mango promote skill on the corpus in this ticket. Emit its counted line and per-class table, state how many candidate rules you propose and the verdict per handle, and say whether any rule text was drafted or written. Do not stop for my input.')"
+assert_contains "promote-one: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
+assert_all "promote-one: zero candidates proposed" "$t" '0 candidate|no candidate|zero candidate|nothing[^.]{0,20}propos|propose nothing' 'recurrence 1|seen (only )?once|one ticket|single ticket'
+assert_all "promote-one: both handles are reported as skipped, not silently dropped" "$t" 'blast-radius-grep' 'empirical-output-in-summary|skip'
+assert_absent "promote-one: no rule text is drafted" "$t" 'rules written[ *_:=]*[1-9]'
+
+# T10 promote-idempotent: a class already recorded at its destination proposes nothing NEW, so re-running
+# the pass is safe and cannot duplicate a rule.
+t="$(run_fixture promote-idempotent 'Run the mango promote skill on the corpus in this ticket again. Emit its counted line and per-class table, give the verdict for the blast-radius-grep class with the evidence you based it on, and state how many NEW candidate rules this run proposes. Do not stop for my input.')"
+assert_contains "idempotent: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
+assert_all "idempotent: the class is skipped as already recorded" "$t" 'blast-radius-grep' 'already|skip|exists|present|recorded'
+assert_all "idempotent: the existing rule-book entry is the evidence" "$t" 'EVAL_RULES|rule[ -]?book' 'Blast radius|CLM-901|CLM-902|line'
+assert_all "idempotent: zero NEW candidates" "$t" '0 (new )?candidate|no (new )?candidate|nothing new|zero' 'propos|new'
+assert_absent "idempotent: the rule is not duplicated" "$t" 'rules written[ *_:=]*[1-9]'
+
+# T11 ondemand-companion-read: a phase whose content moved to an on-demand companion must READ it and
+# behave exactly as before — the moved block still governs the decision.
+t="$(run_fixture ondemand-companion-read 'Run the mango design skill on this ticket. State which files you read and why before producing the Phase-2 artifacts, then produce the verification plan and Gate-2 verdict and answer the four numbered questions. Do not stop for my input.')"
+assert_all "ondemand-read: the frontend companion is named and read" "$t" 'frontend\.md' 'read|reading|load|consult|open'
+assert_all "ondemand-read: the unit proof is a layer mismatch that blocks Gate 2" "$t" 'Gate 2' "$RE_LAYER_MISMATCH"
+assert_all "ondemand-read: DESIGN.md must exist before the plan is named" "$t" 'DESIGN\.md' 'creat|updat|before|must exist'
+assert_all "ondemand-read: the plan carries one row per surface against SURFACES: 4" "$t" '4|four' 'surface|per surface|row per'
+assert_contains "ondemand-read: the behaviour is unchanged by the relocation" "$t" 'no horizontal scroll|reflow|integration|runtime|computed-style|document'
+
+# T12 ondemand-read-no-plugin-root: the on-demand read resolves with the plugin-root variable unset, and a
+# companion it still cannot reach never turns a required check into no check.
+t="$(run_fixture ondemand-read-no-plugin-root 'Answer the five numbered questions in this ticket, in order, as the mango review phase would on this host. Score the diff against the rules the companion carries. Do not stop for my input.')"
+assert_all "ondemand-noroot: the companion is named and its path resolved" "$t" 'frontend\.md' 'resolv|locate|skill file|plugin root|search'
+assert_all "ondemand-noroot: it is read, not skipped because the variable is unset" "$t" 'read' 'not[ *_]{1,4}skip|do not skip|still|unset|regardless'
+assert_all "ondemand-noroot: the hover-only affordance is scored" "$t" 'hover' 'M6|M10|pointer|tap|focus|block|fail|finding'
+assert_all "ondemand-noroot: the 32px targets are scored against the touch-target gate" "$t" '32|44' 'touch[ -]target|M4|fail|block|finding'
+assert_all "ondemand-noroot: an unreachable companion never means no check" "$t" 'never|not|no ' 'no check|without a check|unchecked|drop|skip the rubric|minimum|at minimum'
 
 }   # end suite()
 

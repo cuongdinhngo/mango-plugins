@@ -3,11 +3,16 @@ name: solve
 description: Orchestrator for the full mango ticket lifecycle. Use to run analysis → design → execute → review → finalise in order on one ticket, holding every gate. Resumes from the working-doc Session status. This is a skill, not an agent, because gates must pause in the live conversation.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This phase orchestrates all four principles by
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This phase orchestrates all four principles by
 running each gated phase in order and refusing to cross any gate on your behalf.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` first. If it is missing, STOP and tell
-the user to create one from `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`.
+the user to create one from `<mango>/config/harness.example.json`.
 
 State up front, verbatim: **"I stop and wait for you at every ✋ gate."**
 
@@ -58,7 +63,7 @@ branch:
   ✋ human gate — the human ratifies the split before any ticket executes.** Each ratified ticket then
   runs its **own** full lifecycle (one ticket per run). **Epic-path maturity:** `breakdown`'s
   **re-ratification** behaviour is **Experimental** and its exact boundary sizing is expected to be
-  refined by retro; the rest of the path is **Stable** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`,
+  refined by retro; the rest of the path is **Stable** (see `<mango>/PRINCIPLES.md`,
   Maturity).
 
 refine holds **no gate of its own** — its want-decision questions are its interaction, and its output is
@@ -91,6 +96,14 @@ descriptive/normative boundary `codify` holds for rules).
    promotion into a **PROJECT** file. Every classification and promotion is ratified **per claim** at the
    final gate; a type-3 skill-gap is a **signal** in `config.skill_gap_path`, and **no lesson edits a
    mango skill**.
+
+**Cross-ticket promotion runs OUTSIDE this orchestrator — `/mango:promote`.** A step at the tail of one
+ticket's `finalise` sees only that ticket's claims, so promotion whose trigger is **recurrence across
+tickets** cannot live there. `finalise` still classifies, dedups, falsifies and proposes **this** ticket's
+claims (steps `3a`–`3e`). When a claim's `seen:` list crosses **2 ticket keys**, `finalise` states at the
+final gate that `/mango:promote` is the cross-ticket pass — and **the human runs it between tickets**.
+`solve` never invokes it: it holds gates in this conversation and runs **one ticket per run**, and a
+cross-ticket pass is neither. `promote` proposes only; nothing is written without a per-candidate ratify.
 
 **Resume** from the working-doc `Session status` block: read it, determine the current phase, and
 continue from there rather than restarting. The working doc's placement follows

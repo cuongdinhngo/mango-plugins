@@ -3,7 +3,12 @@ name: design
 description: Phase 2 of the mango ticket lifecycle. Use after analysis clears Gate 1. Produces the approach, rejected alternatives, the smallest change-list traced to matrix rows, rule-compliance check, and the named proving test. Stops at Gate 2.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This phase enforces principle 2 (Simplicity
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This phase enforces principle 2 (Simplicity
 first) via the smallest change list + `SCOPE`, and principle 4 (Goal-driven) via the named proving
 test, the **per-AC verification plan** (proof at the layer where each requirement can fail), and the
 **Assumptions** check (no unresolved novel-untested third-party/runtime assumption) — all required
@@ -11,7 +16,7 @@ at this gate.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` and ground every rule in
 `config.rulebook_path` and `config.standards_path`. If `.harness.json` is missing, STOP and tell the
-user to create one from `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. No code is written in
+user to create one from `<mango>/config/harness.example.json`. No code is written in
 this phase.
 
 ## Steps
@@ -64,6 +69,26 @@ this phase.
    execute's deviation-recording remains the backstop (it is **not** removed), but it should rarely fire
    for a blast-radius miss once the estimate traces real producers/consumers. A **shallow-grep-only
    estimate that misses a known consumer is a Gate-2 finding.**
+
+   **⭐ Answer every recalled type-2 HANDLE by name (binding — this is the blast-radius step's teeth).**
+   `refine`/`analysis` surfaced `<h>` type-2 handles on the `RECALL:` line. Take that list verbatim and
+   emit **one row per handle**, naming the handle, and answer each with **exactly one** of:
+
+   - **traced** — paste the **command you ran and its actual output** (trimmed, verbatim, never
+     re-typed — the same empirical-output rule `execute` applies) plus what it found: the real
+     producers/consumers folded into the change list above, **or** the command's empty result. A row with
+     no command and no output is **not** a trace, however confident the prose.
+   - **`does not apply because <reason>`** — the literal phrase, where `<reason>` names the property of
+     **this** change that puts the handle out of scope (e.g. *"the change adds no shared symbol: the new
+     enum is file-local and has no importer"*). This **closes** the handle and is a fully legal answer.
+
+   `HANDLES: <h> recalled | <t> traced (command + result) | <x> does not apply (reason) | <u> unanswered`
+
+   **`u` must be 0 and `h` must equal `t + x`; any `u > 0` BLOCKS Gate 2** — exactly as an unfilled
+   matrix column does. Emit the line on **every** run, zeros included: `h = 0` closes it with
+   `HANDLES: 0 recalled | 0 traced | 0 does not apply | 0 unanswered` and adds no work whatsoever. A
+   recalled handle is **still advisory** — it never becomes a requirement or a matrix row on its own; what
+   is binding is that it was **answered**, not what the answer said.
 5. **Rule compliance.** Check the proposed change against `config.rulebook_path` and
    `config.standards_path`; note any rule that constrains the design and how you comply.
 6. **Verification plan (per-AC, layer-matched) — fill the layer-match column BEFORE naming the
@@ -78,33 +103,17 @@ this phase.
    by a pure-logic test. Do **not** triage on keywords alone — the gate keys on the **risk-layer vs
    proof-layer comparison** the plan records; the wording is only a hint to classify the risk layer.
 
-   **Frontend ACs (when `config.track` includes frontend) are classified honestly by the same rule.**
-   A "renders / responsive / no horizontal scroll / contrast / focus / a11y / touch-target" AC has an
-   **integration/runtime** (or `document` / `computed-style`) risk layer — never pure logic. A
-   unit-only proof (a mocked DOM) is a layer-match `❌` and **blocks Gate 2**; it clears only with an
-   integration/e2e proof against a **real rendered DOM** (or the served document for the viewport-meta
-   gate), or a recorded human-approved coverage-gap exclusion. The M1–M10 risk-layer floor in
-   `${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md` lists each gate's layer; reuse the v0.6
-   layer-match mechanism here — do not fork it.
-
-   **Surface-aware rows — one row per (AC × affected surface).** For a universal / app-wide frontend
-   AC, the denominator is the **surface inventory N** from analysis (`SURFACES: N`, enumerated from
-   code). Lay out the verification plan / proof manifest with **one row per affected surface**, not a
-   single ticket-scoped row — proving "the surfaces the ticket named" while reachable surfaces go
-   unproven is the exact bug this removes. Each row names its proof **tier** (the ladder is elastic
-   but a proof is never optional): `automated` (tier-1, satisfies the C1–C8 automated-proof contract)
-   → `render@<bp>` (tier-2, a recorded render of the real surface at the breakpoint asserting the
-   visible measurable — a **first-class proof, not an exclusion**) → `excluded` (human-approved, only
-   when neither tier is reachable). See `${CLAUDE_PLUGIN_ROOT}/templates/ui-proof-scaffold.md` for the
-   tier-1 shape `execute` will fill.
-
-   **Mechanism-4 banner — under-coverage must be impossible to miss.** For each universal/app-wide
-   frontend requirement, let `N` = |surfaces|, `M` = surfaces with a planned valid proof (any tier),
-   `X` = recorded exclusions. When `M + X < N`, emit a loud line — as unmissable as an unfilled matrix
-   column — and **block Gate 2**:
-
-   `⚠ surfaces proven: <M+X>/<N> — <uncovered surfaces> have no proof; cover or record an exclusion.`
-
+   **Frontend ACs, surface-aware rows, the under-coverage banner, and the `DESIGN.md` contract
+   (frontend track).** When `config.track` includes frontend, **READ
+   `<mango>/skills/design/frontend.md` **and** `<mango>/principles/frontend-track.md` NOW** and apply every rule in both: the honest risk-layer
+   classification of a frontend AC (a unit-only proof is a layer-match `❌` that blocks Gate 2), **one
+   plan row per (AC × surface)** against analysis's `SURFACES: N`, the `⚠ surfaces proven: <M+X>/<N>`
+   banner that blocks Gate 2, and creating/updating the project `DESIGN.md` (`config.design_doc_path`,
+   covering the palette's domain meaning, the shell vs **data-core** split, and the **responsive** &
+   touch choices) **before** this plan is named. This is a **mandatory read**, not a
+   consult-if-relevant — do not name the proving test (step 7) without it. If `<mango>` does not
+   resolve, say so and still classify every frontend AC above the logic layer rather than dropping the
+   check. On `track=backend` it does not apply.
    **Binding gate rule — the layer-match is enforced, not advisory.** If an AC's **risk layer is
    integration / runtime / e2e and its proof artifact is at the logic/unit layer**, that row is a
    layer mismatch → `❌` and **Gate 2 is blocked**. The row passes only when the proof is **upgraded**
@@ -123,38 +132,14 @@ this phase.
    realized scope has **crossed up a tier** (especially S/M → L) or the change-list materially
    exceeds the analysis baseline, raise the *outgrew-its-ticket* nudge at this gate: stop to
    **re-scope or split** (and flag any branch/PR-type drift) rather than silently absorbing it.
-10. **Self-audit, then STOP at Gate 2.** Confirm: every change-list item has a matrix row, `Ph2
+10. **Self-audit, then STOP at Gate 2.** Confirm: the `HANDLES:` line is emitted with `<u> unanswered`
+    at `0` and `h == t + x` (every recalled type-2 handle traced with a command + result, or closed with
+    `does not apply because <reason>`), every change-list item has a matrix row, `Ph2
     covered by` filled `k/N`, every assumption tagged and every `novel-untested` 3p/runtime one
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the
     verification plan has **no ❌** (or every ❌ is recorded as a human-approved coverage-gap
     exclusion with a follow-up), rollback + porting recorded, and — when track includes frontend —
-    `DESIGN.md` created/updated (see below) and, for any universal/app-wide frontend requirement,
+    `DESIGN.md` created/updated (per `<mango>/skills/design/frontend.md`) and, for any universal/app-wide frontend requirement,
     the proof manifest laid out **one row per (AC × surface)** with `N == M + X` (no under-coverage
     banner standing). Write Phase 2 into the working doc and update `Session status`, then STOP and
     wait for the user. Do not begin execution.
-
-## Frontend track — the `DESIGN.md` contract (only when `config.track` includes frontend)
-
-When TRACK (from analysis) includes frontend, **create or update the project design contract** at
-`config.design_doc_path` (default `DESIGN.md`) from `${CLAUDE_PLUGIN_ROOT}/templates/design-doc.md`
-**before naming the verification plan (step 6)** — the frontend rubric is scored *against this file*,
-so it must exist and be current. Hard rules for it:
-
-- **Palette derives from domain meaning FIRST, general aesthetic rules SECOND.** A blanket rule (e.g.
-  "ban colour X") must yield to domain meaning — a domain term may literally denote that colour.
-  Record each token's meaning so the reviewer checks against the contract, not a blanket rule.
-- **Separate "shell" (character-rich pages) from "data-core" (tables/grids/charts):** data-core is
-  **legibility-first and static**; a data-core region may scroll inside its own bounded container, but
-  the document must not.
-- Include the generic **"Responsive & touch"** section: declared breakpoints (mirror
-  `config.breakpoints`); the narrow-width **navigation pattern**; which regions **collapse vs reflow
-  vs scroll-in-container**; thumb-zone priority; the **motion** policy (honour `prefers-reduced-motion`,
-  limit animation to `transform`/`opacity`). These are the **choices** the responsive gates (M2/M3
-  and the rest of M1–M10) are scored against — they live here, never gated by mango.
-
-**Own the durable, compose the volatile.** mango owns only the measurable/greppable conformance to
-this contract. The *aesthetic-generation* layer is **composed, never owned**: call an installed taste
-skill if present, else follow `DESIGN.md` — **never stop because a taste skill is missing** (mango
-blocks on a missing **number**, never on a missing aesthetic). The breakpoint **values**, the
-narrow-width **navigation pattern**, and which regions **collapse vs reflow** are `DESIGN.md` choices,
-not mango gates.

@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.9.1-blue)
+![version](https://img.shields.io/badge/version-1.10.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -68,6 +68,10 @@ and edit `rulebook_path`, `repos`, `test_command`, `tracker`, and `ticket_header
 No rule book yet? Run `/mango:codify` — it **counts** the conventions your code and schema already
 use, asks **you** to choose each standard, and records them as provisional until you ratify. mango
 facilitates the rule book; it never writes the rules for you.
+
+Once a lesson class has recurred across **two or more** tickets, `/mango:promote` proposes the rule it
+should have become — grouped by class, citing every instance, with nothing written until you ratify each
+candidate. It runs **between** tickets, because recurrence across tickets is invisible from inside one.
 
 ---
 

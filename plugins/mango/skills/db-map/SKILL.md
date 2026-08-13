@@ -3,10 +3,19 @@ name: db-map
 description: Opt-in, descriptive map of the database schema — tables, columns + types, primary/foreign keys, indexes, relationships, and views/procedures — written into config.docs_dir. Generates regenerable facts, never normative rules. OFF by default; needs config.db_kind plus either config.db_introspect_cmd or config.migrations_path. Not part of the lifecycle.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill is **descriptive only**: it generates
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This skill is **descriptive only**: it generates
 **facts** about the schema (regenerable, falsifiable). The **normative** "database conventions"
 (naming, timestamps, soft-delete, FK policy, migration style) live in the `codify` rule book, **not
 here**.
+
+**READ `<mango>/principles/descriptive-normative.md` NOW, before generating anything.** It is the binding
+descriptive/normative boundary. Unconditional, not consult-if-relevant. If `<mango>` does not resolve, say
+so and generate facts only — never a rule.
 
 `db-map` is **OFF by default** — it needs database access or migration files — and the lifecycle runs
 fully whether or not it has ever been generated.

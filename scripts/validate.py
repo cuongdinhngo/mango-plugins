@@ -172,6 +172,47 @@ def parse_frontmatter(path):
     return fields
 
 
+def principles_paths():
+    """The PRINCIPLES contract surface: the always-loaded core PLUS every on-demand companion.
+
+    v1.10.0 relocated whole sections out of `PRINCIPLES.md` into `principles/*.md`, read on demand at
+    their point of use. The contract did not move — only the file it lives in — so every check that
+    asserted a token in `PRINCIPLES.md` now asserts it across this WHOLE surface. Passing the list
+    (rather than one path) keeps the failure message naming a real file, and keeps `principles/` from
+    becoming a place a required token can quietly go missing from.
+    """
+    plugin = ROOT / "plugins" / "mango"
+    return [plugin / "PRINCIPLES.md"] + sorted((plugin / "principles").glob("*.md"))
+
+
+def principles_text():
+    """The concatenated PRINCIPLES contract surface (core + companions) as one string."""
+    out = []
+    for path in principles_paths():
+        try:
+            out.append(path.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+    return "\n".join(out)
+
+
+def skill_text(name):
+    """A skill's whole directive surface: SKILL.md PLUS any on-demand companion beside it.
+
+    v1.10.0 moved each skill's frontend-only block to `skills/<name>/frontend.md`, read on demand when
+    `config.track` includes frontend. A required token may live in either file — but it must live in one
+    of them, so no contract token is lost to the relocation.
+    """
+    d = ROOT / "plugins" / "mango" / "skills" / name
+    out = []
+    for path in sorted(d.glob("*.md")):
+        try:
+            out.append(path.read_text(encoding="utf-8"))
+        except OSError:
+            pass
+    return "\n".join(out)
+
+
 def validate_all_json_parse():
     """Every .json file in the repo must parse (skip dependency/vcs dirs)."""
     skip = {"node_modules", ".git", "__pycache__"}
@@ -244,15 +285,14 @@ def validate_skill_contracts():
         path = ROOT / "plugins" / "mango" / "skills" / skill / "SKILL.md"
         if not check(path.exists(), f"skill-contract: skills/{skill}/SKILL.md is missing"):
             continue
-        try:
-            body = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            check(False, f"skill-contract: cannot read skills/{skill}/SKILL.md ({exc})")
+        body = skill_text(skill)          # SKILL.md + its on-demand companions (v1.10.0)
+        if not check(bool(body), f"skill-contract: cannot read skills/{skill}/"):
             continue
         for pattern in patterns:
             check(
                 re.search(pattern, body, re.IGNORECASE) is not None,
-                f"skill-contract: skills/{skill}/SKILL.md missing required token /{pattern}/",
+                f"skill-contract: skills/{skill}/ missing required token /{pattern}/ "
+                "(searched SKILL.md and every companion beside it)",
             )
 
 
@@ -436,17 +476,24 @@ def validate_review_git_isolation():
         plugin / "skills" / "review" / "SKILL.md",
         plugin / "agents" / "reviewer.md",
         plugin / "agents" / "challenger.md",
-        plugin / "PRINCIPLES.md",
+        # v1.10.0: the invariant moved to principles/git-isolation.md. Assert it over the WHOLE
+        # PRINCIPLES surface (core + companions) so relocation cannot drop the check.
+        None,
     ]
     for path in targets:
-        rel = path.relative_to(ROOT)
-        if not check(path.exists(), f"review-git-isolation: {rel} is missing"):
-            continue
-        try:
-            body = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            check(False, f"review-git-isolation: cannot read {rel} ({exc})")
-            continue
+        if path is None:
+            rel, body = "plugins/mango/PRINCIPLES.md + principles/*.md", principles_text()
+            if not check(bool(body), f"review-git-isolation: {rel} is missing"):
+                continue
+        else:
+            rel = path.relative_to(ROOT)
+            if not check(path.exists(), f"review-git-isolation: {rel} is missing"):
+                continue
+            try:
+                body = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                check(False, f"review-git-isolation: cannot read {rel} ({exc})")
+                continue
         check(re.search(r"ref-based", body, re.IGNORECASE) is not None,
               f"review-git-isolation: {rel} must require ref-based branch inspection (git diff/show/log <base>..<branch>)")
         check(re.search(r"worktree", body, re.IGNORECASE) is not None,
@@ -473,17 +520,24 @@ def validate_worktree_env_parity():
         plugin / "skills" / "review" / "SKILL.md",
         plugin / "agents" / "reviewer.md",
         plugin / "agents" / "challenger.md",
-        plugin / "PRINCIPLES.md",
+        # v1.10.0: the invariant moved to principles/git-isolation.md. Assert it over the WHOLE
+        # PRINCIPLES surface (core + companions) so relocation cannot drop the check.
+        None,
     ]
     for path in targets:
-        rel = path.relative_to(ROOT)
-        if not check(path.exists(), f"worktree-env-parity: {rel} is missing"):
-            continue
-        try:
-            body = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            check(False, f"worktree-env-parity: cannot read {rel} ({exc})")
-            continue
+        if path is None:
+            rel, body = "plugins/mango/PRINCIPLES.md + principles/*.md", principles_text()
+            if not check(bool(body), f"worktree-env-parity: {rel} is missing"):
+                continue
+        else:
+            rel = path.relative_to(ROOT)
+            if not check(path.exists(), f"worktree-env-parity: {rel} is missing"):
+                continue
+            try:
+                body = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                check(False, f"worktree-env-parity: cannot read {rel} ({exc})")
+                continue
         check(re.search(r"env-?parity|environment-equivalence|environment parity", body, re.IGNORECASE) is not None,
               f"worktree-env-parity: {rel} must state that a worktree is NOT environment-equivalent")
         check(re.search(r"untracked", body, re.IGNORECASE) is not None,
@@ -617,11 +671,17 @@ def operational_text_files():
     every `plugins/mango/templates/*.md`, `plugins/mango/PRINCIPLES.md`, the plugin `README.md`, AND the
     repo-root `README.md`. The root README was MISSING from this set in v1.7.4 — part of that version's
     false-green. `CHANGELOG.md` is deliberately EXCLUDED: a changelog documenting past versions is a
-    historical record, not operational text."""
+    historical record, not operational text.
+
+    v1.10.0 widened the set to the ON-DEMAND companions — every `plugins/mango/principles/*.md` and every
+    non-SKILL `plugins/mango/skills/*/*.md`. Relocated text is still shipped operational text: leaving the
+    companions out would have let a jargon term survive by being moved out of a scanned file, which is the
+    same false-green class as the v1.7.4 root-README omission."""
     plugin = ROOT / "plugins" / "mango"
-    return (sorted(plugin.glob("skills/*/SKILL.md"))
+    return (sorted(plugin.glob("skills/*/*.md"))
             + sorted(plugin.glob("agents/*.md"))
             + sorted(plugin.glob("templates/*.md"))
+            + sorted(plugin.glob("principles/*.md"))
             + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md",
                ROOT / "CLAUDE.md"])
 
@@ -659,11 +719,12 @@ def validate_maturity_labels():
               "maturity: breakdown must label its re-ratification behaviour Experimental")
         check(re.search(r"graduat", body, re.IGNORECASE) is not None,
               "maturity: breakdown must state a plain graduation condition (Experimental → Stable)")
-    pr = plugin / "PRINCIPLES.md"
-    if check(pr.exists(), "maturity: PRINCIPLES.md is missing"):
-        body = pr.read_text(encoding="utf-8")
+    # v1.10.0: the Maturity section moved to principles/maturity.md — assert it over the WHOLE
+    # PRINCIPLES surface (core + companions) so the relocation cannot drop the check.
+    body = principles_text()
+    if check(bool(body), "maturity: the PRINCIPLES surface (PRINCIPLES.md + principles/*.md) is missing"):
         check(re.search(r"^##\s*Maturity", body, re.MULTILINE) is not None,
-              "maturity: PRINCIPLES.md must carry a Maturity section defining the vocabulary")
+              "maturity: PRINCIPLES.md or principles/maturity.md must carry a Maturity section defining the vocabulary")
         check(re.search(r"\bStable\b", body) is not None and re.search(r"\bExperimental\b", body) is not None,
               "maturity: PRINCIPLES.md Maturity section must define both Stable and Experimental")
         check(re.search(r"graduat", body, re.IGNORECASE) is not None,
@@ -699,8 +760,13 @@ def validate_no_rationale_in_skills():
     are a permanent tax — they belong in CHANGELOG.md or the non-runtime RATIONALE.md. This check
     fails the build if any RATIONALE_MARKERS pattern reappears in a skill body, so the bloat the
     v1.7.6 trim removed cannot creep back one 'observed failure:' at a time.
+
+    v1.10.0 widened the scan from `SKILL.md` to every `skills/*/*.md`: a skill's on-demand companion is
+    read at its point of use, so it is runtime-loaded text under exactly the same rule. `principles/*.md`
+    stays exempt for the same reason `PRINCIPLES.md` always was — it is the contract doc, not a directive
+    surface, and `principles/authoring.md` names RATIONALE.md by design.
     """
-    for path in sorted((ROOT / "plugins" / "mango").glob("skills/*/SKILL.md")):
+    for path in sorted((ROOT / "plugins" / "mango").glob("skills/*/*.md")):
         rel = path.relative_to(ROOT)
         try:
             body = path.read_text(encoding="utf-8")
@@ -837,14 +903,22 @@ def validate_premise_preflight():
     targets = [
         plugin / "skills" / "refine" / "SKILL.md",
         plugin / "skills" / "analysis" / "SKILL.md",
-        plugin / "PRINCIPLES.md",
+        # v1.10.0: the refine contract moved to principles/refine.md — assert over the WHOLE surface.
+        None,
     ]
     for path in targets:
-        rel = path.relative_to(ROOT)
-        if not check(path.exists(), f"premise-preflight: {rel} is missing"):
-            continue
+        if path is None:
+            rel, body = "plugins/mango/PRINCIPLES.md + principles/*.md", principles_text()
+            if not check(bool(body), f"premise-preflight: {rel} is missing"):
+                continue
+            _skip_read = True
+        else:
+            _skip_read = False
+            rel = path.relative_to(ROOT)
+            if not check(path.exists(), f"premise-preflight: {rel} is missing"):
+                continue
         try:
-            body = path.read_text(encoding="utf-8")
+            body = body if _skip_read else path.read_text(encoding="utf-8")
         except OSError as exc:
             check(False, f"premise-preflight: cannot read {rel} ({exc})")
             continue
@@ -933,7 +1007,6 @@ def validate_learning_loop():
     falsifiable against the shipped text: the pieces exist, the ordering holds, and both non-vacuity
     directions have a fixture."""
     plugin = ROOT / "plugins" / "mango"
-    principles = plugin / "PRINCIPLES.md"
     finalise = plugin / "skills" / "finalise" / "SKILL.md"
     claim_tpl = plugin / "templates" / "claim-record.md"
 
@@ -947,8 +1020,10 @@ def validate_learning_loop():
             check(False, f"learning-loop: cannot read {rel} ({exc})")
             return None
 
-    # --- The contract: PRINCIPLES.md carries the six types, both tiebreaks, and the five invariants.
-    pb = body_of(principles)
+    # --- The contract: the PRINCIPLES surface carries the six types, both tiebreaks, and the five
+    #     invariants. v1.10.0 relocated it to principles/learning-loop.md, read on demand at finalise's
+    #     step 3a — so assert over core + companions, never one file.
+    pb = principles_text() or None
     if pb is not None:
         check(re.search(r"##\s*The learning loop", pb) is not None,
               "learning-loop: PRINCIPLES.md must carry a `The learning loop` section (the binding contract)")
@@ -1210,7 +1285,8 @@ def validate_host_adaptation():
               and re.search(r"never skip the question", rb, re.IGNORECASE) is not None,
               "host-adaptation: refine must never assume a specific host tool exists, and never skip the "
               "question because one is missing")
-    pb = body_of(plugin / "PRINCIPLES.md")
+    # v1.10.0: the want-decision contract moved to principles/refine.md — whole surface.
+    pb = principles_text() or None
     if pb is not None:
         check(re.search(r"host's typed question UI", pb, re.IGNORECASE) is not None
               and re.search(r"numbered options", pb, re.IGNORECASE) is not None,
@@ -1331,6 +1407,407 @@ def validate_output_discipline():
               "output-discipline: templates/ticket.md Phase 3 must carry the golden/snapshot slot")
 
 
+def validate_path_resolution():
+    """v1.10.0 (A3) — every mango-shipped file resolves through a DOCUMENTED order, not through one host
+    env var. `${CLAUDE_PLUGIN_ROOT}` is unset on some hosts, which made `templates/*.md` unreachable and
+    silently degraded the steps that read them. The order lives once in the always-loaded PRINCIPLES core,
+    every skill carries the one-line `<mango>` definition (so the notation is never used undefined), and no
+    skill or companion may point at `${CLAUDE_PLUGIN_ROOT}/templates/...` any more. The check is on the
+    ORDER's completeness, not on a token being present: all four steps, the never-hardcode prohibition,
+    and an explicit unreachable branch must each be stated."""
+    plugin = ROOT / "plugins" / "mango"
+    core = plugin / "PRINCIPLES.md"
+    if not check(core.exists(), "path-resolution: plugins/mango/PRINCIPLES.md is missing"):
+        return
+    body = core.read_text(encoding="utf-8")
+    check(re.search(r"^##\s*Resolving a mango-shipped path", body, re.MULTILINE) is not None,
+          "path-resolution: PRINCIPLES.md must carry a `Resolving a mango-shipped path` section (the order "
+          "lives once, in the always-loaded core)")
+    check(re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}", body) is not None,
+          "path-resolution: the order must name `${CLAUDE_PLUGIN_ROOT}` as step 1 (it is a step, not the contract)")
+    check(re.search(r"skill file sits in|currently loaded skill file", body, re.IGNORECASE) is not None,
+          "path-resolution: the order must offer locating the plugin root from the loaded skill file (step 2)")
+    check(re.search(r"read-only.{0,20}search", body, re.IGNORECASE) is not None,
+          "path-resolution: the order must offer a read-only search for the plugin root (step 3)")
+    check(re.search(r"UNREACHABLE", body) is not None
+          and re.search(r"inline fallback", body, re.IGNORECASE) is not None,
+          "path-resolution: the order must have an explicit UNREACHABLE branch naming the inline fallback "
+          "(step 4) — a degraded read must never continue as if the file had been read")
+    check(re.search(r"never a hardcoded (user )?path|never guess a path", body, re.IGNORECASE) is not None,
+          "path-resolution: the order must forbid a hardcoded / guessed path")
+
+    # Every skill defines `<mango>` before using it, and no skill/companion still reads a template
+    # through the bare env var.
+    for path in sorted(plugin.glob("skills/*/SKILL.md")):
+        rel = path.relative_to(ROOT)
+        # `promote` is deliberately exempt: it inlines every field it needs and resolves no plugin path,
+        # so it runs where no plugin env var exists. validate_promote_skill asserts that exemption.
+        if path.parent.name == "promote":
+            continue
+        sbody = path.read_text(encoding="utf-8")
+        check(re.search(r"`<mango>` = this plugin's root", sbody) is not None,
+              f"path-resolution: {rel} must define `<mango>` before using it (one line, every skill)")
+        check(re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}", sbody) is not None,
+              f"path-resolution: {rel}'s `<mango>` definition must still name `${{CLAUDE_PLUGIN_ROOT}}` as step 1")
+    for path in sorted(plugin.glob("skills/*/*.md")) + sorted(plugin.glob("principles/*.md")) + [core]:
+        rel = path.relative_to(ROOT)
+        sbody = path.read_text(encoding="utf-8")
+        check(re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}/(templates|principles|skills|config)/", sbody) is None,
+              f"path-resolution: {rel} must reach a shipped file through `<mango>/…`, never through a bare "
+              "`${CLAUDE_PLUGIN_ROOT}/<dir>/` path (unreachable on a host that does not set it)")
+
+
+def validate_preload_split():
+    """v1.10.0 (E) — `PRINCIPLES.md` is split into an always-loaded core plus on-demand companions, and
+    each skill's frontend-only block moved beside it. The saving is only real if the moved text still
+    REACHES the agent, so every companion must (a) exist and be non-empty, (b) be named in the core's
+    companion index, and (c) carry an explicit, unconditional READ instruction at a point of use — never
+    'consult X if relevant', which is the failure mode lazy loading introduces. The index and the
+    filesystem must agree in BOTH directions, so neither an orphaned file nor a dangling index row can
+    hide."""
+    plugin = ROOT / "plugins" / "mango"
+    core = plugin / "PRINCIPLES.md"
+    if not check(core.exists(), "preload-split: plugins/mango/PRINCIPLES.md is missing"):
+        return
+    cbody = core.read_text(encoding="utf-8")
+
+    # (a) the core is genuinely a core: the relocated headings are gone from it.
+    for heading in ("## Subagent git isolation", "## Maturity", "## Skills are directive-only",
+                    "## Descriptive vs normative", "## The learning loop", "## The refine phase",
+                    "## Frontend track", "## Token cost"):
+        check(heading not in cbody,
+              f"preload-split: PRINCIPLES.md still carries the relocated section `{heading}` — the core "
+              "must not duplicate a companion (a copy goes stale and competes with its source)")
+    # The four principles and the delegation map STAY in the core: every phase needs them.
+    for heading in ("## 1. Think before coding", "## 2. Simplicity first", "## 3. Surgical changes",
+                    "## 4. Goal-driven execution", "## Model delegation"):
+        check(heading in cbody,
+              f"preload-split: PRINCIPLES.md core must keep `{heading}` (every phase needs it)")
+
+    # (b) + (c) each companion exists, is indexed, and is READ somewhere unconditionally.
+    companions = {
+        "git-isolation.md": ["skills/review/SKILL.md"],
+        "maturity.md": ["skills/breakdown/SKILL.md"],
+        "descriptive-normative.md": ["skills/codify/SKILL.md", "skills/sitemap/SKILL.md",
+                                     "skills/db-map/SKILL.md"],
+        "learning-loop.md": ["skills/finalise/SKILL.md"],
+        "refine.md": ["skills/refine/SKILL.md"],
+        # read on the frontend track only, by the four phases that apply it
+        "frontend-track.md": ["skills/analysis/SKILL.md", "skills/design/SKILL.md",
+                              "skills/execute/SKILL.md", "skills/review/SKILL.md"],
+        "token-cost.md": ["skills/budget/SKILL.md"],
+        "authoring.md": [],               # maintainer-only: its point of use is CONTRIBUTING.md
+    }
+    on_disk = {p.name for p in (plugin / "principles").glob("*.md")}
+    check(on_disk == set(companions),
+          f"preload-split: principles/ holds {sorted(on_disk)} but the check knows {sorted(companions)} — "
+          "an unindexed companion is content nobody is told to read")
+    for name, readers in companions.items():
+        path = plugin / "principles" / name
+        if not check(path.exists() and path.stat().st_size > 0,
+                     f"preload-split: plugins/mango/principles/{name} must exist and be non-empty"):
+            continue
+        check(f"`{name}`" in cbody,
+              f"preload-split: PRINCIPLES.md's companion index must name `{name}` (a companion missing "
+              "from the index is a file no phase knows exists)")
+        for rel in readers:
+            rbody = (plugin / rel).read_text(encoding="utf-8")
+            # The instruction is often line-wrapped, so match READ … <path> … NOW across a bounded
+            # window rather than one line — the load-bearing parts are the imperative, the exact path,
+            # and NOW (which is what makes it unconditional).
+            check(re.search(rf"READ\b.{{0,200}}?`<mango>/principles/{re.escape(name)}`.{{0,120}}?NOW",
+                            rbody, re.DOTALL) is not None,
+                  f"preload-split: {rel} must carry an explicit `READ <mango>/principles/{name} NOW` "
+                  "instruction — an on-demand block with no unconditional read never reaches the agent")
+            check(re.search(r"not\s+(a\s+)?consult-if-relevant|unconditional", rbody, re.IGNORECASE) is not None,
+                  f"preload-split: {rel}'s read instruction must be unconditional, not consult-if-relevant")
+    check(re.search(r"principles/authoring\.md", (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")) is not None,
+          "preload-split: CONTRIBUTING.md must point the maintainer at principles/authoring.md — the one "
+          "companion with no runtime reader still needs a point of use")
+
+    # The per-skill frontend companions: same contract, keyed on `config.track`.
+    for skill in ("analysis", "design", "execute", "review"):
+        path = plugin / "skills" / skill / "frontend.md"
+        if not check(path.exists() and path.stat().st_size > 0,
+                     f"preload-split: skills/{skill}/frontend.md must exist and be non-empty"):
+            continue
+        sbody = (plugin / "skills" / skill / "SKILL.md").read_text(encoding="utf-8")
+        check(re.search(rf"READ\b.{{0,200}}?`<mango>/skills/{skill}/frontend\.md`.{{0,180}}?NOW",
+                        sbody, re.DOTALL) is not None,
+              f"preload-split: skills/{skill}/SKILL.md must carry an explicit "
+              f"`READ <mango>/skills/{skill}/frontend.md NOW` instruction")
+        check(re.search(r"config\.track.{0,40}frontend|track includes frontend", sbody, re.IGNORECASE) is not None
+              and re.search(r"not\s+(a\s+)?consult-if-relevant|mandatory read", sbody, re.IGNORECASE) is not None,
+              f"preload-split: skills/{skill}/SKILL.md must state the condition under which the companion "
+              "is read (`config.track` includes frontend)")
+        check(re.search(r"does\s+not\s+resolve", sbody, re.IGNORECASE) is not None,
+              f"preload-split: skills/{skill}/SKILL.md must state what it still does when `<mango>` does "
+              "not resolve — a missing companion may never turn a required check into no check")
+
+
+def validate_type2_recall():
+    """v1.10.0 (A1) — a type-2 heuristic reaches the next ticket. It is keyed by a class `handle:` (a
+    heuristic holds across tools, so neither a symbol nor an area can key it), recall surfaces it on a
+    change-shape match, and — the half that matters — `design`'s blast-radius step must ANSWER each
+    recalled handle by name. The gate is on the answer ACCOUNTING (`h == t + x`, `u == 0`), not on a field
+    being present: a trace must carry the command AND its output, and the only other legal answer is an
+    explicit `does not apply because <reason>`, which CLOSES the handle."""
+    plugin = ROOT / "plugins" / "mango"
+    tpl = (plugin / "templates" / "claim-record.md").read_text(encoding="utf-8")
+    check("handle: <class-slug>" in tpl,
+          "type2-recall: templates/claim-record.md must define the type-2 `handle: <class-slug>` field")
+    check(re.search(r"type-2 claim.{0,60}MUST carry a `handle:`|type-2 claim with no `handle:` is a finding",
+                    tpl, re.IGNORECASE | re.DOTALL) is not None,
+          "type2-recall: the claim-record must require a `handle:` on every type-2 claim (without one it is "
+          "unrecallable and cannot reach the next ticket)")
+    ll = principles_text()
+    check(re.search(r"\|\s*2\s*\|\s*\*\*generalisable heuristic\*\*.*handle", ll) is not None,
+          "type2-recall: the six-type table's type-2 row must name **handle** as its recall key")
+    for name in ("refine", "analysis"):
+        body = (plugin / "skills" / name / "SKILL.md").read_text(encoding="utf-8")
+        check(re.search(r"type 2.{0,40}by\s*\*{0,2}HANDLE", body, re.IGNORECASE | re.DOTALL) is not None,
+              f"type2-recall: {name} must recall type 2 by HANDLE")
+        check(re.search(r"<h> by handle", body) is not None,
+              f"type2-recall: {name}'s RECALL counting line must count `<h> by handle`")
+        for cue in (r"shared vocabular", r"new core module", r"thread"):
+            check(re.search(cue, body, re.IGNORECASE) is not None,
+                  f"type2-recall: {name} must name the change-shape trigger /{cue}/ for a type-2 handle")
+    d = (plugin / "skills" / "design" / "SKILL.md").read_text(encoding="utf-8")
+    check(re.search(r"`HANDLES: <h> recalled \| <t> traced \(command \+ result\) \| "
+                    r"<x> does not apply \(reason\) \| <u> unanswered`", d) is not None,
+          "type2-recall: design must emit the `HANDLES: <h> recalled | <t> traced … | <u> unanswered` line")
+    check(re.search(r"`u` must be 0|`<u> unanswered`.{0,30}0", d) is not None
+          and re.search(r"BLOCKS? Gate 2", d, re.IGNORECASE) is not None,
+          "type2-recall: an unanswered recalled handle must BLOCK Gate 2")
+    check(re.search(r"h.{0,6}must equal.{0,6}`?t \+ x`?|`h` must equal `t \+ x`", d) is not None,
+          "type2-recall: design must require `h == t + x` — every recalled handle accounted for")
+    check("does not apply because" in d,
+          "type2-recall: design must accept the literal `does not apply because <reason>` as a legal, "
+          "CLOSING answer (an always-applies gate becomes a tax and gets worked around)")
+    check(re.search(r"command you ran and its actual output|command \+ result", d) is not None
+          and re.search(r"is \*\*not\*\* a trace", d) is not None,
+          "type2-recall: a `traced` answer must carry the command AND its output — a filled cell with no "
+          "command is explicitly not a trace (adequacy, not presence)")
+    check(re.search(r"`HANDLES: 0 recalled", d) is not None,
+          "type2-recall: `h = 0` must close the line with zeros and add no work (no busywork on a ticket "
+          "recall surfaced nothing for)")
+    check(re.search(r"still advisory", d, re.IGNORECASE) is not None,
+          "type2-recall: a recalled handle must stay ADVISORY — answered, never promoted into a "
+          "requirement or a matrix row by recall itself")
+
+
+def validate_recurring_type2_destination():
+    """v1.10.0 (A2) — a type-2 claim seen on >=2 tickets may not resolve to `stays in lessons_path`:
+    recording it was already the treatment. It routes to the rule book (code) or the project agent brief
+    (process), or records an explicit `cannot promote: <reason>`. This REUSES the v1.6 cost-ledger
+    content-completeness shape — a real value or an explicit honest marker, never the silent default —
+    with the trailing count as the gate. Type 5 is explicitly exempt: all existing project facts
+    legitimately stay in `lessons_path`, and sweeping them into a rule book would rot it."""
+    plugin = ROOT / "plugins" / "mango"
+    f = (plugin / "skills" / "finalise" / "SKILL.md").read_text(encoding="utf-8")
+    check(re.search(r"`RECURRING-T2: <n> type-2 claim\(s\) with seen (>=|≥) 2 \| <d> routed to a destination \| "
+                    r"<b> cannot promote \(reason\) \| <l> left in lessons_path`", f) is not None,
+          "recurring-t2: finalise must emit the `RECURRING-T2: … | <l> left in lessons_path` counting line")
+    check(re.search(r"`stays in lessons_path` is \*\*rejected\*\*|may NOT resolve to `stays in lessons_path`",
+                    f) is not None,
+          "recurring-t2: finalise must REJECT `stays in lessons_path` for a type-2 claim with seen >= 2")
+    check(re.search(r"`l` must be 0", f) is not None
+          and re.search(r"BLOCKS? finalise", f, re.IGNORECASE) is not None,
+          "recurring-t2: any claim left in lessons_path must BLOCK finalise")
+    check(re.search(r"blank ledger token\s+cell", f, re.IGNORECASE) is not None,
+          "recurring-t2: the rule must name the v1.6 ledger content-gate shape it reuses (a real value or "
+          "an explicit named reason, never the silent default) rather than inventing a parallel mechanism")
+    check("cannot promote: <reason>" in f,
+          "recurring-t2: finalise must offer the explicit `cannot promote: <reason>` resolution so an "
+          "unset key or a falsification block SURFACES the claim instead of dropping it")
+    check(re.search(r"\*\*Type 5 is untouched", f) is not None,
+          "recurring-t2: finalise must state type 5 is UNTOUCHED — a project fact legitimately stays in "
+          "lessons_path however often it recurs")
+    check(re.search(r"seen\*{0,2}\s*once.{0,40}untouched|recurrence, not presence", f, re.IGNORECASE) is not None,
+          "recurring-t2: the trigger must be RECURRENCE, not the mere presence of a type-2 claim")
+    i_seen, i_left = f.find("RECURRING-T2:"), f.find("`PROMOTION:")
+    check(i_seen != -1 and i_left != -1 and i_seen < i_left,
+          "recurring-t2: the destination rule must be documented BEFORE the PROMOTION line it constrains")
+    init = (plugin / "skills" / "init" / "SKILL.md").read_text(encoding="utf-8")
+    check(re.search(r"`agent_brief_path`", init) is not None,
+          "recurring-t2: init must write `agent_brief_path` by name (a promoted PROCESS heuristic has "
+          "nowhere to go without it)")
+    check(re.search(r"never omit one|Write every learning-loop destination key explicitly", init) is not None,
+          "recurring-t2: init must write EVERY loop-destination key explicitly, with its default")
+    example = load_json(plugin / "config" / "harness.example.json")
+    if isinstance(example, dict):
+        check(example.get("agent_brief_path"),
+              "recurring-t2: harness.example.json must ship a non-empty `agent_brief_path` default")
+
+
+def validate_finalise_claim_order():
+    """v1.10.0 (A4) — the claim steps run BEFORE the outward-action list. A step at the tail of finalise
+    competes with the thing the human is waiting on, and the tail is what gets dropped. Asserted
+    positionally (the split/classify/falsify steps precede the outward-action enumeration in the shipped
+    text) AND as an explicit directive, so a future reorder cannot silently undo it."""
+    f = (ROOT / "plugins" / "mango" / "skills" / "finalise" / "SKILL.md").read_text(encoding="utf-8")
+    i_claims = f.find("`CLAIMS: <c> claim(s) from <e>")
+    i_falsify = f.find("`FALSIFY: <c> candidate(s) checked")
+    i_outward = f.find("**List planned outward actions.**")
+    i_gate = f.find("**Require explicit, separate approval per action.**")
+    for label, idx in (("CLAIMS", i_claims), ("FALSIFY", i_falsify),
+                       ("outward-action list", i_outward), ("final gate", i_gate)):
+        check(idx != -1, f"finalise-order: cannot locate the {label} step in finalise/SKILL.md")
+    if min(i_claims, i_falsify, i_outward, i_gate) != -1:
+        check(i_claims < i_outward and i_falsify < i_outward,
+              "finalise-order: the claim steps (split → classify → recurrence → falsify) must appear "
+              "BEFORE the outward-action list — a claim step at the tail is the one that gets dropped")
+        check(i_outward < i_gate,
+              "finalise-order: the outward-action list must still precede the per-action approval gate")
+    check(re.search(r"runs BEFORE the PR\s+body and the outward-action list", f) is not None,
+          "finalise-order: finalise must STATE that the claim steps run before the PR body and the "
+          "outward-action list — position alone is not a directive")
+    check(re.search(r"Do not defer any part of\s+it past step 4", f) is not None
+          and re.search(r"do not begin step 4", f, re.IGNORECASE) is not None,
+          "finalise-order: finalise must forbid deferring any claim step past the PR-body step")
+
+
+def validate_promote_skill():
+    """v1.10.0 (B) — cross-ticket promotion is its own skill because its trigger is RECURRENCE ACROSS
+    TICKETS, which a step at the tail of one ticket's finalise structurally cannot see. It must: propose
+    only, be type-2 only, be idempotent, route by configured destination, put its counted line FIRST, hold
+    the human gate as a question requiring a per-candidate answer, and depend on no host env var. The
+    anti-restatement test is asserted too — a 'rule' that merely paraphrases the lesson is the way this
+    skill fails while looking successful."""
+    plugin = ROOT / "plugins" / "mango"
+    path = plugin / "skills" / "promote" / "SKILL.md"
+    if not check(path.exists(), "promote: plugins/mango/skills/promote/SKILL.md must exist"):
+        return
+    body = path.read_text(encoding="utf-8")
+    lines = body.count("\n")
+    check(lines <= 140,
+          f"promote: skills/promote/SKILL.md is {lines} lines — keep it short (a long skill pushes its own "
+          "tail out of attention, which is the defect it repairs)")
+    check(re.search(r"^\*\*What this does NOT do\.\*\*", body, re.MULTILINE) is not None,
+          "promote: the skill must state what it explicitly does NOT do, up front")
+    check(re.search(r"`PROMOTE: <n> class\(es\) with recurrence >= 2 \| <p> candidate\(s\) proposed \| "
+                    r"<e> already recorded \(skipped\) \| <b> blocked \(reason\) \| rules written: 0`", body) is not None,
+          "promote: must emit exactly one counted line, the `PROMOTE: … | rules written: 0` form")
+    check(re.search(r"rules written: 0.{0,80}non-zero value", body, re.DOTALL) is not None,
+          "promote: `rules written: 0` must be falsifiable — a non-zero value before a ratify is a wrong run")
+    i_count, i_gate = body.find("`PROMOTE: <n>"), body.find("## The human gate")
+    i_draft = body.find("**Draft one candidate rule")
+    check(i_count != -1 and i_draft != -1 and i_count < i_draft,
+          "promote: the counted line must be emitted BEFORE the rule proposals — mandatory output never "
+          "goes after the part the human is waiting on")
+    check(re.search(r"^##\s*Emit this FIRST", body, re.MULTILINE) is not None,
+          "promote: the output-first rule must be a section heading, not a buried aside")
+    check(re.search(r"recurrence \*\*>= 2\*\*|recurrence\s*\*\*>= 2", body) is not None,
+          "promote: the entry condition must be recurrence >= 2, not a schedule")
+    check(re.search(r"`verdict: skipped \(recurrence 1\)`", body) is not None,
+          "promote: recurrence 1 must propose nothing (the negative control, so this is not a tax)")
+    check(re.search(r"already recorded at `?<path>:<line>`?", body) is not None,
+          "promote: it must be IDEMPOTENT — a class already recorded at its destination proposes nothing")
+    check(re.search(r"Check idempotency BEFORE proposing", body) is not None,
+          "promote: the idempotency check must run BEFORE drafting, not after")
+    check(re.search(r"whether or not it matched", body) is not None
+          and re.search(r"with no command shown is not a check", body) is not None,
+          "promote: the idempotency step must report its grep command AND result either way — a skipped "
+          "grep and a genuine empty result otherwise produce identical output, so the check could go "
+          "missing unnoticed (adequacy, not presence)")
+    check(re.search(r"restatement test", body) is not None
+          and re.search(r"restatement, not a rule", body) is not None,
+          "promote: it must reject a candidate that merely RESTATES the lesson — a vague restatement is "
+          "how this skill fails while appearing to succeed")
+    check(re.search(r"traceability test", body) is not None
+          and re.search(r"invented policy", body) is not None,
+          "promote: every clause must quote the lesson text it came from; an unquoted clause is invented "
+          "policy and is deleted")
+    check(re.search(r"falsifiability test", body) is not None,
+          "promote: every candidate must name what would show the rule violated")
+    check(re.search(r"answer `ratify`, `reject`, or `edit", body) is not None
+          and "?" in body[i_gate:i_gate + 1200],
+          "promote: the human gate must be a STOP phrased as a question requiring a per-candidate answer, "
+          "not a note that approval is needed")
+    check(re.search(r"Silence is not an answer", body) is not None,
+          "promote: silence must be explicitly not approval")
+    check(re.search(r"^##\s*When NOT to run this", body, re.MULTILINE) is not None,
+          "promote: the skill must carry an explicit `When NOT to run this` section")
+    check(re.search(r"\$\{CLAUDE_PLUGIN_ROOT\}", body) is None
+          and re.search(r"<mango>", body) is None,
+          "promote: must depend on no plugin-root resolution at all — its fields are inlined, so it runs "
+          "on a host that sets no plugin env var")
+    check("config.rulebook_path" in body and "config.agent_brief_path" in body,
+          "promote: both configured destinations must be named (code -> rule book, process -> agent brief)")
+    check(re.search(r"Never file a process heuristic in the code rule book", body) is not None,
+          "promote: a PROCESS heuristic must never be filed in the code rule book")
+    check(re.search(r"type-3 signal", body) is not None,
+          "promote: a gap in mango itself must route to config.skill_gap_path as a type-3 signal, never "
+          "into a mango file")
+    check(re.search(r"PROJ-069|PROJ-072|PROJ-080", body) is not None,
+          "promote: the worked example must carry real content, not placeholders")
+
+    # Wiring: the orchestrator names it (and says it does NOT invoke it), doctor reports it, README lists it.
+    solve = (plugin / "skills" / "solve" / "SKILL.md").read_text(encoding="utf-8")
+    check("/mango:promote" in solve,
+          "promote: solve must name `/mango:promote` as the cross-ticket pass")
+    check(re.search(r"`solve` never invokes it|solve never invokes", solve) is not None,
+          "promote: solve must state it does NOT invoke promote (one ticket per run; a cross-ticket pass "
+          "is not a lifecycle phase)")
+    fin = (plugin / "skills" / "finalise" / "SKILL.md").read_text(encoding="utf-8")
+    check("/mango:promote" in fin,
+          "promote: finalise must hand a cross-ticket class to `/mango:promote` rather than attempting it")
+    doc = (plugin / "skills" / "doctor" / "SKILL.md").read_text(encoding="utf-8")
+    check("/mango:promote" in doc,
+          "promote: doctor must be aware of promote and report its prerequisites")
+    check(re.search(r"promote.{0,400}lessons_path", doc, re.DOTALL) is not None,
+          "promote: doctor must check `lessons_path` as promote's corpus prerequisite")
+    check(re.search(r"Never ❌", doc[doc.find("/mango:promote"):]) is not None,
+          "promote: doctor's promote check must never ❌ (promotion is opt-in and off the lifecycle)")
+
+
+def validate_v1_10_fixtures():
+    """v1.10.0 — each of the five items must be shown to CATCH something, per the inject-then-catch
+    standard, and each gate must have its NEGATIVE control so it cannot become a tax. A fixture that
+    exists but is not dispatched is not coverage, so both are asserted: the file exists, `run.sh`
+    dispatches it, and `FIXTURE_SKILLS` keys it to the skill it exercises (without that key the fixture
+    hashes over every skill and never cache-hits)."""
+    required = {
+        # A1 — type-2 recall by handle, and the design-side answer gate
+        "recall-type2-handle": "type-2 recall fires by HANDLE on a change-shape match while the symbol and area claims stay silent",
+        "handle-unanswered-blocks": "a recalled handle with no trace and no `does not apply` BLOCKS Gate 2",
+        "handle-does-not-apply-closes": "the control — an explicit `does not apply because <reason>` CLOSES the handle",
+        "recall-zero-no-busywork": "the control — recall matching nothing closes with zeros and adds no work",
+        # A2 — a recurring type-2 claim must leave lessons_path; type 5 must not be swept up
+        "recurring-t2-leaves-lessons": "a type-2 claim with seen >= 2 may not resolve to `stays in lessons_path`",
+        "type5-stays-in-lessons": "the control — a recurring TYPE-5 claim legitimately stays in lessons_path",
+        # A3 — resolution without the host env var
+        "template-resolve-no-plugin-root": "the claim-record shape still resolves with ${CLAUDE_PLUGIN_ROOT} unset",
+        # B — cross-ticket promote, with both controls
+        "promote-two-lessons-one-rule": "two instances of one class yield ONE candidate citing both, nothing written",
+        "promote-single-lesson-noop": "the control — recurrence 1 proposes nothing",
+        "promote-idempotent": "a re-run on an unchanged corpus proposes nothing new",
+        # E — the on-demand split must still reach the agent, on every host
+        "ondemand-companion-read": "a relocated block is READ at its point of use and the phase behaves as before",
+        "ondemand-read-no-plugin-root": "an on-demand read resolves with ${CLAUDE_PLUGIN_ROOT} unset, and an unreachable companion never means no check",
+    }
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "v1.10-fixtures: tests/eval/run.sh is missing"):
+        return
+    rs = runsh.read_text(encoding="utf-8")
+    for name, why in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"v1.10-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+              f"v1.10-fixtures: run.sh must dispatch the {name} fixture "
+              "(an unregistered fixture is not coverage)")
+        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+              f"v1.10-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+    # The cache key must cover the relocated text, or a companion edit would reuse a stale GREEN.
+    check(re.search(r'ls "\$PLUGIN_SRC"/principles/\*\.md', rs) is not None,
+          "v1.10-fixtures: run.sh's skills_files must hash every principles/*.md companion — a relocated "
+          "block outside the cache key would let a companion edit reuse a stale GREEN transcript")
+    check(re.search(r'ls "\$PLUGIN_SRC"/skills/"\$s"/\*\.md', rs) is not None,
+          "v1.10-fixtures: run.sh's skills_files must hash a mapped skill's whole directory, so its "
+          "on-demand companion is inside the cache key")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -1410,6 +1887,13 @@ def main():
     validate_learning_loop()
     validate_host_adaptation()
     validate_output_discipline()
+    validate_path_resolution()
+    validate_preload_split()
+    validate_type2_recall()
+    validate_recurring_type2_destination()
+    validate_finalise_claim_order()
+    validate_promote_skill()
+    validate_v1_10_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

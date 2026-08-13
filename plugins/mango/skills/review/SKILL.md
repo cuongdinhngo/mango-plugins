@@ -3,15 +3,20 @@ name: review
 description: Phase 4 of the mango ticket lifecycle. Use after execute. Runs the reviewer agent on the diff and the challenger agent ticket-blind, reconciles scope vs the approved list, checks the proving test, and fills Ph3/4 proven by. Stops only if the work is not clean.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This phase enforces principle 3 (Surgical
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This phase enforces principle 3 (Surgical
 changes) via the scope reconciliation and principle 4 (Goal-driven) via the proving-test result and
 the `k/N` denominator.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` and ground every rule in
 `config.rulebook_path`. If `.harness.json` is missing, STOP and tell the user to create one from
-`${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`.
+`<mango>/config/harness.example.json`.
 
-**Model delegation** (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`): the review verdict and the
+**Model delegation** (see `<mango>/PRINCIPLES.md`): the review verdict and the
 challenger's requirement reconstruction are the **highest-judgment** step — run them on Sonnet, and
 **never** on Haiku. The Haiku `extractor` worker may only gather context for you (e.g. pull caller
 snippets); it never produces a verdict.
@@ -26,6 +31,10 @@ runtime, so the Opus upgrade is a **choice of agent**, not a setting:
 
 ## Git isolation (binding) — subagents inspect refs, never mutate the shared working tree
 
+**READ `<mango>/principles/git-isolation.md` NOW, before dispatching any review subagent.** It is the
+binding contract this section applies; the read is unconditional, not consult-if-relevant. If `<mango>`
+does not resolve, say so and enforce at minimum the rules restated below — never skip the section.
+
 Both the `reviewer` and the `challenger` inspect the diff/branch **read-only and ref-based** —
 `git diff <base>..<branch>`, `git show <branch>:<path>`, `git log <base>..<branch>` — or in an
 **isolated `git worktree`** (`git worktree add <scratch> <branch>`, removed afterward). A review
@@ -34,7 +43,7 @@ the **shared working tree (the live checkout)**: that switches the main worktree
 feature branch onto another ref, strips the in-progress source files from disk, and leaves the working
 doc untracked — a real corruption. If a subagent needs to **run** the suite against the branch (not
 just read it), it uses an **isolated `git worktree` / clone**, never the live checkout. This is stated
-once in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (Subagent git isolation) and is guarded by
+once in `<mango>/PRINCIPLES.md` (Subagent git isolation) and is guarded by
 `scripts/validate.py`.
 
 ### Worktree ≠ environment-equivalence (binding — carry the untracked env, or run in place)
@@ -72,7 +81,7 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
 1. **Run the reviewer agent** on the working-tree diff — `reviewer` or `reviewer-max` per the
    **Reviewer selection** rule above. It reads `config.rulebook_path` / `config.standards_path` and
    returns a verdict (BLOCK / CHANGES REQUESTED / LGTM) plus findings. **When TRACK (from analysis)
-   includes frontend, inject `${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md` into the reviewer's
+   includes frontend, inject `<mango>/templates/frontend-rubric.md` into the reviewer's
    brief** (and the challenger's) so it also scores the frontend rubric — see the **Frontend track**
    section below. Do **not** fork the agents per track; the rubric is injected content.
 2. **Run the `challenger` agent ticket-blind.** **Construct its input explicitly** so independence
@@ -197,56 +206,13 @@ Everything else (clean-decision criteria, the stale-review marker) is unchanged:
 that confirms all N fixes + a clean regression scan yields a clean verdict and records the
 `Reviewed at <sha>` marker exactly as a full review would.
 
-## Frontend track — score the rubric against `DESIGN.md` (only when `config.track` includes frontend)
+## Frontend track (only when `config.track` includes frontend)
 
-When TRACK includes frontend, the reviewer **and** the challenger also score
-`${CLAUDE_PLUGIN_ROOT}/templates/frontend-rubric.md`. Every rubric item is **falsifiable**
-(measurable or greppable) and is checked **against the project's `DESIGN.md`**
-(`config.design_doc_path`), never against a blanket aesthetic rule — "is it tasteful?" is **out** of
-the rubric; taste exists only as `DESIGN.md` conformance. The rubric covers:
-
-- **Core (always):** matches `DESIGN.md` (colour/font/spacing/radius from agreed tokens); no
-  hardcoded hex/px outside tokens (grep); semantic HTML; **state never by colour alone** (icon +
-  text); `prefers-reduced-motion` respected; no aesthetic change mixed into a logic/backend PR.
-- **Responsive & touch — M1–M10 (all falsifiable):** viewport meta / zoom (M1), no horizontal scroll
-  at each breakpoint + the 320 px floor (M2), reflow @320 px (M3), **touch-target** ≥ 44×44 px with
-  ≥ 8 px spacing (M4), input zoom guard ≥ 16 px (M5), tap/hover parity (M6), focus-visible + ≥ 3:1
-  indicator (M7), contrast (M8), safe-area respect (M9), pointer-input parity (M10). These are the
-  **a11y** / responsive gates; each carries its risk layer for the layer-match gate.
-
-**Layer-match re-confirmation extends to the frontend ACs (do not fork it).** Each M-gate carries a
-risk layer above the logic/unit layer (`document` / `computed-style` / `integration/runtime` /
-`behavioral`); a unit-only proof (mocked DOM) clears **none** of them. Re-confirm at step 8 that no
-frontend AC closed clean on a layer-mismatched proof — a `❌` blocks clean unless it is a recorded,
-human-approved coverage-gap exclusion.
-
-**M10 degrades gracefully — it never wedges the review.** Its always-on greppable smell (a mouse-only
-handler or hover-only interaction with no pointer/touch equivalent) always runs and can block; its
-best-effort behavioral dispatch-assert runs **only when the environment can**, and when it can't it
-is recorded as a named human-approved coverage-gap exclusion rather than blocking.
-
-## Surface-coverage proof manifest — the `N == M + X` check (frontend universal/app-wide reqs)
-
-For each universal / app-wide frontend requirement, the challenger scores the **proof-manifest**
-(`execute`'s one-row-per-(AC × surface) record) — independently of the working doc, preserving its
-ticket-blindness: it **re-enumerates the reachable surfaces from the branch code** (this is its own
-`SURFACES` count) and rebuilds the requirement from the raw ticket, then checks every reachable
-surface has a proof in the diff. The count:
-
-- `N` = |reachable surfaces from code| · `M` = surfaces with a valid **PASS (any tier)** · `X` =
-  recorded human-approved **EXCLUDED**. **The gate passes iff `N == M + X`.** A ticket-scoped proof
-  covering 2 of 5 reachable surfaces yields `N=5, M=2` → **blocked**, with the loud banner
-  `⚠ surfaces proven: 2/5 — <uncovered> have no proof; cover or record an exclusion.`
-- **Score each entry by tier:** a `PASS(automated)` row against the **C1–C8** automated-proof contract
-  (real SUT not mocked, threshold asserted not "looks ok", role+name selectors — a non-role selector
-  with no recorded reason is flagged, one layer per AC, determinism); a `PASS(render@<bp>)` row against
-  the lighter **render-proof contract** (real surface at the breakpoint, visible measurable asserted,
-  a recorded artifact the reviewer can see). A `render@<bp>` is a **first-class proof, not an
-  exclusion** — do not demand a runner where the project has none.
-- **Defeat fabricated entries:** the challenger **re-runs ≥ 1** tier-1 `proof-cmd` (or, for tier-2,
-  **confirms the recorded render artifact exists**). Under **`TIER=lite`** this lightens to
-  **confirming command/artifact presence** rather than a live re-run — but surface coverage, the
-  manifest, and a proof per surface stay **mandatory**.
-
-This **extends** the step-8 layer-match re-confirmation; it does not fork it. `fullstack` applies this
-to its frontend ACs only; a `track=backend` ticket has no manifest and this section is inert.
+When TRACK includes frontend, **READ `<mango>/skills/review/frontend.md` **and** `<mango>/principles/frontend-track.md` NOW** — before dispatching the
+reviewer / challenger — and apply every rule in it: the falsifiable rubric scored against the project's
+`DESIGN.md`, the Core plus M1–M10 **a11y** / responsive / **touch-target** items, the frontend
+layer-match re-confirmation, M10's graceful degradation, and the surface-coverage **proof manifest**
+`N == M + X` check with its `surfaces proven: <M+X>/<N>` banner. This is a **mandatory read**, not a
+consult-if-relevant: the rubric it carries is what the reviewer is scored on. If `<mango>` does not
+resolve, say so and score at minimum the Core items plus M2/M3/M4/M7/M8 by name rather than dropping
+the rubric. On `track=backend` there is no manifest and this section is inert.

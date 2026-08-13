@@ -5,6 +5,97 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.10.0] — 2026-08-13
+
+**The learning-loop pipe joined end to end, a cross-ticket `promote` skill, host-independent path
+resolution, and an on-demand preload split.** Two field retros on another host recorded the same class of
+lesson on three separate tickets, and it never reached the next ticket. The loop had been executed
+correctly each time. Three independent breaks sat on the path a lesson must travel —
+`write → classify → promote → recall → the next design answers it` — and repairing any one of them alone
+carries nothing, because a pipe with three breaks passes nothing when one is fixed. All three are repaired
+here, in one version, together with the reorder that decides whether the loop's steps run at all.
+
+**No CHECK was removed and no gate loosened.** Where a section moved to a new file, every check that
+asserted a token in the old location now asserts it across the whole surface (core + companions), so
+relocation cannot be how a check stops applying. `validate.py` went from 1,186 to 1,427 checks.
+
+### Fixed — the three breaks on the recall path
+
+- **A type-2 heuristic now has a recall key.** Recall keyed types 1, 5 and 6 only; type 2 — the
+  *generalisable heuristic*, the one type that is a candidate to become a rule — had no key at all, so a
+  correctly classified type-2 claim could never surface again. A heuristic holds across tools, so neither a
+  symbol (type 1's key) nor an area (type 5's key) can key it: it now carries a **`handle:`**, a short
+  kebab-case class slug. `refine`/`analysis` surface a handle on the **shape of the change** — a shared
+  vocabulary, a new core module, or a value threaded through callers — and the `RECALL:` line counts
+  `<h> by handle`.
+- **A recurring type-2 claim may no longer resolve to `stays in lessons_path`.** A claim whose `seen:` list
+  holds ≥ 2 ticket keys recurred *despite* being written down, so recording it again is the treatment that
+  already failed. It now resolves to `config.rulebook_path` (code subject) or `config.agent_brief_path`
+  (process subject), or records the explicit `cannot promote: <reason>` naming the unset key or the
+  falsification block. The counted `RECURRING-T2:` line's trailing `<l> left in lessons_path` must be `0`.
+  This **reuses the v1.6 cost-ledger content-completeness shape** — a real value or an explicit honest
+  marker, never the silent default — rather than inventing a parallel mechanism. **Type 5 is deliberately
+  untouched:** every existing claim record is a type-5 project fact, and sweeping those into a rule book
+  would rot it.
+- **Every mango-shipped path resolves through a documented order, not one host variable.**
+  `${CLAUDE_PLUGIN_ROOT}` is unset on some hosts, which made `templates/*.md` unreachable there and let a
+  step that reads a template degrade quietly to prose. The order — the variable when set, else the plugin
+  root located from the loaded skill file, else a read-only search, else an explicit UNREACHABLE branch
+  naming the inline fallback — lives once in the always-loaded `PRINCIPLES.md` core, and every skill defines
+  the `<mango>` notation before using it. Never a hardcoded or guessed path. `doctor` now reports **how**
+  the root resolved and continues its checklist when it cannot resolve at all.
+- **`finalise`'s claim steps run before the outward-action list.** They were steps `8a`–`8e`, after the PR
+  body and the outward actions the human is waiting on; the artefacts that blocked shipped and the ones
+  that did not were dropped. They are now steps `3a`–`3e`, ahead of the PR body, with an explicit directive
+  forbidding any part of them being deferred past it — position alone is not a directive, so both the
+  ordering and the prohibition are asserted.
+
+### Added — `/mango:promote`, cross-ticket by construction
+
+- Promotion's trigger is **recurrence across tickets**, which a step at the tail of one ticket's `finalise`
+  structurally cannot see — which is why it fired zero times across 67 lessons. It is now its own skill:
+  it groups **type-2** claims by `handle:`, and for each class seen on **≥ 2 tickets** proposes **one**
+  candidate rule citing every instance, then **stops with a question requiring a per-candidate answer**.
+- It **proposes only** — `PROMOTE: … | rules written: 0` is the falsifiable form. It is **idempotent** (a
+  class already recorded at its destination proposes nothing, checked *before* drafting), **type-2 only**,
+  and routes to a **configured** destination, never a guessed one. Three self-tests run on each draft: a
+  **restatement test** (a sentence that merely paraphrases the lesson, adding no trigger, action and
+  observable, is rejected), a **traceability test** (every clause quotes the lesson text it came from; an
+  unquoted clause is invented policy and is deleted), and a **falsifiability test**.
+- `solve` names it and states it does **not** invoke it (one ticket per run; a cross-ticket pass is not a
+  lifecycle phase). `finalise` hands a class across once `seen:` reaches 2. `doctor` reports its two
+  prerequisites, never as a ❌.
+
+### Added — `design` must ANSWER every recalled handle by name
+
+Surfacing was already advisory and stayed so; what was missing was **accounting for what was surfaced**.
+`design`'s blast-radius step now emits one row per recalled handle and answers each with either a **trace
+carrying the command and its actual output** — a filled cell with no command is explicitly not a trace — or
+the literal **`does not apply because <reason>`**, which is a fully legal answer that **closes** the handle.
+`HANDLES: <h> recalled | <t> traced | <x> does not apply | <u> unanswered` must satisfy `h == t + x` with
+`u == 0`; any unanswered handle blocks Gate 2. `h = 0` closes the line with zeros and adds no work.
+
+### Changed — the preload split (text relocated, never reworded)
+
+`PRINCIPLES.md` was 27% of what loads before any ticket work begins. It is now an **always-loaded core**
+(the four principles, the resolution order, the model-delegation map) plus **eight on-demand companions**
+under `plugins/mango/principles/`, and each skill's frontend-only block moved to `skills/<name>/frontend.md`,
+read when `config.track` includes frontend. **Every moved block is byte-identical to its source**; the
+`<mango>` notation swap on top of it is a mechanical, greppable token substitution, not a reword. Lazy
+loading fails when content that is needed never gets read, so **every companion carries an explicit,
+unconditional READ instruction at its point of use** — never "consult X if relevant" — and each read states
+what the phase still does when the path cannot be resolved. The measured always-loaded total falls from
+2,074 to 1,715 lines on a backend ticket.
+
+### Verification
+
+`python3 scripts/validate.py` — 1,427 checks, 0 failed. Twelve new fixtures, each shown to catch something,
+with the four negative controls that keep the new gates from becoming a tax: an explicit `does not apply`
+**closes** the handle; a recurring **type-5** claim legitimately stays in `lessons_path`; a recall that
+matches nothing closes with zeros and adds no step; and `promote` at recurrence 1 proposes nothing. Sixteen
+tamper tests confirm each new static check fails when its subject is removed. The behavioural eval was
+**not** run for this version.
+
 ## [1.9.1] — 2026-08-02
 
 **Host-adaptation, plus four output-discipline directives.** Two things of the same low-risk class, both

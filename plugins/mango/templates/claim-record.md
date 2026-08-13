@@ -12,7 +12,10 @@ its claim record there and names the destination it was promoted to, so provenan
 - type: <1 tool-constraint | 2 heuristic | 3 skill-gap-signal | 4 world-fact | 5 project-ground-truth | 6 adjudicated-non-defect>
 - status: proposed (awaiting human confirm) | confirmed
 - evidence: <path:line | the command + its output | the finding that proved it>
-- handle: symbol:<import / API>        # type 1 — the RECALL KEY. Omit for every other type.
+- handle: symbol:<import / API>        # type 1 — the RECALL KEY. A symbol, not a slug.
+- handle: <class-slug>                 # type 2 — the RECALL KEY. A short kebab-case slug naming the
+                                       #   CLASS of heuristic (e.g. `blast-radius-grep`), never a
+                                       #   symbol and never an area: a heuristic holds across tools.
 - area: <domain / area>                # type 5 — the RECALL KEY. An area, NOT a symbol.
 - sub-shape: descriptive | normative | environment   # type 5 only
 - re-raise: <the finding this pre-empts>             # type 6 — the RECALL KEY
@@ -29,9 +32,13 @@ its claim record there and names the destination it was promoted to, so provenan
 
 - **`status:` is `proposed` until a human confirms the type.** The classifier proposes; it never
   classifies-and-acts.
-- **The recall key is per type.** Type 1 is recalled by **symbol**, type 5 by **area**, type 6 by **the
+- **The recall key is per type.** Type 1 is recalled by **symbol**, **type 2 by its class `handle:`**,
+  type 5 by **area**, type 6 by **the
   finding that would otherwise be re-raised**. A type-5 claim given a symbol handle instead of an area
   will not surface when it should.
+- **A type-2 claim MUST carry a `handle:`.** A heuristic holds across tools, so neither a symbol nor an
+  area can key it; without a class slug it is unrecallable and cannot reach the next ticket. A type-2
+  claim with no `handle:` is a finding at classification.
 - **`expiry:` on every type 6, `verified-at:` on every type-5-environment claim.** A type-6 entry with
   no expiry is a permanent exemption nobody chose; an environment fact with no stamp is indistinguishable
   from a current one.

@@ -3,7 +3,12 @@ name: refine
 description: Phase 0 of the mango ticket lifecycle — the FIRST phase. Use when a request arrives raw. Scans the project for context, TRIES to expose the unresolved product-decisions, classifies each as a how-decision (HOW → self-resolve + cite) or a want-decision (WANT → ask the user), and emits a refined ticket as counted artifacts for analysis. Self-skips when the ticket is already clear. Detects an epic and routes to the epic path.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` — especially its **expose / ask / never-author**
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md` — especially its **expose / ask / never-author**
 boundary for intent. refine is the **first** phase of the lifecycle; it runs before `analysis`. Its
 whole job is to turn a raw request into a **refined ticket** without ever authoring the user's intent:
 it **exposes** the product-decisions and puts the WANT ones to the human, resolving the HOW ones itself
@@ -11,9 +16,9 @@ with a citation. **Every decision refine makes is a counted artifact** (visible,
 next gate) — never buried in prose.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` first. If it is missing, STOP and tell the
-user to create one from `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. refine writes **no code**
+user to create one from `<mango>/config/harness.example.json`. refine writes **no code**
 and makes **no tracker write**. It reads the project read-only and records its output in the working
-doc's Phase-0 block (from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`).
+doc's Phase-0 block (from `<mango>/templates/ticket.md`).
 
 > **HARD invariants (verified in Finish, guarded by `scripts/validate.py`):**
 > - refine **exposes for the human to decide, and NEVER authors intent** — the descriptive/normative
@@ -25,6 +30,11 @@ doc's Phase-0 block (from `${CLAUDE_PLUGIN_ROOT}/templates/ticket.md`).
 >   multi-advisor debate.
 
 ## Step 0 — scan the project for context (do NOT ask what the scan can answer)
+
+**READ `<mango>/principles/refine.md` NOW, before Step 0 runs.** It is the binding expose/ask/never-author
+contract for this phase — the derivable/intent boundary, the acceptance-bar tie-breaker, the readiness
+gate, and the epic-path rules. The read is unconditional, not consult-if-relevant. If `<mango>` does not
+resolve, say so and apply the steps below, which restate the load-bearing directives.
 
 mango always runs inside an existing project. refine FIRST **scans** it, read-only: directory
 structure, README, package manifest / dependencies, config, and the existing code + conventions —
@@ -79,12 +89,18 @@ to a ticket whose premise holds.
 ### Advisory recall — SURFACE the matching claims from past runs (never inject, never block)
 
 Once the premise holds, read the claim records in `config.lessons_path` (the shape is
-`${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`) and **surface** the ones this ticket matches, keyed
+`<mango>/templates/claim-record.md`) and **surface** the ones this ticket matches, keyed
 per type:
 
 - **type 1 (tool-constraint) by SYMBOL** — a claim whose `handle: symbol:<import/API>` appears in the
   ticket, the change area, or the imports the scan found. A symbol that does **not** appear surfaces
   nothing.
+- **type 2 (generalisable heuristic) by HANDLE** — a claim whose `handle: <class-slug>` names a class the
+  change-list touches. A heuristic is keyed by **neither symbol nor area**, so match it on the **shape of
+  the change**: surface the handle when the change-list touches a **shared vocabulary** (a shared/generated
+  type, symbol, enum, or schema name), introduces or edits a **new core module** (a module other modules
+  will import), or **threads a value through callers** (a value produced in one place and consumed
+  downstream). None of those three present → surface nothing.
 - **type 5 (project ground-truth) by AREA** — a claim whose `area:` matches the ticket's area. Type 5 is
   matched by **area, not symbol**; on an environment sub-shape, surface its `verified-at:` stamp so a
   rotted fact is visible as rotted.
@@ -99,7 +115,7 @@ phases to weigh: it **never** injects a requirement or an acceptance criterion, 
 row, **never** blocks or gates the phase, and **never** edits a file. A surfaced claim that turns out to
 be irrelevant costs a line of output. Emit the counted artifact on every run, zero included:
 
-`RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
+`RECALL: <n> claim(s) surfaced | <s> by symbol | <h> by handle | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
 
 If `config.lessons_path` is unset or absent, emit the line with zeros and say so — never skip it
 silently.
@@ -230,7 +246,7 @@ Emit **all three** counting lines so the exposure is auditable — the premise a
 **always**, on every run, zero included, even when nothing is missing:
 
 `PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`
-`RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
+`RECALL: <n> claim(s) surfaced | <s> by symbol | <h> by handle | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
 `REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
 
 A run that emits `REFINE:` without `PREMISE:` or without `RECALL:` is **incomplete** — neither check is
@@ -248,7 +264,7 @@ new game"). **Signal:** the exposed work spans **multiple independent, each-exec
 deliverables**. On an epic, record it as a counted decision and route to the **epic path**
 (`analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles`; see `breakdown`), which is thin by
 design (only enough to split) — its re-ratification behaviour is **Experimental** and expected to
-be refined by retro (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`, Maturity). A single deliverable → the
+be refined by retro (see `<mango>/PRINCIPLES.md`, Maturity). A single deliverable → the
 normal ticket path (`analysis → design → execute → review → finalize`).
 
 **Epic path is not exempt from the exposure-checker (dispatch it BEFORE breakdown).** On the epic

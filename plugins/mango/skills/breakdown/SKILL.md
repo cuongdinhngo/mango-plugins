@@ -3,10 +3,19 @@ name: breakdown
 description: Epic-only phase of the mango lifecycle — runs ONLY on the epic path, AFTER design(epic). Splits an epic into tickets using the epic-level architecture, emits a counted ticket list with a per-ticket INVEST self-check, and holds a human gate before any ticket executes. Each resulting ticket then runs its own full lifecycle. Deliberately thin — its re-ratification behaviour is Experimental (expected to be refined by retro); the rest is Stable.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. `breakdown` is **not** part of the single-ticket
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. `breakdown` is **not** part of the single-ticket
 lifecycle — it activates **only on the epic path**, **after `design(epic)`**, when `refine` detected an
 epic. Its job is to draw **ticket boundaries** from the epic-level architecture so each resulting ticket
 can run its own full lifecycle (`analysis → design → execute → review → finalize`).
+
+**READ `<mango>/principles/maturity.md` NOW** — this phase ships an **Experimental** behaviour and must
+label it honestly with that vocabulary. The read is unconditional, not consult-if-relevant. If `<mango>`
+does not resolve, say so and use **Stable / Experimental** exactly as this file already does.
 
 > ⚠️ **Thin by design — only enough to split.** The exact epic→ticket boundary sizing has **no
 > exact metric** (no agile method provides one). INVEST is the heuristic here; **retro corrects
@@ -15,11 +24,11 @@ can run its own full lifecycle (`analysis → design → execute → review → 
 >
 > **Maturity:** the **re-ratification** behaviour (Step 7) is **Experimental**; the rest of this phase —
 > the counted ticket list, the enumerated six-letter INVEST self-check, the human split-gate, and the
-> scaffold-committed-before-child ordering — is **Stable**. See `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`
+> scaffold-committed-before-child ordering — is **Stable**. See `<mango>/PRINCIPLES.md`
 > (Maturity).
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` first. If it is missing, STOP and tell the
-user to create one from `${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. `breakdown` writes **no
+user to create one from `<mango>/config/harness.example.json`. `breakdown` writes **no
 code** and makes **no tracker write**; it emits a counted ticket list into the working doc and stops at
 its human gate.
 
@@ -95,8 +104,8 @@ its human gate.
 
    **The epic lesson runs the same learning loop `finalise` runs** — reuse it, invent no parallel one:
    split the entry into **atomic claims**, **classify** each (a proposal the human confirms at the
-   ratification gate, per the six types + tiebreaks in `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`), record it
-   in the shape of `${CLAUDE_PLUGIN_ROOT}/templates/claim-record.md`, and emit:
+   ratification gate, per the six types + tiebreaks in `<mango>/PRINCIPLES.md`), record it
+   in the shape of `<mango>/templates/claim-record.md`, and emit:
 
    `CLAIMS: <c> claim(s) from <e> lesson entr(ies) | T1=<n> T2=<n> T3=<n> T4=<n> T5=<n> T6=<n> | <u> unclassified`
 

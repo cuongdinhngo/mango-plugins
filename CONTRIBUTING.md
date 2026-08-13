@@ -28,6 +28,10 @@ is paid on every ticket run. A `SKILL.md` therefore carries **directives only** 
 - the **REASON** goes in `plugins/mango/CHANGELOG.md`, and the incident itself (if a future maintainer
   needs it) in `plugins/mango/RATIONALE.md` — a file **no skill loads at runtime**.
 
+The binding contract for this is `plugins/mango/principles/authoring.md` — **read it before editing any
+`SKILL.md`.** It is the one companion with no runtime point of use: it governs mango's maintainer, never a
+ticket run, which is exactly why it does not belong in the always-loaded `PRINCIPLES.md` core.
+
 `scripts/validate.py` enforces this (`validate_no_rationale_in_skills`): the build fails if a rationale
 marker (`observed failure`, `field-observed`, `exists because`, `the reason …`, `historically`,
 `war-story`, `retro-#N`) appears in any `plugins/mango/skills/*/SKILL.md`, and fails again if a skill

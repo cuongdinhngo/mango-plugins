@@ -3,17 +3,22 @@ name: quick
 description: The lite lane of the mango lifecycle, for trivial tickets (SCOPE=S, single file/row, no universal requirement, not security-tagged). Use to ship a one-line fix without the full five gates — a single combined pre-code gate, then execute, a reviewer-only check, and the final gate. Skips the full matrix, challenger, and fan-out.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This is the right-sized lane: it still enforces
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This is the right-sized lane: it still enforces
 surgical changes (diff ⊆ approved change) and goal-driven execution (a green **proving test**), but
 drops the ceremony that a trivial ticket does not need.
 
 **Ground rules.** Read `${CLAUDE_PROJECT_DIR}/.harness.json` and ground rules in
 `config.rulebook_path`. If `.harness.json` is missing, STOP and tell the user to create one from
-`${CLAUDE_PLUGIN_ROOT}/config/harness.example.json`. Use only on a ticket that qualifies for
+`<mango>/config/harness.example.json`. Use only on a ticket that qualifies for
 `TIER: lite` (SCOPE=S, single file / single requirement row, no universal "all/every/no"
 requirement, not security-tagged). If it does not qualify, route to `solve` (full tier) instead.
 **The lite lane always skips fan-out** regardless of `config.explore_fanout`, and **runs on a single
-model** — no delegation overhead (see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`).
+model** — no delegation overhead (see `<mango>/PRINCIPLES.md`).
 
 ## Steps
 

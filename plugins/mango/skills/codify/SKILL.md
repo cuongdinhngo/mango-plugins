@@ -3,8 +3,17 @@ name: codify
 description: Facilitated, opt-in way to define a project's engineering rule book and database conventions when it is missing, thin, or inconsistent. Observes and COUNTS the patterns the code/schema actually use, asks the human to choose each going-forward standard, and records the choices as a PROVISIONAL rule book awaiting ratification. It never authors a rule, never auto-picks the majority, and never changes code.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` — and especially its **observe / facilitate /
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md` — and especially its **observe / facilitate /
 never-author** boundary. `codify` helps a team *define* the standard; it does **not invent** one.
+
+**READ `<mango>/principles/descriptive-normative.md` NOW, before counting anything.** It is the binding
+observe/facilitate/never-author contract. Unconditional, not consult-if-relevant. If `<mango>` does not
+resolve, say so and hold the boundary restated below.
 
 > **The boundary (binding).** mango may **generate descriptive facts** (what the code/schema *is* —
 > regenerable, falsifiable) and may **facilitate defining normative rules** by **counting the
@@ -65,7 +74,7 @@ bootstrap (skeleton rule book with TODOs); `codify` is the deep facilitation; `d
 3b. **A promoted CLAIM from the learning loop enters this SAME provisional→ratify flow.** `finalise`'s
    learning loop may propose a claim for promotion into the rule book (a type-2 code heuristic, a
    type-5-normative project fact) **after** it has passed recurrence **and** the falsification check —
-   see `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md` (The learning loop). Record it here exactly as any other
+   see `<mango>/PRINCIPLES.md` (The learning loop). Record it here exactly as any other
    provisional entry: write it into `config.rulebook_path` tagged
    `PROVISIONAL (awaiting ratification)`, carrying its **claim ID + evidence** so the rule is traceable
    to what produced it, and an **ID + blocking status** when the claim was type-5-normative. Three

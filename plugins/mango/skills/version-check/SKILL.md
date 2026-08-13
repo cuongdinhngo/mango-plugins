@@ -3,7 +3,12 @@ name: version-check
 description: Opt-in, on-demand check of whether a newer mango version has been published. Reports the running version vs the latest published version and, if newer, PRINTS the exact host /plugin commands to update. It never updates, never installs, and never edits any registry — plugin administration belongs to the host.
 ---
 
-Operate under `${CLAUDE_PLUGIN_ROOT}/PRINCIPLES.md`. This skill **detects and informs, never
+**`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
+this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
+`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
+
+Operate under `<mango>/PRINCIPLES.md`. This skill **detects and informs, never
 self-administers.** It does not install, reinstall, reorder a plugin registry, or run `/plugin` on
 the user's behalf — that is the host's job. Working around the loader from a restricted or remote
 channel where `/plugin` is unavailable is exactly the trap this skill exists to avoid; do not encode
@@ -14,8 +19,8 @@ to.
 
 ## Steps
 
-1. **Running version.** Read `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` for the running
-   `version` and take the base path from `${CLAUDE_PLUGIN_ROOT}`. Print `mango <version> @ <base path>`
+1. **Running version.** Read `<mango>/.claude-plugin/plugin.json` for the running
+   `version` and take the base path from `<mango>`. Print `mango <version> @ <base path>`
    (the same authoritative signal `doctor` prints).
 2. **Latest published version — only if configured.** Read `${CLAUDE_PROJECT_DIR}/.harness.json`.
    - If `config.update_check_url` is **unset**, report the running version, state that no update
