@@ -5,7 +5,9 @@ description: Opt-in, descriptive map of the code surface — routes/endpoints an
 
 **`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
 this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
-`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+`.claude-plugin/plugin.json` — **more than one hit → take the HIGHEST `version` in its `plugin.json`
+(semver compare, never `find` order, never a lexicographic sort) and report the candidate count** —
+never a hardcoded path. Unresolvable → say so and use the inline fallback
 named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
 
 Operate under `<mango>/PRINCIPLES.md`. This skill is **descriptive only**: it generates

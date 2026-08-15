@@ -1808,6 +1808,280 @@ def validate_v1_10_fixtures():
           "on-demand companion is inside the cache key")
 
 
+def validate_rule_first_recall():
+    """v1.10.1 (A1) — a rule promoted from a lesson must become REACHABLE. `RULE SECTIONS` derived
+    applicable sections from the change TYPE only, while `RECALL` keyed type-2 claims by `handle:` — two
+    taxonomies with no bridge, so a promoted rule could never enter the applicable list and the lesson
+    carried the constraint forever. The handle source is asserted to be ADDITIVE (the change-type
+    derivation is untouched and zero recalled handles adds zero sections — the greenfield hinge), to be
+    answered by ADEQUACY not presence (naming what in THIS change the rule constrains; a bare tick is not
+    an answer), to record the SOURCE of each section, and to leave an unratified PROVISIONAL rule
+    surfaced rather than gate-blocking as if a human had chosen it."""
+    plugin = ROOT / "plugins" / "mango"
+    a = (plugin / "skills" / "analysis" / "SKILL.md").read_text(encoding="utf-8")
+    check(re.search(r"`RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle — "
+                    r"§<id> \(<source>\) ✅ / N/A \(reason\), …`", a) is not None,
+          "rule-first: analysis's RULE SECTIONS line must count both sources and name the source of each "
+          "section (a reader cannot otherwise tell a change-type section from a handle-matched one)")
+    check(re.search(r"[Bb]y change TYPE", a) is not None
+          and re.search(r"[Bb]y a RECALLED HANDLE", a) is not None,
+          "rule-first: analysis step 11 must carry BOTH sources explicitly (change type AND recalled handle)")
+    check(re.search(r"union", a, re.IGNORECASE) is not None
+          and re.search(r"additive, never a replacement", a) is not None,
+          "rule-first: the handle source must be ADDITIVE — the union of the two, never a replacement for "
+          "the change-type derivation")
+    check(re.search(r"`<h> = 0` recalled handles adds exactly zero sections", a) is not None,
+          "rule-first: zero recalled handles must add zero sections — without this stated, the new source "
+          "becomes a tax on a project that has learned nothing yet (the greenfield hinge)")
+    check(re.search(r"ADEQUACY, not presence", a) is not None,
+          "rule-first: answering a section must be stated as adequacy, not presence")
+    check(re.search(r"naming what in \*this\*\s*\n?\s*change the rule constrains", a) is not None,
+          "rule-first: a section is answered by NAMING what in this change the rule constrains — the "
+          "half three previous designs got wrong was accepting the field's presence")
+    check(re.search(r"bare `✅` with nothing named", a) is not None
+          and re.search(r"is \*\*not an\s*\n?answer\*\*|is \*\*not an answer\*\*", a) is not None,
+          "rule-first: a bare tick with nothing named must be explicitly NOT an answer, and a finding")
+    check(re.search(r"handles \*\*verbatim from the `RECALL:` line\*\*", a) is not None,
+          "rule-first: the handle list must be taken verbatim from the RECALL line — never re-derived, "
+          "never a parallel recall mechanism")
+    check(re.search(r"may NOT gate-block as if it were codified", a) is not None,
+          "rule-first: an unratified PROVISIONAL section must not gate-block as a codified rule does")
+    check(re.search(r"Ratified rules block;\s*\n?\s*provisional ones surface", a) is not None,
+          "rule-first: the provisional/ratified split must be stated as a rule, not implied")
+    check(re.search(r"never\*{0,2}\s*a Gate-1\s*\n?block on its own|never\*{0,2}\s*\n?block on its own", a) is not None,
+          "rule-first: an unsatisfied PROVISIONAL rule must route to codify's ratify flow rather than "
+          "blocking Gate 1 on its own")
+    check(re.search(r"applicable \*\*by change type or by a\s*\n?recalled handle\*\*", a) is not None,
+          "rule-first: analysis's Gate-1 self-audit must cover BOTH sources — a step the self-audit does "
+          "not name is the step that silently stops happening")
+
+    # The mirrors must not drift: the always-loaded core and the working-doc template both carry the line.
+    core = principles_text()
+    check(re.search(r"by recalled handle", core) is not None
+          and re.search(r"`0` recalled handles adds `0` sections", core) is not None,
+          "rule-first: PRINCIPLES must carry the handle source and its zero case (the core is what an "
+          "agent reads when the skill's own step is summarised)")
+    check(re.search(r"never gate-blocks as if it were codified", core) is not None,
+          "rule-first: PRINCIPLES must state that a PROVISIONAL section never gate-blocks as codified")
+    tpl = (plugin / "templates" / "ticket.md").read_text(encoding="utf-8")
+    check(re.search(r"<m> by recalled handle", tpl) is not None,
+          "rule-first: templates/ticket.md's RULE SECTIONS slot must carry the same two-source line — a "
+          "template that asks for the old shape is what the working doc actually records")
+
+
+def validate_quick_reads():
+    """v1.10.1 (A2) — a directly-invoked `/mango:quick` used to skip `refine`/`analysis` entirely, so it
+    WROTE lessons at finalise and never READ one: a one-way contributor to a lesson file that only grows.
+    The lite lane must run the advisory recall and the rule-section coverage, REUSING those mechanisms
+    rather than inventing parallel ones — and must stay lite (no challenger, matrix, fan-out or baseline),
+    because the cheapness is the whole reason the lane exists."""
+    q = (ROOT / "plugins" / "mango" / "skills" / "quick" / "SKILL.md").read_text(encoding="utf-8")
+    check(re.search(r"`RECALL: <n> claim\(s\) surfaced \| <s> by symbol \| <h> by handle \| <a> by area \| "
+                    r"<f> by finding \| <r> retired skipped — advisory \(blocks nothing\)`", q) is not None,
+          "quick-reads: quick must emit the same RECALL counting line refine/analysis emit, verbatim")
+    check(re.search(r"`RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle", q) is not None,
+          "quick-reads: quick must emit the two-source RULE SECTIONS line")
+    check(re.search(r"do \*\*not\*\* invent a\s*\n?\s*parallel one", q) is not None
+          or re.search(r"do \*\*not\*\* invent a parallel one", q) is not None,
+          "quick-reads: both reads must REUSE refine's recall and analysis step 11 — a parallel mechanism "
+          "is how a writer and a reader drift apart and recall silently misses")
+    check(re.search(r"`analysis` step 11", q) is not None and "refine`'s advisory recall" in q,
+          "quick-reads: quick must name the two mechanisms it reuses by their source phase")
+    check(re.search(r"invoked\s*\n?\s*\*\*directly\*\* as `/mango:quick <KEY>`", q) is not None,
+          "quick-reads: quick must name the DIRECT invocation as the route that used to bypass the reads")
+    check(re.search(r"writes lessons at `finalise` and never reads one", q) is not None,
+          "quick-reads: the bypass must be stated as the one-way loop it was, not left implicit")
+    check(re.search(r"carry them forward verbatim", q) is not None,
+          "quick-reads: on the routed path the lines analysis already emitted are carried forward — the "
+          "lite lane must not re-run a read solve already paid for")
+    check(re.search(r"Both lines close with zeros and add no step", q) is not None,
+          "quick-reads: both lines must close with zeros on an empty corpus (greenfield: the lane may not "
+          "acquire a step on a project that has learned nothing)")
+    check(re.search(r"no challenger, no requirements matrix, no fan-out, no baseline capture", q) is not None,
+          "quick-reads: the lane must still explicitly skip the challenger, matrix, fan-out and baseline — "
+          "the lite lane's cheapness is the point of it existing")
+    lines = q.count("\n")
+    check(lines <= 95,
+          f"quick-reads: skills/quick/SKILL.md is {lines} lines — the lite lane may not grow into the full "
+          "one; if it must, that is a stop-and-report, not a quiet expansion")
+
+
+def validate_claim_retirement():
+    """v1.10.1 (A3) — promotion is a COPY, not a hand-off: with no retirement reason for `the rule now
+    exists`, a promoted claim is recalled forever beside the inert rule it produced and the lesson file
+    only grows. `retired: promoted to <rule-ID>` closes it. The two teeth: the retirement is OFFERED and
+    applied only on a human's answer (this loop has no auto-retire and this must not become the first
+    one), and the ORDERING is binding — retiring before A1's bridge exists REMOVES coverage."""
+    plugin = ROOT / "plugins" / "mango"
+    tpl = (plugin / "templates" / "claim-record.md").read_text(encoding="utf-8")
+    check("promoted to <rule-ID>" in tpl,
+          "claim-retire: the claim record must recognise `retired: promoted to <rule-ID>` as a retirement "
+          "reason (without one, a promoted claim is recalled forever)")
+    check(re.search(r"the human's per-claim answer is what applies it", tpl, re.IGNORECASE) is not None,
+          "claim-retire: only the human's per-claim answer may apply the retirement")
+    check(re.search(r"nothing here auto-retires", tpl, re.IGNORECASE) is not None,
+          "claim-retire: the template must state there is no auto-retire")
+    check(re.search(r"\*\*Binding order:\*\*", tpl) is not None
+          and re.search(r"Retiring the claim \*\*before\*\* that bridge exists \*\*removes\*\* coverage", tpl) is not None,
+          "claim-retire: the A1-before-A3 ordering must be stated IN the shipped text, so a later edit "
+          "cannot reverse the sequence and silently remove coverage")
+    check(re.search(r"Promotion is a \*\*copy\*\*", tpl) is not None,
+          "claim-retire: the template must say promotion is a copy — that is why retirement is needed")
+
+    p = (plugin / "skills" / "promote" / "SKILL.md").read_text(encoding="utf-8")
+    check(re.search(r"^##\s*After a ratify — OFFER to retire", p, re.MULTILINE) is not None,
+          "claim-retire: promote must carry the post-ratify retirement offer as its own section")
+    check(re.search(r"`RETIRE: <o> offered \| <a> retired on the human's answer \| <s> declined/unanswered \| "
+                    r"records deleted: 0`", p) is not None,
+          "claim-retire: promote must report the retirement as a counted line, including the falsifiable "
+          "`records deleted: 0` (retirement is never deletion)")
+    check(re.search(r"there is no auto-retire in this loop and this must not become the first one", p) is not None,
+          "claim-retire: promote must forbid auto-retiring — this is the one place it could creep in")
+    check(re.search(r"Answer per\s*\n?> claim — I change nothing until you answer", p) is not None,
+          "claim-retire: the offer must be a question requiring a per-claim answer, with nothing changed "
+          "until it is answered")
+    check(re.search(r"Retiring \*\*never deletes\*\*", p) is not None
+          and re.search(r"recall already skips it", p) is not None,
+          "claim-retire: the record must stay (history is never removed) and promote must REUSE recall's "
+          "existing retired-claim skip rather than inventing one")
+    check(re.search(r"\*\*Binding order:\*\*", p) is not None
+          and re.search(r"retiring first \*\*removes\*\* coverage", p) is not None,
+          "claim-retire: promote must state the binding order — A1's bridge before A3's retirement")
+    check(re.search(r"carrying the class's \*\*handle slug\*\*", p) is not None,
+          "claim-retire: the ratified rule must carry the class handle, or A1 can never make it "
+          "applicable and the retirement would remove coverage instead of moving it")
+
+
+def validate_plugin_root_tiebreak():
+    """v1.10.1 (B1) — step 3 of the resolution order is a read-only search, and in the field it returned
+    EIGHT candidate directories with `find` order putting 1.8.0 first: a host that sets no plugin-root
+    variable silently loaded a two-minor-version-old contract while doctor printed the newer number. The
+    tie-break must be by HIGHEST MANIFEST VERSION, compared as semver — not find order and not a string
+    sort (which puts 1.8.0 above 1.10.0) — and the candidate count must be reported."""
+    plugin = ROOT / "plugins" / "mango"
+    core = (plugin / "PRINCIPLES.md").read_text(encoding="utf-8")
+    check(re.search(r"highest `version`", core) is not None,
+          "plugin-root: the order must select the candidate with the highest manifest version")
+    check(re.search(r"compared\s*\n?\s*as \*\*semver\*\*", core) is not None,
+          "plugin-root: the comparison must be stated as semver, not left to the reader")
+    check(re.search(r"`1\.10\.0` > `1\.8\.0`", core) is not None,
+          "plugin-root: the order must show the comparison that a string sort gets wrong")
+    check(re.search(r"never\*{0,2}\s*a lexicographic string sort", core) is not None,
+          "plugin-root: a lexicographic string sort must be explicitly rejected (it puts 1.8.0 above 1.10.0)")
+    check(re.search(r"\*\*never\*\* the first result the\s*\n?\s*search happened to return", core) is not None,
+          "plugin-root: find order must be explicitly rejected as the selector")
+    check(re.search(r"`PLUGIN ROOT: <n> candidate\(s\) found — using <path> \(version <x\.y\.z>\)`", core) is not None,
+          "plugin-root: the candidate count and the chosen path must be REPORTED — the count is part of "
+          "the answer, since silently taking one of eight is exactly the failure")
+    check(re.search(r"a field host returned \*\*eight\*\*", core) is not None,
+          "plugin-root: the order must record that multiple candidates is the normal case, not a corner")
+    # Every skill's inline `<mango>` definition is the text that is operative AT resolution time — the
+    # core cannot be read before the root is resolved, so the tie-break must live in the header too.
+    for path in sorted(plugin.glob("skills/*/SKILL.md")):
+        if path.parent.name == "promote":   # deliberately resolves no plugin path (validate_promote_skill)
+            continue
+        rel = path.relative_to(ROOT)
+        body = path.read_text(encoding="utf-8")
+        check(re.search(r"more than one hit → take the HIGHEST `version` in its `plugin\.json`", body) is not None,
+              f"plugin-root: {rel}'s `<mango>` definition must carry the multi-candidate tie-break — the "
+              "core cannot be read before the root is resolved, so the header is the operative text")
+        check(re.search(r"semver compare, never `find` order, never a lexicographic sort", body) is not None,
+              f"plugin-root: {rel}'s tie-break must reject both find order and a string sort")
+        check(re.search(r"report the candidate count", body) is not None,
+              f"plugin-root: {rel} must report how many candidates the search returned")
+
+
+def validate_challenger_pr_body():
+    """v1.10.1 (B2) — field evidence: the challenger ran `gh pr view` during a ticket-blind review. The
+    brief forbade the working doc, design, matrix and rationale but said NOTHING about the PR body, which
+    routinely restates the design and the requirements — so reading it launders the authored design back
+    into the check that exists to be independent of it. The prohibition must name the PR body AND the
+    commands that fetch it, and must keep the existing honesty note rather than proceeding quietly."""
+    c = (ROOT / "plugins" / "mango" / "agents" / "challenger.md").read_text(encoding="utf-8")
+    check(re.search(r"The PR body is authored context and is forbidden while you are challenging", c) is not None,
+          "challenger-pr: the PR body must be named as forbidden while challenging")
+    check(re.search(r"`gh pr view`", c) is not None,
+          "challenger-pr: `gh pr view` must be named — the field failure was the command, not the concept")
+    check(re.search(r"or any equivalent on another host", c) is not None,
+          "challenger-pr: the prohibition must be host-neutral, not a list of one tool's commands")
+    check(re.search(r"a PR description,\s*\n?a PR comment thread, or a review conversation", c) is not None,
+          "challenger-pr: PR comments and review conversations must be forbidden too — they restate the "
+          "design exactly as the body does")
+    check(re.search(r"commit messages\* in that range are part of the diff and are allowed", c) is not None,
+          "challenger-pr: what IS allowed must be stated, or the constraint over-reads into the diff the "
+          "challenger exists to inspect")
+    check(re.search(r"`\.work\.md`/\*\*the PR body\*\*", c) is not None,
+          "challenger-pr: the honesty note must list the PR body among the inputs whose presence means "
+          "independence has been compromised")
+    check(re.search(r"independence has been compromised.{0,120}name what leaked", c, re.DOTALL) is not None,
+          "challenger-pr: on a leak the challenger must SAY SO and name what leaked, never proceed quietly")
+
+
+def validate_refine_selfcheck_contiguous():
+    """v1.10.1 (B3) — `refine`'s hand-off self-check had a dangling `every surfaced` left behind when the
+    v1.9.0 recall clause was inserted mid-sentence: it read as a lost directive. Git history shows nothing
+    was lost (the v1.8.0 text ran `every surfaced` / `decision was classified` across a line break), so the
+    orphan is removed and the clause must stay CONTIGUOUS — this check fails if a future insertion splits
+    it again."""
+    r = (ROOT / "plugins" / "mango" / "skills" / "refine" / "SKILL.md").read_text(encoding="utf-8")
+    check("`PREMISE FALSIFIED`); every surfaced\n" not in r,
+          "refine-selfcheck: the orphaned `every surfaced` fragment is back — an insertion split the "
+          "clause again and it now reads as a lost directive")
+    occurrences = r.count("every surfaced")
+    check(occurrences == 1,
+          f"refine-selfcheck: `every surfaced` appears {occurrences} times — exactly one, joined to its "
+          "own clause, or the sentence has been split again")
+    check(re.search(r"every surfaced\ndecision was classified want-decision/how-decision", r) is not None,
+          "refine-selfcheck: `every surfaced decision was classified …` must read as one contiguous clause")
+    check(re.search(r"type 1 by symbol, \*\*type 2 by handle\*\*, type 5 by area", r) is not None,
+          "refine-selfcheck: the recall self-check must enumerate type 2 by handle alongside the other "
+          "recall keys — the type the rule-first path depends on may not be the one it omits")
+
+
+def validate_v1_10_1_fixtures():
+    """v1.10.1 — each item must be shown to CATCH something (inject-then-catch), and the greenfield
+    NEGATIVE CONTROLS are not optional: every mechanism in this version must close with zeros on a freshly
+    `init`-ed project (no lessons file, a rule book of TODOs, zero claims, zero handles). A fixture that
+    exists but is not dispatched is not coverage, so all three are asserted: the file exists, `run.sh`
+    dispatches it, and `FIXTURE_SKILLS` keys it to the skill it exercises."""
+    required = {
+        # A1 — the bridge, its teeth, its closing answer, and its provisional-rule safety hinge
+        "rule-section-by-handle": "a recalled handle makes its rule-book section applicable at analysis",
+        "rule-section-handle-unanswered": "an applicable handle-matched section left unanswered is a finding",
+        "rule-section-handle-na-closes": "the control — `N/A because <reason>` CLOSES a handle-matched section",
+        "rule-section-provisional-no-block": "an unratified PROVISIONAL rule is surfaced, never gate-blocking as codified",
+        # A2 — the lite-lane bypass
+        "quick-direct-recall": "a direct /mango:quick runs the advisory recall and the rule-section coverage",
+        # A3 — retirement of a promoted claim, offered and never applied on its own
+        "claim-retired-promoted": "recall SKIPS a claim retired `promoted to <rule-ID>`; the record stays",
+        "promote-offers-retirement": "promote OFFERS retirement after a ratify and applies nothing unanswered",
+        # B — the open fixes
+        "plugin-root-newest-version": "the multi-candidate plugin-root search selects the highest version",
+        "challenger-pr-body-refused": "the challenger refuses the PR body and reports compromised independence",
+        # GREENFIELD NEGATIVE CONTROLS — any failure blocks the version
+        "greenfield-full-run": "a freshly init-ed project runs the full front half with zeros and no extra work",
+        "greenfield-quick-direct": "the lite lane's two reads cost nothing on a project with nothing to read",
+        "greenfield-promote-zeros": "promote on an empty corpus emits zeros, proposes nothing and stops",
+        "recall-handles-none-match": "a corpus full of handles, none matching — the handle source adds zero sections",
+    }
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "v1.10.1-fixtures: tests/eval/run.sh is missing"):
+        return
+    rs = runsh.read_text(encoding="utf-8")
+    for name, why in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"v1.10.1-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+              f"v1.10.1-fixtures: run.sh must dispatch the {name} fixture "
+              "(an unregistered fixture is not coverage)")
+        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+              f"v1.10.1-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+    check(re.search(r"GREENFIELD NEGATIVE CONTROLS", rs) is not None,
+          "v1.10.1-fixtures: run.sh must mark the greenfield controls as such — they are what keep a new "
+          "project working, and an unlabelled control is the one a later edit deletes as redundant")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -1894,6 +2168,13 @@ def main():
     validate_finalise_claim_order()
     validate_promote_skill()
     validate_v1_10_fixtures()
+    validate_rule_first_recall()
+    validate_quick_reads()
+    validate_claim_retirement()
+    validate_plugin_root_tiebreak()
+    validate_challenger_pr_body()
+    validate_refine_selfcheck_contiguous()
+    validate_v1_10_1_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

@@ -89,6 +89,21 @@ group. On `edit`, the human's text is authoritative and replaces the draft verba
 A recurring gap in mango itself is a **type-3 signal** in `config.skill_gap_path` for mango's maintainer,
 and type 3 is out of scope here.
 
+## After a ratify — OFFER to retire that class's claims (never apply)
+
+Promotion is a **copy**, not a hand-off: unretired claims stay recalled forever while the new rule sits
+inert beside them. Write the ratified rule carrying the class's **handle slug** and every claim ID, then:
+
+> **`<rule-ID>` now carries this class. Mark `<CLAIM-ID>, …` `retired: promoted to <rule-ID>`? Answer per
+> claim — I change nothing until you answer.**
+
+**The human decides; there is no auto-retire in this loop and this must not become the first one.**
+Retiring **never deletes**: the record stays with a `retired:` line appended and recall already skips it.
+**Binding order:** the offer is legal **only because** a `handle:`-carrying rule becomes an applicable
+`RULE SECTIONS` entry at analysis once recall surfaces that handle — retiring first **removes** coverage instead of moving it; never reorder the two.
+
+`RETIRE: <o> offered | <a> retired on the human's answer | <s> declined/unanswered | records deleted: 0`
+
 ## When NOT to run this
 
 - **Mid-ticket.** This is a cross-ticket pass — run it between tickets, never inside one.

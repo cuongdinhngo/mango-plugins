@@ -391,6 +391,13 @@ declare -A FIXTURE_SKILLS=(
   [promote-two-lessons-one-rule]="promote" [promote-single-lesson-noop]="promote"
   [promote-idempotent]="promote"
   [ondemand-companion-read]="design" [ondemand-read-no-plugin-root]="review"
+  [rule-section-by-handle]="analysis" [rule-section-handle-unanswered]="analysis"
+  [rule-section-handle-na-closes]="analysis" [rule-section-provisional-no-block]="analysis"
+  [quick-direct-recall]="quick" [claim-retired-promoted]="refine"
+  [promote-offers-retirement]="promote" [plugin-root-newest-version]="finalise"
+  [challenger-pr-body-refused]="review"
+  [greenfield-full-run]="refine analysis" [greenfield-quick-direct]="quick"
+  [greenfield-promote-zeros]="promote" [recall-handles-none-match]="analysis"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -1813,6 +1820,139 @@ assert_all "ondemand-noroot: it is read, not skipped because the variable is uns
 assert_all "ondemand-noroot: the hover-only affordance is scored" "$t" 'hover' 'M6|M10|pointer|tap|focus|block|fail|finding'
 assert_all "ondemand-noroot: the 32px targets are scored against the touch-target gate" "$t" '32|44' 'touch[ -]target|M4|fail|block|finding'
 assert_all "ondemand-noroot: an unreachable companion never means no check" "$t" 'never|not|no ' 'no check|without a check|unchecked|drop|skip the rubric|minimum|at minimum'
+
+# ---- v1.10.1: the rule-first recall path (a recalled handle makes its rule section applicable, the
+# ---- lite lane reads what it writes, a promoted claim can retire) + the open backlog fixes.
+
+# T1 rule-section-by-handle: the bridge itself. A rule promoted from a handle can never be reached from a
+# CHANGE TYPE, so without this source it sits inert while the lesson does the work forever.
+t="$(run_fixture rule-section-by-handle 'Run the mango analysis phase advisory recall and then its rule-compliance section-coverage step for this ticket. Emit the counted RECALL: and RULE SECTIONS: lines, name the source that made each applicable section applicable, and answer the closing question. Do not stop for my input.')"
+assert_contains "sec-handle: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_all "sec-handle: the handle-carrying section is applicable" "$t" '4\.2' 'applicable|applies|in scope|must be (checked|answered)'
+assert_all "sec-handle: its source is the recalled handle, not the change type" "$t" 'blast-radius-grep|recalled handle|by handle' '4\.2|source'
+assert_all "sec-handle: the change-type derivation is still there (additive, not replaced)" "$t" 'change[ -]type' '2\.1|3\.7|naming|migration|schema'
+assert_all "sec-handle: the change type alone could NOT have reached it" "$t" '4\.2|handle' 'no[t]?[^.]{0,40}(change[ -]type|map|derive)|only[^.]{0,30}handle|never[^.]{0,30}change[ -]type'
+assert_all "sec-handle: the answer names what in THIS change the rule constrains" "$t" 'enum|dispatch_outcome|consumer|sender|retry scheduler' 'trace|producer|consumer|enumerat|constrain'
+
+# T2 rule-section-handle-unanswered: the teeth. An applicable handle-matched section left neither answered
+# nor N/A is a finding — the same accounting the change-type source has always been under.
+t="$(run_fixture rule-section-handle-unanswered 'Run the mango analysis rule-compliance section-coverage step and Gate-1 self-audit against the injected state in this ticket. State whether Gate 1 is clear or carries a finding and exactly what is missing, then emit the RULE SECTIONS: line as it should stand. Do not stop for my input.')"
+assert_all "sec-unanswered: Gate 1 carries a finding" "$t" 'Gate 1|finding' 'finding|block|not[ *_]{1,4}clear|incomplete|fail'
+assert_all "sec-unanswered: the unanswered handle-matched section is named as the cause" "$t" '6\.4|value-threading-callers' 'unanswered|neither|missing|omitted|not (checked|answered|marked)'
+assert_contains "sec-unanswered: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_all "sec-unanswered: the corrected line counts the handle-matched source" "$t" 'by recalled handle|by handle' '1|one'
+assert_absent "sec-unanswered: the recorded zero-handle line is not accepted as it stands" "$t" 'Gate 1 (is )?(clear|clean|passes)( |,|\.|$)'
+
+# T3 rule-section-handle-na-closes: the negative control that stops the new source becoming a tax. An
+# explicit `N/A because <reason>` is a LEGAL, CLOSING answer — the gate is on the accounting, not on work.
+t="$(run_fixture rule-section-handle-na-closes 'Run the mango analysis rule-compliance section-coverage step and Gate-1 self-audit against the injected state in this ticket. State whether the recorded answer to the handle-matched section is legal, whether Gate 1 is clear or blocked, emit the RULE SECTIONS: line, and say what extra work the handle-matched source caused. Do not stop for my input.')"
+assert_all "sec-na: the recorded N/A answer is LEGAL and closes the section" "$t" 'N/A|not applicable' 'legal|valid|acceptable|closes|answered|sufficient|satisfies'
+assert_all "sec-na: Gate 1 is NOT blocked by the handle-matched section" "$t" 'Gate 1' 'clear|pass|not[ *_]{1,4}block|no[ *_]{1,4}block|proceed|clean'
+assert_contains "sec-na: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_all "sec-na: the reason names the property of THIS change" "$t" 'file-local|not exported|no consumer|one file' 'reason|because'
+assert_absent "sec-na: no extra investigation is demanded of a closed section" "$t" '(must|need to) (now )?(trace|enumerate) every (consumer|test root)'
+
+# T4 rule-section-provisional-no-block: the greenfield-safety hinge of A1. An UNRATIFIED rule is surfaced
+# and accounted for, but its CONTENT may not gate-block as though a human had chosen it.
+t="$(run_fixture rule-section-provisional-no-block 'Run the mango analysis rule-compliance section-coverage step and Gate-1 self-audit for this ticket. Emit the RULE SECTIONS: line and answer the three numbered questions. Do not stop for my input.')"
+assert_all "provisional: the provisional section IS surfaced in the applicable list" "$t" '9\.3|shared-type-golden-fixture' 'applicable|listed|surfac|appears'
+assert_all "provisional: it is tagged as provisional / unratified" "$t" 'PROVISIONAL|provisional|unratified|awaiting ratification' '9\.3|section|rule'
+assert_all "provisional: an unmet provisional rule does NOT block Gate 1 as a codified one would" "$t" 'not[ *_]{1,4}block|does not block|no[ *_]{1,4}block|surfac(e|ed) (only|rather)|not a (Gate 1 )?block' 'provisional|unratified|not ratified|codified'
+assert_all "provisional: the unsatisfied standard routes to the ratify flow" "$t" 'codify|ratif' 'route|nudge|surfac|human|provisional'
+assert_absent "provisional: mango does not enforce a rule nobody chose" "$t" 'Gate 1 is blocked (by|because of) (§?9\.3|the golden fixture)'
+
+# T5 quick-direct-recall: the lite-lane bypass. A directly-invoked quick used to write lessons at finalise
+# and never read one — a one-way contributor to a file that only grows.
+t="$(run_fixture quick-direct-recall 'Run the mango quick skill on this ticket through its pre-code gate artifacts, and answer the five numbered questions. Do not stop for my input.')"
+assert_contains "quick-recall: the RECALL line is emitted on a direct invocation" "$t" 'RECALL:'
+assert_contains "quick-recall: the RULE SECTIONS line is emitted on a direct invocation" "$t" 'RULE SECTIONS:'
+assert_all "quick-recall: the matching claim surfaces, matched by its handle" "$t" 'CLM-724|value-threading-callers' 'handle|by handle'
+assert_all "quick-recall: the handle-carrying rule section becomes applicable" "$t" '6\.4' 'applicable|handle|applies'
+assert_all "quick-recall: the lane still reads the corpus, not only writes to it" "$t" 'read' 'recall|lessons|corpus|LESSONS'
+assert_all "quick-recall: the lane stays lite — no challenger, matrix, fan-out or baseline" "$t" 'challenger' 'no[^.]{0,30}(challenger|matrix|fan-?out|baseline)|not[^.]{0,30}(challenger|matrix|fan-?out|baseline)|skip'
+
+# T6 claim-retired-promoted: `retired: promoted to <rule-ID>` is a recognised retirement — recall SKIPS the
+# claim and the record STAYS. Retirement is not deletion and there is no auto-retire.
+t="$(run_fixture claim-retired-promoted 'Run the mango refine phase advisory recall for this ticket, emit the counted RECALL: line, and answer the four numbered questions. Do not stop for my input.')"
+assert_contains "retired-promoted: the RECALL line is emitted" "$t" 'RECALL:'
+assert_all "retired-promoted: the retired claim is SKIPPED, not surfaced" "$t" 'CLM-730' 'skip|retired|not[^.]{0,30}(surfac|recall)|excluded'
+assert_all "retired-promoted: it is counted on the retired-skipped column" "$t" 'retired skipped' '1|one'
+assert_all "retired-promoted: the still-live claim DOES surface" "$t" 'CLM-731|shared-type-per-consumer' 'surfac|handle|match'
+assert_all "retired-promoted: the record stays in the file — retirement is not deletion" "$t" 'stays|remains|still (in|present)|not deleted|never deleted|history' 'record|LESSONS|file|claim'
+assert_all "retired-promoted: `promoted to` is a recognised reason a HUMAN applied" "$t" 'promoted to' 'human|ratif|offer|not auto|no auto-?retire'
+
+# T7 promote-offers-retirement: promotion is a COPY, so the claims must be retirable — but the offer is
+# never self-applied. This is the one place an auto-retire could creep into the loop; it must not.
+t="$(run_fixture promote-offers-retirement 'Continue the mango promote run from the operator ratify recorded in this ticket. Emit the counted PROMOTE: line, state exactly what you write to the rule book, and answer the five numbered questions. Do not stop for my input.')"
+assert_all "promote-retire: retirement is OFFERED as a question, not applied" "$t" 'offer|ask|question|answer per claim|would you' 'retire|retirement|promoted to'
+assert_all "promote-retire: nothing is retired without the human answer" "$t" 'not[^.]{0,40}(retired|applied|marked)|no[^.]{0,20}auto-?retire|awaiting|until (you|the human) answer' 'retire|human|answer'
+assert_all "promote-retire: the retirement reason names the rule that landed" "$t" 'promoted to' '4\.2|rule[ -]ID|<rule-ID>'
+assert_all "promote-retire: both claims in the class are offered" "$t" 'CLM-740' 'CLM-741'
+assert_all "promote-retire: retirement never deletes the record" "$t" 'not deleted|never delete|stays|remains|history' 'record|claim|LESSONS'
+assert_all "promote-retire: the written rule carries the handle so the rule can be recalled" "$t" 'blast-radius-grep|handle' 'writ|carr|cite|record'
+assert_all "promote-retire: the ordering rationale — retiring first would remove coverage" "$t" 'before|first|order' 'remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|gap|inert|uncovered|no longer'
+assert_absent "promote-retire: no silent auto-retire" "$t" '(I have|I) (now )?marked (CLM-740|both claims) retired'
+
+# T8 plugin-root-newest-version: a host that sets no plugin-root variable returned EIGHT candidates in the
+# field and `find` order put the oldest first — silently loading a two-minor-version-old contract.
+t="$(run_fixture plugin-root-newest-version 'Answer the five numbered questions in this ticket, in order, as a mango skill resolving a shipped path on this host. Do not stop for my input.')"
+assert_all "root-newest: the newest candidate is selected" "$t" '1\.10\.1|mango-c' 'select|use|choose|chosen|pick'
+assert_all "root-newest: the candidate count is reported" "$t" '3|three' 'candidate|director|match|found'
+assert_all "root-newest: selection is by semver compare, not find order" "$t" 'semver|version' 'not[^.]{0,40}(find|search) order|highest|newest|numeric'
+assert_all "root-newest: a plain string sort is explicitly rejected" "$t" 'string|lexicograph|1\.10\.1.*1\.8\.0' 'not|never|wrong|incorrect|would'
+assert_all "root-newest: taking the first hit would have loaded the old contract" "$t" '1\.8\.0' 'first|order|would have|stale|old'
+
+# T9 challenger-pr-body-refused: the PR body restates the design and the requirements, so reading it
+# launders the authored design back into the review that exists to be independent of it.
+t="$(run_fixture challenger-pr-body-refused 'You are mango challenger agent. Apply your agent brief to the input in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "chal-pr: the PR body is identified as forbidden input while challenging" "$t" 'pull request|PR body|PR description' 'forbid|not[ *_]{1,4}(read|allow|legitimate)|must not|off[ -]limits|excluded'
+assert_all "chal-pr: gh pr view is refused" "$t" 'gh pr view' 'no|not|refuse|will not|must not|decline'
+assert_all "chal-pr: independence is reported compromised rather than proceeding quietly" "$t" 'independen' 'compromis|report|say so|declare|flag'
+assert_all "chal-pr: the PR's numbered requirement list is not adopted as the requirements" "$t" 'rebuild|derive|my own|independently|from the raw ticket' 'requirement'
+assert_all "chal-pr: ref-based git reading is still allowed" "$t" 'git diff|git show|git log' 'allow|still|permitted|may|use'
+
+# ---- GREENFIELD NEGATIVE CONTROLS. A freshly `init`-ed project has no lessons file, a rule book of
+# ---- TODOs, zero claims and zero handles. Every mechanism above must CLOSE WITH ZEROS there. If any of
+# ---- these four goes red the version is not shippable, whatever else passes.
+
+# G1 greenfield-full-run: the whole lifecycle front half on a project that has learned nothing yet.
+t="$(run_fixture greenfield-full-run 'Run the mango refine and analysis phases for this ticket through the Gate-1 self-audit. Emit every counted line both phases emit and answer the four numbered questions. Do not stop for my input.')"
+assert_contains "greenfield: the RECALL line is emitted" "$t" 'RECALL:'
+assert_contains "greenfield: recall closes with zero claims" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
+assert_contains "greenfield: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_all "greenfield: zero sections come from the recalled-handle source" "$t" 'by recalled handle|by handle' '0|zero|none'
+assert_all "greenfield: the missing lessons file neither stops nor warns nor blocks" "$t" 'LESSONS|lessons_path|missing|absent|does not exist' 'not[^.]{0,40}(block|stop|warn|error)|no[ *_]{1,4}(block|warn|error)|continue|proceed|zero'
+assert_all "greenfield: no extra step, question, row or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'step|row|gate|question|trace|work'
+assert_all "greenfield: Gate 1 clears" "$t" 'Gate 1' 'clear|pass|proceed|clean|ready'
+assert_absent "greenfield: the TODO rule book is not itself a finding" "$t" '(TODO|unfilled rule ?book)[^.]{0,40}(is a finding|blocks Gate)'
+
+# G2 greenfield-quick-direct: the A2 reads must be free on a project with nothing to read.
+t="$(run_fixture greenfield-quick-direct 'Run the mango quick skill on this ticket through its pre-code gate, emit every counted line the lane emits, and answer the four numbered questions. Do not stop for my input.')"
+assert_contains "greenfield-quick: the RECALL line is emitted with zeros" "$t" 'RECALL:'
+assert_contains "greenfield-quick: zero claims surfaced" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
+assert_contains "greenfield-quick: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_all "greenfield-quick: the missing lessons file does not stop or warn the lane" "$t" 'LESSONS|lessons_path|missing|absent|does not exist' 'not[^.]{0,40}(block|stop|warn|error)|no[ *_]{1,4}(block|warn|error)|continue|zero'
+assert_all "greenfield-quick: the lane stays lite" "$t" 'challenger|matrix|fan-?out|baseline' 'no|not|skip|without'
+assert_all "greenfield-quick: still two human gates" "$t" '2|two' 'gate'
+
+# G3 greenfield-promote-zeros: promote on an empty corpus emits zeros, proposes nothing and stops.
+t="$(run_fixture greenfield-promote-zeros 'Run the mango promote skill against the project state described here and answer the five numbered questions, emitting the counted PROMOTE: line and the per-class table first. Do not stop for my input.')"
+assert_contains "greenfield-promote: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
+assert_all "greenfield-promote: zero classes and zero candidates" "$t" '0 class|no class|zero class|0 candidate|no candidate|zero candidate' 'propos|class|candidate'
+assert_all "greenfield-promote: nothing is drafted and nothing is written" "$t" 'rules written[ *_:=]*0|nothing[^.]{0,24}(writ|draft|creat)|no rule text' 'writ|draft|propos'
+assert_all "greenfield-promote: it stops rather than asking a ratification question" "$t" 'stop|halt|end|no candidate' 'no[^.]{0,30}(question|gate|ratif)|nothing to ratify|stops'
+assert_all "greenfield-promote: an absent corpus is not an error" "$t" 'not[ *_]{1,4}(an )?error|no[ *_]{1,4}error|neither|not configured|says so' 'corpus|LESSONS|lessons_path|absent|missing'
+assert_absent "greenfield-promote: no rule is written" "$t" 'rules written[ *_:=]*[1-9]'
+
+# G4 recall-handles-none-match: a corpus FULL of handles, none matching this change shape. A1 must add
+# exactly zero sections — the new source may not become an always-on tax once a project has learned things.
+t="$(run_fixture recall-handles-none-match 'Run the mango analysis phase advisory recall and its rule-compliance section-coverage step for this ticket. Emit the counted RECALL: and RULE SECTIONS: lines and answer the four numbered questions. Do not stop for my input.')"
+assert_contains "no-match: the RECALL line is emitted" "$t" 'RECALL:'
+assert_all "no-match: zero claims surfaced by handle" "$t" 'by handle' '0|zero|none'
+assert_contains "no-match: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_all "no-match: the handle-matched source adds zero sections" "$t" 'by recalled handle|by handle' '0|zero|none|add(s|ed)? no'
+assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)'
+assert_all "no-match: no extra trace, row, question or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'trace|row|gate|question|work'
 
 }   # end suite()
 

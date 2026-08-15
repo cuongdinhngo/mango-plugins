@@ -5,6 +5,107 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.10.1] — 2026-08-15
+
+**The rule-first recall path: a rule promoted from a lesson can now actually be reached, the lite lane
+reads the corpus it writes to, and a promoted claim can be retired.** 1.10.0 joined the learning loop
+end to end, and the join exposed the next break. `RECALL:` keys a type-2 claim by its `handle:` — matched
+on the shape of the change. `RULE SECTIONS` derived the applicable rule-book sections from the change
+TYPE. Those are two taxonomies with no bridge between them, so a rule that `/mango:promote` wrote from a
+handle could never enter the applicable list: no change type maps to it. The rule sat inert in the rule
+book while the lesson it came from was recalled forever, which is the same "written down but never
+reaches the next ticket" failure 1.10.0 set out to fix, one step further along the pipe.
+
+Three field observations, three fixes, and the constraint that governed all of them.
+
+**Every mechanism here closes with zeros on a freshly `init`-ed project.** A new project has no lessons
+file, a rule book that is the `init` template of `TODO`s, zero claims and zero handles. Four greenfield
+negative controls (`greenfield-full-run`, `greenfield-quick-direct`, `greenfield-promote-zeros`,
+`recall-handles-none-match`) exist for exactly that: `RECALL: 0`, zero handle-matched sections, `promote`
+proposing nothing, and **no extra step, no warning, no block**. A change that made a new project do more
+work would have been the wrong change.
+
+### The rule-first path
+
+- **A recalled handle makes its rule-book section applicable** (`analysis` step 11). The applicable list
+  is now the **union of two sources**: sections derived from the change TYPE (unchanged), **and** any
+  section carrying a `handle:` that this run's `RECALL:` line surfaced. The line records **which source**
+  made each section applicable, so a reader can tell them apart. **`<h> = 0` recalled handles adds
+  exactly zero sections** — the source cannot become a tax on a project that has learned nothing.
+- **Answering a section is adequacy, not presence.** A section is answered by **naming what in *this*
+  change the rule constrains**, or by the literal `N/A because <reason>`. A bare `✅` with nothing named
+  behind it is **not an answer** and is a finding — the same empty-tick failure a bare matrix `✅` on an
+  unfalsifiable acceptance value is.
+- **An unratified `PROVISIONAL` section is surfaced, never enforced.** It is listed and accounted for
+  like any other applicable section, because the accounting is what the step gates on; but its *content*
+  is an uncodified standard, so a change that does not satisfy it routes to `codify`'s provisional→ratify
+  nudge for the human — it is never a Gate-1 block on its own. Ratified rules block; provisional ones
+  surface.
+
+### The lite-lane bypass
+
+- **A direct `/mango:quick <KEY>` no longer skips the two reads.** There were two ways into the lite
+  lane and only one kept them: routed from `solve`, `analysis` had already emitted `RECALL:` and
+  `RULE SECTIONS:`; invoked directly, neither ran. `quick` still hands off to `finalise`, whose learning
+  loop writes — so a directly-invoked lite ticket **wrote lessons and never read one**, a one-way
+  contributor to a file that only grows. `quick` now runs the advisory recall and the rule-section
+  coverage, **reusing `refine`'s and `analysis`'s mechanisms rather than inventing parallel ones**, and
+  carries the lines forward verbatim on the routed path. Both close with zeros on an empty corpus.
+  **The lane stays lite:** no challenger, no requirements matrix, no fan-out, no baseline capture, two
+  human gates. Two reads, two lines, no extra step.
+
+### Retiring a claim whose rule has landed
+
+- **`retired: promoted to <rule-ID>` is a recognised retirement reason.** Promotion is a **copy**, not a
+  hand-off: with no such reason, a promoted claim kept being recalled beside the inert rule it produced.
+- **`/mango:promote` OFFERS the retirement after a ratify; the human's per-claim answer applies it.**
+  There is no auto-retire anywhere in this loop and this did not become the first one. The record
+  **stays** in the lessons file — retirement is not deletion — and recall's existing retired-claim skip
+  is reused unchanged. A second counted line reports it:
+  `RETIRE: <o> offered | <a> retired on the human's answer | <s> declined/unanswered | records deleted: 0`.
+- **The ordering is binding and is stated in the shipped text.** Retirement is safe **only because** a
+  `handle:`-carrying rule now becomes an applicable `RULE SECTIONS` entry. Retiring a claim before that
+  bridge exists **removes** coverage rather than moving it, so the sequence cannot be reversed by a later
+  edit.
+
+### Fixes
+
+- **The plugin-root fallback selects the newest version, not the first `find` hit.** Step 3 of the
+  resolution order is a read-only search; in the field it returned **eight** candidate directories with
+  `1.8.0` first, so a host that sets no `${CLAUDE_PLUGIN_ROOT}` could silently load a two-minor-version-old
+  contract while `doctor` printed the newer number. The search now **counts** its candidates and selects
+  the **highest manifest version by semver compare** — never `find` order, never a lexicographic sort
+  (which puts `1.8.0` above `1.10.0`) — and reports both. The tie-break lives in each skill's inline
+  `<mango>` definition as well as in `PRINCIPLES.md`, because the core cannot be read before the root is
+  resolved. This is a correctness bug on every host that does not set the variable, not a cosmetic one.
+- **The `challenger` may not read the PR body while ticket-blind.** Field evidence: it ran `gh pr view`
+  during a review. The brief forbade the working doc, the design, the matrix and the rationale and said
+  nothing about the PR body — which routinely restates the design and the requirements, so reading it
+  launders the authored design back into the check that exists to be independent of it. The hard
+  constraint now names the PR body, PR comments, review conversations, and the commands that fetch them
+  (`gh pr view` and any host equivalent), while stating what remains allowed: `git diff` / `git show` /
+  `git log` over the refs, commit messages in the range included. The existing honesty note now lists the
+  PR body among the inputs whose presence means independence has been compromised.
+- **`refine`'s hand-off self-check reads as one sentence again.** A `every surfaced` fragment was left
+  dangling when 1.9.0 inserted the recall clause mid-sentence, and it read as a lost directive. Git
+  history shows nothing was lost — the 1.8.0 text ran the clause across a line break — so the orphan is
+  removed and a check now fails if a future insertion splits it again. The same self-check now enumerates
+  **type 2 by handle** alongside the other recall keys; the type the rule-first path depends on was the
+  one it omitted.
+- **The `FRESH_RUNS` counter needed no change.** The subshell loss it describes was already repaired in
+  1.10.0 by the `tally_add`/`tally_count` side-channel ledger, which survives command substitution. No
+  edit was made for it.
+
+### Verification
+
+`scripts/validate.py` went from 1,436 to 1,580 checks; **no check was removed and no gate loosened**.
+Every new static check was tamper-tested by removing **every** occurrence of its subject and confirming
+the check — that specific check, not merely some check — fails: **58 run, 58 caught, 0 vacuous**. Thirteen
+fixtures were added (nine teeth tests, four greenfield negative controls), each dispatched by `run.sh` and
+keyed in `FIXTURE_SKILLS`; registration was confirmed dispatch-free. **The behavioural eval has not been
+run for this version** — it is scheduled, and until it is green these fixtures are authored coverage, not
+demonstrated coverage.
+
 ## [1.10.0] — 2026-08-13
 
 **The learning-loop pipe joined end to end, a cross-ticket `promote` skill, host-independent path

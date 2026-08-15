@@ -168,11 +168,15 @@ if absent, enumerate reachable views read-only. The ticket's examples are a *hin
 
 - Root cause (bug, classified vs cause_taxonomy) **or** per-goal gap analysis (enhancement), with `path:line`:
 - Handler / entry point + blast radius (callers, dependents):
-- **Rule-compliance section coverage** — applicable rulebook sections **derived from the change type**
-  (migration/schema → DB-conventions mandatory; new UI surface → design-token/a11y mandatory; …), each
-  checked or N/A-with-reason; an applicable section left unchecked is a finding:
+- **Rule-compliance section coverage** — applicable rulebook sections from **two sources, union**:
+  **by change type** (migration/schema → DB-conventions mandatory; new UI surface → design-token/a11y
+  mandatory; …) **and by a recalled handle** (a section carrying a `handle:` this run's `RECALL:` line
+  surfaced — 0 recalled handles adds 0 sections). Each is answered by **naming what in this change the
+  rule constrains** or `N/A because <reason>`; a bare `✅` with nothing named is not an answer, and an
+  applicable section left unanswered is a finding. A `PROVISIONAL` section is listed and answered but
+  never gate-blocks as if it were codified:
 
-  `RULE SECTIONS: <applicable §s by change-type> — each checked ✅ / N/A (reason)`
+  `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …`
 - Self-audit:
 - **Gate 1 status:** waiting on user / cleared
 

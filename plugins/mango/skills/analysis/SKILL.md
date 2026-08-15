@@ -5,7 +5,9 @@ description: Phase 1 of the mango ticket lifecycle. Use when starting work on a 
 
 **`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
 this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
-`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+`.claude-plugin/plugin.json` — **more than one hit → take the HIGHEST `version` in its `plugin.json`
+(semver compare, never `find` order, never a lexicographic sort) and report the candidate count** —
+never a hardcoded path. Unresolvable → say so and use the inline fallback
 named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
 
 Operate under `<mango>/PRINCIPLES.md`. This phase enforces principle 1 (Think before
@@ -195,23 +197,54 @@ count, and the requirements matrix.
    width is a **small viewport** (or the 320 px floor applies), note that the **width-parametric gates
    (M2 no horizontal scroll, M3 reflow @320 px) are in scope** — so the challenger counts them at
    review. On `track=backend` this is a one-line declaration and nothing else in the phase changes.
-11. **Rule-compliance section coverage — enumerate the applicable rulebook sections by change type.**
-    The rule-compliance check must not enumerate an ad-hoc subset of `config.rulebook_path`. Derive the
-    **applicable rulebook sections from the change TYPE** present in the change-list / blast radius
-    (step 8), and check **each one explicitly** — or mark it **N/A with a reason**. Concretely: a
-    **migration / schema change** in the change-list makes the **DB-conventions section mandatory**
-    (grants/permissions, soft-delete, naming, indexing — a migration that ships without that section's
-    GRANT breaks in prod with permission-denied); a **new UI surface** makes the **design-token / a11y
-    section mandatory**; and so on for each change type the rulebook covers. The applicable-section list
-    is **derived from the change type**, not hand-picked. Emit the coverage as a counted artifact:
+11. **Rule-compliance section coverage — enumerate the applicable rulebook sections from TWO sources.**
+    The rule-compliance check must not enumerate an ad-hoc subset of `config.rulebook_path`. A section is
+    applicable when **either** source below makes it so, and the applicable list is their **union** —
+    neither source replaces or narrows the other.
 
-    `RULE SECTIONS: <applicable §s by change-type> — each checked ✅ / N/A (reason)`
+    **(a) By change TYPE.** Derive the **applicable rulebook sections from the change TYPE** present in
+    the change-list / blast radius (step 8), and check **each one explicitly** — or mark it **N/A with a
+    reason**. Concretely: a **migration / schema change** in the change-list makes the **DB-conventions
+    section mandatory** (grants/permissions, soft-delete, naming, indexing — a migration that ships
+    without that section's GRANT breaks in prod with permission-denied); a **new UI surface** makes the
+    **design-token / a11y section mandatory**; and so on for each change type the rulebook covers. The
+    applicable-section list is **derived from the change type**, not hand-picked.
 
-    A rulebook section that applies to this change type but is **neither checked nor marked
+    **(b) By a RECALLED HANDLE — additive, never a replacement.** A rule promoted from a lesson carries
+    the **`handle:` slug of the class it came from** (`/mango:promote` writes it that way, citing the
+    claim IDs). A rulebook section carrying a `handle:` that **this run's `RECALL:` line surfaced** is
+    **applicable**, and is checked ✅ or marked N/A-with-reason **exactly as a change-type section is**.
+    Without this, a promoted rule can never enter the applicable list — no change type maps to it — so
+    the rule sits inert in the rule book while the lesson it came from does the work forever. Take the
+    handles **verbatim from the `RECALL:` line**; do **not** re-derive them and do **not** invent a
+    parallel recall. **`<h> = 0` recalled handles adds exactly zero sections**: on a project with no
+    lessons file this source contributes nothing, asks nothing, and changes no count.
+
+    **Answering a section is ADEQUACY, not presence.** A section is answered by **naming what in *this*
+    change the rule constrains** (the change-list item / `path:line` it bites on, and how the change
+    complies) **or** by the literal `N/A because <reason>`, where `<reason>` names the property of this
+    change that puts the section out of scope. A bare `✅` with nothing named behind it is **not an
+    answer** — it is the same empty-tick failure a bare matrix `✅` on an unfalsifiable AC is (step 4),
+    and it is a **finding at this step**. Emit the coverage as a counted artifact, **naming the source of
+    each section** so a reader can tell a change-type section from a handle-matched one:
+
+    `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …`
+
+    A rulebook section applicable by **either** source but **neither checked nor marked
     N/A-with-reason** is a **finding** — silently omitting an applicable section is exactly the miss
     this removes (a migration that shipped with no GRANT and a missing soft-delete, caught only at
     review). This detects-and-surfaces; it never authors the rule (an uncodified standard still routes
     through the step-4 `codify` provisional→ratify nudge).
+
+    **An unratified `PROVISIONAL` section may NOT gate-block as if it were codified (binding).** A rule
+    tagged `PROVISIONAL (awaiting ratification)` — which is exactly what `/mango:promote` and `codify`
+    write before a human ratifies — is **listed and answered like any other applicable section**, tagged
+    `PROVISIONAL` in the line, because the **accounting** is what this step gates on. But its **content**
+    is an **uncodified standard**: a change that does not satisfy it is **surfaced** and routed through
+    the step-4 `codify` provisional→ratify nudge for the human to ratify — it is **never** a Gate-1
+    block on its own, and it may not be enforced as though someone had chosen it. Ratified rules block;
+    provisional ones surface. (Omitting a provisional section from the accounting entirely is still a
+    finding: that is the accounting, not the rule's content.)
 12. **Scope.** Declare `SCOPE: S|M|L`. This is the scope baseline the *outgrew-its-ticket* nudge
    (`solve`) compares the realized scope against at later gates: if the realized scope crosses up a
    tier (S/M → L) or the diff materially exceeds the approved one, a later gate stops to re-scope or
@@ -228,9 +261,10 @@ count, and the requirements matrix.
     `refine`) and recall injected and blocked nothing, every section decomposed, AC table complete with
     every acceptance value **falsifiable or a recorded manual-check exclusion** (none carrying a bare
     `✅`), `BASELINE` captured, `j = 0` (or Gate 0 already cleared), inventory N set, matrix `Status`
-    filled, `RULE SECTIONS` coverage emitted (every rulebook section applicable to the change type
-    checked or N/A-with-reason), **every multi-clause ratified want-decision split into one row per
-    clause**, `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track
+    filled, `RULE SECTIONS` coverage emitted (every rulebook section applicable **by change type or by a
+    recalled handle** checked or N/A-with-reason, each carrying its source, none carrying a bare `✅`
+    with nothing named, and no `PROVISIONAL` section blocking as if it were codified), **every
+    multi-clause ratified want-decision split into one row per clause**, `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track
     includes frontend with a universal/app-wide requirement — `SURFACES: N` emitted from the code
     surface. Write Phase 1 into
     the working doc and the `Session status` block, then STOP and wait for the user. Do not begin

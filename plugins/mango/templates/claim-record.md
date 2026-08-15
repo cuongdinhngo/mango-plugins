@@ -24,8 +24,11 @@ its claim record there and names the destination it was promoted to, so provenan
 - destination: <the PROJECT path this claim's promotion targets, or "stays in lessons_path">
 - seen: <KEY>, <KEY>, …                # the recurrence ledger — one ticket key per sighting
 - supersedes: <CLAIM-ID>               # this claim NARROWS or FALSIFIES that one
-- retired: <reason> — superseded by <CLAIM-ID> | human-retired
+- retired: <reason> — superseded by <CLAIM-ID> | promoted to <rule-ID> | human-retired
   # recall SKIPS a retired claim; the record STAYS (history is never deleted, and there is no auto-retire)
+  # `promoted to <rule-ID>`: the rule for this class has LANDED, so the claim's job is done. Only
+  #   /mango:promote OFFERS it, only after the human ratified that rule, and only the human's per-claim
+  #   answer applies it.
 ```
 
 ## Field rules
@@ -46,4 +49,11 @@ its claim record there and names the destination it was promoted to, so provenan
   rather than a number that cannot be checked.
 - **Supersession replaces, it does not delete.** A claim that narrows or falsifies an earlier one
   records `supersedes:`, and the earlier one gets `retired: … superseded by <CLAIM-ID>`.
+- **`retired: promoted to <rule-ID>` closes the loop a promotion opens.** Promotion is a **copy**: until
+  the claim is retired it is recalled forever beside the rule it produced. `/mango:promote` **offers**
+  this retirement after the human ratifies the rule; **the human's per-claim answer is what applies it**
+  — nothing here auto-retires. **Binding order:** it is safe **only because** a rule carrying the class's
+  `handle:` becomes an applicable `RULE SECTIONS` section at `analysis` once recall surfaces that handle.
+  Retiring the claim **before** that bridge exists **removes** coverage rather than moving it — the rule
+  is inert and the lesson is gone. Never reorder the two.
 - **Every destination is a path in the PROJECT repo.** No claim's destination is ever a mango file.

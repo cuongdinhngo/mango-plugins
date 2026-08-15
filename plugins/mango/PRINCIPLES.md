@@ -26,11 +26,17 @@ not guessed.
   is **neither** is flagged at Gate 1 and **may not carry a matrix `✅`** — a bare self-reported `✅`
   cannot stand in for an unmeasurable or unbuilt thing.
 - `SECTIONS: <n> found = <n> decomposed`. Every ticket section maps to ≥1 matrix row.
-- **`RULE SECTIONS` coverage by change type.** analysis derives the applicable rulebook sections
-  **from the change type** (migration/schema → the DB-conventions section is mandatory; new UI surface
-  → the design-token/a11y section is mandatory; …) and checks **each** — or marks it N/A-with-reason.
-  An applicable section left neither checked nor N/A is a finding (silently omitting the section that
-  mattered is the miss this removes). Detect-and-surface only — mango never authors the rule.
+- **`RULE SECTIONS` coverage — by change type AND by recalled handle (union).** analysis derives the
+  applicable rulebook sections **from the change type** (migration/schema → the DB-conventions section
+  is mandatory; new UI surface → the design-token/a11y section is mandatory; …) **and, additively, from
+  the `handle:` a promoted rule carries** when this run's `RECALL:` line surfaced that handle — without
+  that second source a rule promoted from a lesson can never become applicable, and the lesson carries
+  the constraint forever. `0` recalled handles adds `0` sections. Each applicable section is answered by
+  **naming what in this change the rule constrains** — or marked N/A-with-reason; a bare `✅` with
+  nothing named is not an answer. An applicable section left neither answered nor N/A is a finding
+  (silently omitting the section that mattered is the miss this removes). A `PROVISIONAL` (unratified)
+  section is surfaced and answered but **never gate-blocks as if it were codified**.
+  Detect-and-surface only — mango never authors the rule.
 - A `Rejected alternatives` line at design records what was considered and dropped.
 
 **Fails the gate when** a gate is reached with `j > 0` unresolved, an AC mismatch was silently
@@ -160,6 +166,14 @@ or `k < N` with no recorded decision.
    `skills/` tree the running `SKILL.md` sits in.
 3. Else a **read-only** search for a directory carrying both `PRINCIPLES.md` and
    `.claude-plugin/plugin.json` under the host's plugin/extension roots.
+   **More than one candidate is the normal case, not the exception** — a host keeps every installed
+   version side by side, and a field host returned **eight**. So the search **counts** its candidates
+   and selects the one whose `.claude-plugin/plugin.json` carries the **highest `version`**, compared
+   as **semver** (numeric field by numeric field: `1.10.0` > `1.8.0`) — **never** the first result the
+   search happened to return, and **never** a lexicographic string sort (which puts `1.8.0` above
+   `1.10.0`). Report both: `PLUGIN ROOT: <n> candidate(s) found — using <path> (version <x.y.z>)`.
+   Selecting by search order silently loads an older contract while `doctor` prints the newer number,
+   so the count is part of the answer, not decoration.
 4. Else `<mango>` is **UNREACHABLE**: say so in one line, use the **inline fallback** the point of use
    names, and report the degradation. Never guess a path, never invent a home directory, and never
    continue as if the file had been read.

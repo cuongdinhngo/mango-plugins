@@ -5,7 +5,9 @@ description: Phase 0 of the mango ticket lifecycle — the FIRST phase. Use when
 
 **`<mango>` = this plugin's root:** `${CLAUDE_PLUGIN_ROOT}` when the host sets it, else the plugin root
 this skill file sits in, else a read-only search for a directory holding `PRINCIPLES.md` and
-`.claude-plugin/plugin.json` — never a hardcoded path. Unresolvable → say so and use the inline fallback
+`.claude-plugin/plugin.json` — **more than one hit → take the HIGHEST `version` in its `plugin.json`
+(semver compare, never `find` order, never a lexicographic sort) and report the candidate count** —
+never a hardcoded path. Unresolvable → say so and use the inline fallback
 named at the point of use (`<mango>/PRINCIPLES.md`, *Resolving a mango-shipped path*).
 
 Operate under `<mango>/PRINCIPLES.md` — especially its **expose / ask / never-author**
@@ -280,8 +282,8 @@ un-exposed decision, gets the same backstop the ticket path already has, never z
 refine does not hold a ✋ gate of its own — its want-decision questions ARE its interaction, and its
 output is challenged at Gate 1. Before handing off, confirm: the project was scanned; the premise check
 ran and its `PREMISE:` line is emitted (any referenced-as-existing miss having halted the phase with
-`PREMISE FALSIFIED`); every surfaced
-the advisory recall ran and its `RECALL:` line is emitted (type 1 by symbol, type 5 by area, type 6 by
+`PREMISE FALSIFIED`);
+the advisory recall ran and its `RECALL:` line is emitted (type 1 by symbol, **type 2 by handle**, type 5 by area, type 6 by
 the re-raised finding, `retired:` claims skipped) having **injected and blocked nothing**; every surfaced
 decision was classified want-decision/how-decision (tie-breaker applied) **before** anything was asked;
 every how-decision carries a **citation** (an uncited how-decision is flagged as a finding) and was
