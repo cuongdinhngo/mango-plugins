@@ -397,7 +397,7 @@ declare -A FIXTURE_SKILLS=(
   [promote-offers-retirement]="promote" [plugin-root-newest-version]="finalise"
   [challenger-pr-body-refused]="review"
   [greenfield-full-run]="refine analysis" [greenfield-quick-direct]="quick"
-  [greenfield-promote-zeros]="promote" [recall-handles-none-match]="analysis"
+  [greenfield-promote-zeros]="promote" [greenfield-recall-handles-none-match]="analysis"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -1667,7 +1667,7 @@ assert_all "promotion-gated: nothing is written before the explicit ratify" "$t"
 assert_all "promotion-gated: the skill-gap is a project SIGNAL, not a mango edit" "$t" 'CLM-082|skill.gap' 'skill_gap_path|SKILL_GAP|signal'
 assert_all "promotion-gated: no mango skill is edited by the loop, ever" "$t" 'mango' 'not[^.]{0,36}(edit|modif|chang|writ)|never[^.]{0,36}(edit|modif|chang|writ)|no mango (skill|file)|maintainer|normal version'
 assert_all "promotion-gated: the PROCESS claim goes to the agent brief, not the code rule book" "$t" 'CLM-083|paraphras|PR summary|process' 'agent[ _-]?brief|agent_brief_path'
-assert_contains "promotion-gated: the PROMOTION line carries `mango files written: 0`" "$t" 'mango files written[ *_:=]*0'
+assert_contains "promotion-gated: the PROMOTION line carries \`mango files written: 0\`" "$t" 'mango files written[ *_:=]*0'
 
 # promotion-rulebook-wiring (v1.9.0): a RATIFIED promotion writes the rule into rulebook_path — never into
 # CLAUDE.md, which carries only init's pointer — and is not "done" until doctor is green on that pointer.
@@ -1688,7 +1688,7 @@ assert_all "project-local: nothing lands under a mango plugin directory" "$t" 'm
 assert_all "project-local: the type-3 claim is a project-recorded maintainer signal" "$t" 'CLM-103|skill.gap' 'skill_gap_path|SKILL_GAP|signal|maintainer'
 assert_all "project-local: an unset destination key is surfaced, not redirected or dropped" "$t" 'unset|not (set|configured)|absent|missing' 'surfac|report|say so|not[^.]{0,28}(drop|silent|elsewhere)'
 assert_all "project-local: nothing is carried home to another project" "$t" 'carr|home|another project|different project' 'nothing|none|separate|isolat|project.local|no '
-assert_contains "project-local: the PROMOTION line carries `mango files written: 0`" "$t" 'mango files written[ *_:=]*0'
+assert_contains "project-local: the PROMOTION line carries \`mango files written: 0\`" "$t" 'mango files written[ *_:=]*0'
 
 # host-context-file-default (v1.9.1): the DEFAULT must be unchanged. On a plain CLAUDE.md project with
 # no AGENTS.md and no `context_file` key, init still hoists into CLAUDE.md and doctor still reads it —
@@ -1724,7 +1724,7 @@ assert_all "t2-handle: the type-2 claim surfaces, matched by its HANDLE" "$t" 'C
 assert_all "t2-handle: the match is on the change SHAPE (shared vocabulary), not a symbol or an area" "$t" 'shared|vocabular|enum|consumer|thread' 'handle|class'
 assert_all "t2-handle: the type-1 symbol claim does NOT surface" "$t" 'CLM-312|queue_client' 'not[^.]{0,40}(surfac|match|appear)|no[t]? .{0,20}(present|named)|silent|skip|0 by symbol'
 assert_all "t2-handle: the type-5 area claim does NOT surface" "$t" 'CLM-313|billing' 'not[^.]{0,40}(surfac|match|appear)|different area|0 by area|skip'
-assert_contains "t2-handle: the RECALL line counts `by handle`" "$t" 'by handle'
+assert_contains "t2-handle: the RECALL line counts \`by handle\`" "$t" 'by handle'
 assert_all "t2-handle: recall stays advisory — it adds no requirement, AC or gate" "$t" 'advisory|surfac' 'not[^.]{0,30}(inject|add|block|requirement|gate)|never|only surfac|blocks nothing'
 
 # T2 handle-unanswered-blocks: a recalled handle with no trace and no `does not apply` BLOCKS Gate 2. This
@@ -1746,7 +1746,7 @@ assert_contains "does-not-apply: unanswered is zero" "$t" '0[ *_]*unanswered|una
 # T4 recurring-t2-leaves-lessons: a type-2 claim with seen >= 2 may NOT resolve to `stays in lessons_path`
 # — recording it was already the treatment. It routes to the rule book (code) or the agent brief (process).
 t="$(run_fixture recurring-t2-leaves-lessons 'Run the mango finalise learning loop from the recurrence step onward on the two claims in this ticket. For each, state the destination you propose and whether stays in lessons_path is acceptable. Emit the RECURRING-T2: counting line and say whether finalise proceeds or blocks. Do not stop for my input.')"
-assert_all "recurring-t2: `stays in lessons_path` is REJECTED for both recurring type-2 claims" "$t" 'lessons_path' 'reject|not[ *_]{1,4}(accept|allow|permit)|may not|forbid|unacceptable|blocked'
+assert_all "recurring-t2: \`stays in lessons_path\` is REJECTED for both recurring type-2 claims" "$t" 'lessons_path' 'reject|not[ *_]{1,4}(accept|allow|permit)|may not|forbid|unacceptable|blocked'
 assert_all "recurring-t2: the code heuristic routes to the rule book" "$t" 'CLM-411|blast-radius-grep' 'rulebook_path|rule[ -]?book|EVAL_RULES'
 assert_contains "recurring-t2: the RECURRING-T2 line is emitted" "$t" 'RECURRING-T2:'
 assert_all "recurring-t2: recurrence, not presence, is what triggered it" "$t" 'seen|recurren|twice|two ticket' 'PROJ-069|PROJ-611|>= 2|≥ 2|2 ticket'
@@ -1754,7 +1754,7 @@ assert_all "recurring-t2: recurrence, not presence, is what triggered it" "$t" '
 # T5 type5-stays-in-lessons: the NEGATIVE CONTROL. All existing claim records are type-5 project facts;
 # sweeping them into a rule book would rot it. A recurring type-5 legitimately stays in lessons_path.
 t="$(run_fixture type5-stays-in-lessons 'Run the mango finalise learning loop from the recurrence step onward on the two claims in this ticket. State for each whether stays in lessons_path is accepted or rejected, say whether the recurring-type-2 destination rule applies, and emit the RECURRING-T2: counting line. Do not stop for my input.')"
-assert_all "type5-control: `stays in lessons_path` is ACCEPTED for the type-5 claims" "$t" 'lessons_path' 'accept|allow|legitimat|stays|remains|correct|valid|unchanged'
+assert_all "type5-control: \`stays in lessons_path\` is ACCEPTED for the type-5 claims" "$t" 'lessons_path' 'accept|allow|legitimat|stays|remains|correct|valid|unchanged'
 assert_all "type5-control: the recurring-type-2 rule does NOT apply to type 5" "$t" 'type 5|type-5' 'not[^.]{0,40}(apply|affect|touch)|does not|only[^.]{0,20}type 2|type 2 only|exempt|untouched'
 assert_contains "type5-control: the RECURRING-T2 line is still emitted, with zeros" "$t" 'RECURRING-T2:'
 assert_absent "type5-control: finalise is NOT blocked by a type-5 claim staying put" "$t" 'block(s|ed|ing)? finalise|finalise (is )?blocked'
@@ -1879,7 +1879,7 @@ assert_all "retired-promoted: the retired claim is SKIPPED, not surfaced" "$t" '
 assert_all "retired-promoted: it is counted on the retired-skipped column" "$t" 'retired skipped' '1|one'
 assert_all "retired-promoted: the still-live claim DOES surface" "$t" 'CLM-731|shared-type-per-consumer' 'surfac|handle|match'
 assert_all "retired-promoted: the record stays in the file — retirement is not deletion" "$t" 'stays|remains|still (in|present)|not deleted|never deleted|history' 'record|LESSONS|file|claim'
-assert_all "retired-promoted: `promoted to` is a recognised reason a HUMAN applied" "$t" 'promoted to' 'human|ratif|offer|not auto|no auto-?retire'
+assert_all "retired-promoted: \`promoted to\` is a recognised reason a HUMAN applied" "$t" 'promoted to' 'human|ratif|offer|not auto|no auto-?retire'
 
 # T7 promote-offers-retirement: promotion is a COPY, so the claims must be retirable — but the offer is
 # never self-applied. This is the one place an auto-retire could creep into the loop; it must not.
@@ -1944,9 +1944,9 @@ assert_all "greenfield-promote: it stops rather than asking a ratification quest
 assert_all "greenfield-promote: an absent corpus is not an error" "$t" 'not[ *_]{1,4}(an )?error|no[ *_]{1,4}error|neither|not configured|says so' 'corpus|LESSONS|lessons_path|absent|missing'
 assert_absent "greenfield-promote: no rule is written" "$t" 'rules written[ *_:=]*[1-9]'
 
-# G4 recall-handles-none-match: a corpus FULL of handles, none matching this change shape. A1 must add
+# G4 greenfield-recall-handles-none-match: a corpus FULL of handles, none matching this change shape. A1 must add
 # exactly zero sections — the new source may not become an always-on tax once a project has learned things.
-t="$(run_fixture recall-handles-none-match 'Run the mango analysis phase advisory recall and its rule-compliance section-coverage step for this ticket. Emit the counted RECALL: and RULE SECTIONS: lines and answer the four numbered questions. Do not stop for my input.')"
+t="$(run_fixture greenfield-recall-handles-none-match 'Run the mango analysis phase advisory recall and its rule-compliance section-coverage step for this ticket. Emit the counted RECALL: and RULE SECTIONS: lines and answer the four numbered questions. Do not stop for my input.')"
 assert_contains "no-match: the RECALL line is emitted" "$t" 'RECALL:'
 assert_all "no-match: zero claims surfaced by handle" "$t" 'by handle' '0|zero|none'
 assert_contains "no-match: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'

@@ -21,7 +21,7 @@ Three field observations, three fixes, and the constraint that governed all of t
 **Every mechanism here closes with zeros on a freshly `init`-ed project.** A new project has no lessons
 file, a rule book that is the `init` template of `TODO`s, zero claims and zero handles. Four greenfield
 negative controls (`greenfield-full-run`, `greenfield-quick-direct`, `greenfield-promote-zeros`,
-`recall-handles-none-match`) exist for exactly that: `RECALL: 0`, zero handle-matched sections, `promote`
+`greenfield-recall-handles-none-match`) exist for exactly that: `RECALL: 0`, zero handle-matched sections, `promote`
 proposing nothing, and **no extra step, no warning, no block**. A change that made a new project do more
 work would have been the wrong change.
 

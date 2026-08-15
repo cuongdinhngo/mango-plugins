@@ -2062,7 +2062,7 @@ def validate_v1_10_1_fixtures():
         "greenfield-full-run": "a freshly init-ed project runs the full front half with zeros and no extra work",
         "greenfield-quick-direct": "the lite lane's two reads cost nothing on a project with nothing to read",
         "greenfield-promote-zeros": "promote on an empty corpus emits zeros, proposes nothing and stops",
-        "recall-handles-none-match": "a corpus full of handles, none matching — the handle source adds zero sections",
+        "greenfield-recall-handles-none-match": "a corpus full of handles, none matching — the handle source adds zero sections",
     }
     fixtures = ROOT / "tests" / "eval" / "fixtures"
     runsh = ROOT / "tests" / "eval" / "run.sh"
