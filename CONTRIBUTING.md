@@ -13,8 +13,18 @@ The required gate is deterministic, stdlib-only, and needs no network or auth:
 python3 scripts/validate.py
 ```
 
-It runs structural checks plus per-skill contract tokens (it fails if a skill loses its load-bearing
-artifact). CI (`.github/workflows/validate.yml`, on every push/PR) runs the same script, then
+The **envelope scripts** (`plugins/mango/scripts/` — `RUN CONTRACT`, `RECONCILE`, `BUDGET`) carry their
+own suite, equally deterministic and equally free. Run it after touching any of them:
+
+```
+python3 tests/envelope/test_envelope.py
+```
+
+Every git test inside it builds its own throwaway repo under `tempfile`; the live checkout is never
+touched. The behavioural eval runs it too, so it cannot rot unnoticed.
+
+`scripts/validate.py` runs structural checks plus per-skill contract tokens (it fails if a skill loses
+its load-bearing artifact). CI (`.github/workflows/validate.yml`, on every push/PR) runs the same script, then
 `claude plugin validate ./plugins/mango --strict` and `claude plugin validate . --strict` as a
 **best-effort, non-blocking** step.
 

@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.10.1-blue)
+![version](https://img.shields.io/badge/version-1.11.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -107,6 +107,14 @@ by you before any executes.
 **Run it:** `/mango:solve <KEY>` for the full lifecycle, any phase directly, or `/mango:quick <KEY>`
 for the lite lane.
 
+**Run it unattended:** `/mango:autorun <KEY>` runs the same phases overnight and closes each gate from
+the artifacts they already emit, instead of waiting for you to type "go". **No gate is removed** — the
+review seat included — and **there is no auto-merge**: the run stops when the PR exists, and the merge
+stays yours. It writes a machine-parsed `RUN CONTRACT` before starting, a harness-run `RECONCILE` at t0
+and after the last push, and a `DISCLOSURE` list of what was *not* verified, to read first in the
+morning. `--no-challenger` (on `solve` too) waives the ticket-blind challenger explicitly; it runs by
+default, and a waiver is line one of that disclosure.
+
 ---
 
 ## What the artifacts look like
@@ -172,6 +180,11 @@ framework — on their own projects.**
 Though written for Claude Code, mango is not locked to it: it has run its full lifecycle on other
 hosts — including Cursor, driving real tasks to merged pull requests on a production codebase, with a
 different underlying model.
+
+The **unattended lane** (`/mango:autorun`, 1.11.0) is the newest surface and is marked
+**Experimental**: its gate conditions are the shipped, field-tested ones, but closing them without a
+human at the keyboard has not yet been run overnight on a real ticket. Its safety boundaries are not
+Experimental — no gate is removed, the review seat is never degraded away, and there is no auto-merge.
 
 Per-phase maturity (Stable / Experimental) is tracked in
 [`plugins/mango/PRINCIPLES.md`](./plugins/mango/PRINCIPLES.md).

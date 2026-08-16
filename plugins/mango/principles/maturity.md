@@ -7,7 +7,16 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Two behaviours are **Experimental** today:
+Three behaviours are **Experimental** today:
+
+- **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
+  are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
+  condition set a `RUN CONTRACT` should carry, and the call-count budget proxy. Its prediction is
+  falsifiable on one real overnight ticket: a ticket handed over at 23:00 reaches a PR by morning with
+  one human touch remaining — the merge — and `RECONCILE` reports the state of the world after the last
+  push without being asked. **Its safety boundaries are NOT Experimental** and never will be: no gate is
+  removed, the review seat is never degraded away, there is no auto-merge, `j > 0` stops the run, and no
+  outward action happens beyond the two the handover authorisation named.
 
 - **breakdown re-ratification** (surfacing a post-gate split delta for an explicit human re-approve):
   validated once in the field, its re-ratification trigger and granularity may change until a second

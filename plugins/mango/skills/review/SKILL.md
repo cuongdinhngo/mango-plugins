@@ -86,7 +86,22 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    includes frontend, inject `<mango>/templates/frontend-rubric.md` into the reviewer's
    brief** (and the challenger's) so it also scores the frontend rubric — see the **Frontend track**
    section below. Do **not** fork the agents per track; the rubric is injected content.
-2. **Run the `challenger` agent ticket-blind.** **Construct its input explicitly** so independence
+2. **Run the `challenger` agent ticket-blind — unless `--no-challenger` was passed.** This is the
+   **single** challenger-dispatch decision in mango: `solve` and `autorun` route through it and
+   neither builds a parallel one. (`quick` never reaches this step — the lite lane is reviewer-only by
+   design, so the flag is inert there rather than a second way to waive.)
+
+   **The challenger runs by DEFAULT.** It is skipped only when the invocation carried
+   **`--no-challenger`** (`/mango:solve <KEY> --no-challenger`, `/mango:autorun <KEY>
+   --no-challenger`). Waiving it is a **deliberate decision recorded as an argument**, never an
+   improvised instruction: when the flag is set, state `CHALLENGER: OFF (--no-challenger)` in the
+   review output, record the flag state in the working doc so a later comparison across runs is
+   possible, and — under `autorun` — carry it to **line one of `DISCLOSURE`**. A clean verdict from a
+   run with no challenger is not evidence that anything independent looked at the work; say that
+   rather than reporting a bare clean. Without the flag the challenger runs, and
+   `CHALLENGER: ON` is recorded the same way.
+
+   **Construct its input explicitly** so independence
    is procedural, not just requested: build the payload as exactly *(a)* the **raw ticket portion
    only** plus *(b)* the diff/branch. Source the raw ticket by `config.work_doc_mode`:
    - **separate working doc** (tracker-hosted, or `work_doc_mode: separate`) → re-fetch the raw ticket
@@ -139,7 +154,10 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    - challenger finds every item met — **except** a challenger "not met" that corresponds to a
      **recorded, human-approved coverage-gap exclusion** (from design's verification plan / the
      working doc's *Coverage-gap exclusions* slot) does **not** block clean: it is a known proof-tier
-     mismatch, not an unmet requirement. An *unrecorded* gap still blocks.
+     mismatch, not an unmet requirement. An *unrecorded* gap still blocks. **Under
+     `--no-challenger` this criterion is not satisfied — it is ABSENT:** report the clean verdict as
+     `clean (reviewer only — CHALLENGER: OFF)` and never as a criterion met. No other criterion is
+     relaxed by the flag.
    - no layer-match `❌` stands unresolved (step 8);
    - `k = N` (or every exclusion is human-approved and recorded);
    - **surface coverage `N == M + X`** for every universal/app-wide frontend requirement (the

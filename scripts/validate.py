@@ -69,6 +69,12 @@ SKILL_CONTRACTS = {
               r"learning loop", r"falsification", r"skill_gap_path", r"no lesson edits a mango skill",
               r"host does not surface usage"],
     "quick": [r"proving test", r"combined gate", r"stuck"],
+    "autorun": [r"RUN CONTRACT", r"RECONCILE", r"DISCLOSURE", r"force-broken", r"force-holding",
+                r"UNBOUND", r"auto-merge", r"j > 0", r"stopping is not dying", r"abort list",
+                r"--no-challenger", r"tree comparison", r"first-parent", r"merge-base",
+                r"proxy", r"unknown", r"ladder", r"review seat", r"envelope",
+                r"gate does not close", r"unmeasured", r"plugin-version", r"handover",
+                r"never invent", r"forced-case positive control", r"FORCE-UNPROVEN"],
     "doctor": [r"running[ -]version", r"base path", r"\$\{CLAUDE_PLUGIN_ROOT\}",
                r"mango:standing-context", r"CLAUDE\.md",
                r"skill_gap_path", r"inside the project repo",
@@ -2082,6 +2088,212 @@ def validate_v1_10_1_fixtures():
           "project working, and an unlabelled control is the one a later edit deletes as redundant")
 
 
+def validate_autorun_gates():
+    """v1.11.0 (A) — `autorun` runs the EXISTING lifecycle unattended and stops at the PR.
+
+    Two properties must survive every future edit. First, no gate is removed: the skill names each of
+    Gates 0-4 and the artifact that closes it, and it reuses the shipped counted lines rather than
+    inventing a parallel condition. Second, the HARNESS decides — an agent that reads its own counted
+    line and declares it satisfied reproduces the adherence defect this lane works around, so the skill
+    must say that a line failing to parse against the shipped grammar does NOT close its gate, and that
+    such a line is never repaired by re-typing it."""
+    body = skill_text("autorun")
+    if not check(bool(body), "autorun: skills/autorun/ is missing or unreadable"):
+        return
+    for token, why in (
+        (r"CLARIFICATION:", "Gate 0's counted line"),
+        (r"SECTIONS", "Gate 1's section-coverage count"),
+        (r"RULE SECTIONS", "Gate 1's rule-section coverage"),
+        (r"BASELINE", "Gate 1's baseline capture"),
+        (r"HANDLES:", "Gate 2's handle count"),
+        (r"verification plan", "Gate 2's layer-match plan"),
+        (r"verification sweep", "Gate 3's sweep"),
+        (r"diff ⊆ approved list", "Gate 3's scope check"),
+        (r"LGTM", "Gate 4's reviewer verdict"),
+    ):
+        check(re.search(token, body) is not None,
+              f"autorun: the gate table must name {why} (/{token}/) — gates close on the artifacts the "
+              "shipped phases already emit, and autorun invents none of them")
+    check(re.search(r"does not reimplement any phase|not reimplement", body, re.IGNORECASE) is not None,
+          "autorun: must state it does not reimplement the phases — it invokes them")
+    check(re.search(r"harness (reads|decides)|Do not announce that a gate passed", body, re.IGNORECASE)
+          is not None,
+          "autorun: the harness must decide a gate; the agent may not announce that one passed")
+    check(re.search(r"gate does not close", body) is not None,
+          "autorun: a counted line that does not parse against the shipped grammar must NOT close its gate")
+    check(re.search(r"[Nn]ever repair a counted line by re-typing", body) is not None,
+          "autorun: a non-parsing counted line must be reported, never rewritten into the correct form")
+    check(re.search(r"no auto-?merge|There is no auto-merge", body, re.IGNORECASE) is not None,
+          "autorun: must state there is no auto-merge — the run stops when the PR exists")
+    check(re.search(r"j > 0.{0,40}stops|`j > 0` stops", body, re.DOTALL) is not None,
+          "autorun: `j > 0` must stop the run — a clarification for human decision is not guessed at 03:00")
+    check(re.search(r"[Ss]topping is not dying", body) is not None,
+          "autorun: stopping must finish every unaffected part and report what is missing")
+    for token in (r"credentials or auth", r"force-push", r"product decision", r"three honest attempts"):
+        check(re.search(token, body, re.IGNORECASE) is not None,
+              f"autorun: the abort list must carry /{token}/")
+    check(re.search(r"handover", body, re.IGNORECASE) is not None
+          and re.search(r"push the (feature )?branch", body, re.IGNORECASE) is not None
+          and re.search(r"open the PR", body, re.IGNORECASE) is not None,
+          "autorun: the handover authorisation must name exactly the two outward actions it covers")
+    check(re.search(r"[Ss]ilence is never that authorisation|Silence is never approval", body) is not None,
+          "autorun: silence may never stand in for the handover authorisation")
+
+
+def validate_no_challenger_flag():
+    """v1.11.0 (B) — `--no-challenger` on BOTH `solve` and `autorun`, defaulting to the challenger
+    RUNNING, and routed through the ONE challenger-dispatch decision in `review` rather than a parallel
+    one. Under `autorun` a disabled challenger is line one of DISCLOSURE: the operator typed the flag
+    at 23:00 and reads the PR at 08:00, so a clean result is uninterpretable without it."""
+    review = skill_text("review")
+    solve = skill_text("solve")
+    autorun = skill_text("autorun")
+    check(re.search(r"single.{0,30}challenger-dispatch decision", review, re.IGNORECASE) is not None,
+          "no-challenger: review must declare itself the SINGLE challenger-dispatch decision")
+    check(re.search(r"challenger runs by DEFAULT", review) is not None,
+          "no-challenger: review must state the challenger runs by DEFAULT")
+    for name, body in (("solve", solve), ("autorun", autorun), ("review", review)):
+        check("--no-challenger" in body,
+              f"no-challenger: skills/{name}/ must name the `--no-challenger` argument")
+    check(re.search(r"do not build a second one|adds no parallel one|none of them builds a parallel",
+                    solve + autorun, re.IGNORECASE) is not None,
+          "no-challenger: solve/autorun must route the flag to review, never build a second dispatch "
+          "decision")
+    check(re.search(r"line one of `DISCLOSURE`|FIRST LINE of `DISCLOSURE`", autorun + review) is not None,
+          "no-challenger: under autorun a waived challenger must be line ONE of DISCLOSURE")
+    check(re.search(r"clean \(reviewer only — CHALLENGER: OFF\)", review) is not None,
+          "no-challenger: a challenger-less clean verdict must be reported as reviewer-only, never as "
+          "a bare clean")
+    check(re.search(r"not satisfied — it is ABSENT|is not satisfied.{0,20}ABSENT", review) is not None,
+          "no-challenger: with the challenger off, 'every requirement met' is ABSENT, not a criterion met")
+    check(re.search(r"deliberate decision recorded as an argument", review) is not None,
+          "no-challenger: waiving must be recorded as an argument, not remembered as an instruction")
+
+
+def validate_envelope_scripts():
+    """v1.11.0 (C, D) — the three envelope scripts and their invariants.
+
+    They are built as scripts with their own tests because the code that decides whether a run may
+    start is exactly where a silent defect is unrecoverable at 3am. The invariants asserted here are
+    the ones a later edit could quietly relax: the mandatory force-case grammar fields, the three floor
+    conditions the agent may not author, the refusal of a content grep and of an ancestry predicate in
+    the tree comparison, and a degradation ladder that never reaches the review seat or the envelope."""
+    scripts = ROOT / "plugins" / "mango" / "scripts"
+    for name in ("run_contract.py", "reconcile.py", "budget.py"):
+        check((scripts / name).exists(),
+              f"envelope: plugins/mango/scripts/{name} must ship inside the plugin")
+    suite = ROOT / "tests" / "envelope" / "test_envelope.py"
+    if not check(suite.exists(), "envelope: tests/envelope/test_envelope.py must exist"):
+        return
+    rc = (scripts / "run_contract.py").read_text(encoding="utf-8")
+    rec = (scripts / "reconcile.py").read_text(encoding="utf-8")
+    bud = (scripts / "budget.py").read_text(encoding="utf-8")
+
+    check(re.search(r'"force-broken", "force-holding"', rc) is not None,
+          "envelope: force-broken and force-holding must be mandatory CONDITION grammar fields — a "
+          "condition missing either may never reach RECONCILE to be counted")
+    for cid in ("PR-EXISTS", "TREE-COMPARISON", "LOCAL-HEAD-PUSHED"):
+        check(re.search(rf'"{cid}"', rc) is not None,
+              f"envelope: the fixed floor must ship {cid} — the agent may not author it")
+    check(re.search(r"may not drop it", rc) is not None,
+          "envelope: a dropped floor condition must fail the parse")
+    check(re.search(r"never a content grep|not grep for content", rc) is not None,
+          "envelope: TREE-COMPARISON must refuse a content grep — a post-merge correction is unnamed at t0")
+    check(re.search(r"--is-ancestor", rc) is not None and re.search(r"false-red", rc) is not None,
+          "envelope: TREE-COMPARISON must refuse an ancestry predicate (a false-red under squash)")
+    check(re.search(r"--verify", rc) is not None,
+          "envelope: LOCAL-HEAD-PUSHED must require `rev-parse --verify` — two failed lookups otherwise "
+          "compare empty to empty and report HOLDING")
+    check(re.search(r"guarantees the grammar, not the\s+facts", rc) is not None,
+          "envelope: the contract must state its guarantee is well-formed and consistent, never true")
+
+    check(re.search(r"--first-parent", rec) is not None,
+          "envelope: merge-strategy detection must read recent first-parent topology")
+    check(re.search(r"[Nn]ever the host's allowed-strategy flags|never the API flags", rec) is not None,
+          "envelope: merge-strategy must never read the host's allowed-strategy flags")
+    check(re.search(r"whole-history merge count", rec) is not None,
+          "envelope: merge-strategy must state why a whole-history count is the wrong tool")
+    check(re.search(r"narrows the judgement", rec) is not None,
+          "envelope: the merge-strategy verdict must say it narrows the judgement rather than removing it")
+    check(re.search(r"FORCE-UNPROVEN", rec) is not None,
+          "envelope: a forced case whose mutation did not land must be reported, never counted")
+    check(re.search(r"conditions: \{declared\} declared", rec) is not None
+          and re.search(r"proven    : \{shown_broken\} shown BROKEN", rec) is not None,
+          "envelope: RECONCILE must emit both counted lines in the shipped grammar")
+    check(re.search(r"phase == \"t0\" and state == HOLDING", rec) is not None,
+          "envelope: a condition reporting HOLDING at t0 must be struck — it describes something else")
+
+    check(re.search(r'"1-narrow-main-loop"', bud) is not None,
+          "envelope: the ladder must start at the main loop — the ~90% term, not a subagent")
+    check(re.search(r'"3b-reviewer-to-native-code-review"', bud) is not None,
+          "envelope: the ladder must degrade the review seat in steps, ending at the native command")
+    check(re.search(r"does not read `\.harness\.json`", bud) is not None,
+          "envelope: the native step must be marked as NOT grounded in the project rule book")
+    check(re.search(r"NEVER = \[", bud) is not None
+          and re.search(r"review seat", bud) is not None
+          and re.search(r"the envelope", bud) is not None,
+          "envelope: the review seat and the envelope must be named as never degraded, at any budget")
+    check(re.search(r"nothing invented, nothing blocked", bud) is not None,
+          "envelope: no ledger history must yield `unknown` — never a blocked run and never a made-up number")
+    check(re.search(r"PROXY, not a measurement", bud) is not None,
+          "envelope: a call-count ceiling must be named a proxy, not a measurement")
+
+
+def validate_m7_withdrawal():
+    """v1.11.0 (B) — the proposed 'refuse to start when the challenger is waived' directive is
+    WITHDRAWN, and the withdrawal is recorded with its grounds in the non-runtime RATIONALE.md (never
+    in a skill, which is directive-only)."""
+    rationale = ROOT / "plugins" / "mango" / "RATIONALE.md"
+    if not check(rationale.exists(), "m7: plugins/mango/RATIONALE.md is missing"):
+        return
+    body = rationale.read_text(encoding="utf-8")
+    check(re.search(r"[Ww]ithdrawn", body) is not None,
+          "m7: RATIONALE.md must record the withdrawal of the refuse-to-start-on-a-waived-challenger "
+          "directive")
+    check(re.search(r"waiv", body, re.IGNORECASE) is not None
+          and re.search(r"challenger", body, re.IGNORECASE) is not None,
+          "m7: the withdrawal must name what was withdrawn (the challenger waiver refusal)")
+    check(re.search(r"a directive waived twice is not a mechanism", body) is not None,
+          "m7: the withdrawal must record its grounds")
+
+
+def validate_v1_11_0_fixtures():
+    """v1.11.0 — every behavioural item must be shown to CATCH something, and the greenfield control is
+    not optional: the unattended lane must close with zeros and an honest `unknown` on a project that
+    has learned nothing and merged nothing. A fixture that exists but is never dispatched is not
+    coverage, so all three are asserted: the file exists, run.sh dispatches it, and FIXTURE_SKILLS keys
+    it to the skill it exercises.
+
+    The mechanical half of the teeth table (contract grammar, the tree/head floor conditions,
+    merge-strategy detection, budget arithmetic, the forced-case positive control) is covered by the
+    dispatch-free suite at tests/envelope/, which the eval also runs — asserted here so the two halves
+    cannot drift apart."""
+    required = {
+        "autorun-clarification-stops": "j > 0 stops the run; every unaffected part still finishes",
+        "autorun-gate-grammar-mismatch": "a counted line off the shipped grammar does not close its gate",
+        "autorun-no-challenger-disclosed": "--no-challenger skips the challenger and is DISCLOSURE line one",
+        "autorun-challenger-default-on": "the default invocation runs the challenger",
+        "autorun-budget-degrades": "approaching the ceiling degrades per the ladder and completes",
+        "greenfield-autorun-clean": "the unattended lane on an empty project: zeros, `unknown`, no block",
+    }
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "v1.11.0-fixtures: tests/eval/run.sh is missing"):
+        return
+    rs = runsh.read_text(encoding="utf-8")
+    for name, why in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"v1.11.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+              f"v1.11.0-fixtures: run.sh must dispatch the {name} fixture "
+              "(an unregistered fixture is not coverage)")
+        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+              f"v1.11.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+    check(re.search(r"tests/envelope/test_envelope\.py", rs) is not None,
+          "v1.11.0-fixtures: run.sh must run the dispatch-free envelope suite — the mechanical half of "
+          "the teeth table lives there, and a suite nobody runs is not coverage")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -2175,6 +2387,11 @@ def main():
     validate_challenger_pr_body()
     validate_refine_selfcheck_contiguous()
     validate_v1_10_1_fixtures()
+    validate_autorun_gates()
+    validate_no_challenger_flag()
+    validate_envelope_scripts()
+    validate_m7_withdrawal()
+    validate_v1_11_0_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

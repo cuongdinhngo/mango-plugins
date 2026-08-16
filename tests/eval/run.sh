@@ -261,6 +261,26 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES="$HERE/fixtures"
 REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
+#   v1.10.0 onward — per-version coverage is catalogued INLINE, at the `# ---- v1.10.0:` /
+#                     `# ---- v1.10.1:` / `# ---- v1.11.0` section banners in `suite()` below, beside the
+#                     fixtures they describe. That is the one place a fixture and its description cannot
+#                     drift apart; this header is not re-summarised per release.
+#   v1.11.0         — the UNATTENDED lane (`autorun`). Split deliberately: the MECHANICAL half of the
+#                     teeth table lives in the dispatch-free `tests/envelope/test_envelope.py` (contract
+#                     grammar + two-phase binding, a t0 `HOLDING` struck, the tree/head floor conditions
+#                     against real throwaway git repos, merge-strategy on a strategy-switched history,
+#                     budget arithmetic and its `unknown`, the forced-case positive control) — run by
+#                     this suite so it cannot rot; the JUDGEMENT half is four fixtures plus a greenfield
+#                     control: `j > 0` STOPS the run while every unaffected part still finishes
+#                     (autorun-clarification-stops); a counted line off the shipped grammar does NOT
+#                     close its gate and is reported rather than re-typed (autorun-gate-grammar-mismatch);
+#                     `--no-challenger` skips the challenger and is DISCLOSURE line one, the clean verdict
+#                     reported reviewer-only (autorun-no-challenger-disclosed); the DEFAULT invocation
+#                     runs it (autorun-challenger-default-on, the non-vacuous control); approaching the
+#                     call-count ceiling degrades per the declared ladder — main loop first, review seat
+#                     never to zero — and COMPLETES (autorun-budget-degrades); and on a freshly `init`-ed
+#                     project with no lessons, a TODO rule book and no merged PRs, every count closes with
+#                     zeros or an honest `unknown` and nothing extra is added (greenfield-autorun-clean).
 # Full model transcripts are teed here (gitignored) so a failed assertion is inspectable —
 # each PASS/FAIL line points at the transcript file it judged. Wiped fresh each run.
 TDIR="$HERE/.transcripts"
@@ -398,6 +418,9 @@ declare -A FIXTURE_SKILLS=(
   [challenger-pr-body-refused]="review"
   [greenfield-full-run]="refine analysis" [greenfield-quick-direct]="quick"
   [greenfield-promote-zeros]="promote" [greenfield-recall-handles-none-match]="analysis"
+  [autorun-clarification-stops]="autorun" [autorun-gate-grammar-mismatch]="autorun"
+  [autorun-no-challenger-disclosed]="autorun review" [autorun-challenger-default-on]="autorun review"
+  [autorun-budget-degrades]="autorun" [greenfield-autorun-clean]="autorun"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -612,7 +635,7 @@ PHASE=collect        # collect | assert — see the two-pass note in the header
 # dispatch from being the last one to start. This is a HINT ONLY: it changes the ORDER jobs are
 # claimed in, never which jobs run, what is asserted, or any count. A wrong weight costs seconds.
 declare -A SKILL_WEIGHT=(
-  [refine]=4 [analysis]=4 [design]=4 [breakdown]=3 [execute]=2
+  [refine]=4 [analysis]=4 [design]=4 [autorun]=4 [breakdown]=3 [execute]=2
   [review]=1 [finalise]=1 [solve]=1 [budget]=1 [codify]=1
 )
 job_weight() {  # <fixture-name>
@@ -1911,6 +1934,67 @@ assert_all "chal-pr: independence is reported compromised rather than proceeding
 assert_all "chal-pr: the PR's numbered requirement list is not adopted as the requirements" "$t" 'rebuild|derive|my own|independently|from the raw ticket' 'requirement'
 assert_all "chal-pr: ref-based git reading is still allowed" "$t" 'git diff|git show|git log' 'allow|still|permitted|may|use'
 
+# ---- v1.11.0 — the unattended lane. The mechanical halves of the teeth table (contract grammar, the
+# ---- tree/head floor conditions, merge-strategy detection, budget arithmetic) are covered by the
+# ---- dispatch-free envelope suite at tests/envelope/; these four fixtures cover the half that is a
+# ---- judgement call an agent makes at 3am with nobody watching.
+
+# A1 autorun-clarification-stops: `j > 0` is not something to guess at 3am. The run stops — and stopping
+# is not dying: every part that does not depend on the answer is finished first.
+t="$(run_fixture autorun-clarification-stops 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "autorun-j: the run STOPS on j > 0 rather than choosing a value" "$t" 'stop|halt|does not (continue|proceed)|not[ *_]{1,4}(continue|proceed)' 'j[ *_=:]{0,4}1|1 for human|clarification'
+assert_absent "autorun-j: no retention window is invented" "$t" '(I|we) (chose|picked|selected|set) (90|12|the) (days|months|window)'
+assert_all "autorun-j: the parts that do not depend on the answer are finished" "$t" 'finish|complet|carried|done|proceed' 'audit|report|other|remaining|independent|not depend'
+assert_all "autorun-j: the open question reaches the operator verbatim" "$t" 'no activity|retention|90 days|12 months' 'question|state|report|surfac|morning'
+assert_all "autorun-j: no PR is opened on a stopped run" "$t" 'no PR|not[ *_]{1,4}(open|reach)|without a PR|stops before' 'PR'
+assert_all "autorun-j: RECONCILE and DISCLOSURE are still written" "$t" 'RECONCILE' 'DISCLOSURE'
+
+# A2 autorun-gate-grammar-mismatch: the harness reads the artifact and decides. A counted line that does
+# not parse against the shipped grammar does not close its gate, and is never repaired by re-typing it.
+t="$(run_fixture autorun-gate-grammar-mismatch 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "autorun-grammar: the narrated SECTIONS line does not close Gate 1" "$t" 'SECTIONS' 'not[ *_]{1,4}(close|match|parse)|does not (close|match|parse)|narrat|prose|no count'
+assert_all "autorun-grammar: AC VALIDATION is not an artifact mango produces" "$t" 'AC VALIDATION' 'not[ *_]{1,4}(an artifact|a mango|produce|exist)|no such|does not exist|invented|fabricat'
+assert_all "autorun-grammar: the HANDLES line fails its own arithmetic" "$t" 'HANDLES' '3 ?(!=|≠|does not|is not)|2 \+ 0|h ?== ?t ?\+ ?x|arithmetic|contradict'
+assert_all "autorun-grammar: the empty answer cell means one handle is unanswered" "$t" 'h-tenant-key' 'unanswered|empty|blank|no command|1 unanswered'
+assert_all "autorun-grammar: Gate 2 does not close" "$t" 'Gate 2' 'not[ *_]{1,4}close|does not close|blocked|stays (open|shut)|fails'
+assert_all "autorun-grammar: the line is NOT rewritten into the correct form" "$t" 'not[ *_]{1,4}(rewrite|re-?type|repair|fix)|never (rewrite|re-?type|repair)|must not|refuse' 'line|artifact|count'
+assert_absent "autorun-grammar: no self-announced gate pass" "$t" '(Gate [12]|both gates?) (pass|clos)(es|ed)? (because|as) I '
+
+# A3 autorun-no-challenger-disclosed: at solve the operator types the flag and remembers; at autorun they
+# typed it nine hours earlier, so a clean result is uninterpretable without the flag state.
+t="$(run_fixture autorun-no-challenger-disclosed 'Run the mango autorun skill review and disclosure steps against the injected run state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
+assert_all "no-chal: the challenger was NOT dispatched" "$t" 'challenger' 'not (dispatch|run)|no challenger|skipped|waived|off'
+assert_all "no-chal: it is line ONE of DISCLOSURE" "$t" 'DISCLOSURE' 'line (one|1)|first line|1\.[ *_]{0,4}CHALLENGER'
+assert_all "no-chal: the clean verdict is reported as reviewer-only" "$t" 'reviewer[ *_-]{0,4}only|only the reviewer|CHALLENGER: OFF' 'clean|LGTM|verdict'
+assert_all "no-chal: 'every requirement met' is ABSENT, not satisfied" "$t" 'absent|not satisfied|not a criterion|missing|no[ *_]{1,4}independent' 'requirement|criterion|met'
+assert_all "no-chal: the morning reader cannot conclude independence" "$t" 'cannot|not evidence|no[ *_]{1,4}(basis|proof)|uninterpretable' 'independen'
+assert_all "no-chal: the flag state is also recorded for a later comparison" "$t" 'RUN CONTRACT|working doc|record' 'compar|later|across runs|data'
+assert_absent "no-chal: the challenger is not reported as having run" "$t" 'the challenger (found|returned|reported|rebuilt)'
+
+# A4 autorun-challenger-default-on: the default is ON. The flag is the deliberate exception, never the
+# other way round.
+t="$(run_fixture autorun-challenger-default-on 'Run the mango autorun skill review step against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "chal-default: the challenger IS dispatched" "$t" 'challenger' 'dispatch|run|yes|is among|included'
+assert_all "chal-default: the default is stated as ON" "$t" 'default' 'on|runs|enabled'
+assert_all "chal-default: --no-challenger is named as what would change it" "$t" '--no-challenger' 'pass|flag|argument|would have'
+assert_all "chal-default: DISCLOSURE line one records the challenger as ON" "$t" 'DISCLOSURE' 'CHALLENGER: ?ON|challenger[^.]{0,20}(on|ran)'
+assert_all "chal-default: the review seat is what may never be dropped" "$t" 'never|not[ *_]{1,4}(drop|degrade|cut)|floor' 'review'
+assert_absent "chal-default: a comfortable budget does not add a subagent" "$t" 'because the budget is comfortable,? (I|we) (add|also run|dispatch an extra)'
+
+# A5 autorun-budget-degrades: approaching the ceiling degrades per the declared ladder and completes;
+# it never dies mid-phase and never reaches zero review.
+t="$(run_fixture autorun-budget-degrades 'Run the mango autorun skill budget step against the injected run state in this ticket and answer the six numbered questions in order. Do not stop for my input.')"
+assert_all "budget: approaching the ceiling is reported, not fatal" "$t" '104|approach|near' 'not[ *_]{1,4}(die|kill|abort|stop)|no mid-?phase|continue|complet'
+assert_all "budget: the main loop is cut FIRST" "$t" 'main[ *_-]{0,4}loop|scope|fan-?out' 'first|1\.|before|largest|90'
+assert_all "budget: the challenger is the cheap second cut" "$t" 'challenger' 'second|2\.|58|cheap|little'
+assert_all "budget: the review seat degrades in steps, never to zero" "$t" 'reviewer' 'step|never[ *_]{1,4}(zero|off|none)|floor|degrade'
+assert_all "budget: cost_tier max means reviewer-max degrades to reviewer" "$t" 'reviewer-max' 'reviewer|downgrade|degrade|step'
+assert_all "budget: the native command does not read the rule book" "$t" 'code-review|native' 'harness\.json|rule ?book|general standards|does not (read|know)'
+assert_all "budget: which review step ran is recorded in DISCLOSURE" "$t" 'DISCLOSURE' 'which|step|record|reviewed by'
+assert_all "budget: the run still completes and still reaches a PR" "$t" 'complet|finish|reach' 'PR'
+assert_all "budget: the ceiling is named a proxy, not a measurement" "$t" 'proxy' 'not[ *_]{1,4}a measurement|dispatch[ *_-]{0,4}only|main[ *_-]{0,4}loop|invisible|unmeasured'
+assert_absent "budget: the review seat is never dropped entirely" "$t" '(skip|drop|waive|cut) the (review|reviewer)( seat)? (entirely|altogether|completely)'
+
 # ---- GREENFIELD NEGATIVE CONTROLS. A freshly `init`-ed project has no lessons file, a rule book of
 # ---- TODOs, zero claims and zero handles. Every mechanism above must CLOSE WITH ZEROS there. If any of
 # ---- these four goes red the version is not shippable, whatever else passes.
@@ -1953,6 +2037,21 @@ assert_contains "no-match: the RULE SECTIONS line is emitted" "$t" 'RULE SECTION
 assert_all "no-match: the handle-matched source adds zero sections" "$t" 'by recalled handle|by handle' '0|zero|none|add(s|ed)? no'
 assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)'
 assert_all "no-match: no extra trace, row, question or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'trace|row|gate|question|work'
+
+# G5 greenfield-autorun-clean: the unattended lane on a project that has learned nothing and merged
+# nothing. Everything closes with zeros or an honest `unknown`; nothing is invented and nothing blocks.
+t="$(run_fixture greenfield-autorun-clean 'Run the mango autorun skill against the injected project state in this ticket and answer the five numbered questions in order, emitting every counted line the run produces. Do not stop for my input.')"
+assert_all "greenfield-autorun: the call ceiling is recorded unknown" "$t" 'unknown' 'ceiling|call-?count|budget'
+assert_all "greenfield-autorun: missing ledger history neither blocks nor invents" "$t" 'not[ *_]{1,4}(block|stop|invent)|no[ *_]{1,4}(block|number|estimate)|nothing invented|proceed' 'ledger|history|ceiling|budget'
+assert_all "greenfield-autorun: merge strategy is answered honestly on a repo with no merges" "$t" 'no merge commit|squash-or-rebase|no merged PR' 'honest|narrow|cannot|unknown|does not settle'
+assert_contains "greenfield-autorun: the RECALL line is emitted with zeros" "$t" 'RECALL:'
+assert_contains "greenfield-autorun: recall closes with zero claims" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
+assert_contains "greenfield-autorun: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
+assert_contains "greenfield-autorun: the RECONCILE block is emitted" "$t" 'RECONCILE'
+assert_all "greenfield-autorun: no extra step, question, warning, gate or block is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'step|question|warn|gate|block|work'
+assert_all "greenfield-autorun: the run still reaches a PR" "$t" 'PR' 'reach|open|complet|yes'
+assert_contains "greenfield-autorun: DISCLOSURE is written" "$t" 'DISCLOSURE'
+assert_absent "greenfield-autorun: no per-call number is invented for an empty ledger" "$t" 'per-call estimate[ *_:=]{1,4}[0-9]'
 
 }   # end suite()
 
@@ -2303,6 +2402,24 @@ if _vnr_run >/dev/null 2>&1; then
   echo "  PASS: validator no-rationale-guard: removing the injected rationale restores a passing validate.py"
 else
   echo "  FAIL: validator no-rationale-guard: tree not restored after injection"; fails=$((fails + 1))
+fi
+
+# --- envelope script suite (v1.11.0) -----------------------------------------
+# The three envelope scripts (RUN CONTRACT / RECONCILE / BUDGET) carry their own stdlib-only test
+# suite. It is dispatch-free and takes under a second, so the eval runs it too rather than leaving it
+# to a separate command someone can forget. Every git test inside it builds its own throwaway repo
+# under `tempfile`; the live checkout is never touched. Run against the SANDBOX clone, like every
+# other validator self-test here.
+echo
+echo "== envelope script suite (RUN CONTRACT / RECONCILE / BUDGET) =="
+total=$((total + 1))
+_env_out="$( ( cd "$SANDBOX" && python3 tests/envelope/test_envelope.py 2>&1 ) || true )"
+if printf '%s' "$_env_out" | grep -qE '^OK$'; then
+  echo "  PASS: envelope suite green — $(printf '%s' "$_env_out" | grep -oE 'Ran [0-9]+ tests?' | tail -1)"
+else
+  echo "  FAIL: envelope suite is RED"
+  fails=$((fails + 1))
+  printf '%s\n' "$_env_out" | tail -20
 fi
 
 # eval-isolation-guard (v1.6.1 Fix 1): the SAFETY check — the whole point. Two counted assertions:

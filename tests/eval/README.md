@@ -168,6 +168,17 @@ deterministic:
   `RATIONALE.md` fails, so the "why" can never be pulled back onto the runtime path. Teeth for the
   v1.7.6 *skills are directive-only* rule — same injection discipline as the jargon guard.
 
+- **envelope script suite** (`tests/envelope/test_envelope.py`, 50 stdlib-only tests) — the three
+  envelope scripts `autorun` runs (`RUN CONTRACT`, `RECONCILE`, `BUDGET`) carry their own tests, and
+  `run.sh` invokes them so a suite nobody runs cannot rot. It covers the **mechanical** half of the
+  v1.11.0 teeth table: contract grammar and two-phase binding, a t0 condition reporting `HOLDING` being
+  struck, the tree/head floor conditions against real throwaway git repos (squash-clean, correction
+  after merge, an unpushed commit, no `origin` remote), merge-strategy detection on a repo that switched
+  strategy mid-history, budget arithmetic and its `unknown`, and the forced-case positive control. Each
+  git test builds and destroys its own repo under `tempfile`; the live checkout is never touched. The
+  **judgement** half — which cut to take, whether a gate closes, what reaches DISCLOSURE — stays in the
+  `autorun-*` fixtures, because only a model run can demonstrate it.
+
 Prefer this shape for anything a deterministic check can prove — reserve `claude -p` fixtures for
 behaviour only a model run can demonstrate. A change that is a **pure deletion of non-behavioural
 text** — no directive reworded — is proven by `validate.py` plus a marker audit of the deleted

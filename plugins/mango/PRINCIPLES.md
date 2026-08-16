@@ -7,6 +7,16 @@ named below exist, are filled, and pass their own count/match checks. Silence is
 The four principles follow. Each lists its **Operating rule**, where it is **Enforced at**, and
 exactly when it **Fails the gate**.
 
+> **Unattended runs do not weaken this, and `autorun` is not an exception to it.** `/mango:autorun`
+> closes each gate on the **same** counted artifact the attended lane closes it on — it removes the
+> human *keystroke*, never the gate, never the artifact, and never the review seat. Three properties
+> keep "silence is never approval" true there: a counted line that does not parse against its shipped
+> grammar **does not close its gate** (and is reported, never re-typed into the correct form); `j > 0`
+> **stops** the run rather than guessing; and the only outward actions permitted are the two an
+> explicit **handover authorisation** named up front — push the branch, open the PR. There is **no
+> auto-merge**: the run ends when the PR exists, and the merge stays a human decision. Silence still
+> approves nothing; the human's approval simply moves to the handover and the merge.
+
 ---
 
 ## 1. Think before coding

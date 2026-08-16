@@ -18,6 +18,21 @@ the user to create one from `<mango>/config/harness.example.json`.
 
 State up front, verbatim: **"I stop and wait for you at every ✋ gate."**
 
+## Arguments
+
+`/mango:solve <KEY> [--no-challenger]`
+
+**`--no-challenger` — default OFF, meaning the challenger RUNS.** Passing it waives the ticket-blind
+challenger for this run. Waiving it is a **deliberate decision recorded as an argument**, never an
+improvised mid-run instruction: pass the flag state to `review`, which owns the **single**
+challenger-dispatch decision (`review`, step 2) — do not build a second one here. Record
+`CHALLENGER: ON | OFF (--no-challenger)` in the working doc, and report a challenger-less clean verdict
+as `clean (reviewer only — CHALLENGER: OFF)` rather than a bare clean.
+
+**Unattended runs use `/mango:autorun <KEY>` instead of this skill.** `solve` holds every gate in the
+live conversation and waits for a human; `autorun` runs the same phases and closes each gate from the
+artifacts they emit, stopping at the PR. Same flag, same default.
+
 ## Why this is a skill, not an agent
 
 Gates require pausing in the **live conversation** so the human can approve. A subagent runs

@@ -162,3 +162,71 @@ process running stateful git in a shared cwd) — one principle, two surfaces.
   failure class — which is why critic output is never compressed.
 - **`db-map`:** the database is where the costliest mistakes live and where the reviewer/challenger are
   blindest — but a schema map is the most stack-specific thing of all, so it is opt-in and never core.
+
+---
+
+## autorun — why the review seat stays in an unattended run
+
+**Rule (`skills/autorun/SKILL.md`, the degradation ladder):** the review seat degrades in three steps
+and never to zero; the envelope is never degraded at all.
+
+**History:** every defect measured across the field runs so far was *inside* the diff, not outside it.
+Field test 1: two real defects, both found by the reviewer subagent, none by the envelope. Field test
+2: four regressions caught by CI, none by the envelope. Ticket 016: reviewer and challenger both
+returned clean and a human then found four AC1 failures. Review was waived on both code-atlas tickets
+where it was optional, and both times a later review found real defects; waiving it is measured against
+defects reaching the PR on seven field tickets (064, 065, 068, 071, 073, plus PRs #102 and #103). The
+envelope watches the world *outside* the diff, so `RECONCILE` is a floor under `finalise` and never a
+substitute for review.
+
+---
+
+## autorun — why `--no-challenger` is an argument, and why M7 was WITHDRAWN
+
+**Rule (`skills/review/SKILL.md` step 2, `skills/solve/SKILL.md`, `skills/autorun/SKILL.md`):** the
+challenger runs by default; `--no-challenger` waives it explicitly, and under `autorun` the waiver is
+line one of `DISCLOSURE`.
+
+**History:** the challenger is effective but expensive (about 58k per run across five measured runs),
+and turning it off as a token limit approaches is a deliberate safety decision rather than a shortcut.
+Making it an argument records the choice instead of relying on someone remembering an improvised
+instruction.
+
+**Withdrawn:** an earlier proposal in this line of work — *refuse to start the run when the challenger
+is waived* — is **withdrawn** and was never shipped. Two field tests ran with the challenger waived
+both times and it was dispatched on neither: **a directive waived twice is not a mechanism**. Shipping
+it would have added a refusal nobody honours, in place of the disclosure line that actually reaches the
+morning reader.
+
+---
+
+## autorun — why the tree comparison is a tree comparison
+
+**Rule (`plugins/mango/scripts/run_contract.py`, the fixed floor):** `TREE-COMPARISON` refuses a
+content grep and refuses an ancestry predicate.
+
+**History:** a content grep looks for text named at t0, and the incident this condition exists to catch
+— a correction committed to the branch after the merge — is unnamed then, so the grep returns HOLDING
+on precisely that case. An ancestry predicate (`git merge-base --is-ancestor`) is a false-red under a
+squash merge, which sank an earlier version of this condition. The merge-strategy question is read from
+recent first-parent topology rather than the host's allowed-strategy flags (which say what is permitted,
+never what is used) or a whole-history merge count (which returns the pre-change answer when a repo
+switched strategy mid-history, in the dangerous direction).
+
+**Also measured:** one contract stated "the last 17 commits are single-parent" when it was 18 — perfect
+format, false fact. Machine-writing guarantees the grammar, not the values, which is why every derivable
+value is derived by a command and everything else is marked an unchecked agent claim.
+
+---
+
+## autorun — why the budget mechanism is a proxy and does not guard the big term
+
+**Rule (`plugins/mango/scripts/budget.py`, `skills/autorun/SKILL.md` step 4):** the ceiling is a call
+count, named as a proxy, and the ladder cuts main-loop work before any subagent.
+
+**History:** from the code-atlas ledger, the challenger runs about 58k and the reviewer about 108k per
+round, while a fresh main loop ran 217.7k–689.2k plus millions of cache reads; ticket 003 recorded
+dispatch at 7.6% of the run. Dropping a subagent therefore saves roughly a tenth of a run. mango's
+ledger measures subagent dispatch only, so on at least one host the largest term is invisible to the
+harness at runtime and a "remaining tokens" gate cannot see what is being spent. Call count is
+countable live and ran roughly 1.5–4.2k fresh tokens per call across four ledger rows.

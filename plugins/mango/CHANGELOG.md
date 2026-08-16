@@ -5,6 +5,119 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.11.0] — 2026-08-16
+
+**`/mango:autorun` — the unattended lifecycle, stopping at the PR.** A ticket handed over at 23:00 runs
+the same five phases overnight and reaches a PR by morning with **one** human touch remaining: the merge.
+Five waits for a human become one. **No gate is removed** — Gates 0–4 all still run, the review seat
+included; what is removed is the operator sitting at the keyboard to acknowledge each one. **There is no
+auto-merge in this version:** the run stops when the PR exists.
+
+This is **additive** — a new skill plus a flag. No existing gate decision changes, and nothing an
+attended `solve` run does today behaves differently. The reserved `2.0` is for a change to the operating
+model; gates staying and the human still merging is not that.
+
+### Added
+
+- **`/mango:autorun <KEY>`** (`skills/autorun/SKILL.md`). Invokes the existing `refine` → `analysis` →
+  `design` → `execute` → `review` → `finalise` — it reimplements no phase — and closes each gate from
+  the counted artifacts those phases already emit (`CLARIFICATION: … j = 0`; `SECTIONS` found =
+  decomposed with `RULE SECTIONS` and `BASELINE`; `HANDLES: u = 0` with `h == t + x`, a `❌`-free
+  verification plan and a named proving test; the verification sweep with `diff ⊆ approved list`; an
+  `LGTM` or a conditional LGTM whose findings landed). **The harness reads the artifact and decides —
+  the agent does not announce that a gate passed**, and a counted line that does not parse against the
+  shipped grammar **does not close its gate** and is never repaired by re-typing it.
+  - **`j > 0` stops the run.** A clarification for human decision is not guessed at 03:00. **Stopping is
+    not dying:** every part not depending on the answer is finished, then the open question is reported.
+  - **Abort list:** credentials or auth · a write to shared state beyond the pre-authorised branch push
+    and PR-open (shared DB, deploy, merge, force-push, tracker transition) · a rule conflict needing a
+    policy decision · the fix turning out to be a product decision · a gate still red after three honest
+    attempts.
+  - **Handover authorisation.** One explicit authorisation naming exactly two outward actions — push the
+    feature branch, open the PR — recorded in the `RUN CONTRACT` and covering nothing else. Silence is
+    never that authorisation.
+- **Three envelope artifacts, built as scripts with their own tests** (`plugins/mango/scripts/`,
+  `tests/envelope/test_envelope.py`, 50 stdlib-only tests, dispatch-free; the eval runs them too).
+  - **`RUN CONTRACT`** (`scripts/run_contract.py`) — written by the script from agent-supplied values in
+    a fixed grammar and parsed back before the run starts. **If it does not parse, the run does not
+    start.** `force-broken` and `force-holding` are **mandatory grammar fields on every condition**, not
+    report columns, so an unforceable condition can never reach `RECONCILE` to be counted. Two-phase:
+    conditions that cannot exist at t0 are `UNBOUND ${PLACEHOLDER}`s bound at Gate 2 by a re-validation
+    pass that **refuses any survivor**. Every derivable value is **derived by running a command**;
+    everything else is marked `agent-claim (unchecked)` and carried into `DISCLOSURE`. The contract's
+    guarantee is *well-formed and internally consistent*, never *true*. Records the resolved
+    `plugin-version` and `plugin-path`, so an overnight run can answer "which version did this?".
+  - **`RECONCILE`** (`scripts/reconcile.py`) — **the harness runs the commands, the agent reads the
+    verdict.** Emits `conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND`
+    and `proven: <b> shown BROKEN when forced | <h> shown HOLDING on a clean run`. Runs **at t0 as well
+    as at close**: before any work exists every bound condition should be in its failing state, and one
+    reporting `HOLDING` on an empty run is struck before the run starts. Three **floor conditions the
+    agent may not author, rename, or drop**: the PR exists and is readable; a **tree comparison**
+    (`git diff --quiet`) — a content grep is refused at contract time, and so is an ancestry predicate;
+    and **nothing stranded on this machine** (local branch head == the remote's, each ref resolved with
+    `rev-parse --verify`). `--prove` is the **forced-case positive control**: a case counts only when the
+    check is observed to FLIP, and one that does not is reported `FORCE-UNPROVEN` and not counted.
+    `q > 0` does **not** block a merge in this version — it means **read this first**.
+  - **`DISCLOSURE`** — seeded from the contract (challenger flag state on line one, every unchecked agent
+    claim, the budget line), then appended by the agent with coverage-gap exclusions, `unmeasured` ledger
+    cells, baseline exclusions, deviations, unexercised paths, every degradation taken and which review
+    step ran. The skill states that this is **the one artifact nothing can check** and that a near-empty
+    list on a long run is a reason to distrust the run.
+- **Merge-strategy detection from recent first-parent topology** (`reconcile.py merge-strategy`) — the
+  commits between the newest merge commit on the default branch and its tip. **Never** the host's
+  allowed-strategy flags (they say what is permitted, never what is used) and **never** a whole-history
+  merge count (which returns the pre-change answer when a repo switched strategy mid-history). The
+  verdict states that it **narrows the judgement rather than removing it**.
+- **Call-count budget proxy + degradation ladder** (`scripts/budget.py`). The ceiling and its per-call
+  estimate are recorded in the `RUN CONTRACT`, traceable to ledger history for the tier; where the host
+  surfaces usage, the token budget is recorded and preferred. **No ledger history → `unknown`: recorded
+  as unknown, not blocked, nothing invented.** The skill states plainly that a call-count ceiling is a
+  **proxy, not a measurement** — mango measures subagent dispatch only, and main-loop spend is the larger
+  term. Ladder, in order: **main-loop work first** (roughly 90% of run cost), then the **challenger**
+  (about 58k, a disclosure event more than a budget one), then the **review seat in three steps that
+  never reach zero** — `reviewer-max` → `reviewer` (about 108k/round) → the host's native `/code-review`
+  (about 62k), the third of which is **not a smaller reviewer**: it does not read `.harness.json`, so it
+  checks general standards rather than the project's codified rules, and which step ran is recorded in
+  `DISCLOSURE`. **The review seat and the envelope are never degraded away**, at any budget. Approaching
+  the ceiling degrades and completes — never a mid-phase death — and an estimate already over the ceiling
+  is reported **at t0**.
+
+### Changed
+
+- **`--no-challenger` on both `/mango:solve` and `/mango:autorun`; the challenger runs by DEFAULT.**
+  Waiving it is a deliberate decision **recorded as an argument** rather than remembered as an improvised
+  instruction. `review` (step 2) is declared the **single** challenger-dispatch decision and both
+  orchestrators route the flag to it rather than building a parallel one. A challenger-less clean verdict
+  is reported `clean (reviewer only — CHALLENGER: OFF)`, and "every requirement met" is then **ABSENT**,
+  not a criterion satisfied. Under `autorun` the waiver is **line one of `DISCLOSURE`**.
+- **`review` step 2** now names the flag, records `CHALLENGER: ON | OFF` in the working doc so a later
+  comparison across runs is possible, and keeps every other clean criterion unrelaxed.
+- **`solve`** gains an Arguments section and points unattended runs at `autorun`.
+
+### Withdrawn
+
+- The proposed *refuse to start when the challenger is waived* directive is **withdrawn** and was never
+  shipped: two field tests ran with the challenger waived both times and it was dispatched on neither —
+  **a directive waived twice is not a mechanism**. Recorded with its grounds in `RATIONALE.md`.
+
+### Verification
+
+- `scripts/validate.py`: 1713 checks, 0 failed — including five new check groups (`autorun` gate table
+  and its non-negotiables, the `--no-challenger` flag across all three skills, the envelope-script
+  invariants, the M7 withdrawal record, and fixture registration).
+- `tests/envelope/test_envelope.py`: **50 tests, all green.** The suite caught two defects while it was
+  being written: an unverified `git rev-parse` comparison reports `HOLDING` when **both** lookups fail
+  (empty == empty — a false green precisely where nothing was pushed), now refused at contract time; and
+  the same shape silently inflated the `proven` count. Coverage: T1/T2 (grammar and binding), T3 (a t0
+  `HOLDING` is struck), T4 (squash-clean tree comparison; ancestry and grep refused), T5 (correction
+  after merge → `BROKEN`), T6 (unpushed commit → `BROKEN`), T7 (strategy switched mid-history), T12–T14
+  and G2 (budget arithmetic and `unknown`), G3 (no `origin` remote), and the forced-case positive control.
+- Six behavioural fixtures registered in `tests/eval/run.sh`: `autorun-clarification-stops`,
+  `autorun-gate-grammar-mismatch`, `autorun-no-challenger-disclosed`, `autorun-challenger-default-on`,
+  `autorun-budget-degrades`, and the greenfield control `greenfield-autorun-clean`. Adding fixtures edits
+  `run.sh`, which changes the runner fingerprint and therefore invalidates the whole transcript cache by
+  design — the behavioural eval for this version is a **full-fresh** run.
+
 ## [1.10.1] — 2026-08-15
 
 **The rule-first recall path: a rule promoted from a lesson can now actually be reached, the lite lane

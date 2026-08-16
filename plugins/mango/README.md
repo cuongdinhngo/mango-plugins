@@ -86,7 +86,8 @@ conventions live in the `codify` rule book, not in these maps.
 ## The lifecycle
 
 Run the whole thing with `/mango:solve`, or invoke a phase directly. mango stops and waits at every ✋
-gate. The lifecycle is:
+gate. For an **unattended** run, `/mango:autorun <KEY>` runs the same phases and closes each gate from
+the artifacts they emit, stopping at the PR — the merge stays a human. The lifecycle is:
 
 ```
 refine → analysis → design → execute → review → finalize                       (ticket path)
@@ -149,7 +150,53 @@ security-tagged, touches more than one file, or has a universal requirement reso
 | `/mango:finalise` | 5 → final gate | **Stale-review guard** (routes back to `review` only if a source file changed beyond the reviewed set), optional `pr_checklist_path` walk, PR draft, per-action approval for every outward action, tracker writes via CLI, a **cost-ledger completeness gate**, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and pushed to a shared ref — then the **learning loop** on it: split into atomic claims → classify (a proposal) → recurrence/supersession → a **falsification check in front of** the ratification gate → each promotion **proposed** into a **project** file and ratified per claim. No lesson edits a mango skill. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. Runs exactly two reads from the full lane — the advisory `RECALL:` and the `RULE SECTIONS:` coverage (reused, not reimplemented) — so a **directly-invoked** lite ticket reads the lesson corpus it writes to at `finalise` instead of only feeding it. Both close with zeros on an empty corpus. No challenger, matrix, fan-out or baseline. |
 | `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **enumerated six-letter INVEST** self-check (each of Independent/Negotiable/Valuable/Estimable/Small/Testable affirmed or N/A — a one-liner is a finding; a ticket failing a letter is flagged for **re-split**), held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **Boundary sizing is corrected by retro; the re-ratification behaviour is Experimental.** |
+| `/mango:autorun` | unattended orchestrator | Runs the **same** phases as `solve` and closes each gate from the artifacts they already emit, instead of waiting for a human to type "go" — five waits become one, and that one is the merge. **No gate is removed** (the review seat included) and **there is no auto-merge**: the run stops when the PR exists. Takes one handover authorisation naming exactly two outward actions (push the branch, open the PR); everything else is on the abort list. `j > 0` stops the run — every unaffected part is still finished and the open question is reported. Writes three envelope artifacts: a machine-written **`RUN CONTRACT`** (fixed grammar, parsed back before the run starts, every condition declaring a `force-broken` and a `force-holding` case, `${PLACEHOLDER}`s bound at Gate 2), a harness-run **`RECONCILE`** at t0 **and** at close (three floor conditions the agent may not author: the PR is readable, a **tree** comparison, and nothing stranded unpushed), and a **`DISCLOSURE`** list read first in the morning. |
 | `/mango:solve` | orchestrator | Runs `refine` (Phase 0) FIRST and branches — **skip** / **ticket-refine** / **epic-path** — then a Doctor preflight and every gated phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
+
+### Unattended runs — `/mango:autorun`
+
+```
+23:00  you hand over a ticket
+   ↓   Gates 0–4 close on ARTIFACTS, not on you typing "go"
+   ↓   the reviewer subagent runs (03:00 is fine)
+   ↓   push → PR opened
+   ↓   RECONCILE (harness-run) + DISCLOSURE written
+08:00  you read the PR and merge — or you do not
+```
+
+**Five waits for a human become one.** That one is the merge, and it stays a human: **there is no
+auto-merge**, and the run stops when the PR exists. No gate is removed — Gates 0–4 all still run,
+including the review seat. What is removed is you sitting at the keyboard to acknowledge each one.
+
+The gate conditions are the ones the phases already emit (`CLARIFICATION: … j = 0`, `SECTIONS` found =
+decomposed, `HANDLES: u = 0` with `h == t + x`, the verification sweep, an `LGTM`), and **the harness
+reads the artifact and decides** — an agent does not announce that a gate passed. **A counted line that
+does not parse against the shipped grammar does not close its gate**, and is reported rather than
+re-typed into the correct form. `j > 0` stops the run: a clarification for human decision is not
+something to guess at 03:00. **Stopping is not dying** — every part that does not depend on the answer
+is finished first, and the open question is stated for the morning.
+
+Three envelope artifacts, built as scripts under `plugins/mango/scripts/` with their own test suite
+(`tests/envelope/`):
+
+| Artifact | What it is |
+|---|---|
+| `RUN CONTRACT` | Written by a script from your values in a fixed grammar and **parsed back before the run starts — if it does not parse, the run does not start**. Every condition declares a `force-broken` **and** a `force-holding` case as mandatory grammar fields, so an unforceable condition can never reach `RECONCILE` to be counted. Conditions that cannot exist at t0 are `${PLACEHOLDER}`s bound at Gate 2, with a re-validation pass that refuses any survivor. Every derivable value is derived by a command; everything else is marked an unchecked agent claim. Its guarantee is *well-formed and internally consistent*, never *true*. |
+| `RECONCILE` | **The harness runs the commands; the agent reads the verdict.** Runs at **t0** as well as at close: before any work exists, every bound condition should be in its *failing* state, and one reporting `HOLDING` on an empty run is describing something else and is struck. Three floor conditions you may not author: the PR exists and is readable; a **tree** comparison (`git diff --quiet`, never a content grep, never an ancestry predicate — that is a false-red under squash); and nothing stranded on this machine (local head == the remote's). `q > 0` does not block the merge — it means **read this first**. |
+| `DISCLOSURE` | What was **not** verified, in one list, read first in the morning: the challenger flag state on line one, every unchecked agent claim, coverage-gap exclusions, `unmeasured` ledger cells, baseline exclusions, deviations, every degradation taken. **This is the one artifact nothing can check** — a near-empty list on a long run is a reason to distrust the run. |
+
+**`--no-challenger`** works on both `/mango:solve` and `/mango:autorun`; the challenger runs by
+**default**. Waiving it is a deliberate decision recorded as an argument rather than remembered as an
+instruction — and under `autorun` it is **line one of `DISCLOSURE`**, because a clean result read nine
+hours later is uninterpretable without knowing whether anything independent looked at it.
+
+**Budget.** A token limit hit mid-run leaves a half-finished branch nobody is awake to rescue, so
+`autorun` records a **call-count ceiling** at t0 — stated honestly as a **proxy, not a measurement**,
+since the ledger measures subagent dispatch only and main-loop spend is the larger term. No ledger
+history → the ceiling is `unknown`, and the run proceeds with nothing invented. Approaching it triggers
+a declared **degradation ladder** — main-loop work first (roughly 90% of run cost), then the challenger,
+then the review seat in three steps that **never reach zero** — never a mid-phase death. The review seat
+and the envelope are never degraded away.
 
 ### Epic path — thin by design
 
