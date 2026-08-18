@@ -2475,6 +2475,200 @@ def validate_v1_11_0_fixtures():
           "the teeth table lives there, and a suite nobody runs is not coverage")
 
 
+# --- counted-line grammar surface (v1.13.0) -------------------------------------------------------
+# Every file whose text a reader could take as the shipped grammar of a counted line. The ONE-GRAMMAR
+# check below runs over this WHOLE surface: a variant is a variant wherever it sits, and the two that
+# shipped before v1.13.0 (`PREMISE:` short, `RECALL:` five-field) each lived in a file the per-skill
+# checks never compared against the emitter.
+def counted_line_surface():
+    plugin = ROOT / "plugins" / "mango"
+    return (sorted(plugin.glob("skills/*/*.md")) + sorted(plugin.glob("templates/*.md"))
+            + sorted(plugin.glob("principles/*.md")) + sorted(plugin.glob("agents/*.md"))
+            + [plugin / "PRINCIPLES.md", plugin / "README.md"])
+
+
+def validate_counted_line_checker():
+    """v1.13.0 — a counted line is PARSED by the harness, and there is exactly ONE grammar to parse.
+
+    Four measured field cases (`RETIRE:` never emitted, advisory recall never firing, a self-invented
+    `RECALL:` committed, `EXCLUSIONS:` omitted on the newest mechanism's first use) all say the same
+    thing: prose does not enforce itself. `check_lines.py` reads the working doc and verdicts each line;
+    its exit status is the verdict. This check guards the two halves that a later edit could quietly
+    relax — the single grammar per line, and the harness (never the agent) deciding whether it parsed.
+    """
+    plugin = ROOT / "plugins" / "mango"
+    script = plugin / "scripts" / "check_lines.py"
+    if not check(script.exists(),
+                 "counted-lines: plugins/mango/scripts/check_lines.py must ship inside the plugin"):
+        return
+    src = script.read_text(encoding="utf-8")
+
+    # --- report, never rewrite: the script has no write path at all.
+    for banned, why in ((r"\bwrite_text\b", "write_text"), (r"open\([^)]*['\"]w['\"]", "open(..., 'w')"),
+                        (r"\bos\.replace\b", "os.replace"), (r"\bshutil\.(copy|move)", "shutil.copy/move")):
+        check(re.search(banned, src) is None,
+              f"counted-lines: check_lines.py must REPORT, never rewrite — it may not call {why}. A "
+              f"checker that edited the doc would hide the paraphrase it exists to surface.")
+    check("REPORT, NEVER REWRITE" in src,
+          "counted-lines: check_lines.py must state the report-never-rewrite discipline")
+
+    # --- the third state, on its own axis and its own exit status.
+    check("NOT-CHECKABLE" in src and "not-checkable" in src,
+          "counted-lines: check_lines.py must carry `not-checkable` as a THIRD state, distinct from "
+          "pass and fail (the same discipline as RECONCILE's could-not-run)")
+    check(re.search(r"never a silent pass", src) is not None,
+          "counted-lines: a not-checkable line must never be a silent pass")
+    check(re.search(r"status = 3|status, 3|OWN EXIT STATUS \(3\)", src) is not None,
+          "counted-lines: not-checkable must have its own exit status, so a caller can tell it from a FAIL")
+    check(re.search(r"CANNOT READ", src) is not None
+          and re.search(r"never passes by default", src) is not None,
+          "counted-lines: an unreadable working doc must be reported plainly and never pass by default")
+
+    # --- no new counted line for the checker itself.
+    check(re.search(r"NO NEW COUNTED LINE", src) is not None,
+          "counted-lines: check_lines.py must state that it ships NO counted line of its own — a counted "
+          "line nothing parses is the defect this version exists to end")
+
+    # --- the three checks, in the order of value the version claims.
+    for cue, what in ((r"INTERNAL CONTRADICTION", "the internal-contradiction check"),
+                      (r"MISSING WHEN REQUIRED", "the missing-when-required check"),
+                      (r"OFF-GRAMMAR", "the off-grammar check")):
+        check(re.search(cue, src) is not None, f"counted-lines: check_lines.py must carry {what}")
+
+    # --- the checker's own suite, following the envelope-script precedent.
+    suite = ROOT / "tests" / "envelope" / "test_envelope.py"
+    if check(suite.exists(), "counted-lines: the checker's tests must ship in tests/envelope/"):
+        tests = suite.read_text(encoding="utf-8")
+        check("import check_lines" in tests,
+              "counted-lines: the suite must exercise check_lines.py directly, not only through text greps")
+        # `test_T1_`..`test_T7_` are ALREADY taken by the RUN CONTRACT suite, so asserting the bare
+        # prefix matched a pre-existing test and proved nothing. The counted-line cases carry a `CL_`
+        # infix precisely so this assertion is not vacuous.
+        for case in ("test_CL_T1_", "test_CL_T2_", "test_CL_T3_", "test_CL_T4_", "test_CL_T5_",
+                     "test_CL_T6_", "test_CL_T7_", "test_CL_T8_", "test_CL_T9_"):
+            check(re.search(rf"{case}\w*\(self\)", tests) is not None,
+                  f"counted-lines: the suite must keep teeth test {case[8:].strip('_')} (removing one is "
+                  f"removing a CHECK)")
+        for case in ("test_CL_G1_", "test_CL_G2_", "test_CL_G3_"):
+            check(re.search(rf"{case}\w*\(self\)", tests) is not None,
+                  f"counted-lines: the suite must keep greenfield control {case[8:].strip('_')} — these are "
+                  f"what keep the check from becoming a tax on every ticket")
+
+    # --- the harness runs it, never the agent, and the exit status is the verdict.
+    for name in ("autorun", "solve", "finalise"):
+        body = skill_text(name)
+        check("check_lines.py" in body,
+              f"counted-lines: {name} must invoke `check_lines.py` — an agent reading its own counted "
+              f"line and declaring it satisfied reproduces the defect")
+        check(re.search(r"exit status", body) is not None,
+              f"counted-lines: {name} must make the SCRIPT'S EXIT STATUS the verdict, not the agent's "
+              f"reading of the output")
+        check(re.search(r"(?s)check_lines.{0,1400}(cannot run|could-not-run)", body) is not None,
+              f"counted-lines: {name} must carry the could-not-run fallback beside the invocation — the "
+              f"checker's own absence must never block the run and never read as clean")
+        check(re.search(r"never restate|do \*\*not\*\*\s*\n?\s*restate|never re-?type|do \*\*not\*\* re-type",
+                        body) is not None,
+              f"counted-lines: {name} must forbid restating the verdict or re-typing a rejected line")
+
+    # --- ONE GRAMMAR PER LINE. A parser cannot be written against a line that ships in two forms, so a
+    # second form is a defect at the text layer, wherever it sits.
+    sys.path.insert(0, str(plugin / "scripts"))
+    try:
+        import check_lines as cl
+    except ImportError as exc:                                  # pragma: no cover - import guard
+        check(False, f"counted-lines: cannot import check_lines.py ({exc})")
+        return
+    for token in sorted(cl.GRAMMARS):
+        canonical = cl.GRAMMARS[token]["canonical"]
+        variants = {}
+        for path in counted_line_surface():
+            try:
+                body = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            # PER LINE, never over the whole file: a ``` fence carries an odd backtick count, which
+            # shifts the pairing of every span after it — that mispairing hid a real variant once.
+            spans = [s for line in body.splitlines() for s in re.findall(r"`([^`]+)`", line)]
+            for span in spans:
+                span = span.strip().replace("\\|", "|")       # markdown table escaping is not a variant
+                if not span.startswith(token + ":") or not re.search(r"<[a-zA-Z]", span):
+                    continue
+                # A trailing `, …` is the grammar's own enumeration continuation; an ellipsis anywhere
+                # ELSE elides part of the line, which makes the span an abbreviated citation rather than
+                # a second grammar. `CLARIFICATION: … | <j> for human decision` cites; it does not compete.
+                if "…" in span.replace(", …", ""):
+                    continue
+                if canonical.startswith(span):                 # a prefix is a citation, not a variant
+                    continue
+                variants.setdefault(span, set()).add(str(path.relative_to(ROOT)))
+        check(
+            list(variants) in ([], [canonical]),
+            f"counted-lines: `{token}:` must ship in exactly ONE grammar. A parser cannot be written "
+            f"against a line that ships in two forms, and an agent emitting the second is complying with "
+            f"one of the two shipped texts. Found: "
+            + " ;; ".join(f"{sorted(w)} -> {v}" for v, w in variants.items() if v != canonical)
+            + f" ;; canonical: {canonical}")
+
+    # --- the registry may not DRIFT from the text. Every canonical form must appear VERBATIM, inside
+    # backticks, in a shipped skill or template — otherwise the parser is checking a grammar mango does
+    # not actually publish, which is the same defect one layer down.
+    shipped = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(plugin.glob("skills/*/*.md")) + sorted(plugin.glob("templates/*.md")))
+    for token, spec in sorted(cl.GRAMMARS.items()):
+        check(f"`{spec['canonical']}`" in shipped,
+              f"counted-lines: the registry's canonical form for `{token}:` must appear VERBATIM in a "
+              f"shipped skill or template — a parser checking a grammar mango does not publish is the "
+              f"same defect one layer down. Missing: {spec['canonical']}")
+
+    # --- the working-doc template needs a SLOT for every line a lifecycle phase must emit; without one,
+    # a doc built from the template has nowhere to put it, which is how `EXCLUSIONS:` went missing.
+    tpl = (plugin / "templates" / "ticket.md").read_text(encoding="utf-8")
+    for token, spec in sorted(cl.GRAMMARS.items()):
+        if not spec.get("required_at"):
+            continue
+        check(f"`{token}:" in tpl,
+              f"counted-lines: templates/ticket.md must carry a slot for `{token}:` — it is required at "
+              f"{spec['required_at']} and a template with no slot for a line is how one goes missing")
+
+
+def validate_v1_13_0_fixtures():
+    """v1.13.0 — the behavioural teeth for the counted-line checker are registered eval fixtures: the
+    file exists, run.sh dispatches it, and FIXTURE_SKILLS keys it to the skill it exercises. A fixture
+    that exists but is never dispatched is not coverage. (Asserted dispatch-free here; the eval itself
+    runs at end of month, so treat every assertion's WORDING as unproven until it has.)"""
+    required = {
+        "check-lines-contradiction-blocks": ("autorun",
+            "a CLAIMS line whose per-type counts do not sum to `<c>` does not close its gate, and the "
+            "script's exit status — not the agent's reading — is the verdict (CL1)"),
+        "check-lines-missing-blocks": ("design autorun",
+            "an exclusion recorded only in the matrix, with the counted line absent, does not close "
+            "Gate 2 — the measured case 4 (CL2)"),
+        "check-lines-not-checkable": ("autorun",
+            "a counted line mango ships no grammar for is the THIRD state, counted separately, "
+            "disclosed, and never a silent pass (CL3)"),
+        "check-lines-one-grammar": ("refine",
+            "one grammar per line: `<h> by handle` is a field, and the executing skill governs over a "
+            "shorter form (CL4)"),
+        "greenfield-check-lines-clean": ("autorun",
+            "THE CONTROL — a first ticket with every line at zero is clean and pays nothing: no extra "
+            "step, no warning, no block (CL5)"),
+    }
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "v1.13.0-fixtures: tests/eval/run.sh is missing"):
+        return
+    rs = runsh.read_text(encoding="utf-8")
+    for name, (skill, why) in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"v1.13.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+              f"v1.13.0-fixtures: run.sh must dispatch the {name} fixture (an unregistered fixture is "
+              "not coverage)")
+        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+              f"v1.13.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -2575,6 +2769,8 @@ def main():
     validate_v1_11_0_fixtures()
     validate_exclusion_expiry()
     validate_v1_12_0_fixtures()
+    validate_counted_line_checker()
+    validate_v1_13_0_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

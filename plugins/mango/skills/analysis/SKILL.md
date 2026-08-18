@@ -34,7 +34,8 @@ count, and the requirements matrix.
    **to-be-created** never counts as missing / **ambiguous** is surfaced, never blocking), the same
    **resolvable-identifier** scope (a path / file / symbol / config key / table / route a grep can
    decide — a prose noun like "the dashboard banner" is ambiguous, never a falsified premise), the same
-   `PREMISE FALSIFIED: …` halt, and the same `PREMISE: <r> checked | <m> missing | <a> ambiguous`
+   `PREMISE FALSIFIED: …` halt, and the same
+   `PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`
    counting line — both emitted **verbatim, prefix included, before any table or prose** (a narrated
    count is an addition, never a substitute). Do **not** invent a parallel mechanism. When `refine` already ran it this session,
    carry its line forward instead of re-running it. On a miss, **STOP for the human before any

@@ -23,8 +23,9 @@ ticket + the diff, never this `.work.md`. -->
 gate. Every decision here is a **counted artifact**, never prose. refine **exposes for the human to
 decide and never authors intent**.
 
+`PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`
 `REFINE: <U> unresolved surfaced | <a> want-decision asked | <b> how-decision resolved+cited | <s> ASSUMED | skip: yes/no`
-`RECALL: <n> claim(s) surfaced | <s> by symbol | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
+`RECALL: <n> claim(s) surfaced | <s> by symbol | <h> by handle | <a> by area | <f> by finding | <r> retired skipped — advisory (blocks nothing)`
 
 **Recalled claims (ADVISORY — surfaced only).** Past claims this ticket matches: type 1 by **symbol**,
 type 5 by **area** (with its `verified-at:` stamp on an environment claim), type 6 by **the finding**
@@ -86,7 +87,7 @@ A ticket that **fails a letter** (e.g. not Small, not Independent) is **flagged 
 ratification**. The exposure-checker findings refine surfaced on the epic path (1 dispatch, before
 breakdown) are ratified here alongside the split.
 
-`BREAKDOWN: <N> tickets proposed | <N> INVEST self-checks emitted (6 letters each) | <f> flagged for re-split`
+`BREAKDOWN: <N> tickets proposed | <N> INVEST self-checks emitted (6 letters each) | <f> tickets flagged for re-split`
 
 | # | Proposed key | One-line scope | I | N | V | E | S | T | Re-split? |
 |---|--------------|----------------|---|---|---|---|---|---|-----------|
@@ -148,7 +149,8 @@ reflow, focus-visible, contrast …), the denominator **N is the count of reacha
 from the CODE — never from the ticket prose**. Consult the opt-in `sitemap` (`config.docs_dir/sitemap.md`);
 if absent, enumerate reachable views read-only. The ticket's examples are a *hint*, never the denominator.
 
-`SURFACES: <N> — <route / full-window overlay / modal / major mounted state>, …`
+`SURFACES: <N> — <surface>, <surface>, …`  <!-- surface = route / full-window overlay / modal /
+major mounted state -->
 
 | # | Surface (route / overlay / modal / state) | Can the change affect it? |
 |---|-------------------------------------------|---------------------------|
@@ -200,6 +202,16 @@ tool/API descriptions, config, migrations, downstream consumers) so a reviewer k
 | Change | File/area | Blast radius (side-effect surface) | Ph2 covered by | k/N |
 |--------|-----------|------------------------------------|----------------|-----|
 |        |           |                                    |                |     |
+
+**Recalled type-2 handles — one row per handle from this run's `RECALL:` line, each answered by name**
+(traced with the command AND its actual output, or the literal `does not apply because <reason>`):
+
+| # | Handle (class slug) | Answer: traced (command + output) / `does not apply because <reason>` |
+|---|---------------------|----------------------------------------------------------------------|
+| 1 |                     |                                                                      |
+
+`HANDLES: <h> recalled | <t> traced (command + result) | <x> does not apply (reason) | <u> unanswered`
+(emit every run, zeros included; `u` must be 0 and `h` must equal `t + x` — any `u > 0` **blocks Gate 2**)
 
 - Rule compliance (vs rulebook_path / standards_path):
 - **Proving test** (fails pre-change, passes post-change; invocation via test_command):
@@ -322,6 +334,7 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 `CLAIMS: <c> claim(s) from <e> lesson entr(ies) | T1=<n> T2=<n> T3=<n> T4=<n> T5=<n> T6=<n> | <u> unclassified`
 `RECURRENCE: <n> recurring | <s> superseded (<r> retired) | <p> promotion candidate(s)`
 `FALSIFY: <c> candidate(s) checked | <t> still-true (proceed) | <f> falsified (BLOCKED) | <u> not cheaply checkable (BLOCKED)`
+`RECURRING-T2: <n> type-2 claim(s) with seen ≥ 2 | <d> routed to a destination | <b> cannot promote (reason) | <l> left in lessons_path`
 `PROMOTION: <p> proposed | <k> human-ratified | destinations: <path>, … | mango files written: 0`
 
 Claims are recorded in the shape of `templates/claim-record.md`. The classifier **PROPOSES** a type; the
@@ -372,7 +385,7 @@ cell blocks a gate (see `finalise`'s content-completeness gate).
 |-------|---------------------|-------|--------|------------------------------------------|
 |       |                     |       |        |                                          |
 
-`LEDGER TOTAL: <tokens> · top cost driver: <phase / subagent>` — surfaced by `finalise` at the final
+`LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>` — surfaced by `finalise` at the final
 gate as a one-line summary (total + top cost driver). It never triggers an automatic cut.
 
 ---

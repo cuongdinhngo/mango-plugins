@@ -134,12 +134,27 @@ Invoke the phases in the same order `solve` does — `refine` → `analysis` →
 | 3 | execute's verification sweep · `diff ⊆ approved list` · the design-conformance self-check |
 | 4 | the reviewer verdict is `LGTM`, or a conditional LGTM whose named findings have landed |
 
-**Read the artifact against its shipped grammar and let the match decide. Do not announce that a gate
-passed.** Reading your own counted line and declaring it satisfied is the adherence defect this whole
-lane works around. **If the line does not parse against the shipped grammar, the gate does not close** —
-a line that is *narrated* rather than emitted, that carries a count contradicting its own row list, or
-that names an artifact mango does not produce, is a **non-closing** gate. Stop and report it as such;
-never repair it by re-typing the line yourself.
+**The harness parses the counted lines; you read the verdict.** Before closing a gate, run the checker
+over the working doc — never your own reading of the line:
+
+```
+python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished>
+```
+
+**Its exit status IS the verdict.** `0` clean · `2` a line FAILED its canonical grammar, a required line
+was MISSING, or an arithmetic gate condition is BROKEN — **the gate does not close** · `3` nothing failed
+but something was **not checkable** (a counted line mango ships no grammar for, an undeclared phase, an
+unreadable doc) — **UNVERIFIED, not clean.** Quote the counted lines the script printed; do **not**
+restate them in your own words, do **not** re-type a line it rejected, and do **not** announce a gate
+passed. **If the script itself cannot run** (no `python3`, the path unresolvable), say so plainly, record
+`check-lines: could-not-run` alongside the run's other unverified items, fall back to reading the line
+against its shipped grammar, and **do not claim to have checked** — the checker's own absence never
+blocks the run and never reads as clean.
+
+**If the line does not parse against the shipped grammar, the gate does not close** — a line that is
+*narrated* rather than emitted, that carries a count contradicting its own row list, or that names an
+artifact mango does not produce, is a **non-closing** gate. Stop and report it as such; never repair it
+by re-typing the line yourself. Every `not-checkable` line goes into `DISCLOSURE`.
 
 ### `j > 0` stops the run until morning
 
@@ -290,7 +305,8 @@ reason to distrust the run, not to trust it.**
 - **No auto-merge, ever, in this skill.** The run stops when the PR exists.
 - **No gate is removed** — including the review seat, at any budget.
 - **The harness decides a gate, not the agent's announcement.** A counted line that does not parse
-  against its shipped grammar does not close its gate.
+  against its shipped grammar does not close its gate, and `check_lines.py`'s **exit status** — not your
+  reading of its output — is what says whether it parsed.
 - **Never repair a counted line by re-typing it.** Report it as non-closing.
 - **Never invent a number** — not a token count, not a ceiling, not a condition's value. `unknown` and
   `unmeasured (<reason>)` are correct answers; a plausible figure is a false-green.

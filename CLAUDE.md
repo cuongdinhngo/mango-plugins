@@ -17,7 +17,7 @@ project's `.harness.json`, so nothing here may assume a stack, a tracker, or a l
 | | command | when |
 |---|---|---|
 | Cheap, always-on contract guard | `python3 scripts/validate.py` | after **every** edit; must print `OK` and be green before any push (CI runs it on push/PR) |
-| Envelope script suite | `python3 tests/envelope/test_envelope.py` | after touching `plugins/mango/scripts/`; deterministic, free, no dispatch (CI runs it on push/PR; the eval runs it too) |
+| Harness script suite | `python3 tests/envelope/test_envelope.py` | after touching `plugins/mango/scripts/`; deterministic, free, no dispatch (CI runs it on push/PR; the eval runs it too) |
 | Behavioural eval (costs tokens) | `bash tests/eval/run.sh --workers 8` | **once** at a milestone, before push |
 | Dev loop during a build | `bash tests/eval/run.sh --only <regex>` | affected fixtures only — a **PARTIAL** run that never substitutes for the full suite |
 

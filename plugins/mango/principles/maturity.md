@@ -7,7 +7,7 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Three behaviours are **Experimental** today:
+Four behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
@@ -17,6 +17,14 @@ Three behaviours are **Experimental** today:
   push without being asked. **Its safety boundaries are NOT Experimental** and never will be: no gate is
   removed, the review seat is never degraded away, there is no auto-merge, `j > 0` stops the run, and no
   outward action happens beyond the two the handover authorisation named.
+
+- **the counted-line checker's grammar registry and its three checks.** That a counted line is parsed
+  by the harness rather than read by its author is Stable and is the point. What is Experimental is the
+  registry's exact tolerance boundary — which spellings are inflection and which are a paraphrase — and
+  the sum rules that are derived from an exhaustive partition rather than stated verbatim in a skill.
+  Both will move as more real working docs run through it. **Its safety boundaries are NOT
+  Experimental**: it reports and never rewrites, `not-checkable` is never a pass, it ships no counted
+  line of its own, and the checker's own absence never blocks a run and never reads as clean.
 
 - **breakdown re-ratification** (surfacing a post-gate split delta for an explicit human re-approve):
   validated once in the field, its re-ratification trigger and granularity may change until a second

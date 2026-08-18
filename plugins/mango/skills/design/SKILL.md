@@ -88,7 +88,8 @@ this phase.
 
    **`u` must be 0 and `h` must equal `t + x`; any `u > 0` BLOCKS Gate 2** — exactly as an unfilled
    matrix column does. Emit the line on **every** run, zeros included: `h = 0` closes it with
-   `HANDLES: 0 recalled | 0 traced | 0 does not apply | 0 unanswered` and adds no work whatsoever. A
+   `HANDLES: 0 recalled | 0 traced (command + result) | 0 does not apply (reason) | 0 unanswered`
+   and adds no work whatsoever. A
    recalled handle is **still advisory** — it never becomes a requirement or a matrix row on its own; what
    is binding is that it was **answered**, not what the answer said.
 5. **Rule compliance.** Check the proposed change against `config.rulebook_path` and
@@ -168,8 +169,8 @@ this phase.
    third-occurrence class **silently re-recorded** instead of discharged or escalated, **blocks Gate 2**
    — as unmissable as an unfilled matrix column. `o > 0` is a **surfacing**: mango reports it; the
    **human** decides whether the overdue exclusion is discharged. `n = 0` closes the line with all zeros
-   and adds **no** work: `EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring | 0 with an
-   overdue predecessor`. **A first exclusion of a class, with a checkable expiry, is legitimate and
+   and adds **no** work: `EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring
+   (class seen ≥ 3 → discharged/escalated) | 0 with an overdue predecessor`. **A first exclusion of a class, with a checkable expiry, is legitimate and
    common — accepted with no escalation and no extra step** (`r = 0`); blocking a first, well-formed
    deferral would make every genuinely deferred check a gate failure.
 7. **Proving test (at the matching layer).** With the risk layer classified (step 6), name the

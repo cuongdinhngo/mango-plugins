@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.12.0-blue)
+![version](https://img.shields.io/badge/version-1.13.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -171,8 +171,11 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 ## Maturity
 
 Field-proven on multiple real projects across several stacks, including a large-scale production
-codebase, with a behavioural eval suite — one fixture per behaviour, green at each release — and
-fault-injection-tested escalation paths; the public skill/config API has been stable since 1.0.
+codebase, with a behavioural eval suite — one fixture per behaviour, green at each **milestone run** —
+and fault-injection-tested escalation paths; the public skill/config API has been stable since 1.0. A
+release registers its fixtures and is gated by `validate.py` plus the dispatch-free script suites; the
+behavioural eval is a milestone gate, so **the newest version's fixture wording is unproven until that
+run**.
 
 **Used by engineers beyond its author — including a maintainer of a major open-source frontend
 framework — on their own projects.**
@@ -181,10 +184,18 @@ Though written for Claude Code, mango is not locked to it: it has run its full l
 hosts — including Cursor, driving real tasks to merged pull requests on a production codebase, with a
 different underlying model.
 
-The **unattended lane** (`/mango:autorun`, 1.11.0) is the newest surface and is marked
-**Experimental**: its gate conditions are the shipped, field-tested ones, but closing them without a
-human at the keyboard has not yet been run overnight on a real ticket. Its safety boundaries are not
-Experimental — no gate is removed, the review seat is never degraded away, and there is no auto-merge.
+The **unattended lane** (`/mango:autorun`, 1.11.0) is marked **Experimental**: its gate conditions are
+the shipped, field-tested ones, and it has now driven real tickets to a pull request unattended — what
+stays Experimental is the exact condition set a `RUN CONTRACT` should carry and the call-count budget
+proxy. Its safety boundaries are not Experimental — no gate is removed, the review seat is never degraded
+away, and there is no auto-merge.
+
+The **counted-line checker** (`scripts/check_lines.py`, 1.13.0) is the newest surface. That the harness
+parses a counted line rather than its author reading it is settled and is the point; **Experimental** is
+the grammar registry's tolerance boundary — which spellings are inflection and which are a paraphrase.
+Its safety boundaries are not Experimental: it reports and never rewrites, `not-checkable` is never a
+pass, it adds no counted line of its own, and where it cannot run the run says so instead of claiming to
+have checked.
 
 Per-phase maturity (Stable / Experimental) is tracked in
 [`plugins/mango/PRINCIPLES.md`](./plugins/mango/PRINCIPLES.md).

@@ -230,3 +230,72 @@ dispatch at 7.6% of the run. Dropping a subagent therefore saves roughly a tenth
 ledger measures subagent dispatch only, so on at least one host the largest term is invisible to the
 harness at runtime and a "remaining tokens" gate cannot see what is being spent. Call count is
 countable live and ran roughly 1.5–4.2k fresh tokens per call across four ledger rows.
+
+## autorun, solve, finalise — why a script parses the counted lines (v1.13.0)
+
+**Rule (still in `skills/autorun/SKILL.md` Step 2, `skills/solve/SKILL.md` *Closing a gate on a counted
+line*, `skills/finalise/SKILL.md` step 11):** the harness runs `scripts/check_lines.py` and its exit
+status is the verdict; the agent may quote the output but may not restate it, and may never repair a
+rejected line by re-typing it.
+
+**Why.** Four field consequences of the same cause, each with a clean report over it:
+
+| # | What happened | Where |
+|---|---|---|
+| 1 | `RETIRE:` never emitted — mandatory after a ratify, unambiguous in the shipped text | 0 of 67 lessons |
+| 2 | advisory recall never fired | 0 of 67 |
+| 3 | `RECALL:` committed in a self-invented format — a field invented, `<h> by handle` and `<f> by finding` both omitted — so the next ticket copies it | one ticket's committed working doc |
+| 4 | `EXCLUSIONS:` omitted outright on the **first field use of the newest mechanism in the plugin**: the exclusion recorded as prose in the matrix, the counted line never written, unnoticed until the retro | `grep -c "EXCLUSIONS:" → 0` |
+
+Case 4 is the decisive one: 1.12.0's coverage-gap-expiry discipline was the newest mechanism in the
+plugin and its first field use skipped its own counted line. Four mechanisms, four identical outcomes.
+Prose does not enforce itself — measured, not hypothesised.
+
+A fifth case needed no grammar debate at all: a `CLAIMS:` line whose per-type counts summed to 4 while
+`<c>` read 3. **The line disagreed with itself**, `autorun`'s own non-negotiables call that non-closing,
+and the agent noticed, wrote a prose explanation beside it, and the gate closed. That is why
+internal contradiction is the first check and runs on every occurrence of a line: it is the cheapest and
+most defensible thing to check, and it is not a matter of opinion.
+
+**Why `not-checkable` is a third state rather than a pass or a fail.** A line the script has no grammar
+for has not been judged. Calling it a pass is the false-green the whole design exists to prevent; calling
+it a fail conflates "I could not check this" with "this is wrong". It gets its own count and its own exit
+code, exactly as `could-not-run` does in `RECONCILE`.
+
+**Why the script reports and never rewrites.** Case 3 shows an agent will paraphrase a counted line. A
+script that reformatted the line into shape would make the paraphrase invisible, which is worse than the
+paraphrase.
+
+**Why the checker's own absence must not block.** A host without `python3` is not a host with a defective
+working doc. Blocking there would make the mechanism a reliability risk on the exact hosts least able to
+diagnose it, so the calling skill records `check-lines: could-not-run`, falls back to reading the line,
+and does not claim to have checked.
+
+## the counted-line grammars — why two shipped forms made "deviation" undefined (v1.13.0)
+
+**Rule (enforced by `scripts/validate.py`, `validate_counted_line_checker`):** each counted line ships in
+exactly one grammar across the whole shipped surface — skills, on-demand companions, templates, agent
+briefs, `PRINCIPLES.md` and both READMEs.
+
+**Why.** `RECALL:` shipped in two forms: the six-field form the emitting skills carry, and a **five-field
+form in the working-doc template** that predated the type-2 handle and omitted `<h> by handle` entirely.
+The agent copies the template and fills it in, so the omission in the field was the template being obeyed
+— not a deviation at all. `PREMISE:` shipped a short form in `analysis`, the `principles` companion and
+the plugin README against the long form in `refine`. Two zero-examples carried shorter field labels than
+the canonical line immediately above them, and a real doc emitted exactly the shorter label. A parser
+cannot be written against any of that, and neither can a fair judgement of compliance.
+
+The per-skill checks that already asserted `<h> by handle` covered `refine`, `analysis` and `quick` — never
+the template. That is why the replacement check scans the **whole** surface rather than a named list of
+emitters: a variant is a variant wherever it sits, and the file nobody thought to compare is the file it
+survives in.
+
+## the working-doc template — why a missing slot is a missing line (v1.13.0)
+
+**Rule (enforced by `validate_counted_line_checker`):** the template carries a slot for every counted
+line a lifecycle phase must emit.
+
+**Why.** `PREMISE:`, `HANDLES:` and `RECURRING-T2:` are each emitted into the working doc by a phase, and
+the template had no place for any of them. A doc built from a template with no slot for a line is a doc
+where writing that line takes an act of memory rather than filling in a blank — and `EXCLUSIONS:`, which
+did have a slot, still went missing once, so the slot is necessary rather than sufficient.

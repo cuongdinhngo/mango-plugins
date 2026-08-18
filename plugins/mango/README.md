@@ -43,6 +43,22 @@ A few terms recur throughout; here they are once.
   (`gh pr view` and equivalents are forbidden while challenging), so it can't rubber-stamp.
 - **TIER** — process weight (`lite | full`); **track** — which gate set (`backend | frontend`).
   Orthogonal.
+- **Counted line** — a one-line, prefixed, machine-parseable count a phase emits (`SECTIONS:`,
+  `HANDLES:`, `EXCLUSIONS:`, `CLAIMS:` …). It ships in exactly **one** grammar, and the **harness parses
+  it** — `scripts/check_lines.py` reads the working doc and verdicts every line for internal
+  contradiction, absence when the phase required it, and off-grammar drift. Its **exit status is the
+  verdict**: `0` clean, `2` a failed or missing line (the gate does not close), `3` **not-checkable** — a
+  line mango ships no grammar for, an undeclared phase, an unreadable doc. `not-checkable` is never a
+  pass. The checker **reports and never rewrites**, ships no counted line of its own, and where it cannot
+  run at all the run records `check-lines: could-not-run` and does not claim to have checked. Run it
+  yourself any time:
+
+  ```
+  python3 <mango>/scripts/check_lines.py check docs/tickets/<KEY>.work.md
+  python3 <mango>/scripts/check_lines.py grammars     # the canonical form of every shipped line
+  ```
+
+  An all-zero line is a valid line, so a first ticket on an empty project pays nothing for this.
 
 ## Getting set up
 
@@ -120,7 +136,8 @@ a resolvable reference — it is **surfaced as ambiguous**, never a halt — and
 **to be created** never counts as missing. A referenced-as-existing identifier that does not resolve
 emits `PREMISE FALSIFIED: <n> … missing — <ref>` and **stops for you immediately**: no hunting for a
 renamed equivalent, no history reconstruction, no guessing what the ticket meant. Every run emits
-`PREMISE: <r> checked | <m> missing | <a> ambiguous`, zero included.
+`PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`,
+zero included.
 
 refine stops at solution **DIRECTIONS** (wrap vs rebuild), never the specific tool — that is analysis's
 job. Its completeness backstop is the **ticket-blind challenger as a 1-dispatch exposure-checker**, not

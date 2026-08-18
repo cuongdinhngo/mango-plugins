@@ -25,8 +25,8 @@ refine → analysis(epic) → design(epic) → breakdown → N× ticket-lifecycl
   resolve (and is not declared synthetic) emits the counted
   `PREMISE FALSIFIED: <n> … missing — <ref>` and **STOPS for the human immediately** — no hunting for a
   renamed equivalent, no history reconstruction, no guessing what the ticket meant. Every run emits
-  `PREMISE: <r> checked | <m> missing | <a> ambiguous`, zero included, so the check cannot silently
-  not-happen. Enforced at `refine` (Step 0) and `analysis` (step 1, when refine did not run).
+  `PREMISE: <r> reference(s) checked | <m> missing | <a> ambiguous (surfaced, not blocking)`,
+  zero included, so the check cannot silently not-happen. Enforced at `refine` (Step 0) and `analysis` (step 1, when refine did not run).
 - **The readiness gate is the count itself.** refine TRIES to expose the unresolved product-decisions;
   **0 → skip → analysis** (recorded), **≥1 → refine works**, **when in doubt → run**. refine
   **self-skips on a clear ticket** so it is never a tax on every ticket — the skip is a counted

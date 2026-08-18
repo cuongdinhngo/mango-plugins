@@ -5,6 +5,83 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.13.0] — 2026-08-18
+
+**No script parsed any counted line. Now one does — and there is exactly one grammar for it to parse.**
+mango's founding invariant is *a counted artifact that blocks a gate*, and until this version the agent
+wrote the line, the agent read the line, and the agent closed the gate. Four measured field consequences,
+all with a clean report over them: `RETIRE:` emitted 0 times out of 67 lessons though it is mandatory
+after a ratify; advisory recall fired 0 times out of 67; a `RECALL:` line committed in a self-invented
+format (a field invented, two fields omitted) so the next ticket copies it; and `EXCLUSIONS:` omitted
+outright on the **first field use of the newest mechanism in the plugin** — the exclusion recorded as
+prose in the matrix, the counted line never written, nobody noticing until the retro. Four mechanisms,
+four identical outcomes. Prose does not enforce itself: that is now measured, not hypothesised.
+
+**A — one grammar per counted line.** A parser cannot be written against a line that ships in two forms,
+because an agent emitting the shorter one is complying with one of the two shipped texts and a
+"deviation" is not even well defined. Seven lines shipped a second form: `RECALL:` (the working-doc
+template carried the **pre-1.10 five-field** shape with `<h> by handle` absent — which is precisely the
+field the field omitted), `PREMISE:` (a short form in `analysis`, the `principles` companion and the
+plugin README), `PREMISE FALSIFIED:`, `BREAKDOWN:`, `SECTIONS:` (a second grammar in the PRINCIPLES
+companion), `LEDGER TOTAL:` and `SURFACES:`; two zero-examples (`HANDLES:`, `EXCLUSIONS:`) carried
+shorter field labels than the canonical line directly above them, and a field doc emitted exactly those.
+Each is now unified to the form the **emitting skill** carries — text relocation, never rewording: every
+surviving form is byte-identical to one that already shipped, and a companion that loses its copy points
+at the canonical one. `validate.py` now enforces this over the **whole** shipped surface: skills,
+companions, templates, agent briefs, PRINCIPLES and both READMEs. The per-skill checks that already
+asserted `<h> by handle` never compared the template against the emitter, which is how the five-field
+form survived four versions.
+
+**B — `check_lines.py`, and the harness reads the verdict.** A stdlib-only script that reads a working
+doc and verdicts every counted line in it, in the order the checks are worth:
+
+1. **Internal contradiction** — a line whose own numbers disagree (`c != T1..T6 + u`, `h != t + x + u`,
+   a stated `n` that mismatches the rows enumerated on the line itself). This needs **no grammar
+   judgement at all**, so it runs on every occurrence of a line including a carried-forward restatement.
+2. **Missing when required** — a line the phase had to emit, absent. Keyed on the phase, `TIER` and
+   `TRACK` the doc itself declares, so a lite-lane doc is held only to the lines its lane emits and a
+   backend doc is never held to a frontend line.
+3. **Off-grammar** — fields invented, omitted, reordered, or the token itself misspelled. Verdicted
+   against the best occurrence, because a doc restating a line in a self-audit is not emitting it twice.
+
+**The harness runs it, never the agent, and its exit status is the verdict** — an agent invoking its own
+checker and then reporting the result reproduces the defect. `autorun` (per gate), `solve` and `finalise`
+invoke it and may quote its output but not restate it, and may never repair a rejected line by re-typing
+it. Three states, three exit codes: `0` clean, `2` a FAIL / a MISSING line / a broken arithmetic gate
+condition, `3` **not-checkable** — a counted line mango ships no grammar for, an undeclared phase, an
+unreadable doc. `not-checkable` is never a pass and never silent, the same discipline as
+`could-not-run` in 1.12.0. It **reports, never rewrites**: it has no write path at all, because a script
+that edited the doc would hide exactly the paraphrase it exists to surface. It ships **no counted line of
+its own** — adding one that nothing parses is the defect this version ends. Where the script cannot run
+at all, every calling skill records `check-lines: could-not-run`, falls back to reading the line, and does
+not claim to have checked: the checker's absence never blocks a run and never reads as clean. What it
+cannot prevent is stated plainly rather than papered over — an agent quoting a verdict it never ran; the
+cheap half is available and taken (the verdict names the doc's length and content digest, so a verdict
+quoted against a doc that has since moved is detectable), the rest is a disclosure obligation.
+
+Two shipped-broken fixes came out of building it, both found by the tamper pass over the new checks: the
+one-grammar scan paired backticks over a whole file, so a fenced code block's odd backtick count
+shifted every span after it and hid a real variant in the `principles` companion; and the teeth-test assertions keyed on
+`test_T1_`…`test_T7_`, names the RUN CONTRACT suite already used, which made them vacuous.
+
+**The working-doc template gained the three slots it was missing** — `PREMISE:`, `HANDLES:` and
+`RECURRING-T2:` are emitted into the doc by `refine`/`analysis`, `design` and `finalise`, and the template
+had nowhere to put them. A template with no slot for a line is how a line goes missing, so `validate.py`
+now requires a slot for every line a lifecycle phase must emit.
+
+**Not a tax on an ordinary ticket.** An all-zero line is a valid line; a first ticket on an empty project
+passes with no extra step, no warning and no block; a lite-lane doc is checked against the lite lane.
+Those are the controls, and a failure in one blocks the version rather than being widened away.
+
+**Maturity.** The registry's exact tolerance boundary (which spellings are inflection, which are a
+paraphrase) and the sum rules derived from an exhaustive partition rather than stated verbatim are
+**Experimental** and will move as more real docs run through them. That the harness parses rather than the
+author reading is **Stable**, as are the safety boundaries: report-never-rewrite, `not-checkable` is never
+a pass, no counted line of its own, and the checker's absence never blocks.
+
+**Verified against four real field working docs** (the strongest evidence available: known defects, and
+the script either catches them or it does not). Details in `RATIONALE.md`.
+
 ## [1.12.0] — 2026-08-18
 
 **Exclusions that expire, plus three shipped-broken fixes.** Five field runs surfaced four

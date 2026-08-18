@@ -19,9 +19,9 @@ jobs:
       - name: Validate marketplace and plugin manifests
         run: python3 scripts/validate.py
 
-      # Required gate: the envelope scripts' own suite (stdlib only, no network, no dispatch).
+      # Required gate: the harness scripts' own suite (RUN CONTRACT / RECONCILE / BUDGET / CHECK-LINES) (stdlib only, no network, no dispatch).
       # Every git test builds its own throwaway repo under tempfile.
-      - name: Envelope script suite
+      - name: Harness script suite
         run: python3 tests/envelope/test_envelope.py
 
       # Best-effort, non-blocking: the Claude Code CLI strict validator.

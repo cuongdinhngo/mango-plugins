@@ -145,9 +145,34 @@ Record the resolved `work_doc_mode` and the working-doc path in `Session status`
 (and the challenger payload construction in `review`) reads the same answer. This is **guidance + a
 sensible default**, matching `analysis` and `breakdown` — not a behavioural gate.
 
+## Closing a gate on a counted line
+
+**The harness parses the counted lines; you read the verdict.** Before closing a gate, run the checker
+over the working doc — never your own reading of the line:
+
+```
+python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished>
+```
+
+**Its exit status IS the verdict.** `0` clean · `2` a line FAILED its canonical grammar, a required line
+was MISSING, or an arithmetic gate condition is BROKEN — **the gate does not close** · `3` nothing failed
+but something was **not checkable** (a counted line mango ships no grammar for, an undeclared phase, an
+unreadable doc) — **UNVERIFIED, not clean.** Quote the counted lines the script printed; do **not**
+restate them in your own words, do **not** re-type a line it rejected, and do **not** announce a gate
+passed. **If the script itself cannot run** (no `python3`, the path unresolvable), say so plainly, record
+`check-lines: could-not-run` alongside the run's other unverified items, fall back to reading the line
+against its shipped grammar, and **do not claim to have checked** — the checker's own absence never
+blocks the run and never reads as clean.
+
+The human still holds every gate: the checker decides whether the *artifact* is well-formed, never
+whether the work is approved. A clean verdict is a precondition for putting the gate to the human, not a
+substitute for their answer.
+
 ## Non-negotiables
 
 - **Never skip or self-approve a gate.** Silence ≠ approval.
+- **A counted line closes a gate only when the harness parsed it.** Run `check_lines.py` and let its
+  exit status answer; never restate its verdict and never repair a rejected line by re-typing it.
 - **No outward action without explicit per-action approval.**
 - **Writes via CLI, not MCP** (`config.tracker.cli`).
 - **Do not widen scope.** Stay inside the approved change list.

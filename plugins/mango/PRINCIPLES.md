@@ -35,7 +35,8 @@ not guessed.
   exclusion** (unmeasurable → human-verified, logged up front as a coverage-gap exclusion). One that
   is **neither** is flagged at Gate 1 and **may not carry a matrix `✅`** — a bare self-reported `✅`
   cannot stand in for an unmeasurable or unbuilt thing.
-- `SECTIONS: <n> found = <n> decomposed`. Every ticket section maps to ≥1 matrix row.
+- The `SECTIONS:` line (canonical form in `skills/analysis/SKILL.md`): sections **found** must equal
+  sections **decomposed**. Every ticket section maps to ≥1 matrix row.
 - **`RULE SECTIONS` coverage — by change type AND by recalled handle (union).** analysis derives the
   applicable rulebook sections **from the change type** (migration/schema → the DB-conventions section
   is mandatory; new UI surface → the design-token/a11y section is mandatory; …) **and, additively, from

@@ -423,6 +423,9 @@ declare -A FIXTURE_SKILLS=(
   [autorun-budget-degrades]="autorun" [greenfield-autorun-clean]="autorun"
   [exclusion-expiry-required]="design" [exclusion-expiry-checkable]="design"
   [exclusion-recurrence-escalates]="design" [refine-want-unattended-stops]="refine autorun"
+  [check-lines-contradiction-blocks]="autorun" [check-lines-missing-blocks]="design autorun"
+  [check-lines-not-checkable]="autorun" [check-lines-one-grammar]="refine"
+  [greenfield-check-lines-clean]="autorun"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -2093,6 +2096,55 @@ assert_all "want-j: it is NOT recorded as a silent ASSUMED that ships a PR" "$t"
 assert_all "want-j: the open question reaches the operator verbatim" "$t" 'recommend|likely to want|activity|editorial' 'question|state|report|surfac|morning|verbatim'
 assert_all "want-j: the fully-locked ticket self-skips and leaves j untouched" "$t" 'PROJ-903|self-skip|locked' 'j[ *_=:]{0,4}0|untouched|unaffected|no want|zero|correct'
 assert_absent "want-j: no product decision is invented at 3am" "$t" '(I|we) (chose|picked|selected) (recent activity|similar users|editorial|option [abc])'
+
+# ---- v1.13.0 — the counted line is PARSED by the harness, and there is one grammar to parse.
+# The four measured field cases all said the same thing: prose does not enforce itself. These fixtures
+# assert the agent hands the verdict to `check_lines.py` instead of reading its own line, that the third
+# state is not a pass, and — the controls — that a clean all-zero first ticket pays nothing for it.
+
+# CL1 check-lines-contradiction-blocks: a CLAIMS line whose per-type counts sum to 4 while `<c>` reads 3.
+# The cheapest, most defensible check in the version: the line disagrees with itself, no grammar debate.
+t="$(run_fixture check-lines-contradiction-blocks 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "cl-contradiction: the CLAIMS line does not close its gate" "$t" 'CLAIMS' 'not[ *_]{1,4}close|does not close|non-?closing|block|fail'
+assert_all "cl-contradiction: the reason is the line contradicting ITSELF" "$t" 'contradict|disagree|sum|4|does not add' 'T1|T5|type|3|c'
+assert_all "cl-contradiction: the harness command decides, not the agent's reading" "$t" 'check_lines(\.py)?' 'exit status|verdict|harness|script'
+assert_all "cl-contradiction: the prose beside the line changes nothing" "$t" 'prose|paragraph|explanation|substance' 'not[ *_]{1,4}(change|substitute|enough)|no|never|addition'
+assert_all "cl-contradiction: the line is reported, never re-typed into shape" "$t" 'not[ *_]{1,4}(repair|re-?type|rewrite)|never[ *_]{1,4}(repair|re-?type|rewrite)|report' 'line|verdict|non-?closing|gate'
+assert_absent "cl-contradiction: the agent does not announce the gate passed" "$t" '(gate|Gate) ?[0-5]? (is )?(passed|closed|clean)( |,|\.|$)'
+
+# CL2 check-lines-missing-blocks: the exclusion is recorded in the matrix and the counted line is absent.
+# This is the measured case 4 — the first field use of the newest mechanism skipped its own counted line.
+t="$(run_fixture check-lines-missing-blocks 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "cl-missing: a complete table row is not the recorded artifact" "$t" 'EXCLUSIONS:' 'not[ *_]{1,4}(recorded|count|emitted)|missing|absent|does not count'
+assert_all "cl-missing: Gate 2 does not close on the missing line" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|fails'
+assert_all "cl-missing: the missing-when-required check is named" "$t" 'missing|required' 'check_lines(\.py)?|harness|script|check'
+assert_contains "cl-missing: the counted line has to be emitted" "$t" 'EXCLUSIONS:'
+
+# CL3 check-lines-not-checkable: a counted line mango ships no grammar for. Third state, never a pass.
+t="$(run_fixture check-lines-not-checkable 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "cl-third-state: the verdict is not-checkable, named as its own state" "$t" 'not-?checkable|NOT-CHECKABLE' 'third|own|separate|distinct|neither'
+assert_all "cl-third-state: not-checkable is NOT a pass" "$t" 'not[ *_]{1,4}a pass|never[ *_]{1,4}a[ *_]{1,4}(silent )?pass|unverified|UNVERIFIED' 'not-?checkable|silent|clean'
+assert_all "cl-third-state: it reaches the operator's disclosure list" "$t" 'DISCLOSURE|disclos' 'not-?checkable|line|unverified|AC VALIDATION'
+assert_all "cl-third-state: an artifact mango does not produce is non-closing" "$t" 'AC VALIDATION' 'not[ *_]{1,4}(produce|ship|exist)|no such|invented|non-?closing'
+assert_absent "cl-third-state: the unknown line is not silently accepted" "$t" 'AC VALIDATION[^\n]{0,40}(PASS|passes|is fine|accepted)'
+
+# CL4 check-lines-one-grammar: ONE grammar per line. `<h> by handle` is a field, not an option, and the
+# skill being executed governs over any shorter form a template once carried.
+t="$(run_fixture check-lines-one-grammar 'Run the mango refine advisory recall against the injected state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_contains "cl-one-grammar: the RECALL line is emitted" "$t" 'RECALL:'
+assert_all "cl-one-grammar: it carries the by-handle field with the four handles" "$t" 'by handle' '4|four'
+assert_all "cl-one-grammar: all six fields are named" "$t" 'by symbol' 'by handle'
+assert_all "cl-one-grammar: by finding and retired-skipped are present too" "$t" 'by finding' 'retired'
+assert_all "cl-one-grammar: there is exactly ONE shipped form" "$t" 'one|single|only' 'form|grammar|variant'
+assert_absent "cl-one-grammar: no five-field form is presented as also valid" "$t" '(two|both) (shipped )?(forms|variants|grammars) (are|remain) (valid|acceptable|fine)'
+
+# CL5 greenfield-check-lines-clean: THE CONTROL. A first ticket on an empty project, every line at zero.
+# A failure here means the version became a tax on every ticket, and the version does not ship.
+t="$(run_fixture greenfield-check-lines-clean 'Run the mango autorun skill against the injected project state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "cl-greenfield: the verdict is clean" "$t" 'clean|pass|0 FAIL|no failure' 'check_lines(\.py)?|check|verdict'
+assert_all "cl-greenfield: a zero line counts as emitted, not missing" "$t" 'zero' 'emitted|valid|counts|not[ *_]{1,4}missing|is a line'
+assert_all "cl-greenfield: no extra step, warning, question or block is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none' 'step|warning|question|block'
+assert_absent "cl-greenfield: the empty corpus is not treated as a finding" "$t" '(no lessons|empty (corpus|lessons)|missing lessons)[^\n]{0,60}(finding|blocks?|fail|❌)'
 
 }   # end suite()
 

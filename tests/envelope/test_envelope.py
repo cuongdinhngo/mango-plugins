@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Test suite for the three envelope scripts — RUN CONTRACT, RECONCILE, BUDGET.
+"""Test suite for the plugin's harness scripts — RUN CONTRACT, RECONCILE, BUDGET, CHECK-LINES.
+
+The first three are the autorun envelope; CHECK-LINES (v1.13.0) verdicts the counted lines in a
+working doc. All four live in `plugins/mango/scripts/` and are gated by this one command.
 
 Stdlib `unittest` only, no network, no `claude -p` dispatch: free and deterministic, so it runs on
 every edit rather than once a month. Every git test builds its own throwaway repo under `tempfile` and
@@ -787,6 +790,346 @@ class TestWriteDerivesValues(unittest.TestCase):
     def test_write_refuses_a_spec_that_omits_a_floor_condition(self):
         with self.assertRaises(rc.ContractError):
             rc.write({"conditions": [{"id": "PR-EXISTS"}]}, repo=self.tmp)
+
+
+
+
+# ===========================================================================================
+# CHECK-LINES — the counted-line checker (v1.13.0)
+# ===========================================================================================
+#
+# The teeth tests are numbered T1-T9 and G1-G3 to match the build spec, so a later reader can map an
+# assertion to the field case it came from. Every fixture below is a synthetic working doc built in
+# memory: no real project, no dispatch, no network.
+
+import check_lines as cl  # noqa: E402
+
+CLEAN_LINES = {
+    "PREMISE": "PREMISE: 0 reference(s) checked | 0 missing | 0 ambiguous (surfaced, not blocking)",
+    "RECALL": "RECALL: 0 claim(s) surfaced | 0 by symbol | 0 by handle | 0 by area | 0 by finding | "
+              "0 retired skipped — advisory (blocks nothing)",
+    "REFINE": "REFINE: 0 unresolved surfaced | 0 want-decision asked | 0 how-decision resolved+cited | "
+              "0 ASSUMED | skip: yes",
+    "SECTIONS": "SECTIONS: 2 found (Goal · Acceptance criteria) | 2 decomposed | "
+                "ROWS: C=0 R=1 G=1 AC=1",
+    "CLARIFICATION": "CLARIFICATION: 0 raised | 0 self-resolved (cited) | 0 for human decision",
+    "RULE SECTIONS": "RULE SECTIONS: 0 applicable — 0 by change-type | 0 by recalled handle — none",
+    "HANDLES": "HANDLES: 0 recalled | 0 traced | 0 does not apply | 0 unanswered",
+    "EXCLUSIONS": "EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring | "
+                  "0 with an overdue predecessor",
+    "CLAIMS": "CLAIMS: 0 claim(s) from 0 lesson entr(ies) | T1=0 T2=0 T3=0 T4=0 T5=0 T6=0 | "
+              "0 unclassified",
+    "RECURRENCE": "RECURRENCE: 0 recurring | 0 superseded (0 retired) | 0 promotion candidate(s)",
+    "FALSIFY": "FALSIFY: 0 candidate(s) checked | 0 still-true (proceed) | 0 falsified (BLOCKED) | "
+               "0 not cheaply checkable (BLOCKED)",
+    "RECURRING-T2": "RECURRING-T2: 0 type-2 claim(s) with seen >= 2 | 0 routed to a destination | "
+                    "0 cannot promote | 0 left in lessons_path",
+    "PROMOTION": "PROMOTION: 0 proposed | 0 human-ratified | destinations: none | "
+                 "mango files written: 0",
+    "LEDGER TOTAL": "LEDGER TOTAL: 0 · top cost driver: none (no dispatch)",
+}
+
+
+def workdoc(phase="finalise", tier="full", track="backend", drop=(), replace=None, extra=""):
+    """A synthetic working doc carrying the counted lines, each in the canonical form by default."""
+    lines = dict(CLEAN_LINES)
+    for token in drop:
+        lines.pop(token, None)
+    for token, text in (replace or {}).items():
+        lines[token] = text
+    body = "\n".join(f"`{text}`" for text in lines.values())
+    return (
+        f"# PROJ-1 — a ticket (working doc)\n\n"
+        f"- **SCOPE:** S\n- **TRACK:** {track}\n- **TIER:** {tier}\n- **BASELINE:** green\n\n"
+        f"{body}\n\n{extra}\n\n## Session status\n\n- **Current phase:** {phase}\n"
+    )
+
+
+def run(text, **kw):
+    lines, status = cl.check_doc(text, **kw)
+    return "\n".join(lines), status
+
+
+class TestCheckLinesTeeth(unittest.TestCase):
+    def test_CL_T1_a_claims_line_whose_type_counts_do_not_sum_to_c_fails(self):
+        """The decisive cheap check: the line disagrees with itself. No grammar debate needed."""
+        out, status = run(workdoc(replace={
+            "CLAIMS": "CLAIMS: 3 claim(s) from 1 lesson entr(ies) | T1=0 T2=2 T3=1 T4=0 T5=1 T6=0 | "
+                      "0 unclassified"}))
+        self.assertEqual(status, 2)
+        self.assertIn("CLAIMS: FAIL", out)
+        self.assertIn("contradiction: c != T1..T6 + u", out)
+        # It is a CONTRADICTION, not an off-grammar finding: every field matched the canonical form.
+        self.assertNotIn("field omitted", out)
+        self.assertNotIn("field invented", out)
+
+    def test_CL_T2_a_handles_line_where_h_does_not_equal_t_plus_x_plus_u_fails(self):
+        out, status = run(workdoc(replace={
+            "HANDLES": "HANDLES: 4 recalled | 2 traced | 1 does not apply | 0 unanswered"}))
+        self.assertEqual(status, 2)
+        self.assertIn("HANDLES: FAIL", out)
+        self.assertIn("h != t + x + u", out)
+
+    def test_CL_T3_an_exclusion_in_the_matrix_with_no_EXCLUSIONS_line_fails(self):
+        """Case 4: the exclusion was recorded as prose and the counted line was never written."""
+        out, status = run(workdoc(drop=("EXCLUSIONS",), extra=(
+            "**Coverage-gap exclusions**\n\n"
+            "| Item | Risk tier | Why deferred | Follow-up | Expiry | Seen |\n"
+            "|---|---|---|---|---|---|\n"
+            "| AC1(b) sensible-on-the-anchor-repo | medium | no runner | PROJ-9 | PROJ-9 | none |\n")))
+        self.assertEqual(status, 2)
+        self.assertIn("MISSING EXCLUSIONS", out)
+        self.assertIn("emitted by design", out)
+
+    def test_CL_T4_a_recall_line_with_an_invented_field_and_by_handle_omitted_fails(self):
+        """Case 3: a field invented, `<h> by handle` omitted, the whole thing committed."""
+        out, status = run(workdoc(replace={
+            "RECALL": "RECALL: 8 claim(s) surfaced | 0 by symbol | 3 by area | 5 does-not-apply | "
+                      "0 retired skipped — advisory"}))
+        self.assertEqual(status, 2)
+        self.assertIn("RECALL: FAIL", out)
+        self.assertIn("field omitted: `<h> by handle`", out)
+        self.assertIn("field invented: `5 does-not-apply`", out)
+
+    def test_CL_T5_every_line_correct_and_consistent_passes_with_no_noise(self):
+        out, status = run(workdoc())
+        self.assertEqual(status, 0, out)
+        self.assertIn("0 FAIL", out)
+        self.assertNotIn(": FAIL", out)
+        self.assertNotIn("NOT-CHECKABLE", out)
+        self.assertIn("0 MISSING", out)
+        self.assertIn("0 BROKEN", out)
+
+    def test_CL_T6_an_all_zero_recall_on_an_empty_corpus_passes(self):
+        """A zero line is a valid line: no lessons file must not read as a defect."""
+        out, status = run(workdoc(phase="refine", drop=tuple(
+            t for t in CLEAN_LINES if t not in ("PREMISE", "RECALL", "REFINE"))))
+        self.assertEqual(status, 0, out)
+        self.assertIn("RECALL: PASS", out)
+
+    def test_CL_T7_a_counted_line_with_no_grammar_is_not_checkable_and_counted_separately(self):
+        out, status = run(workdoc(extra="`AC VALIDATION: 5 AC | 5 falsifiable | 0 unfalsifiable`"))
+        self.assertIn("AC VALIDATION: NOT-CHECKABLE", out)
+        self.assertIn("1 not-checkable", out)
+        self.assertNotEqual(status, 0, "a not-checkable line must never be a silent pass")
+        self.assertEqual(status, 3, "not-checkable has its own exit status, distinct from a FAIL")
+        self.assertNotIn("AC VALIDATION: PASS", out)
+
+    def test_CL_T8_an_unreadable_working_doc_reports_plainly_and_never_passes(self):
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPTS / "check_lines.py"), "check", "/nonexistent/PROJ-1.work.md"],
+            capture_output=True, text=True)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertIn("CANNOT READ", proc.stdout)
+        self.assertIn("NOTHING was checked", proc.stdout)
+        self.assertNotIn("PASS", proc.stdout)
+
+    def test_CL_T9_the_verdict_is_tied_to_one_doc_state_and_the_limit_is_stated(self):
+        """No script can stop an agent quoting a verdict it never ran. The cheap half IS available: the
+        verdict names the doc's length and digest, so a verdict quoted against a changed doc is
+        detectable — and the docstring says plainly that the rest is a disclosure obligation."""
+        out_a, _ = run(workdoc())
+        out_b, _ = run(workdoc(extra="one more sentence"))
+        fp_a = [ln for ln in out_a.splitlines() if ln.startswith("  doc")][0]
+        fp_b = [ln for ln in out_b.splitlines() if ln.startswith("  doc")][0]
+        self.assertNotEqual(fp_a, fp_b, "the fingerprint must move when the doc moves")
+        self.assertIn("WHAT THIS CANNOT PREVENT", cl.__doc__)
+        self.assertIn("disclosure\nobligation", cl.__doc__)
+
+
+class TestCheckLinesGreenfield(unittest.TestCase):
+    """A failure here blocks the version: the check must not become a tax on an ordinary ticket."""
+
+    def test_CL_G1_a_fresh_first_ticket_with_every_line_at_zero_passes_with_no_extra_step(self):
+        out, status = run(workdoc(phase="finalise"))
+        self.assertEqual(status, 0, out)
+        self.assertNotIn(": FAIL", out)
+        self.assertNotIn("MISSING ", out)
+        self.assertNotIn("GATE BROKEN", out)
+        self.assertIn("0 pending", out)
+        self.assertNotIn("pending (not yet required", out)
+
+    def test_CL_G2_a_lite_lane_doc_is_held_only_to_the_lines_its_lane_emits(self):
+        """`quick` runs exactly two reads pre-code; it emits no SECTIONS, CLARIFICATION or HANDLES."""
+        lite = workdoc(phase="finalise", tier="lite", drop=(
+            "PREMISE", "REFINE", "SECTIONS", "CLARIFICATION", "HANDLES", "EXCLUSIONS"))
+        out, status = run(lite)
+        self.assertEqual(status, 0, out)
+        self.assertIn("0 MISSING", out)
+        for absent in ("MISSING SECTIONS", "MISSING HANDLES", "MISSING EXCLUSIONS"):
+            self.assertNotIn(absent, out)
+
+    def test_CL_G2b_the_same_doc_on_the_full_lane_IS_held_to_them(self):
+        """The negative control: the lite carve-out must come from TIER, not from leniency."""
+        full = workdoc(phase="finalise", tier="full", drop=(
+            "PREMISE", "REFINE", "SECTIONS", "CLARIFICATION", "HANDLES", "EXCLUSIONS"))
+        out, status = run(full)
+        self.assertEqual(status, 2)
+        for token in ("SECTIONS", "HANDLES", "EXCLUSIONS"):
+            self.assertIn(f"MISSING {token}", out)
+
+    def test_CL_G3_a_host_where_the_script_cannot_run_is_the_callers_documented_fallback(self):
+        """The script cannot report on its own absence. Every skill that invokes it must carry the
+        could-not-run fallback in text: report not-checkable, do not block, do not claim to have
+        checked."""
+        for name in ("autorun", "solve", "finalise"):
+            body = (ROOT / "plugins" / "mango" / "skills" / name / "SKILL.md").read_text(
+                encoding="utf-8")
+            self.assertTrue("check_lines.py" in body, f"{name} must invoke the checker")
+            self.assertTrue(
+                re.search(r"(?s)check_lines.{0,1200}(cannot run|not-checkable|could-not-run)", body),
+                f"{name} must carry the could-not-run fallback beside the invocation")
+
+    def test_CL_G3b_a_backend_doc_is_never_held_to_a_frontend_only_line(self):
+        out, status = run(workdoc(track="backend"))
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("SURFACES", out)
+
+
+class TestCheckLinesDiscipline(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_report_never_rewrite_the_doc_is_byte_identical_after_a_run(self):
+        path = Path(self.tmp) / "PROJ-1.work.md"
+        before = workdoc(replace={"CLAIMS": "CLAIMS: 3 claim(s) from 1 lesson entr(ies) | "
+                                            "T1=0 T2=2 T3=1 T4=0 T5=1 T6=0 | 0 unclassified"})
+        path.write_text(before, encoding="utf-8")
+        proc = subprocess.run([sys.executable, str(SCRIPTS / "check_lines.py"), "check", str(path)],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 2)
+        self.assertEqual(path.read_text(encoding="utf-8"), before, "the checker must never rewrite")
+
+    def test_the_source_opens_the_doc_read_only_and_carries_no_write_path(self):
+        src = (SCRIPTS / "check_lines.py").read_text(encoding="utf-8")
+        self.assertNotIn("write_text", src)
+        self.assertNotIn('"w"', src)
+        self.assertNotIn("'w'", src)
+        self.assertNotIn("os.replace", src)
+        self.assertIn("REPORT, NEVER REWRITE", src)
+
+    def test_the_checker_ships_no_counted_line_of_its_own(self):
+        """It reports through the mechanism that already exists. A new counted line nothing parses is
+        the joke this version exists to end."""
+        src = (SCRIPTS / "check_lines.py").read_text(encoding="utf-8")
+        for token in cl.GRAMMARS:
+            self.assertNotIn(f"CHECK-LINES: {token}", src)
+        self.assertNotIn("CHECK-LINES:", src.replace("CHECK-LINES: the", ""))
+
+    def test_an_unfilled_template_placeholder_is_a_fail_not_a_pass(self):
+        out, status = run(workdoc(replace={
+            "HANDLES": "HANDLES: <h> recalled | <t> traced (command + result) | "
+                       "<x> does not apply (reason) | <u> unanswered"}))
+        self.assertEqual(status, 2)
+        self.assertIn("unfilled template placeholder", out)
+
+    def test_a_narrated_count_is_not_an_emission(self):
+        """`a narrated count is an addition, never a substitute` — so prose mentioning the token does
+        not satisfy the requirement."""
+        out, status = run(workdoc(drop=("EXCLUSIONS",), extra=(
+            "We recorded one coverage-gap exclusion, so EXCLUSIONS: 1 recorded with a checkable "
+            "expiry and nothing recurring.")))
+        self.assertEqual(status, 2)
+        self.assertIn("MISSING EXCLUSIONS", out)
+
+    def test_a_carried_forward_restatement_is_counted_not_double_penalised(self):
+        """analysis carries refine's PREMISE/RECALL lines forward; that is one emission, not two."""
+        doc = workdoc(phase="finalise")
+        doc += f"\n`{CLEAN_LINES['PREMISE']}` *(carried forward)*\n`{CLEAN_LINES['RECALL']}`\n"
+        out, status = run(doc)
+        self.assertEqual(status, 0, out)
+        self.assertIn("restated : 2", out)
+
+    def test_a_contradiction_in_a_restatement_still_fails(self):
+        """Off-grammar is judged on the best occurrence; a CONTRADICTION is judged on every one."""
+        doc = workdoc(phase="finalise")
+        doc += "\n`HANDLES: 4 recalled | 2 traced | 1 does not apply | 0 unanswered`\n"
+        out, status = run(doc)
+        self.assertEqual(status, 2)
+        self.assertIn("h != t + x + u", out)
+
+    def test_an_undeclared_phase_makes_the_required_axis_not_checkable_never_clean(self):
+        doc = workdoc().replace("- **Current phase:** finalise", "- **Current phase:**")
+        out, status = run(doc)
+        self.assertEqual(status, 3)
+        self.assertIn("does not declare its phase", out)
+        self.assertIn("UNVERIFIED, not clean", out)
+
+    def test_an_explicit_phase_flag_overrides_a_doc_that_does_not_declare_one(self):
+        doc = workdoc().replace("- **Current phase:** finalise", "")
+        out, status = run(doc, phase="finalise")
+        self.assertEqual(status, 0, out)
+
+    def test_the_embed_mode_separator_scopes_the_scan_to_the_working_doc(self):
+        raw = ("# 101 — a raw ticket\n\n`RECALL: 9 claim(s) surfaced | 1 by symbol`\n\n"
+               f"<!-- ===== {cl.MANGO_SEPARATOR} ===== -->\n" + workdoc())
+        out, status = run(raw)
+        self.assertEqual(status, 0, out)
+        self.assertIn("RECALL: PASS", out)
+
+    def test_header_field_labels_are_never_reported_as_counted_lines(self):
+        out, _ = run(workdoc(extra="`STRUCTURE: native` · `TRACK: backend` · `TIER: full`"))
+        self.assertNotIn("STRUCTURE:", out)
+        self.assertNotIn("0 not-checkable | 0 pending\n    TIER", out)
+
+    def test_a_near_miss_token_is_named_off_grammar_not_shrugged_off(self):
+        out, status = run(workdoc(replace={"CLARIFICATION": "CLARIFICATIONS: j = 0 blocking"}))
+        self.assertEqual(status, 2)
+        self.assertIn("the canonical token is `CLARIFICATION:`", out)
+
+    def test_natural_pluralisation_is_tolerated_but_a_truncated_label_is_not(self):
+        ok, status_ok = run(workdoc(replace={
+            "CLAIMS": "CLAIMS: 1 claim from 1 lesson entry | T1=0 T2=0 T3=0 T4=1 T5=0 T6=0 | "
+                      "0 unclassified"}))
+        self.assertEqual(status_ok, 0, ok)
+        bad, status_bad = run(workdoc(replace={
+            "RECURRING-T2": "RECURRING-T2: 0 type-2 with seen >= 2 | 0 routed | 0 cannot promote | "
+                            "0 left in lessons_path"}))
+        self.assertEqual(status_bad, 2)
+        self.assertIn("RECURRING-T2: FAIL", bad)
+
+    def test_a_gate_condition_the_shipped_text_calls_blocking_is_counted_broken(self):
+        out, status = run(workdoc(replace={
+            "EXCLUSIONS": "EXCLUSIONS: 2 recorded | 1 with a checkable expiry | 0 recurring | "
+                          "0 with an overdue predecessor"}))
+        self.assertEqual(status, 2)
+        self.assertIn("GATE BROKEN EXCLUSIONS", out)
+        self.assertIn("BLOCKS Gate 2", out)
+
+    def test_a_clarification_for_a_human_is_a_fact_not_a_broken_gate(self):
+        """`j > 0` is a legitimate STOP. Reporting it as a gate failure would conflate a correct stop
+        with a defect."""
+        out, status = run(workdoc(replace={
+            "CLARIFICATION": "CLARIFICATION: 2 raised | 1 self-resolved (cited) | "
+                             "1 for human decision"}))
+        self.assertEqual(status, 0, out)
+        self.assertIn("CLARIFICATION: PASS", out)
+        self.assertNotIn("GATE BROKEN CLARIFICATION", out)
+
+    def test_every_grammar_carries_a_canonical_form_and_an_emitter(self):
+        for token, spec in cl.GRAMMARS.items():
+            self.assertTrue(spec["canonical"].startswith(f"{token}:"), token)
+            self.assertTrue(spec["emitter"], token)
+            self.assertTrue(spec["segments"], token)
+
+    def test_the_canonical_form_of_every_grammar_parses_against_itself(self):
+        """A registry entry whose own canonical form does not parse would silently never match."""
+        for token, spec in cl.GRAMMARS.items():
+            body = spec["canonical"].split(":", 1)[1].strip()
+            _, _, problems = cl.parse_line(token, body)
+            self.assertEqual(
+                problems, ["unfilled template placeholder — the line was copied, not emitted"],
+                f"{token}: the canonical form must be recognised as the template it is, nothing else")
+
+    def test_the_grammars_subcommand_prints_every_shipped_line(self):
+        proc = subprocess.run([sys.executable, str(SCRIPTS / "check_lines.py"), "grammars"],
+                              capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0)
+        for token in cl.GRAMMARS:
+            self.assertIn(token, proc.stdout)
 
 
 if __name__ == "__main__":

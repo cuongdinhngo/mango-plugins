@@ -274,3 +274,17 @@ goes through `config.tracker.cli` — **never** an MCP.
     every type-3 claim went to `config.skill_gap_path` as a signal and **no mango file was written**; and
     all six counting lines (`CLAIMS:`, `RECURRENCE:`, `FALSIFY:`, `RECURRING-T2:`, `PROMOTION:` and the
     durable-lesson record) are emitted.
+
+    **The harness confirms that last clause, not you.** Run the counted-line checker over the working doc
+    and let its **exit status** answer:
+
+    ```
+    python3 <mango>/scripts/check_lines.py check <work-doc> --phase finalise
+    ```
+
+    `0` clean · `2` a line FAILED its canonical grammar, a required line was MISSING, or an arithmetic
+    gate condition is BROKEN — **the final gate does not close** · `3` nothing failed but something was
+    **not checkable** — UNVERIFIED, not clean, and every such line is listed at the gate. Quote the
+    script's counted lines; never restate them and never re-type a line it rejected. **If the script
+    cannot run**, say so, record `check-lines: could-not-run` in the gate's unverified list, and **do not
+    claim to have checked** — its absence never blocks the gate and never reads as clean.
