@@ -2138,6 +2138,33 @@ def validate_autorun_gates():
           "autorun: the handover authorisation must name exactly the two outward actions it covers")
     check(re.search(r"[Ss]ilence is never that authorisation|Silence is never approval", body) is not None,
           "autorun: silence may never stand in for the handover authorisation")
+    # v1.12.0 (B) — the handover authorisation has a SLOT in the contract, and its absence fails the parse.
+    check(re.search(r"handover-authorisation", body) is not None,
+          "autorun: must record the handover authorisation in the RUN CONTRACT's `handover-authorisation` "
+          "header field (B — the contract must have a slot for the authorisation the skill demands)")
+    check(re.search(r"empty or absent does not parse|does not parse.{0,40}run does not start|"
+                    r"run must not begin without", body, re.IGNORECASE | re.DOTALL) is not None,
+          "autorun: must state a contract missing/empty handover-authorisation does not parse and the "
+          "run does not start")
+    # v1.12.0 (C) — an unresolved refine want-decision reaches the `j` tally autorun stops on.
+    check(re.search(r"want-decision", body, re.IGNORECASE) is not None
+          and re.search(r"counts? toward `?j`?|includes? .{0,40}want-decision|include.{0,30}unresolved",
+                        body, re.IGNORECASE) is not None,
+          "autorun: an unresolved refine want-decision must count toward the `j` tally Gate 0 stops on (C)")
+    check(re.search(r"self-skip", body, re.IGNORECASE) is not None
+          and re.search(r"leaves `?j`? (untouched|unaffected)|`?j`? untouched|preserv", body, re.IGNORECASE)
+          is not None,
+          "autorun: a fully-locked ticket refine self-skipped on must leave `j` untouched — the self-skip "
+          "is preserved (C, the negative control)")
+    check(re.search(r"never.{0,30}silent.{0,20}ASSUMED|not.{0,20}silently adopt|not silently.{0,20}assum",
+                    body, re.IGNORECASE) is not None,
+          "autorun: an unanswered want-decision must not become a silent ASSUMED shipping a PR (C)")
+    # v1.12.0 (D) — could-not-run is a distinct third state in the RECONCILE grammar, never HOLDING.
+    check(re.search(r"could-not-run", body) is not None,
+          "autorun: the RECONCILE grammar must carry the could-not-run third state (D)")
+    check(re.search(r"cannot run never reports holding|cannot run.{0,30}never.{0,20}hold|"
+                    r"never reports? holding", body, re.IGNORECASE | re.DOTALL) is not None,
+          "autorun: must state a check that cannot run never reports holding (D)")
 
 
 def validate_no_challenger_flag():
@@ -2237,6 +2264,160 @@ def validate_envelope_scripts():
           "envelope: no ledger history must yield `unknown` — never a blocked run and never a made-up number")
     check(re.search(r"PROXY, not a measurement", bud) is not None,
           "envelope: a call-count ceiling must be named a proxy, not a measurement")
+
+    # v1.12.0 (B) — the run contract has a slot for the handover authorisation, and an empty one is
+    # refused. Its absence must fail the parse: the run must not start without the authorisation it claims.
+    check(re.search(r'"handover-authorisation"', rc) is not None,
+          "envelope (B): HEADER_KEYS must carry `handover-authorisation` — the contract must have a slot "
+          "for the two-action authorisation autorun demands, and a missing header key fails the parse")
+    check(re.search(r"handover-authorisation.{0,40}(is )?empty", rc, re.DOTALL) is not None,
+          "envelope (B): validate must refuse an EMPTY handover-authorisation — a present-but-blank slot "
+          "is not the authorisation, and the run must not start without it")
+
+    # v1.12.0 (D) — reconcile names an EXPLICIT shell and treats a missing shell as a third state.
+    check(re.search(r'SHELL = "bash"', rc) is not None,
+          "envelope (D): run_contract must name its shell explicitly (`SHELL = \"bash\"`), never leave the "
+          "choice to the host (`/bin/sh` = dash on Debian, cmd.exe on Windows)")
+    check(re.search(r"subprocess\.run\(\s*command\s*,\s*shell=True", rc) is None,
+          "envelope (D): run_contract must not use `subprocess.run(command, shell=True, …)` — that hands "
+          "the shell choice to the host")
+    check(re.search(r"\[shell,\s*\"-c\",\s*command\]", rc) is not None,
+          "envelope (D): run_contract must invoke the resolved shell as `[shell, \"-c\", command]`")
+    check(re.search(r"COULD_NOT_RUN|could-not-run", rec) is not None,
+          "envelope (D): reconcile must carry the could-not-run third state")
+    check(re.search(r"never HOLDING|never.{0,20}holding|cannot run.{0,30}holding", rec, re.IGNORECASE)
+          is not None,
+          "envelope (D): a check that cannot run must never report HOLDING")
+    check(re.search(r"could-not-run", rec) is not None
+          and re.search(r"conditions: \{declared\} declared", rec) is not None
+          and re.search(r"\{could_not_run\} could-not-run", rec) is not None,
+          "envelope (D): the RECONCILE conditions line must count could-not-run on its own axis")
+    check(re.search(r"COULD-NOT-RUN at t0", rec) is not None,
+          "envelope (D): a could-not-run at t0 must strike the run — a precondition that cannot be "
+          "verified is not a green light")
+
+
+def validate_exclusion_expiry():
+    """v1.12.0 (A) — a coverage-gap exclusion is debt with a deadline, never a permanent waiver.
+
+    Every exclusion carries a `expiry:` (reusing the type-6 `expiry:` shape, not a second vocabulary),
+    checkable by a NON-AUTHOR — presence is not checkability. A missing/unverifiable expiry means the
+    exclusion does not count as recorded, so the layer-match `❌` it covered blocks Gate 2. A class that
+    recurs to a THIRD occurrence (tracked by the reused `seen:` ledger) escalates rather than being
+    silently re-recorded; an overdue predecessor is surfaced in the counted `EXCLUSIONS:` line. Every
+    assertion is falsifiable against the shipped design/analysis text and the working-doc template."""
+    plugin = ROOT / "plugins" / "mango"
+    design = skill_text("design")
+    analysis = skill_text("analysis")
+    ticket = (plugin / "templates" / "ticket.md").read_text(encoding="utf-8")
+
+    if check(bool(design), "exclusion-expiry: skills/design/ is missing or unreadable"):
+        # A1 — the required expiry field, reusing the learning-loop vocabulary (not a new one).
+        check(re.search(r"coverage-gap exclusion", design, re.IGNORECASE) is not None
+              and re.search(r"expiry:", design) is not None,
+              "exclusion-expiry: design must add a required `expiry:` to the coverage-gap exclusion record")
+        check(re.search(r"claim-record\.md", design) is not None
+              and re.search(r"learning-loop\.md", design) is not None,
+              "exclusion-expiry: design must REUSE the type-6 `expiry:` shape (cite claim-record.md and "
+              "learning-loop.md), not invent a second vocabulary for the same idea")
+        check(re.search(r"ticket key \| date \| condition|ticket key / date / condition|"
+                        r"ticket key, a date, or a stated condition", design, re.IGNORECASE) is not None,
+              "exclusion-expiry: an expiry may be a ticket key, a date, or a checkable condition")
+        check(re.search(r"checkable by a (reader who is not the author|non-author)", design, re.IGNORECASE)
+              is not None,
+              "exclusion-expiry: the expiry value must be CHECKABLE by a non-author (a reader who is not "
+              "the author can verify it without asking)")
+        check(re.search(r"does not count as recorded", design, re.IGNORECASE) is not None
+              and re.search(r"blocks? Gate 2", design) is not None,
+              "exclusion-expiry: a missing expiry means the exclusion does not count as recorded, so the "
+              "layer-match failure it covered blocks Gate 2")
+        check(re.search(r"[Pp]resence is not\s+checkability", design) is not None,
+              "exclusion-expiry: design must state presence is not checkability — a field accepting any "
+              "string is worth nothing (the anti-pattern this version is highest-risk for)")
+        check(re.search(r"unverifiable.{0,40}(prose|expiry)|vague prose", design, re.IGNORECASE) is not None,
+              "exclusion-expiry: a present-but-unverifiable expiry (vague prose) must be FLAGGED, not "
+              "accepted")
+        # A2 — recurrence via the reused `seen:` ledger, escalation at the third occurrence.
+        check(re.search(r"seen:", design) is not None
+              and re.search(r"recurrence ledger|same shape.{0,40}recurrence|reuse the `?seen:`? ",
+                            design, re.IGNORECASE) is not None,
+              "exclusion-expiry: recurrence must REUSE the `seen:` ledger shape, not a parallel counter")
+        check(re.search(r"[Dd]o \*?\*?not\*?\*? build a parallel counter", design) is not None,
+              "exclusion-expiry: design must forbid a parallel recurrence counter")
+        check(re.search(r"third occurrence", design, re.IGNORECASE) is not None
+              and re.search(r"discharged? or escalated|discharged.{0,20}escalated", design, re.IGNORECASE)
+              is not None,
+              "exclusion-expiry: at the third occurrence a class must be discharged or escalated, never "
+              "silently re-recorded")
+        check(re.search(r"three is a measurement, not a taste", design) is not None,
+              "exclusion-expiry: the threshold of three must be tied to the 074/083/084 measurement, not "
+              "to taste (the prompt requires the number be traceable in the skill text)")
+        check(re.search(r"records? and surfaces; the human decides", design, re.IGNORECASE) is not None
+              and re.search(r"no automatic discharge|never auto-discharge", design, re.IGNORECASE)
+              is not None,
+              "exclusion-expiry: mango records and surfaces; the human decides — there is no automatic "
+              "discharge")
+        # A3 — the counted line, overdue surfacing, and the not-block-first control.
+        check(re.search(r"`EXCLUSIONS: <n> recorded \| <e> with a checkable expiry \| "
+                        r"<r> recurring.{0,60}\| <o> with an overdue predecessor`", design) is not None,
+              "exclusion-expiry: design must emit the counted `EXCLUSIONS:` line in the shipped grammar")
+        check(re.search(r"overdue predecessor", design, re.IGNORECASE) is not None
+              and re.search(r"does not add a new artifact|extends the line", design, re.IGNORECASE)
+              is not None,
+              "exclusion-expiry: an overdue predecessor is surfaced by EXTENDING the exclusions line, not "
+              "a new artifact (A3)")
+        check(re.search(r"[Ee]mit .{0,20}every run, zeros included|zeros included", design) is not None,
+              "exclusion-expiry: the EXCLUSIONS line is emitted every run, zeros included")
+        check(re.search(r"first exclusion of a class.{0,60}legitimate|legitimate and common", design,
+                        re.IGNORECASE) is not None
+              and re.search(r"no escalation and no extra step", design, re.IGNORECASE) is not None,
+              "exclusion-expiry: a first, well-formed exclusion is accepted with no escalation and no "
+              "extra step — the version must not become a tax on the first deferral (T5)")
+
+    if check(bool(analysis), "exclusion-expiry: skills/analysis/ is missing or unreadable"):
+        check(re.search(r"manual-check exclusion.{0,80}expiry:|same `expiry:`", analysis, re.DOTALL)
+              is not None,
+              "exclusion-expiry: a manual-check exclusion analysis logs carries the same expiry discipline")
+
+    # The working-doc template's exclusion slot gains the Expiry + Seen columns and the counted line.
+    check(re.search(r"\| Item \| Risk tier \| Why deferred \| Follow-up \| Expiry", ticket) is not None,
+          "exclusion-expiry: templates/ticket.md exclusion table must add an Expiry column")
+    check(re.search(r"\| Seen", ticket) is not None,
+          "exclusion-expiry: templates/ticket.md exclusion table must add a Seen (recurrence) column")
+    check(re.search(r"`EXCLUSIONS: <n> recorded", ticket) is not None,
+          "exclusion-expiry: templates/ticket.md must carry the EXCLUSIONS counted line")
+
+
+def validate_v1_12_0_fixtures():
+    """v1.12.0 — the behavioural teeth for Part A (exclusion expiry + recurrence) and Part C (an
+    unresolved refine want-decision reaching `j`) are registered eval fixtures: the file exists, run.sh
+    dispatches it, and FIXTURE_SKILLS keys it to the skill it exercises. A fixture that exists but is
+    never dispatched is not coverage. (These are asserted dispatch-free here; the eval itself runs at
+    end of month.)"""
+    required = {
+        "exclusion-expiry-required": ("design",
+            "an exclusion with no expiry does not count as recorded; the layer-match failure blocks Gate 2 (T1)"),
+        "exclusion-expiry-checkable": ("design",
+            "a ticket-key expiry is accepted and Gate 2 closes; unverifiable prose is flagged (T2/T3)"),
+        "exclusion-recurrence-escalates": ("design",
+            "a third occurrence of a class escalates; a first occurrence is accepted with no extra step (T4/T5)"),
+        "refine-want-unattended-stops": ("refine",
+            "an unresolved refine want-decision counts toward j and autorun stops; a locked ticket "
+            "self-skips leaving j untouched (T7/T8)"),
+    }
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "v1.12.0-fixtures: tests/eval/run.sh is missing"):
+        return
+    rs = runsh.read_text(encoding="utf-8")
+    for name, (skill, why) in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"v1.12.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+              f"v1.12.0-fixtures: run.sh must dispatch the {name} fixture (an unregistered fixture is "
+              "not coverage)")
+        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+              f"v1.12.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
 
 
 def validate_m7_withdrawal():
@@ -2392,6 +2573,8 @@ def main():
     validate_envelope_scripts()
     validate_m7_withdrawal()
     validate_v1_11_0_fixtures()
+    validate_exclusion_expiry()
+    validate_v1_12_0_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

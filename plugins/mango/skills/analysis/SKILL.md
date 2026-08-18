@@ -106,7 +106,10 @@ count, and the requirements matrix.
    a vague adjective ("looks clean", "is fast", "works well"). An AC that is **not** falsifiable must
    instead be recorded up front as an **explicit manual-check exclusion** (unmeasurable → a human
    verifies it; logged as a coverage-gap exclusion in the working doc, reusing the existing
-   coverage-gap-exclusion machinery — do not invent a parallel one). An AC that is **neither**
+   coverage-gap-exclusion machinery — do not invent a parallel one). **A manual-check exclusion logged
+   here carries the same `expiry:` (checkable by a non-author) and `seen:` recurrence discipline as any
+   coverage-gap exclusion** (see `design` step 6); it is counted in design's Gate-2 `EXCLUSIONS:` line.
+   An AC that is **neither**
    falsifiable **nor** a recorded manual-check exclusion is **flagged by this step** and **may not
    carry a matrix `✅`** — a bare self-reported `✅` cannot stand in for an unmeasurable or unbuilt
    thing. Where a vague word is the only blocker, pin it to a measurable form as a Gate-1 question
@@ -128,6 +131,13 @@ count, and the requirements matrix.
 
    Self-resolved items must cite the source (rulebook §, code `path:line`, ticket line). **If j > 0,
    STOP at Gate 0** and ask the human those questions before going further.
+
+   **`j` also counts any unresolved `refine` want-decision carried forward.** A want-decision `refine`
+   raised but that has **no answer available** — the run is unattended, or the user never handed it
+   back — is an unresolved clarification for human decision, so it folds into this `j` (it is **not** a
+   silent `ASSUMED`). A want-decision `refine` self-skipped on, or the user already answered, does not
+   reach `j`. This is what lets `autorun`'s `j > 0` stop rule catch a want-decision it never promised to
+   ask at 03:00.
 6. **Universal inventory.** For any requirement saying "all/every/no", build a numbered inventory
    of the affected items with total **N** (this N is the denominator later phases prove against).
    When a requirement is a counted **"do X for each of N"** (it maps onto this numbered inventory of

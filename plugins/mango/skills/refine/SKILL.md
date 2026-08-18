@@ -203,6 +203,18 @@ resolves a want-decision as an assumption of its own, refine does **NOT** silent
   flag it `ASSUMED (awaiting ratification)` and surface it loudly — **never silent-settle** over a
   decision a human already made.
 
+**An unresolved want-decision counts toward the Gate-0 `j` tally — it is never a silent `ASSUMED`.**
+A want-decision is answered by the **user**. When no answer is available — the run is **unattended**
+(`autorun`), or the user did not hand it back — the want-decision is **unresolved**, and an unresolved
+want-decision is a **clarification for human decision**: it counts toward the `j` in `analysis`'s
+`CLARIFICATION: … | <j> for human decision` tally that Gate 0 closes on, so `autorun`'s `j > 0` rule
+stops the run and states the open question. refine does **NOT** convert an unanswered want-decision into
+a silent `ASSUMED` to keep the run moving — that would ship a PR on an assumption no human ratified,
+with `j` still `0`. (The `ASSUMED (awaiting ratification)` path above applies **only** when the user
+*explicitly* hands the decision back; it is never the fallback for silence.) A want-decision refine
+**self-skipped** on — a fully locked ticket with nothing to expose (`skip: yes`, `a = 0`) — raises no
+want-decision and leaves `j` untouched; the self-skip is correct and preserved.
+
 ## Step 5 — split mixed input
 
 If the input mixes an **open brainstorm** ("what could improve X?") with a **targeted task** ("add

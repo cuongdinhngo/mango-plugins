@@ -9,12 +9,14 @@ Run:  python3 tests/envelope/test_envelope.py
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 SCRIPTS = ROOT / "plugins" / "mango" / "scripts"
@@ -99,6 +101,7 @@ def contract(extra_conditions="", floor=True, **overrides):
         "  remote: origin\n"
         "  merge-strategy: squash-or-rebase (recent first-parent topology)\n"
         f"  challenger: {overrides.get('challenger', 'on')}\n"
+        f"  handover-authorisation: {overrides.get('handover_authorisation', 'approved 22:58 — push feat/PROJ-1-x, open the PR; nothing else')}\n"
         f"  call-ceiling: {overrides.get('call_ceiling', '140')}\n"
         "  per-call-estimate: 3100\n"
         "  ceiling-source: 4 ledger row(s), 567 call(s) total\n"
@@ -324,6 +327,117 @@ class TestReconcileT0(unittest.TestCase):
         )
         lines, _ = reconcile.reconcile(text, "close", repo=self.tmp)
         self.assertIn("1 UNBOUND", "\n".join(lines))
+
+
+# --------------------------------------------------- B — the handover-authorisation header slot
+
+
+class TestHandoverAuthorisation(unittest.TestCase):
+    """Part B — the contract must have a slot for the handover authorisation the skill demands, and the
+    run must not start without it. Its absence fails the parse; an empty value fails validation; and the
+    two-phase re-validation (`bind`) refuses a contract that lost it."""
+
+    def test_the_key_is_a_mandatory_header(self):
+        self.assertIn("handover-authorisation", rc.HEADER_KEYS)
+
+    def test_T6_a_contract_missing_the_handover_line_does_not_parse(self):
+        text = contract().replace(
+            "  handover-authorisation: approved 22:58 — push feat/PROJ-1-x, open the PR; nothing else\n",
+            "",
+        )
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.validate(text, "t0")
+        self.assertTrue(any("handover-authorisation" in r for r in ctx.exception.reasons))
+
+    def test_T6_an_empty_handover_authorisation_is_refused(self):
+        text = contract(handover_authorisation="")
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.validate(text, "t0")
+        self.assertTrue(any("handover-authorisation" in r and "empty" in r
+                            for r in ctx.exception.reasons))
+
+    def test_a_recorded_authorisation_parses(self):
+        rc.validate(contract(handover_authorisation="approved — push branch + open PR only"), "t0")
+
+    def test_two_phase_rebind_still_refuses_a_lost_authorisation(self):
+        """The bind pass re-validates; a contract whose authorisation was blanked between phases is
+        refused at gate2, not silently carried."""
+        text = contract(
+            handover_authorisation="",
+            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}", "true", "true"),
+        )
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.bind(text, {"TEST_CMD": "pytest -k proving"}, "gate2")
+        self.assertTrue(any("handover-authorisation" in r for r in ctx.exception.reasons))
+
+
+# ------------------------------------------- D — explicit shell + the could-not-run third state
+
+
+class TestExplicitShellAndCouldNotRun(unittest.TestCase):
+    """Part D — a condition check names its own shell (`bash`), never the host's default, and a check
+    whose named shell is unavailable reports COULD-NOT-RUN — a third state, never HOLDING."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_the_check_runs_in_bash_not_the_host_default(self):
+        """A bash-only construct (`[[ … ]]`) that cmd.exe / dash would choke on runs correctly — proof
+        the named shell is invoked, not whatever the host would pick."""
+        cond = {"id": "BASHONLY", "fields": {"check": "[[ -n nonempty ]]"}}
+        self.assertEqual(reconcile.evaluate(cond, repo=self.tmp)[0], reconcile.HOLDING)
+        cond_broken = {"id": "BASHONLY", "fields": {"check": "[[ -z nonempty ]]"}}
+        self.assertEqual(reconcile.evaluate(cond_broken, repo=self.tmp)[0], reconcile.BROKEN)
+
+    def test_sh_invokes_an_explicit_named_shell_never_shell_true(self):
+        """The source guards the invocation shape: `subprocess.run([shell, "-c", …])`, and the
+        `subprocess.run(command, shell=True, …)` form that lets the host pick the shell is gone."""
+        src = (SCRIPTS / "run_contract.py").read_text(encoding="utf-8")
+        self.assertIsNone(re.search(r"subprocess\.run\(\s*command\s*,\s*shell=True", src))
+        self.assertIsNotNone(re.search(r'subprocess\.run\(\s*\n?\s*\[shell,\s*"-c",\s*command\]', src))
+        self.assertIn('SHELL = "bash"', src)
+
+    def test_T9_named_shell_unavailable_is_could_not_run_never_holding(self):
+        """T9 — when the named shell is not on PATH, a check that would exit 0 (and so read HOLDING)
+        must instead report COULD-NOT-RUN. A check that cannot run never reports holding."""
+        cond = {"id": "ANY", "fields": {"check": "true"}}
+        with mock.patch.object(rc.shutil, "which", return_value=None):
+            state, output = reconcile.evaluate(cond, repo=self.tmp)
+        self.assertEqual(state, reconcile.COULD_NOT_RUN)
+        self.assertNotEqual(state, reconcile.HOLDING)
+        self.assertIn("could-not-run", output)
+
+    def test_could_not_run_is_counted_on_its_own_axis_not_as_holding(self):
+        text = contract(
+            pr_check="true", tree_check="true", head_check="true",
+        )
+        with mock.patch.object(rc.shutil, "which", return_value=None):
+            lines, status = reconcile.reconcile(text, "close", repo=self.tmp)
+        joined = "\n".join(lines)
+        self.assertIn("0 holding", joined)
+        self.assertIn("3 could-not-run", joined)
+        self.assertIn("COULD NOT RUN", joined)
+
+    def test_T9_could_not_run_at_t0_strikes_the_run(self):
+        """A precondition that cannot be verified is not a green light: at t0 a COULD-NOT-RUN strikes
+        the run exactly as a false HOLDING does."""
+        text = contract(pr_check="true", tree_check="true", head_check="true")
+        with mock.patch.object(rc.shutil, "which", return_value=None):
+            lines, status = reconcile.reconcile(text, "t0", repo=self.tmp)
+        self.assertEqual(status, 2)
+        self.assertIn("COULD-NOT-RUN at t0", "\n".join(lines))
+
+    def test_the_forced_case_control_cannot_run_without_the_shell(self):
+        cond = {"id": "FLAG", "fields": {
+            "check": "true", "force-holding": "true", "force-broken": "false"}}
+        with mock.patch.object(rc.shutil, "which", return_value=None):
+            shown_broken, shown_holding, notes = reconcile.prove_one(cond, repo=self.tmp)
+        self.assertFalse(shown_broken)
+        self.assertFalse(shown_holding)
+        self.assertTrue(any("COULD-NOT-RUN" in n for n in notes))
 
 
 # --------------------------------------------------------------------------- T5/T6 tree + head
@@ -644,7 +758,9 @@ class TestWriteDerivesValues(unittest.TestCase):
         spec = {
             "key": "PROJ-1", "started": "t", "plugin-version": "1.11.0", "plugin-path": "/p",
             "repo": self.tmp, "base": "main", "branch": "feat/PROJ-1-x", "remote": "origin",
-            "merge-strategy": "squash", "challenger": "on", "call-ceiling": "140",
+            "merge-strategy": "squash", "challenger": "on",
+            "handover-authorisation": "approved 22:58 — push feat/PROJ-1-x, open the PR; nothing else",
+            "call-ceiling": "140",
             "per-call-estimate": "3100", "ceiling-source": "ledger", "token-budget": "unmeasured",
             "conditions": [
                 {"id": "PR-EXISTS", "statement": "the PR exists and its state is readable",

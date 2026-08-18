@@ -120,9 +120,58 @@ this phase.
    integration / runtime / e2e and its proof artifact is at the logic/unit layer**, that row is a
    layer mismatch → `❌` and **Gate 2 is blocked**. The row passes only when the proof is **upgraded**
    to the matching layer, OR it is recorded as a **named, human-approved coverage-gap exclusion**
-   (item · risk tier · why deferred · follow-up) in the working doc's *Coverage-gap exclusions* slot.
-   A layer-match `❌` that is neither upgraded nor a recorded human-approved exclusion **blocks Gate 2
-   — it does not pass silently.**
+   (item · risk tier · why deferred · follow-up · **expiry** · **seen**) in the working doc's
+   *Coverage-gap exclusions* slot. A layer-match `❌` that is neither upgraded nor a recorded
+   human-approved exclusion **blocks Gate 2 — it does not pass silently.**
+
+   **Every coverage-gap exclusion carries an `expiry:` — debt with a deadline, never a permanent
+   waiver.** Reuse the **`expiry:` shape and wording** the learning loop already uses for a type-6
+   adjudicated non-defect — do not invent a second vocabulary for the same idea (see
+   `<mango>/templates/claim-record.md` `expiry:` and `<mango>/principles/learning-loop.md`):
+
+   `expiry: <ticket key | date | condition that ends this deferral>`
+
+   The value must be **checkable by a reader who is not the author** — a ticket key, a date, or a
+   stated condition (`when the anchor index is available`) an outside reader can verify **without
+   asking you**. Two failure modes, both blocking:
+   - **No `expiry:`** → the exclusion **does not count as recorded**, so the layer-match `❌` it was
+     covering **blocks Gate 2** exactly as it would unexcluded.
+   - **A present-but-unverifiable `expiry:`** — vague prose an outside reader cannot check (`later`,
+     `when appropriate`, `once we get to it`, `soon`) — is **flagged, not accepted**. Presence is not
+     checkability: an `expiry:` filled with anything is worth nothing. This is the line the whole field
+     turns on — a field that accepts any string re-creates the permanent gap wearing a temporary label.
+
+   **A recurring exclusion class escalates at the third occurrence — reuse the `seen:` recurrence
+   ledger.** Track occurrences of the **same exclusion class across tickets** with a `seen:` list — one
+   ticket key per prior sighting — the **same shape** the learning loop uses for claim recurrence
+   (`<mango>/templates/claim-record.md` `seen:`). Do **not** build a parallel counter. On the **third**
+   occurrence of the same class (its `seen:` list already names **two** prior tickets), the exclusion
+   **may not simply be recorded again**: it must either be **discharged** (the deferred check now runs,
+   or the follow-up landed) **or escalated as a named open item the human answers**. Under `autorun` a
+   named open item the human must answer is a clarification — it counts toward `j`, and `j > 0` stops
+   the run. **The threshold is three because that is where the evidence sits:** a coverage-gap exclusion
+   of one AC class was recorded on three successive tickets and the defect it deferred shipped on the
+   third — three is a measurement, not a taste. mango **records and surfaces; the human decides**
+   whether an exclusion is discharged — there is no automatic discharge.
+
+   **An overdue predecessor is surfaced, not silently carried.** When this ticket records an exclusion
+   whose class already has a **predecessor whose `expiry:` has passed** (a ticket key that merged, a
+   date now past, a condition now true) while its follow-up never landed, that fact **appears in the
+   counted `EXCLUSIONS:` line below** — it does not add a new artifact, it extends the line that reports
+   exclusions.
+
+   **The counted line — emit it on EVERY run, zeros included:**
+
+   `EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring (class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor`
+
+   `e < n` (an exclusion with no `expiry:` or an unverifiable one), or an `r` that names a
+   third-occurrence class **silently re-recorded** instead of discharged or escalated, **blocks Gate 2**
+   — as unmissable as an unfilled matrix column. `o > 0` is a **surfacing**: mango reports it; the
+   **human** decides whether the overdue exclusion is discharged. `n = 0` closes the line with all zeros
+   and adds **no** work: `EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring | 0 with an
+   overdue predecessor`. **A first exclusion of a class, with a checkable expiry, is legitimate and
+   common — accepted with no escalation and no extra step** (`r = 0`); blocking a first, well-formed
+   deferral would make every genuinely deferred check a gate failure.
 7. **Proving test (at the matching layer).** With the risk layer classified (step 6), name the
    **proving test**: the specific assertion that **fails pre-change and passes post-change**,
    runnable via `config.test_command`, and **sitting at the risk layer** of the AC it proves. State
@@ -140,7 +189,10 @@ this phase.
     covered by` filled `k/N`, every assumption tagged and every `novel-untested` 3p/runtime one
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the
     verification plan has **no ❌** (or every ❌ is recorded as a human-approved coverage-gap
-    exclusion with a follow-up), rollback + porting recorded, and — when track includes frontend —
+    exclusion carrying a **checkable `expiry:`** and a follow-up), the **`EXCLUSIONS:` counted line**
+    emitted with `e == n`, every third-occurrence class discharged or escalated (never silently
+    re-recorded) and any overdue predecessor surfaced, rollback + porting recorded, and — when track
+    includes frontend —
     `DESIGN.md` created/updated (per `<mango>/skills/design/frontend.md`) and, for any universal/app-wide frontend requirement,
     the proof manifest laid out **one row per (AC × surface)** with `N == M + X` (no under-coverage
     banner standing). Write Phase 2 into the working doc and update `Session status`, then STOP and

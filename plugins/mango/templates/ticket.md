@@ -213,11 +213,20 @@ the requirement can fail — **Gate 2 may not pass with any ❌**):
 
 **Coverage-gap exclusions** (any verification-plan `❌` that is deliberately deferred instead of
 upgraded — each needs human approval; a recorded exclusion lets the review gate pass and tells the
-challenger's "not met" apart from an unmet requirement):
+challenger's "not met" apart from an unmet requirement). Every exclusion carries an **`expiry:`** — debt
+with a deadline, never a permanent waiver — reusing the type-6 `expiry:` shape (`claim-record.md`); the
+value must be **checkable by a non-author** (ticket key / date / stated condition), never vague prose. A
+**`seen:`** list (one prior ticket key per sighting, reusing the recurrence ledger) tracks the class
+across tickets; at the **third** occurrence the exclusion must be **discharged or escalated**, never
+silently re-recorded:
 
-| Item | Risk tier | Why deferred | Follow-up |
-|------|-----------|--------------|-----------|
-|      |           |              |           |
+| Item | Risk tier | Why deferred | Follow-up | Expiry (ticket key / date / condition — checkable by a non-author) | Seen (prior ticket keys; ≥3 → discharge or escalate) |
+|------|-----------|--------------|-----------|-------------------------------------------------------------------|------------------------------------------------------|
+|      |           |              |           |                                                                   |                                                      |
+
+`EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring (class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor`
+(emit every run, zeros included; `e < n` or a silently re-recorded third occurrence **blocks Gate 2**;
+`o > 0` is surfaced for the human to discharge — mango never auto-discharges)
 
 **Proof manifest — surface-aware (frontend integration/runtime/behavioral ACs).** `design` lays out
 **one row per (AC × affected surface)** from the Surface inventory; `execute` fills the tier + proof;

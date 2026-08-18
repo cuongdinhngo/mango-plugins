@@ -5,6 +5,55 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.12.0] — 2026-08-18
+
+**Exclusions that expire, plus three shipped-broken fixes.** Five field runs surfaced four
+understood-well-enough findings; this version closes them. **Additive** for Part A (a new discipline on
+an existing artifact) and three bug fixes for B/C/D — no existing gate decision loosens.
+
+**A — a coverage-gap exclusion is debt with a deadline, never a permanent waiver.** The evidence: a
+coverage-gap exclusion of one AC class (`AC1(b)`-shaped, "sensible on the real anchor repo — no runner")
+was recorded on three successive tickets (074, 083, 084) with a follow-up that never landed, and the
+defect it deferred shipped on the third. mango already had the right discipline in the wrong place —
+`DRIFT.md`'s type-6 `expiry:`. So `design`'s coverage-gap exclusion record now **reuses that same
+`expiry:` shape** (never a second vocabulary): every exclusion carries `expiry: <ticket key | date |
+condition>`, checkable **by a reader who is not the author**. A missing expiry means the exclusion **does
+not count as recorded**, so the layer-match failure it covered **blocks Gate 2** as it would unexcluded;
+a present-but-unverifiable expiry (vague prose) is **flagged, not accepted** — presence is not
+checkability. Recurrence reuses the learning loop's **`seen:` ledger** (no parallel counter): at the
+**third** occurrence of a class the exclusion must be **discharged or escalated**, never silently
+re-recorded — three because that is where the evidence sat, stated in the skill so the number is
+traceable to a measurement rather than to taste. An **overdue predecessor** is surfaced by extending the
+new counted `EXCLUSIONS:` line, not a new artifact. mango records and surfaces; the human decides
+whether an exclusion is discharged — no automatic discharge. A first, well-formed exclusion is accepted
+with no escalation and no extra step, so the version is not a tax on the first deferral.
+
+**B — the run contract has a slot for the handover authorisation.** `autorun` takes one explicit
+authorisation naming exactly two outward actions (push the branch, open the PR) and requires it recorded
+in the RUN CONTRACT, but `HEADER_KEYS` in `run_contract.py` had **no slot for it** — both field runs
+recorded it in working-doc prose. Added the `handover-authorisation` header key: a contract missing it
+does not parse, and an empty one is refused by `validate`; the two-phase re-validation (`bind`) covers
+it. The run must not start without the authorisation it claims to have.
+
+**C — an unresolved `refine` want-decision reaches the stop condition.** A `refine` want-decision did not
+flow into the `j` tally `autorun` stops on: attended it blocked on a question `autorun` never promised to
+ask; unattended it risked a silent `ASSUMED` shipping a PR on an unratified assumption with `j` still 0.
+Now an **unresolved** want-decision (no answer available — an unattended run, or one never handed back)
+**counts toward `j`**, so `autorun`'s existing `j > 0` rule stops the run and states the open question —
+never a silent `ASSUMED`. `refine`'s classification is unchanged: a fully-locked ticket it self-skips on
+raises no want-decision and leaves `j` untouched.
+
+**D — a condition check names its own shell.** `reconcile.py` and `run_contract.py` ran each condition
+via `subprocess.run(..., shell=True)`, handing the shell choice to the host (`/bin/sh` = dash on Debian,
+cmd.exe on Windows). Two Windows field failures resulted — broken shell-composition checks, and
+`LOCAL-HEAD-PUSHED` reporting `BROKEN` while the branch was in fact pushed. Now the check is invoked in
+an explicit, named shell (`bash`, at the absolute path `which` resolves so a Windows app-alias can't
+shadow it), and **`could-not-run` is a third state**, distinct from `HOLDING` and `BROKEN`: when the
+named shell is unavailable the check reports could-not-run and is counted on its own axis — **a check
+that cannot run never reports holding**, and at t0 it strikes the run. This is the same class as the
+`CLAUDE_PLUGIN_ROOT` fix: host-aware, never host-dependent. (Confirmed by the envelope suite going from
+two Windows-red tests to green on this host.)
+
 ## [1.11.0] — 2026-08-16
 
 **`/mango:autorun` — the unattended lifecycle, stopping at the PR.** A ticket handed over at 23:00 runs

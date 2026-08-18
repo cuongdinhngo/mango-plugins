@@ -421,6 +421,8 @@ declare -A FIXTURE_SKILLS=(
   [autorun-clarification-stops]="autorun" [autorun-gate-grammar-mismatch]="autorun"
   [autorun-no-challenger-disclosed]="autorun review" [autorun-challenger-default-on]="autorun review"
   [autorun-budget-degrades]="autorun" [greenfield-autorun-clean]="autorun"
+  [exclusion-expiry-required]="design" [exclusion-expiry-checkable]="design"
+  [exclusion-recurrence-escalates]="design" [refine-want-unattended-stops]="refine autorun"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -2052,6 +2054,45 @@ assert_all "greenfield-autorun: no extra step, question, warning, gate or block 
 assert_all "greenfield-autorun: the run still reaches a PR" "$t" 'PR' 'reach|open|complet|yes'
 assert_contains "greenfield-autorun: DISCLOSURE is written" "$t" 'DISCLOSURE'
 assert_absent "greenfield-autorun: no per-call number is invented for an empty ledger" "$t" 'per-call estimate[ *_:=]{1,4}[0-9]'
+
+# ---- v1.12.0 — exclusions that expire (Part A) + an unresolved refine want-decision reaches `j`
+# ---- (Part C). The mechanical halves (the contract handover slot, the could-not-run third state,
+# ---- the explicit shell) live in the dispatch-free envelope suite; these four cover the judgement.
+
+# T1 exclusion-expiry-required: an exclusion with NO expiry does not count as recorded, so the
+# layer-match failure it covered blocks Gate 2 — exactly as it would unexcluded.
+t="$(run_fixture exclusion-expiry-required 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "expiry-required: the no-expiry exclusion does not count as recorded" "$t" 'expiry' 'not count|does not count|not[ *_]{1,4}recorded|incomplete|missing'
+assert_all "expiry-required: the AC1(b) layer-match blocks Gate 2" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|stays (open|shut)|fails'
+assert_all "expiry-required: the fix is to add a checkable expiry" "$t" 'expiry' 'add|carry|checkable|ticket key|date|condition'
+assert_contains "expiry-required: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+
+# T2/T3 exclusion-expiry-checkable: a ticket-key expiry is checkable and accepted (Gate 2 closes);
+# unverifiable prose is flagged. This is the presence-vs-checkability line the version turns on.
+t="$(run_fixture exclusion-expiry-checkable 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "expiry-checkable: the ticket-key expiry is accepted, Gate 2 closes" "$t" 'PROJ-450|ticket key|candidate A' 'checkable|accept|counts|close|recorded'
+assert_all "expiry-checkable: the vague-prose expiry is flagged, not accepted" "$t" 'later|candidate B|vague|prose' 'flag|not[ *_]{1,4}(accept|checkable)|unverifiable|reject|does not count'
+assert_all "expiry-checkable: presence is not checkability" "$t" 'presence' 'not[ *_]{1,4}checkab|checkability|any string|not the same'
+assert_contains "expiry-checkable: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+
+# T4/T5 exclusion-recurrence-escalates: a THIRD occurrence of a class escalates (may not be silently
+# re-recorded); a FIRST occurrence with a checkable expiry is accepted with no escalation and no extra step.
+t="$(run_fixture exclusion-recurrence-escalates 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "recurrence: the third occurrence escalates, not silently re-recorded" "$t" 'AC1\(b\)|third|PROJ-074|PROJ-083|seen' 'escalat|discharge|not[ *_]{1,4}(silently )?re-?record|open item|human'
+assert_all "recurrence: the threshold of three is tied to a measurement" "$t" 'three|third' 'measurement|074|083|084|shipped|evidence|not[ *_]{1,4}(a )?taste'
+assert_all "recurrence: the first-occurrence AC2 needs no escalation or extra step" "$t" 'AC2|first' 'no[ *_]{1,4}(escalat|extra)|accept|legitimate|not[ *_]{1,4}(escalat|block)'
+assert_contains "recurrence: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+assert_absent "recurrence: mango does not auto-discharge the overdue class" "$t" '(I|we|mango) (auto-?discharge|automatically (discharge|clear|close))'
+
+# T7/T8 refine-want-unattended-stops: an unresolved refine want-decision counts toward `j` and autorun
+# stops; it is never a silent ASSUMED. A fully-locked ticket refine self-skipped on leaves `j` untouched.
+t="$(run_fixture refine-want-unattended-stops 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "want-j: the unresolved want-decision counts toward j" "$t" 'want-decision' 'counts? toward|into[ *_]{1,4}j|j[ *_=:]{0,4}1|toward the (j|clarification)|clarification'
+assert_all "want-j: the run STOPS at Gate 0 rather than guessing" "$t" 'stop|halt|does not (continue|proceed)|not[ *_]{1,4}(continue|proceed)' 'j[ *_=:]{0,4}1|Gate 0|human'
+assert_all "want-j: it is NOT recorded as a silent ASSUMED that ships a PR" "$t" 'ASSUMED' 'not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent'
+assert_all "want-j: the open question reaches the operator verbatim" "$t" 'recommend|likely to want|activity|editorial' 'question|state|report|surfac|morning|verbatim'
+assert_all "want-j: the fully-locked ticket self-skips and leaves j untouched" "$t" 'PROJ-903|self-skip|locked' 'j[ *_=:]{0,4}0|untouched|unaffected|no want|zero|correct'
+assert_absent "want-j: no product decision is invented at 3am" "$t" '(I|we) (chose|picked|selected) (recent activity|similar users|editorial|option [abc])'
 
 }   # end suite()
 

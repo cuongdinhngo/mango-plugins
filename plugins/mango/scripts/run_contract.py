@@ -24,10 +24,18 @@ Exit codes: 0 ok · 2 the contract does not parse / refuses to bind · 1 usage o
 
 import json
 import re
+import shutil
 import subprocess
 import sys
 
 GRAMMAR_VERSION = "RUN CONTRACT v1"
+
+# The shell every condition check is written for. Named EXPLICITLY (never left to the host) so one
+# check behaves the same on every machine: `/bin/sh` is dash on Debian and cmd.exe on Windows, and a
+# check handed to the host's default silently means something different per host. NO_SHELL is the
+# sentinel `sh` returns when that shell is not on PATH — a could-not-run, never a HOLDING/BROKEN.
+SHELL = "bash"
+NO_SHELL = "no-shell"
 
 HEADER_KEYS = [
     "key",
@@ -40,6 +48,7 @@ HEADER_KEYS = [
     "remote",
     "merge-strategy",
     "challenger",
+    "handover-authorisation",
     "call-ceiling",
     "per-call-estimate",
     "ceiling-source",
@@ -72,10 +81,22 @@ class ContractError(Exception):
 
 
 def sh(command, repo=None, timeout=120):
-    """Run a shell command; return (exit_status, output). Never raises."""
+    """Run a shell command in an EXPLICIT, NAMED shell; return (status, output). Never raises.
+
+    The command is invoked as `bash -c <command>` — never `shell=True`, which hands the choice of
+    shell to the host (`/bin/sh`, i.e. dash on Debian, on Linux; cmd.exe on Windows). When the named
+    shell is not on PATH the command is NOT run: `sh` returns the sentinel status `NO_SHELL`, and the
+    caller reports could-not-run. A check that cannot run must never report holding.
+    """
+    shell = shutil.which(SHELL)
+    if shell is None:
+        return NO_SHELL, f"could-not-run: shell '{SHELL}' is not on PATH — the check was not run"
     try:
+        # Invoke the ABSOLUTE path `which` resolved, never the bare name: a bare `bash` lets the OS
+        # re-resolve it (on Windows the WindowsApps WSL alias shadows a real bash), which is exactly
+        # the host-picks-the-shell defect this fix removes.
         proc = subprocess.run(
-            command, shell=True, cwd=repo, capture_output=True, text=True, timeout=timeout
+            [shell, "-c", command], cwd=repo, capture_output=True, text=True, timeout=timeout
         )
         return proc.returncode, (proc.stdout + proc.stderr).strip()
     except Exception as exc:  # noqa: BLE001 — a broken command is data, never a crash
@@ -252,6 +273,12 @@ def validate(text, phase):
     reasons = check_floor(header, conditions) + check_phase(conditions, phase)
     if header.get("challenger") not in ("on", "off"):
         reasons.append("header 'challenger' must be exactly 'on' or 'off'")
+    if not header.get("handover-authorisation", "").strip():
+        reasons.append(
+            "header 'handover-authorisation' is empty — the run performs two outward actions with "
+            "nobody awake (push the branch, open the PR) and must record the explicit authorisation "
+            "naming exactly those two. Without it the run does not start."
+        )
     ceiling = header.get("call-ceiling", "")
     if ceiling != "unknown" and not re.match(r"^\d+$", ceiling):
         reasons.append("header 'call-ceiling' must be an integer or the literal 'unknown'")

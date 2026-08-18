@@ -6,8 +6,13 @@ the two counted lines. Nothing here is narrated: every count comes from an exit 
 observed.
 
   RECONCILE
-    conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND
+    conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run
     proven    : <b> shown BROKEN when forced | <h> shown HOLDING on a clean run
+
+`could-not-run` is a THIRD state, distinct from HOLDING and BROKEN: the check's named shell was not on
+PATH, so the check did not run at all. A check that cannot run must never report holding — a false
+green exactly where nothing was verified — and it is not BROKEN either, because nothing observed the
+predicate fail. It is UNVERIFIED, and is counted on its own axis.
 
 Phases
   --phase t0     before any work exists. Every BOUND condition should be in its FAILING state against
@@ -33,19 +38,25 @@ import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 
-from run_contract import UNBOUND_RE, ContractError, parse, sh  # noqa: E402
+from run_contract import NO_SHELL, UNBOUND_RE, ContractError, parse, sh  # noqa: E402
 
 HOLDING = "HOLDING"
 BROKEN = "BROKEN"
 UNBOUND = "UNBOUND"
+COULD_NOT_RUN = "COULD-NOT-RUN"
 
 
 def evaluate(cond, repo=None):
-    """Run one condition's check. Exit 0 == HOLDING, anything else == BROKEN."""
+    """Run one condition's check. Exit 0 == HOLDING, anything else == BROKEN.
+
+    A check whose named shell is not on PATH did not run at all: it is COULD-NOT-RUN, never HOLDING
+    (a false green) and never BROKEN (nothing observed the predicate fail)."""
     check = cond["fields"].get("check", "")
     if UNBOUND_RE.search(check):
         return UNBOUND, "not bound — never run"
     status, output = sh(check, repo=repo)
+    if status == NO_SHELL:
+        return COULD_NOT_RUN, output
     return (HOLDING if status == 0 else BROKEN), output
 
 
@@ -61,6 +72,11 @@ def prove_one(cond, repo=None):
     fields = cond["fields"]
     if UNBOUND_RE.search(fields.get("check", "")):
         return False, False, [f"{cond['id']}: UNBOUND — not forceable yet"]
+    if evaluate(cond, repo=repo)[0] == COULD_NOT_RUN:
+        return False, False, [
+            f"{cond['id']}: COULD-NOT-RUN — the named shell is unavailable, so the forced-case "
+            "positive control cannot run and counts for nothing on either axis"
+        ]
 
     sh(fields.get("force-holding", ""), repo=repo)
     state, _ = evaluate(cond, repo=repo)
@@ -93,13 +109,15 @@ def reconcile(text, phase, repo=None, prove=False):
     """Run every condition and return (lines, exit_status)."""
     header, conditions = parse(text)
     declared = len(conditions)
-    rerun = holding = broken = unbound = 0
+    rerun = holding = broken = unbound = could_not_run = 0
     strikes = []
     details = []
     for cond in conditions:
         state, output = evaluate(cond, repo=repo)
         if state == UNBOUND:
             unbound += 1
+        elif state == COULD_NOT_RUN:
+            could_not_run += 1
         else:
             rerun += 1
             if state == HOLDING:
@@ -111,6 +129,11 @@ def reconcile(text, phase, repo=None, prove=False):
             strikes.append(
                 f"    STRIKE {cond['id']}: reports HOLDING on an empty run — it describes something "
                 "other than this run's work. Strike it before starting."
+            )
+        if phase == "t0" and state == COULD_NOT_RUN:
+            strikes.append(
+                f"    STRIKE {cond['id']}: COULD-NOT-RUN at t0 — the named shell is unavailable, so "
+                "this run's preconditions cannot be verified. The run does not start."
             )
 
     shown_broken = shown_holding = 0
@@ -125,7 +148,7 @@ def reconcile(text, phase, repo=None, prove=False):
     lines = [
         "RECONCILE",
         f"  conditions: {declared} declared | {rerun} re-run | {holding} holding | "
-        f"{broken} BROKEN | {unbound} UNBOUND",
+        f"{broken} BROKEN | {unbound} UNBOUND | {could_not_run} could-not-run",
         f"  proven    : {shown_broken} shown BROKEN when forced | "
         f"{shown_holding} shown HOLDING on a clean run",
         f"  phase     : {phase} | challenger: {header.get('challenger')} | "
@@ -138,6 +161,12 @@ def reconcile(text, phase, repo=None, prove=False):
         lines.append(
             "  READ THIS FIRST: a BROKEN condition describes the state of the world after the last "
             "push. It does not block the merge — this version stops at the PR and the human merges."
+        )
+    if phase == "close" and could_not_run > 0:
+        lines.append(
+            f"  COULD NOT RUN: {could_not_run} condition(s) — the named shell was unavailable, so "
+            "these are UNVERIFIED, not holding. A check that cannot run never reports holding; treat "
+            "each as unknown and re-run it where the shell exists."
         )
     return lines, (2 if strikes else 0)
 

@@ -39,10 +39,12 @@ operator pre-authorised at handover.
 
 `autorun` performs two outward actions with nobody awake: **push the feature branch** and **open the
 PR**. Take **one explicit authorisation naming exactly those two actions** before the run starts, and
-record it in the `RUN CONTRACT`. That authorisation covers **only** those two, **only** on this ticket's
-branch. It is not a blanket "go": every other outward action — a merge, a deploy, a tracker transition,
-a force-push, a write to any shared ref other than this branch — is on the abort list below and STOPS
-the run. Silence is never that authorisation.
+record it verbatim in the `RUN CONTRACT`'s **`handover-authorisation`** header field. The contract
+script holds that field: a contract with the field **empty or absent does not parse, and the run does
+not start** — the run must not begin without the authorisation it claims to have. That authorisation
+covers **only** those two, **only** on this ticket's branch. It is not a blanket "go": every other
+outward action — a merge, a deploy, a tracker transition, a force-push, a write to any shared ref other
+than this branch — is on the abort list below and STOPS the run. Silence is never that authorisation.
 
 ## Step 0 — the RUN CONTRACT, written by a script and parsed back
 
@@ -126,9 +128,9 @@ Invoke the phases in the same order `solve` does — `refine` → `analysis` →
 
 | Gate | Closes when |
 |---|---|
-| 0 | `CLARIFICATION: … j = 0` |
+| 0 | `CLARIFICATION: … j = 0` — and `j` **includes any unresolved `refine` want-decision** (see below) |
 | 1 | `SECTIONS` found = decomposed · `RULE SECTIONS` every applicable section checked or N/A-with-reason · `BASELINE` captured |
-| 2 | `HANDLES: u = 0` and `h == t + x` · the verification plan carries no `❌` (or every `❌` is a recorded, human-approved exclusion) · the proving test is named and runnable |
+| 2 | `HANDLES: u = 0` and `h == t + x` · the verification plan carries no `❌` (or every `❌` is a recorded, human-approved exclusion carrying a checkable `expiry:`) · `EXCLUSIONS: e == n`, no third-occurrence class silently re-recorded · the proving test is named and runnable |
 | 3 | execute's verification sweep · `diff ⊆ approved list` · the design-conformance self-check |
 | 4 | the reviewer verdict is `LGTM`, or a conditional LGTM whose named findings have landed |
 
@@ -142,6 +144,15 @@ never repair it by re-typing the line yourself.
 ### `j > 0` stops the run until morning
 
 A clarification for human decision is not something to guess at 03:00. **`j > 0` stops the run.**
+
+**`j` includes an unresolved `refine` want-decision.** `refine` may raise a **want-decision** — a
+product/intent question only the user can answer. Attended, the user answers it; unattended, nobody is
+awake to. An unanswered want-decision is **not** silently adopted as an `ASSUMED` (that would ship a PR
+on an unratified assumption with `j` still `0`): it is an **unresolved clarification**, so it **counts
+toward `j`**, and the `j > 0` rule above stops the run. A ticket `refine` **self-skipped** on (fully
+locked, nothing to expose → `REFINE: … skip: yes`, `a = 0`) raises no want-decision and leaves `j`
+untouched — the self-skip is correct behaviour and is preserved; the fix is the routing of an
+*unresolved* want-decision, not `refine`'s judgement.
 
 **Stopping is not dying.** Finish every part that does not depend on the answer, then report precisely
 what is missing with the open question stated verbatim. The operator wakes to a run that got as far as
@@ -239,7 +250,7 @@ output — transcribe the two counted lines the script printed:
 
 ```
 RECONCILE
-  conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND
+  conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run
   proven    : <b> shown BROKEN when forced | <h> shown HOLDING on a clean run
 ```
 
@@ -247,6 +258,11 @@ RECONCILE
 `force-holding` produces `HOLDING`, then `force-broken` produces `BROKEN`. A case that does not flip is
 reported `FORCE-UNPROVEN` and **is not counted**, because a mutation that silently did not apply reports
 a green that means nothing.
+
+**`could-not-run` is a third state**, distinct from `HOLDING` and `BROKEN`: the check's named shell
+(`bash`) was not on PATH, so the check did not run at all. **A check that cannot run never reports
+holding** — it is `UNVERIFIED`, counted on its own axis, and re-run where the shell exists. A conditions
+line with `c > 0` at close means those floor conditions were **not verified**, not that they hold.
 
 **`q > 0` does not block a merge** — this version stops at the PR and the human merges. It means **read
 this first**.
