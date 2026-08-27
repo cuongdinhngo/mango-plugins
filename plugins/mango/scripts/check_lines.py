@@ -9,9 +9,11 @@ count comes from a parse this script performed.
     lines    : <n> emitted | <p> pass | <f> FAIL | <k> not-checkable | <q> pending
     required : <r> required through <phase> | <m> MISSING
     gates    : <g> arithmetic gate condition(s) read | <b> BROKEN
+    evidence : <n> empirical-output record(s) | <m> on the tree under review | <x> from ANOTHER tree
+               | <u> provenance-unknown            (only with --tree)
     restated : <d> carried-forward restatement(s), each re-checked for contradiction
 
-Three checks, in order of value:
+Four checks, in order of value:
 
   1. INTERNAL CONTRADICTION — a line whose own numbers disagree: sub-counts that do not sum to the
      total, `h != t + x + u`, a stated `n` that mismatches the rows enumerated on the line itself. No
@@ -23,6 +25,12 @@ Three checks, in order of value:
   3. OFF-GRAMMAR — fields invented, fields omitted, order changed, the token itself misspelled.
      Verdicted against the BEST occurrence of each line (the one matching the most fields), because a
      doc that restates a line in a later self-audit is not emitting it twice.
+  4. EVIDENCE PROVENANCE (--tree only) — every pasted `$ <command>` block carries a `Ran at <sha>`
+     marker naming the tree it ran against, and that SHA must be the tree under review. Every gate
+     above this one trusts the test result handed to it; nothing else asks WHICH TREE produced it, so a
+     green suite from a stale tree satisfies all of them. This is the stale-review guard's rule pointed
+     at a different artifact — not a second mechanism. A record with no marker is `provenance-unknown`:
+     UNVERIFIED, on its own exit status, NEVER a pass.
 
 REPORT, NEVER REWRITE. This script says a line is wrong. It does not fix it, does not reformat it, and
 never opens the working doc for anything but reading. A script that edited would hide exactly the
@@ -41,12 +49,14 @@ them. Adding a counted line that nothing parses is the defect this script exists
 What this script does NOT decide: any gate condition needing judgement. `CLARIFICATION: j > 0` is a
 legitimate STOP, not a broken gate, and is reported as a fact rather than a failure. Only the
 arithmetic conditions the shipped skill text states as blocking — `HANDLES: u == 0`, `EXCLUSIONS:
-e == n`, `RECURRING-T2: l == 0`, and the `… written: 0` / `… deleted: 0` invariants — are counted on
-the `gates` axis.
+e == n` and `EXCLUSIONS: s - c <= n`, `RECURRING-T2: l == 0`, and the `… written: 0` / `… deleted: 0`
+invariants — are counted on the `gates` axis. What an AC's fixture provenance IS remains the author's
+judgement; what is checked here is the arithmetic that judgement produced.
 
 Subcommands
   check     <workdoc> [--phase 0..5|refine|analysis|design|execute|review|finalise]
                       [--tier lite|full] [--track backend|frontend|fullstack] [--epic]
+                      [--tree <sha of the tree under review>] [--size-budget <bytes>]
   grammars  print the canonical grammar of every counted line the plugin ships
 
 WHAT THIS CANNOT PREVENT, stated plainly: an agent quoting a passing verdict it never ran. No script can
@@ -55,8 +65,14 @@ doc's byte length and a content digest, so a quoted verdict belongs to one speci
 verdict quoted against a doc that has since changed is detectable. Beyond that it is a disclosure
 obligation on the caller, not a guarantee.
 
-Exit codes: 0 clean · 2 a FAIL, a MISSING, or a BROKEN gate condition · 3 nothing failed but something
-was NOT CHECKABLE (an unknown counted line, an undeclared phase, an unreadable doc) · 1 usage.
+SIZE MARGIN (--size-budget only). The `doc` line already carries the doc's byte length; given the
+project's ceiling it also carries the margin, and warns from 80%. mango measures no ceiling of its own
+— the project supplies it. It NEVER blocks: a budget is the project's rule, and this is a surfacing
+before it bites rather than a discovery after.
+
+Exit codes: 0 clean · 2 a FAIL, a MISSING, a BROKEN gate condition, or evidence from another tree ·
+3 nothing failed but something was NOT CHECKABLE (an unknown counted line, an undeclared phase, an
+unreadable doc, evidence whose tree cannot be established) · 1 usage.
 """
 
 import hashlib
@@ -328,22 +344,36 @@ GRAMMARS = {
         "emitter": "design",
     },
     "EXCLUSIONS": {
+        # v1.14.0 extends this line rather than adding a second one: the verification plan's
+        # fixture-provenance verdict and its escape hatch are the SAME artifact. An input-shape-dependent
+        # AC proven only on authored fixtures is a layer-match failure, and the only recording that
+        # covers a layer-match failure is a coverage-gap exclusion — so the two counts belong on the line
+        # that already reports those exclusions.
         "canonical": "EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring "
-                     "(class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor",
+                     "(class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor | "
+                     "<s> input-shape-dependent AC(s) | <c> proven on a real corpus",
         "segments": [
             seg("n", r"recorded", "<n> recorded"),
             seg("e", r"with a checkable expiry", "<e> with a checkable expiry"),
             seg("r", r"recurring", "<r> recurring (class seen ≥ 3 → discharged/escalated)"),
             seg("o", r"with an overdue predecessor", "<o> with an overdue predecessor"),
+            seg("s", r"input-shape-dependent " + pl("AC"), "<s> input-shape-dependent AC(s)"),
+            seg("c", r"proven on a real corpus", "<c> proven on a real corpus"),
         ],
         "rules": [
             (lambda c: c["e"] <= c["n"], "e > n — more checkable expiries than exclusions recorded"),
             (lambda c: c["r"] <= c["n"], "r > n — more recurring classes than exclusions recorded"),
             (lambda c: c["o"] <= c["n"], "o > n — more overdue predecessors than exclusions recorded"),
+            (lambda c: c["c"] <= c["s"],
+             "c > s — more ACs proven on a real corpus than were classified input-shape-dependent"),
         ],
         "gates": [
             (lambda c: c["e"] == c["n"],
              "e != n — an exclusion with no checkable expiry BLOCKS Gate 2 (design step 6)"),
+            (lambda c: c["s"] - c["c"] <= c["n"],
+             "s - c > n — an input-shape-dependent AC left on authored fixtures alone, with no "
+             "recorded coverage-gap exclusion to cover it, BLOCKS Gate 2 (design step 6). Either "
+             "prove it on the real corpus or record the gap with a checkable expiry"),
         ],
         "required_at": "design",
         "emitter": "design",
@@ -746,6 +776,85 @@ def required_tokens(phase, tier, track, epic):
 # --------------------------------------------------------------------------- the check
 
 
+# --------------------------------------------------------------------------- evidence provenance
+
+# The marker a phase writes beside a pasted command + output, in the SHAPE AND VOCABULARY the
+# stale-review guard already uses (`Reviewed at <sha>`). One marker, one meaning: the SHA of the tree
+# the command actually ran against — for a containerised suite, the tree the IMAGE WAS BUILT FROM, not
+# the checkout the agent is standing in. That distinction is the whole defect this axis exists for.
+EVIDENCE_MARKER_RE = re.compile(
+    r"Ran\s+at\s*:?\s*[`*]*\s*(?P<sha>[0-9a-fA-F]{7,40}|provenance-unknown)", re.IGNORECASE)
+FENCE_RE = re.compile(r"^\s*(```+|~~~+)")
+PROVENANCE_UNKNOWN = "provenance-unknown"
+
+
+def evidence_records(text):
+    """Every EMPIRICAL-OUTPUT record in the doc, with the tree SHA it claims to have run against.
+
+    An empirical-output record is the shipped shape `execute` mandates: a fenced block whose first
+    non-empty line is a `$ <command>` prompt. Its provenance marker is a `Ran at <sha>` on the fence
+    line, inside the block, or on one of the three lines immediately before the opening fence.
+
+    A record with NO marker is `provenance-unknown` — the same third state as `could-not-run` and
+    `not-checkable`, and never a pass. A gate that cannot establish which tree produced a green suite
+    must say it could not.
+    """
+    body, offset = working_doc_body(text)
+    lines = body.splitlines()
+    records, i = [], 0
+    while i < len(lines):
+        if not FENCE_RE.match(lines[i]):
+            i += 1
+            continue
+        fence = FENCE_RE.match(lines[i]).group(1)[:3]
+        start, j = i, i + 1
+        block = []
+        while j < len(lines) and not lines[j].lstrip().startswith(fence):
+            block.append(lines[j])
+            j += 1
+        first = next((b for b in block if b.strip()), "")
+        if first.strip().startswith("$ "):
+            context = "\n".join(lines[max(0, start - 3):start + 1] + block)
+            m = EVIDENCE_MARKER_RE.search(context)
+            records.append({
+                "line": offset + start + 1,
+                "command": first.strip()[:70],
+                "sha": (m.group("sha").lower() if m else None),
+            })
+        i = j + 1
+    return records
+
+
+def check_evidence(text, tree):
+    """Verdict every empirical-output record against the tree under review.
+
+    Returns (counted_line, details, has_stale, has_unknown). Reuses the stale-review guard's rule,
+    pointed at a different artifact: evidence recorded against a tree that is not the one under review
+    is REFUSED, exactly as a review scoped to a superseded SHA is."""
+    tree = (tree or "").strip().lower()
+    records = evidence_records(text)
+    matching, stale, unknown, details = 0, 0, 0, []
+    for rec in records:
+        sha = rec["sha"]
+        if sha is None or sha == PROVENANCE_UNKNOWN:
+            unknown += 1
+            details.append(
+                f"    EVIDENCE: {PROVENANCE_UNKNOWN.upper()} (line {rec['line']}) — `{rec['command']}` "
+                f"carries no `Ran at <sha>` marker, so the tree that produced this output cannot be "
+                f"established. UNVERIFIED, never a pass.")
+        elif sha == tree[: len(sha)] or tree == sha[: len(tree)]:
+            matching += 1
+        else:
+            stale += 1
+            details.append(
+                f"    EVIDENCE: FAIL (line {rec['line']}) — `{rec['command']}` ran against tree "
+                f"{sha}, which is NOT the tree under review ({tree}). A green suite from a tree that "
+                f"is no longer the code satisfies every gate above it; this evidence is REFUSED.")
+    line = (f"  evidence : {len(records)} empirical-output record(s) | {matching} on the tree under "
+            f"review | {stale} from ANOTHER tree | {unknown} {PROVENANCE_UNKNOWN}")
+    return line, details, stale > 0, unknown > 0
+
+
 def doc_fingerprint(text):
     """Byte length plus a short content digest, so a QUOTED verdict belongs to one doc state.
 
@@ -755,7 +864,33 @@ def doc_fingerprint(text):
     return f"{len(raw)}B/{hashlib.sha256(raw).hexdigest()[:12]}"
 
 
-def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>"):
+def size_margin(text, budget):
+    """The doc's size against the project's ceiling, from the byte length already computed here.
+
+    A budget that is only ever reported AFTER it bites costs a round of pruning nobody was warned about.
+    mango measures no ceiling of its own — the project supplies it (`config.doc_size_budget`) — so with
+    no budget given this returns nothing and costs nothing. It NEVER blocks: the margin is a surfacing,
+    on the line that already reports the doc."""
+    try:
+        budget = int(str(budget).strip())
+    except (TypeError, ValueError):
+        return "", []
+    if budget <= 0:
+        return "", []
+    used = len(text.encode("utf-8"))
+    pct = (used * 100) // budget
+    field = f" | size: {used}B of {budget}B ({pct}%)"
+    if used > budget:
+        return field, [f"    SIZE: over budget by {used - budget}B ({pct}% of {budget}B) — prune. "
+                       f"Reported, not blocked: the ceiling is the project's, not mango's."]
+    if pct >= 80:
+        return field, [f"    SIZE: {budget - used}B of margin left ({pct}% of {budget}B) — approaching "
+                       f"the ceiling. Surfaced now rather than after it bites; nothing is blocked."]
+    return field, []
+
+
+def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>", tree=None,
+              size_budget=None):
     """Verdict every counted line in one working doc. Returns (lines, exit_status)."""
     header = read_header(text)
     phase = phase or header["phase"]
@@ -819,6 +954,13 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>")
     pending = sorted(t for t, s in GRAMMARS.items()
                      if t not in verdicts and s.get("required_at") and t not in (required or []))
 
+    # The evidence axis runs ONLY when the caller names the tree under review. Without it the axis is
+    # absent from the report entirely — it is not silently "clean", it simply was not asked.
+    evidence_line, evidence_details, evidence_stale, evidence_unknown = "", [], False, False
+    if tree:
+        evidence_line, evidence_details, evidence_stale, evidence_unknown = check_evidence(text, tree)
+    size_field, size_notes = size_margin(text, size_budget)
+
     npass = sum(1 for v in verdicts.values() if v == PASS)
     nfail = sum(1 for v in verdicts.values() if v == FAIL)
     nnc = sum(1 for v in verdicts.values() if v == NOT_CHECKABLE)
@@ -832,9 +974,13 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>")
         f"  gates    : {gate_read} arithmetic gate condition(s) read | {len(gate_broken)} BROKEN",
         f"  restated : {restated} carried-forward restatement(s), each re-checked for contradiction",
         f"  doc      : {path} | {doc_fingerprint(text)} | phase: {phase or 'UNKNOWN'} | "
-        f"TIER: {tier or 'unstated'} | TRACK: {track or 'unstated'}",
+        f"TIER: {tier or 'unstated'} | TRACK: {track or 'unstated'}{size_field}",
     ]
+    if evidence_line:
+        lines.insert(4, evidence_line)      # between `gates` and `restated`, as the docstring shows
     lines.extend(details)
+    lines.extend(evidence_details)
+    lines.extend(size_notes)
     lines.extend(notes)
     for token in missing:
         lines.append(
@@ -848,9 +994,9 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>")
             "did not run. That axis is UNVERIFIED, not clean — declare the phase or pass --phase.")
     if pending:
         lines.append(f"    pending (not yet required at {phase}): {', '.join(pending)}")
-    if nfail or missing or gate_broken:
+    if nfail or missing or gate_broken or evidence_stale:
         status = 2
-    elif nnc or required is None:
+    elif nnc or required is None or evidence_unknown:
         status = 3
     else:
         status = 0
@@ -883,7 +1029,8 @@ def main(argv):
         print(f"check_lines: unknown subcommand '{cmd}'")
         return 1
     if not args or args[0].startswith("--"):
-        print("check_lines: check <workdoc> [--phase P] [--tier T] [--track TR] [--epic]")
+        print("check_lines: check <workdoc> [--phase P] [--tier T] [--track TR] [--epic] "
+              "[--tree SHA] [--size-budget BYTES]")
         return 1
 
     path, phase = args[0], opt("--phase")
@@ -904,7 +1051,8 @@ def main(argv):
               "UNVERIFIED, not clean — it never passes by default.")
         return 3
     lines, status = check_doc(text, phase=phase, tier=opt("--tier"), track=opt("--track"),
-                              epic="--epic" in args, path=path)
+                              epic="--epic" in args, path=path, tree=opt("--tree"),
+                              size_budget=opt("--size-budget"))
     print("\n".join(lines))
     return status
 

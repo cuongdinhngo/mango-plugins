@@ -83,6 +83,8 @@ model** — no delegation overhead (see `<mango>/PRINCIPLES.md`).
    and the options instead of retrying further; the counter resets when the failing signature
    changes.
 6. **Finalise.** Hand off to `finalise`'s final gate: dry-run by default, one separate approval per
-   outward action. Update `Session status` with a concrete next action.
+   outward action. Update `Session status` with a concrete next action, keeping the template's
+   **`Current phase:`** field filled — `check_lines.py` reads it to run its missing-when-required
+   axis, and a doc that drops the field reports that axis `not-checkable`, never clean.
 
 **Two human gates total:** the combined pre-code gate and the final gate.

@@ -219,9 +219,20 @@ tool/API descriptions, config, migrations, downstream consumers) so a reviewer k
 **Verification plan** (one row per AC / at-risk requirement; the proof must sit at the layer where
 the requirement can fail — **Gate 2 may not pass with any ❌**):
 
-| AC | risk layer (logic / integration / runtime-3p / e2e) | proof artifact (unit / integration / e2e / manual-recorded) | layer-match? ✅/❌ |
-|----|------------------------------------------------------|-------------------------------------------------------------|-------------------|
-|    |                                                      |                                                             |                   |
+| AC | risk layer (logic / integration / runtime-3p / e2e) | proof artifact (unit / integration / e2e / manual-recorded) | fixture provenance (authored / real-corpus / n/a) | layer-match? ✅/❌ |
+|----|------------------------------------------------------|-------------------------------------------------------------|----------------------------------------------------|-------------------|
+|    |                                                      |                                                             |                                                    |                   |
+
+**Fixture provenance** — `n/a` for almost every AC and it costs nothing (a value comparison, a config
+default, a signature, an error message). It is `authored` / `real-corpus` only for an
+**input-shape-dependent** AC: one whose expected output cannot be written down before running it — a
+heuristic, a grouping, a ranking, a summary, a classification, anything judged "sensible" rather than
+"equal to X". For such an AC **`authored` is a layer-match `❌` and blocks Gate 2**: a fixture is part of
+the diff, so a diff and the fixture shaped to it are consistent with each other and with nothing else.
+It passes by being upgraded to `real-corpus` (the resolved `config.real_corpus_path`, plus the command
+and its actual output — a bare label naming nothing checkable reads as `authored`), or by the same
+coverage-gap exclusion below. No corpus configured → say so and record the exclusion with
+`expiry: when config.real_corpus_path is configured`; never a silent `authored`.
 
 **Coverage-gap exclusions** (any verification-plan `❌` that is deliberately deferred instead of
 upgraded — each needs human approval; a recorded exclusion lets the review gate pass and tells the
@@ -236,9 +247,10 @@ silently re-recorded:
 |------|-----------|--------------|-----------|-------------------------------------------------------------------|------------------------------------------------------|
 |      |           |              |           |                                                                   |                                                      |
 
-`EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring (class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor`
+`EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring (class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor | <s> input-shape-dependent AC(s) | <c> proven on a real corpus`
 (emit every run, zeros included; `e < n` or a silently re-recorded third occurrence **blocks Gate 2**;
-`o > 0` is surfaced for the human to discharge — mango never auto-discharges)
+`s - c > n` — an input-shape-dependent AC on authored fixtures alone with no exclusion covering it —
+**blocks Gate 2**; `o > 0` is surfaced for the human to discharge — mango never auto-discharges)
 
 **Proof manifest — surface-aware (frontend integration/runtime/behavioral ACs).** `design` lays out
 **one row per (AC × affected surface)** from the Surface inventory; `execute` fills the tier + proof;
@@ -277,9 +289,17 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
   |------------------------|------------------------------|-------------|--------------------|
   |                        |                              |             |                    |
 
-- **Empirical output — PASTED, not described** (every ran-it claim above carries the actual command
-  and its actual output, trimmed to the relevant lines and verbatim; prose like "tests pass" is not a
-  record. A command that failed is pasted verbatim too. Not run → say so and mark the claim unproven):
+- **Empirical output — PASTED, not described, and STAMPED with the tree it ran on** (every ran-it claim
+  above carries the actual command and its actual output, trimmed to the relevant lines and verbatim;
+  prose like "tests pass" is not a record. A command that failed is pasted verbatim too. Not run → say
+  so and mark the claim unproven). Each block carries **`Ran at <sha>`** — the SHA of the tree the
+  command actually ran against, in the same shape as Phase 4's `Reviewed at <sha>` marker. **Where the
+  suite ran in a container or another environment, that SHA is the tree the CONTAINER WAS BUILT FROM**,
+  not the checkout you are standing in. If it cannot be established, write `Ran at provenance-unknown`
+  — a third state like `could-not-run`, **never a pass**. A gate consuming this evidence refuses it
+  when the SHA is not the tree under review:
+
+  Ran at `<sha | provenance-unknown>`
 
   ```
   $ <command>
@@ -311,7 +331,7 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
   any `M + X < N` blocks (emit the banner): n/a / <M+X>/<N>
 - `Ph3/4 proven by` filled (k/N): see matrix.
 - **Clean?** reviewer no Critical AND challenger every item met AND no layer-match ❌ unresolved AND k=N (or exclusions approved) AND **surfaces proven N==M+X** AND proving test green → yes/no
-- **Reviewed at** (stale-review guard — recorded on a clean verdict): `<commit SHA>` · reviewed files: `<list>`. `finalise` refuses to open a PR if `HEAD` / the diff moved beyond this set, routing back here for a re-review.
+- **Reviewed at** (stale-review guard — recorded on a clean verdict): `Reviewed at <sha>` · reviewed files: `<list>`. `finalise` refuses to open a PR if `HEAD` / the diff moved beyond this set, routing back here for a re-review.
 
 ## Phase 5 — Finalise ✋ final gate
 

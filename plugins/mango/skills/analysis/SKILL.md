@@ -187,6 +187,12 @@ count, and the requirements matrix.
 
    `BASELINE: green | red | flaky — <specific failing items if red/flaky>`
 
+   **The baseline is test evidence, so it carries the tree it ran on.** Paste the command and its
+   actual output and stamp the block **`Ran at <sha>`** — the SHA of the tree the command ran against,
+   and for a containerised suite the tree the **container was built from**, not the checkout you are
+   standing in. Unestablishable → `Ran at provenance-unknown`, never a pass. A later phase comparing
+   against a baseline captured from a different tree is comparing against something else.
+
    A clean checkout is not assumed green: a project's verification command can be **unsatisfiable on
    a fresh checkout** (a pre-existing/vendored failure, a flaky sub-pixel assertion). When
    `baseline ≠ green`, the Definition of Done for later phases becomes **"prove the delta is green"**
@@ -278,5 +284,5 @@ count, and the requirements matrix.
     multi-clause ratified want-decision split into one row per clause**, `STRUCTURE`, `TRACK`, and `TIER` declared, and — when the track
     includes frontend with a universal/app-wide requirement — `SURFACES: N` emitted from the code
     surface. Write Phase 1 into
-    the working doc and the `Session status` block, then STOP and wait for the user. Do not begin
+    the working doc and the `Session status` block (**keep the template's `Current phase:` field filled** — `check_lines.py` reads it to run its missing-when-required axis, and a doc that drops the field reports that axis `not-checkable`, never clean), then STOP and wait for the user. Do not begin
     design.

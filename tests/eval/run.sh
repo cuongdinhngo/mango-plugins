@@ -426,6 +426,10 @@ declare -A FIXTURE_SKILLS=(
   [check-lines-contradiction-blocks]="autorun" [check-lines-missing-blocks]="design autorun"
   [check-lines-not-checkable]="autorun" [check-lines-one-grammar]="refine"
   [greenfield-check-lines-clean]="autorun"
+  [provenance-authored-blocks]="design" [provenance-real-corpus-passes]="design"
+  [provenance-na-costs-nothing]="design" [greenfield-no-corpus-clean]="design autorun"
+  [evidence-stale-tree-refused]="review execute" [evidence-provenance-unknown]="review"
+  [no-reviewer-challenger-runs]="review autorun"
 )
 
 # hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
@@ -2145,6 +2149,73 @@ assert_all "cl-greenfield: the verdict is clean" "$t" 'clean|pass|0 FAIL|no fail
 assert_all "cl-greenfield: a zero line counts as emitted, not missing" "$t" 'zero' 'emitted|valid|counts|not[ *_]{1,4}missing|is a line'
 assert_all "cl-greenfield: no extra step, warning, question or block is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none' 'step|warning|question|block'
 assert_absent "cl-greenfield: the empty corpus is not treated as a finding" "$t" '(no lessons|empty (corpus|lessons)|missing lessons)[^\n]{0,60}(finding|blocks?|fail|❌)'
+
+# ===========================================================================================
+# v1.14.0 — fixture provenance (A), evidence provenance (E), the review-seat split (F)
+# ===========================================================================================
+
+# T1/T4 provenance-authored-blocks: an AC about a GROUPING HEURISTIC proven on authored fixtures alone
+# is a layer-match failure that blocks Gate 2; an exclusion with no expiry does not rescue it.
+t="$(run_fixture provenance-authored-blocks 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "prov-authored: AC2 is input-shape-dependent" "$t" 'AC2' 'input-shape|shape of (real )?input|heuristic|grouping|sensible|cannot be written'
+assert_all "prov-authored: authored alone is not acceptable for AC2" "$t" 'authored' 'not[ *_]{1,4}(acceptable|sufficient|enough)|insufficient|❌|mismatch|fails'
+assert_all "prov-authored: Gate 2 is blocked" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|fails'
+assert_all "prov-authored: the expiry-less exclusion does not rescue it" "$t" 'expiry|variant B' 'not[ *_]{1,4}(count|recorded|rescue)|still block|does not close|missing'
+assert_contains "prov-authored: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+
+# T2/T6 provenance-real-corpus-passes: a real-corpus run with the corpus resolved plus the command and
+# its output PASSES; a `real-corpus` label naming nothing checkable does not — presence vs checkability.
+t="$(run_fixture provenance-real-corpus-passes 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "prov-corpus: candidate A is established and passes" "$t" 'candidate A|Candidate A' 'pass|close|establish|accept|✅'
+assert_all "prov-corpus: candidate B names nothing checkable" "$t" 'candidate B|Candidate B' 'not[ *_]{1,4}(establish|checkable|accept)|flag|reads as authored|label|bare'
+assert_all "prov-corpus: the difference is checkability, not the word" "$t" 'checkab|command|output|resolved' 'label|any string|presence|not the same|word'
+assert_contains "prov-corpus: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+
+# T5/T3 provenance-na-costs-nothing: THE ANTI-TAX CONTROL. Literal-value ACs are n/a and pay nothing;
+# the honest escape (authored + an exclusion with a checkable expiry) is accepted.
+t="$(run_fixture provenance-na-costs-nothing 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "prov-na: the literal-value ACs are n/a" "$t" 'AC1|AC2|AC3' 'n/a|not[ *_]{1,4}(input-shape|applicable)|does not depend'
+assert_all "prov-na: no corpus is needed and nothing is added" "$t" 'no[ *_]{1,4}(corpus|extra|additional)|not[ *_]{1,4}need|nothing' 'step|block|warning|required|added'
+assert_all "prov-na: the checkable-expiry exclusion is the honest escape" "$t" 'PROJ-540|expiry' 'count|recorded|accept|close|checkable'
+assert_contains "prov-na: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+
+# G1/G2/G3 greenfield-no-corpus-clean: a fresh project with NO corpus configured runs with zero extra
+# steps. A failure here means the version became a tax on the first ticket, and the version does not ship.
+t="$(run_fixture greenfield-no-corpus-clean 'Run the mango design skill against the injected project state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
+assert_all "greenfield-corpus: both ACs are n/a" "$t" 'AC1|AC2' 'n/a|not[ *_]{1,4}input-shape|does not depend'
+assert_all "greenfield-corpus: no extra step, warning or block" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none' 'step|warning|block'
+assert_all "greenfield-corpus: an unresolvable path is reported, never a silent real-corpus" "$t" 'not (exist|resolve)|unresolv|absent|missing' 'report|⚠|warn|never|not[ *_]{1,4}(silent|real-corpus)'
+assert_all "greenfield-corpus: nothing fires on a backend-only project" "$t" 'no frontend|backend' 'nothing|inert|does not (fire|apply)|n/a'
+assert_contains "greenfield-corpus: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
+assert_absent "greenfield-corpus: the missing corpus is not treated as a finding" "$t" '(no|missing|absent)[^\n]{0,40}corpus[^\n]{0,60}(finding|blocks?|fail|❌)'
+
+# T11/T12 evidence-stale-tree-refused: a container built BEFORE the last commit produced a green run
+# against code that was no longer the code. This is the field defect that reached main.
+t="$(run_fixture evidence-stale-tree-refused 'Run the mango review skill against the injected state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
+assert_all "evidence-stale: the evidence is refused" "$t" 'c40b7e1|evidence' 'refus|reject|not[ *_]{1,4}accept|stale|does not (count|close)'
+assert_all "evidence-stale: the container SHA is the tree it was BUILT from" "$t" 'container|image|docker' 'built from|build|COPY|not[ *_]{1,4}the checkout'
+assert_all "evidence-stale: 84 passed does not establish the ACs on b7d5e29" "$t" '84 passed|green|b7d5e29' 'does not|not[ *_]{1,4}establish|no evidence|says nothing'
+assert_all "evidence-stale: the fix is to re-run on the tree under review" "$t" 'rebuild|re-run|rerun' 'b7d5e29|tree under review|HEAD|current'
+assert_contains "evidence-stale: the --tree invocation is shown" "$t" '--tree'
+
+# T13/T14 evidence-provenance-unknown: evidence whose tree cannot be established is a THIRD STATE, never
+# a pass; evidence matching the tree passes with no extra work.
+t="$(run_fixture evidence-provenance-unknown 'Run the mango review skill against the injected state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
+assert_all "evidence-unknown: block 1 is accepted with no extra work" "$t" 'block 1|4c11d90' 'accept|pass|match|no extra'
+assert_contains "evidence-unknown: block 2 is named provenance-unknown" "$t" 'provenance-unknown'
+assert_all "evidence-unknown: it is never a pass" "$t" 'provenance-unknown|block 2' 'never a pass|not a pass|UNVERIFIED|not clean'
+assert_all "evidence-unknown: the action is to re-run on the tree under review" "$t" 're-?run|re-?record' '4c11d90|tree under review|HEAD'
+assert_contains "evidence-unknown: the --tree invocation is shown" "$t" '--tree'
+
+# T15/T16 no-reviewer-challenger-runs: `--no-reviewer` alone leaves the CHALLENGER RUNNING, and
+# DISCLOSURE records each seat separately. Neither flag → both run.
+t="$(run_fixture no-reviewer-challenger-runs 'Run the mango review skill against each injected run in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
+assert_all "seat-split: run A skips the reviewer only" "$t" '--no-reviewer|reviewer' 'skip|off|waiv|not[ *_]{1,4}(run|dispatch)'
+assert_all "seat-split: run A still runs the challenger" "$t" 'challenger' 'runs|still|on|dispatch|default'
+assert_contains "seat-split: the clean verdict names the seat that was absent" "$t" 'REVIEWER: OFF'
+assert_all "seat-split: DISCLOSURE records both seats separately" "$t" 'DISCLOSURE' 'both|separate|each|REVIEWER.{0,40}CHALLENGER|1a|1b'
+assert_all "seat-split: run B runs both seats" "$t" 'run B|Run B' 'both|reviewer and challenger|ON'
+assert_all "seat-split: both waived is recorded, not refused" "$t" 'both' 'record|not[ *_]{1,4}refus|still (runs|proceeds)|disclosure'
 
 }   # end suite()
 

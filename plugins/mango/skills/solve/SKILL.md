@@ -20,18 +20,23 @@ State up front, verbatim: **"I stop and wait for you at every ✋ gate."**
 
 ## Arguments
 
-`/mango:solve <KEY> [--no-challenger]`
+`/mango:solve <KEY> [--no-reviewer] [--no-challenger]`
 
-**`--no-challenger` — default OFF, meaning the challenger RUNS.** Passing it waives the ticket-blind
-challenger for this run. Waiving it is a **deliberate decision recorded as an argument**, never an
-improvised mid-run instruction: pass the flag state to `review`, which owns the **single**
-challenger-dispatch decision (`review`, step 2) — do not build a second one here. Record
-`CHALLENGER: ON | OFF (--no-challenger)` in the working doc, and report a challenger-less clean verdict
-as `clean (reviewer only — CHALLENGER: OFF)` rather than a bare clean.
+**Waiving review is TWO decisions, not one — two flags, each defaulting to its seat RUNNING.**
+`--no-reviewer` waives the rule-book-grounded reviewer (about 108k per round); `--no-challenger` waives
+the ticket-blind challenger (about 58k). **Neither implies the other**, because one flag for both loses
+the cheap seat along with the expensive one. Waiving is a **deliberate decision recorded as an
+argument**, never an improvised mid-run instruction: pass both flag states to `review`, which owns the
+**single** reviewer-dispatch decision (step 1) and the **single** challenger-dispatch decision (step 2)
+— do not build a second one here. Record `REVIEWER: ON | OFF (--no-reviewer)` and
+`CHALLENGER: ON | OFF (--no-challenger)` in the working doc, **separately**, and report the resulting
+clean verdict as `clean (reviewer only — CHALLENGER: OFF)`, `clean (challenger only — REVIEWER: OFF)`,
+or `clean (nobody looked — REVIEWER: OFF, CHALLENGER: OFF)` rather than a bare clean. Both waived is
+**recorded, not refused**: the flags plus the record are the mechanism.
 
 **Unattended runs use `/mango:autorun <KEY>` instead of this skill.** `solve` holds every gate in the
 live conversation and waits for a human; `autorun` runs the same phases and closes each gate from the
-artifacts they emit, stopping at the PR. Same flag, same default.
+artifacts they emit, stopping at the PR. Same two flags, same defaults.
 
 ## Why this is a skill, not an agent
 
@@ -151,18 +156,28 @@ sensible default**, matching `analysis` and `breakdown` — not a behavioural ga
 over the working doc — never your own reading of the line:
 
 ```
-python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished>
+python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished> \
+    --tree $(git rev-parse HEAD) [--size-budget <config.doc_size_budget>]
 ```
 
 **Its exit status IS the verdict.** `0` clean · `2` a line FAILED its canonical grammar, a required line
-was MISSING, or an arithmetic gate condition is BROKEN — **the gate does not close** · `3` nothing failed
-but something was **not checkable** (a counted line mango ships no grammar for, an undeclared phase, an
-unreadable doc) — **UNVERIFIED, not clean.** Quote the counted lines the script printed; do **not**
+was MISSING, an arithmetic gate condition is BROKEN, or **test evidence ran against a tree that is not
+the one under review** — **the gate does not close** · `3` nothing failed but something was **not
+checkable** (a counted line mango ships no grammar for, an undeclared phase, an unreadable doc, or
+**evidence whose tree could not be established** — `provenance-unknown`) — **UNVERIFIED, not clean.**
+
+Quote the counted lines the script printed; do **not**
 restate them in your own words, do **not** re-type a line it rejected, and do **not** announce a gate
 passed. **If the script itself cannot run** (no `python3`, the path unresolvable), say so plainly, record
 `check-lines: could-not-run` alongside the run's other unverified items, fall back to reading the line
 against its shipped grammar, and **do not claim to have checked** — the checker's own absence never
 blocks the run and never reads as clean.
+
+**`--tree` names the tree under review**, so evidence a phase recorded against a different tree — a
+container built before the last edits landed — is refused rather than trusted. This is the
+stale-review guard's rule pointed at test evidence, not a second mechanism. **`--size-budget` is passed
+only when `config.doc_size_budget` is set**; it surfaces the working doc's remaining margin before the
+ceiling bites and never blocks.
 
 The human still holds every gate: the checker decides whether the *artifact* is well-formed, never
 whether the work is approved. A clean verdict is a precondition for putting the gate to the human, not a

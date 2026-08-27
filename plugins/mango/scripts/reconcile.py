@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """RECONCILE — the harness runs the commands; the agent reads the verdict.
 
-Stdlib only, no network. Reads a RUN CONTRACT, executes each condition's `check` command, and prints
-the two counted lines. Nothing here is narrated: every count comes from an exit status this script
-observed.
+Stdlib only, no network, and it MUTATES NOTHING. Reads a RUN CONTRACT, executes each condition's
+`check` command, and prints the counted line. Nothing here is narrated: every count comes from an exit
+status this script observed.
 
   RECONCILE
     conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run
-    proven    : <b> shown BROKEN when forced | <h> shown HOLDING on a clean run
 
 `could-not-run` is a THIRD state, distinct from HOLDING and BROKEN: the check's named shell was not on
 PATH, so the check did not run at all. A check that cannot run must never report holding — a false
@@ -21,14 +20,20 @@ Phases
   --phase close  after the last push. `q > 0` does not block a merge in this version; it means READ
                  THIS FIRST.
 
-  --prove        the forced-case positive control. For each condition: observe the pre-state, run
-                 `force-holding` and require the check to report HOLDING, then run `force-broken` and
-                 require it to FLIP to BROKEN. A case that does not flip is reported
-                 FORCE-UNPROVEN and is NOT counted — a mutation that silently did not apply would
-                 otherwise report a green that means nothing.
+RETIRED in v1.14.0: `--prove`, the forced-case positive control. Across three field runs EVERY
+condition reported FORCE-UNPROVEN: the `force-broken` / `force-holding` cases of the shipped floor are
+literal `true`/`false` that cannot mutate real state, and genuinely forcing them would require
+destructive acts (closing the PR, rewriting the branch) an unattended run may never perform. It was
+measured to be inert, so it is gone rather than left as ceremony — and with nothing consuming them,
+`force-broken` / `force-holding` are no longer contract grammar either. NOTHING REMAINING HERE MUTATES
+GIT STATE: the only commands this script runs are each condition's `check`, and the shipped floor's
+checks are read-only (`git diff --quiet`, `git rev-parse --verify`, `gh pr view`).
+
+The `t0` run is KEPT and unchanged — it is the part that earned its claim: every bound condition
+observed in its FAILING state against the real world before any work exists, in about two seconds.
 
 Subcommands
-  run             <contract> --phase t0|close [--repo DIR] [--prove]
+  run             <contract> --phase t0|close [--repo DIR]
   merge-strategy  --repo DIR [--base main]
 
 Exit codes: 0 ok · 2 the contract does not parse, or a t0 condition reports HOLDING · 1 usage/IO.
@@ -60,52 +65,7 @@ def evaluate(cond, repo=None):
     return (HOLDING if status == 0 else BROKEN), output
 
 
-def prove_one(cond, repo=None):
-    """The forced-case positive control for one condition.
-
-    Returns (shown_broken, shown_holding, notes). A case only counts when the check FLIPS: a
-    force-holding that does not produce HOLDING, or a force-broken that does not produce BROKEN,
-    proves nothing about the predicate and is reported instead of counted.
-    """
-    notes = []
-    shown_broken = shown_holding = False
-    fields = cond["fields"]
-    if UNBOUND_RE.search(fields.get("check", "")):
-        return False, False, [f"{cond['id']}: UNBOUND — not forceable yet"]
-    if evaluate(cond, repo=repo)[0] == COULD_NOT_RUN:
-        return False, False, [
-            f"{cond['id']}: COULD-NOT-RUN — the named shell is unavailable, so the forced-case "
-            "positive control cannot run and counts for nothing on either axis"
-        ]
-
-    sh(fields.get("force-holding", ""), repo=repo)
-    state, _ = evaluate(cond, repo=repo)
-    if state == HOLDING:
-        shown_holding = True
-    else:
-        notes.append(
-            f"{cond['id']}: FORCE-UNPROVEN — `force-holding` ran but the check still reports {state}; "
-            "the mutation did not land, so a HOLDING elsewhere is not evidence"
-        )
-
-    sh(fields.get("force-broken", ""), repo=repo)
-    state, _ = evaluate(cond, repo=repo)
-    if state == BROKEN and shown_holding:
-        shown_broken = True
-    elif state != BROKEN:
-        notes.append(
-            f"{cond['id']}: FORCE-UNPROVEN — `force-broken` ran but the check still reports {state}; "
-            "the mutation did not land and this forced case counts for nothing"
-        )
-    else:
-        notes.append(
-            f"{cond['id']}: FORCE-UNPROVEN — the check never reported HOLDING first, so the flip to "
-            "BROKEN is unproven"
-        )
-    return shown_broken, shown_holding, notes
-
-
-def reconcile(text, phase, repo=None, prove=False):
+def reconcile(text, phase, repo=None):
     """Run every condition and return (lines, exit_status)."""
     header, conditions = parse(text)
     declared = len(conditions)
@@ -136,26 +96,14 @@ def reconcile(text, phase, repo=None, prove=False):
                 "this run's preconditions cannot be verified. The run does not start."
             )
 
-    shown_broken = shown_holding = 0
-    notes = []
-    if prove:
-        for cond in conditions:
-            b, h, n = prove_one(cond, repo=repo)
-            shown_broken += int(b)
-            shown_holding += int(h)
-            notes.extend(n)
-
     lines = [
         "RECONCILE",
         f"  conditions: {declared} declared | {rerun} re-run | {holding} holding | "
         f"{broken} BROKEN | {unbound} UNBOUND | {could_not_run} could-not-run",
-        f"  proven    : {shown_broken} shown BROKEN when forced | "
-        f"{shown_holding} shown HOLDING on a clean run",
-        f"  phase     : {phase} | challenger: {header.get('challenger')} | "
-        f"branch: {header.get('branch')}",
+        f"  phase     : {phase} | reviewer: {header.get('reviewer')} | "
+        f"challenger: {header.get('challenger')} | branch: {header.get('branch')}",
     ]
     lines.extend(details)
-    lines.extend(f"    {n}" for n in notes)
     lines.extend(strikes)
     if phase == "close" and broken > 0:
         lines.append(
@@ -218,9 +166,12 @@ def main(argv):
     try:
         if cmd == "run":
             text = open(args[0], encoding="utf-8").read()
-            lines, status = reconcile(
-                text, opt("--phase", "close"), repo=opt("--repo"), prove="--prove" in args
-            )
+            if "--prove" in args:
+                print("reconcile: --prove was RETIRED in v1.14.0 — the forced-case positive control "
+                      "reported FORCE-UNPROVEN on every condition across three field runs and is gone. "
+                      "Re-run without it; the t0 run is unchanged.")
+                return 1
+            lines, status = reconcile(text, opt("--phase", "close"), repo=opt("--repo"))
             print("\n".join(lines))
             return status
         if cmd == "merge-strategy":

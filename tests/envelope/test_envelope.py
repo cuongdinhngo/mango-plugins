@@ -38,8 +38,6 @@ FLOOR_BLOCK = """  CONDITION PR-EXISTS
     derived-by: {pr_derive}
     value: {pr_value}
     check: {pr_check}
-    force-broken: {pr_broken}
-    force-holding: {pr_holding}
   END CONDITION
   CONDITION TREE-COMPARISON
     statement: no commit landed on the branch beyond what the PR carries (tree comparison)
@@ -47,8 +45,6 @@ FLOOR_BLOCK = """  CONDITION PR-EXISTS
     derived-by: {tree_derive}
     value: {tree_value}
     check: {tree_check}
-    force-broken: {tree_broken}
-    force-holding: {tree_holding}
   END CONDITION
   CONDITION LOCAL-HEAD-PUSHED
     statement: nothing is stranded on this machine: local branch head == the remote's
@@ -56,8 +52,6 @@ FLOOR_BLOCK = """  CONDITION PR-EXISTS
     derived-by: git rev-parse HEAD
     value: abc123 (exit 0)
     check: {head_check}
-    force-broken: git commit --allow-empty -m stranded
-    force-holding: git push origin feat/PROJ-1-x
   END CONDITION
 """
 
@@ -65,13 +59,9 @@ DEFAULTS = dict(
     pr_derive="gh pr view 1 --json state",
     pr_value="OPEN (exit 0)",
     pr_check="gh pr view 1 --json state",
-    pr_broken="gh pr close 1",
-    pr_holding="gh pr reopen 1",
     tree_derive="git rev-parse main",
     tree_value="deadbee (exit 0)",
     tree_check="git diff --quiet main feat/PROJ-1-x -- .",
-    tree_broken="git commit --allow-empty -m drift",
-    tree_holding="git checkout main -- .",
     head_check=(
         "git rev-parse --verify feat/PROJ-1-x >/dev/null 2>&1 && "
         "git rev-parse --verify origin/feat/PROJ-1-x >/dev/null 2>&1 && "
@@ -103,6 +93,7 @@ def contract(extra_conditions="", floor=True, **overrides):
         "  branch: feat/PROJ-1-x\n"
         "  remote: origin\n"
         "  merge-strategy: squash-or-rebase (recent first-parent topology)\n"
+        f"  reviewer: {overrides.get('reviewer', 'on')}\n"
         f"  challenger: {overrides.get('challenger', 'on')}\n"
         f"  handover-authorisation: {overrides.get('handover_authorisation', 'approved 22:58 — push feat/PROJ-1-x, open the PR; nothing else')}\n"
         f"  call-ceiling: {overrides.get('call_ceiling', '140')}\n"
@@ -114,7 +105,7 @@ def contract(extra_conditions="", floor=True, **overrides):
     return header + body + extra_conditions + "END RUN CONTRACT\n"
 
 
-def simple_condition(cid, check, broken, holding, origin="agent"):
+def simple_condition(cid, check, origin="agent"):
     return (
         f"  CONDITION {cid}\n"
         f"    statement: {cid} holds\n"
@@ -122,8 +113,6 @@ def simple_condition(cid, check, broken, holding, origin="agent"):
         f"    derived-by: {rc.AGENT_CLAIM}\n"
         f"    value: stated by the agent\n"
         f"    check: {check}\n"
-        f"    force-broken: {broken}\n"
-        f"    force-holding: {holding}\n"
         "  END CONDITION\n"
     )
 
@@ -157,26 +146,47 @@ class TestGrammar(unittest.TestCase):
     def test_valid_contract_parses(self):
         rc.validate(contract(), "t0")
 
-    def test_T1_missing_force_broken_does_not_parse(self):
-        """T1 — a condition missing `force-broken` does not parse, so the run does not start."""
-        broken = contract().replace("    force-broken: gh pr close 1\n", "")
+    def test_T7_a_contract_carrying_force_broken_is_REJECTED_not_ignored(self):
+        """v1.14.0 B / T7 — the forced-case fields are retired. A contract still carrying one is
+        rejected with a named reason: tolerating and silently ignoring it would leave a field nothing
+        consumes looking like a live requirement."""
+        text = contract().replace(
+            "    check: gh pr view 1 --json state\n",
+            "    check: gh pr view 1 --json state\n    force-broken: gh pr close 1\n", 1)
         with self.assertRaises(rc.ContractError) as ctx:
-            rc.validate(broken, "t0")
-        self.assertTrue(any("force-broken" in r for r in ctx.exception.reasons))
+            rc.validate(text, "t0")
+        self.assertTrue(any("force-broken" in r and "RETIRED" in r for r in ctx.exception.reasons))
 
-    def test_T1_missing_force_holding_does_not_parse(self):
-        """T1 — the other half: a predicate never shown to HOLD on a clean run is a false-red waiting."""
-        broken = contract().replace("    force-holding: gh pr reopen 1\n", "")
+    def test_T7_force_holding_is_rejected_the_same_way(self):
+        text = contract().replace(
+            "    check: gh pr view 1 --json state\n",
+            "    check: gh pr view 1 --json state\n    force-holding: gh pr reopen 1\n", 1)
         with self.assertRaises(rc.ContractError) as ctx:
-            rc.validate(broken, "t0")
-        self.assertTrue(any("force-holding" in r for r in ctx.exception.reasons))
+            rc.validate(text, "t0")
+        self.assertTrue(any("force-holding" in r and "RETIRED" in r for r in ctx.exception.reasons))
+
+    def test_the_forced_case_fields_are_not_condition_grammar(self):
+        self.assertNotIn("force-broken", rc.CONDITION_KEYS)
+        self.assertNotIn("force-holding", rc.CONDITION_KEYS)
+        self.assertEqual(rc.RETIRED_CONDITION_KEYS, ("force-broken", "force-holding"))
+
+    def test_F_reviewer_must_be_on_or_off(self):
+        """v1.14.0 F — the reviewer is a seat the contract records, exactly as the challenger is."""
+        rc.validate(contract(reviewer="off"), "t0")
+        with self.assertRaises(rc.ContractError):
+            rc.validate(contract(reviewer="sometimes"), "t0")
+
+    def test_F_a_contract_missing_the_reviewer_seat_does_not_parse(self):
+        text = contract().replace("  reviewer: on\n", "")
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.validate(text, "t0")
+        self.assertTrue(any("reviewer" in r for r in ctx.exception.reasons))
 
     def test_T2_unbound_survives_past_gate2_is_refused(self):
         """T2 — an UNBOUND placeholder surviving past Gate 2: re-validation refuses."""
         text = contract(
             extra_conditions=simple_condition(
-                "PROVING-TEST", "UNBOUND ${TEST_CMD}", "true", "true"
-            )
+                "PROVING-TEST", "UNBOUND ${TEST_CMD}")
         )
         rc.validate(text, "t0")  # allowed at t0 — the value cannot exist before the change
         with self.assertRaises(rc.ContractError) as ctx:
@@ -185,21 +195,21 @@ class TestGrammar(unittest.TestCase):
 
     def test_T2_bind_resolves_then_parses(self):
         text = contract(
-            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}", "true", "true")
+            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}")
         )
         bound = rc.bind(text, {"TEST_CMD": "pytest -k proving"}, "gate2")
         self.assertIn("check: pytest -k proving", bound)
 
     def test_T2_bind_refuses_a_partial_binding(self):
         text = contract(
-            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}", "true", "true")
-            + simple_condition("SECOND", "UNBOUND ${OTHER}", "true", "true")
+            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}")
+            + simple_condition("SECOND", "UNBOUND ${OTHER}")
         )
         with self.assertRaises(rc.ContractError):
             rc.bind(text, {"TEST_CMD": "pytest"}, "gate2")
 
     def test_unbound_without_a_placeholder_does_not_parse(self):
-        text = contract(extra_conditions=simple_condition("X", "UNBOUND", "true", "true"))
+        text = contract(extra_conditions=simple_condition("X", "UNBOUND"))
         with self.assertRaises(rc.ContractError):
             rc.validate(text, "t0")
 
@@ -225,7 +235,7 @@ class TestGrammar(unittest.TestCase):
 
 class TestFloor(unittest.TestCase):
     def test_a_dropped_floor_condition_does_not_parse(self):
-        text = contract(floor=False, extra_conditions=simple_condition("X", "true", "false", "true"))
+        text = contract(floor=False, extra_conditions=simple_condition("X", "true"))
         with self.assertRaises(rc.ContractError) as ctx:
             rc.validate(text, "t0")
         self.assertTrue(any("PR-EXISTS" in r for r in ctx.exception.reasons))
@@ -305,7 +315,7 @@ class TestReconcileT0(unittest.TestCase):
         return contract(
             pr_check="false", tree_check="git diff --quiet main nope -- .",
             head_check=HEAD_MAIN_CHECK,
-            extra_conditions=simple_condition("SUBJECT", check, "true", "true"),
+            extra_conditions=simple_condition("SUBJECT", check),
         )
 
     def test_T3_a_condition_holding_on_an_empty_run_is_struck(self):
@@ -326,7 +336,7 @@ class TestReconcileT0(unittest.TestCase):
 
     def test_unbound_conditions_are_counted_not_run(self):
         text = contract(
-            extra_conditions=simple_condition("LATER", "UNBOUND ${X}", "true", "true")
+            extra_conditions=simple_condition("LATER", "UNBOUND ${X}")
         )
         lines, _ = reconcile.reconcile(text, "close", repo=self.tmp)
         self.assertIn("1 UNBOUND", "\n".join(lines))
@@ -367,7 +377,7 @@ class TestHandoverAuthorisation(unittest.TestCase):
         refused at gate2, not silently carried."""
         text = contract(
             handover_authorisation="",
-            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}", "true", "true"),
+            extra_conditions=simple_condition("PROVING-TEST", "UNBOUND ${TEST_CMD}"),
         )
         with self.assertRaises(rc.ContractError) as ctx:
             rc.bind(text, {"TEST_CMD": "pytest -k proving"}, "gate2")
@@ -433,14 +443,14 @@ class TestExplicitShellAndCouldNotRun(unittest.TestCase):
         self.assertEqual(status, 2)
         self.assertIn("COULD-NOT-RUN at t0", "\n".join(lines))
 
-    def test_the_forced_case_control_cannot_run_without_the_shell(self):
-        cond = {"id": "FLAG", "fields": {
-            "check": "true", "force-holding": "true", "force-broken": "false"}}
+    def test_a_close_run_without_the_shell_is_could_not_run_on_every_condition(self):
+        text = contract(pr_check="true", tree_check="true", head_check="true")
         with mock.patch.object(rc.shutil, "which", return_value=None):
-            shown_broken, shown_holding, notes = reconcile.prove_one(cond, repo=self.tmp)
-        self.assertFalse(shown_broken)
-        self.assertFalse(shown_holding)
-        self.assertTrue(any("COULD-NOT-RUN" in n for n in notes))
+            lines, status = reconcile.reconcile(text, "close", repo=self.tmp)
+        joined = "\n".join(lines)
+        self.assertIn("3 could-not-run", joined)
+        self.assertNotIn("3 holding", joined)
+        self.assertEqual(status, 0)
 
 
 # --------------------------------------------------------------------------- T5/T6 tree + head
@@ -585,67 +595,86 @@ class TestMergeStrategy(unittest.TestCase):
         self.assertIn("narrows the judgement", verdict)
 
 
-# --------------------------------------------------------------- forced-case positive control
+# ------------------------------------------------- B — the forced-case control is RETIRED and gone
 
 
-class TestForcedCasePositiveControl(unittest.TestCase):
+class TestForcedCaseRetirement(unittest.TestCase):
+    """v1.14.0 (B). Across three field runs EVERY condition reported FORCE-UNPROVEN: the floor's
+    force cases are literal true/false that cannot mutate real state, and genuinely forcing them would
+    need destructive acts an unattended run may never perform. It was measured inert, so it is gone —
+    and these tests are the removal's teeth."""
+
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
-        self.flag = os.path.join(self.tmp, "flag")
+        new_repo(self.tmp)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def test_a_forceable_condition_counts_on_both_axes(self):
-        cond = {
-            "id": "FLAG",
-            "fields": {
-                "check": f"test -f {self.flag}",
-                "force-holding": f"touch {self.flag}",
-                "force-broken": f"rm -f {self.flag}",
-            },
-        }
-        shown_broken, shown_holding, notes = reconcile.prove_one(cond, repo=self.tmp)
-        self.assertTrue(shown_broken)
-        self.assertTrue(shown_holding)
-        self.assertEqual(notes, [])
+    def test_the_prove_machinery_is_gone_from_the_module(self):
+        self.assertFalse(hasattr(reconcile, "prove_one"))
 
-    def test_a_mutation_that_silently_did_not_apply_is_NOT_counted(self):
-        """The positive control: one forced-BROKEN mutation once passed because it never applied."""
-        cond = {
-            "id": "FLAG",
-            "fields": {
-                "check": f"test -f {self.flag}",
-                "force-holding": f"touch {self.flag}",
-                "force-broken": "true",  # a no-op standing in for a mutation that did not land
-            },
-        }
-        shown_broken, shown_holding, notes = reconcile.prove_one(cond, repo=self.tmp)
-        self.assertFalse(shown_broken)
-        self.assertTrue(shown_holding)
-        self.assertTrue(any("FORCE-UNPROVEN" in n for n in notes))
+    def test_reconcile_takes_no_prove_argument(self):
+        with self.assertRaises(TypeError):
+            reconcile.reconcile(contract(), "close", repo=self.tmp, prove=True)
 
-    def test_a_condition_that_never_holds_cannot_prove_its_broken_case(self):
-        cond = {
-            "id": "FLAG",
-            "fields": {"check": "false", "force-holding": "true", "force-broken": "true"},
-        }
-        shown_broken, shown_holding, notes = reconcile.prove_one(cond, repo=self.tmp)
-        self.assertFalse(shown_broken)
-        self.assertFalse(shown_holding)
-        self.assertTrue(any("FORCE-UNPROVEN" in n for n in notes))
+    def test_the_proven_counted_line_went_with_the_control_that_fed_it(self):
+        lines, _ = reconcile.reconcile(
+            contract(pr_check="false", tree_check="false", head_check="false"), "close", repo=self.tmp)
+        joined = "\n".join(lines)
+        self.assertNotIn("shown BROKEN when forced", joined)
+        self.assertIn("conditions:", joined)
 
-    def test_proven_counts_reach_the_counted_line(self):
+    def test_T7_the_flag_is_refused_at_the_cli_never_silently_ignored(self):
+        path = os.path.join(self.tmp, "c.txt")
+        Path(path).write_text(contract(), encoding="utf-8")
+        out = subprocess.run(
+            [sys.executable, str(SCRIPTS / "reconcile.py"), "run", path, "--phase", "close",
+             "--repo", self.tmp, "--prove"], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("RETIRED", out.stdout)
+
+    def test_T8_the_t0_run_is_unchanged_and_still_strikes_a_holding_condition(self):
+        """T8 — the part that earned its claim is KEPT: every bound condition observed in its failing
+        state before any work exists, and one that holds on an empty run is struck."""
+        text = contract(pr_check="false", tree_check="false", head_check="false",
+                        extra_conditions=simple_condition("SUBJECT", "true"))
+        lines, status = reconcile.reconcile(text, "t0", repo=self.tmp)
+        self.assertEqual(status, 2)
+        self.assertIn("STRIKE SUBJECT", "\n".join(lines))
+
+    def test_T8_all_broken_at_t0_still_starts_the_run(self):
+        text = contract(pr_check="false", tree_check="false", head_check="false",
+                        extra_conditions=simple_condition("SUBJECT", "false"))
+        lines, status = reconcile.reconcile(text, "t0", repo=self.tmp)
+        self.assertEqual(status, 0)
+        self.assertIn("4 BROKEN", "\n".join(lines))
+
+    def test_NOTHING_IN_THE_REMAINING_PATH_MUTATES_GIT_STATE(self):
+        """One earlier forced case left `refs/remotes/origin/<branch>` repointed at main, exiting 0
+        silently. With the control gone the only commands run are each condition's read-only check —
+        asserted by observing the repo before and after a full close run."""
+        git(self.tmp, "branch", "feat/x")
+        git(self.tmp, "update-ref", "refs/remotes/origin/feat/x", "refs/heads/feat/x")
+
+        def snapshot():
+            refs = git(self.tmp, "show-ref").stdout
+            head = git(self.tmp, "rev-parse", "HEAD").stdout
+            log = git(self.tmp, "log", "--all", "--oneline").stdout
+            status = git(self.tmp, "status", "--porcelain", "-uall").stdout
+            return refs, head, log, status
+
+        before = snapshot()
         text = contract(
+            base="main", branch="feat/x",
             pr_check="false",
-            tree_check="git diff --quiet main nope -- .",
-            head_check=HEAD_MAIN_CHECK,
-            extra_conditions=simple_condition(
-                "FLAG", f"test -f {self.flag}", f"rm -f {self.flag}", f"touch {self.flag}"
-            ),
-        )
-        lines, _ = reconcile.reconcile(text, "close", repo=self.tmp, prove=True)
-        self.assertIn("1 shown BROKEN when forced | 1 shown HOLDING on a clean run", "\n".join(lines))
+            tree_check="git diff --quiet main feat/x -- .",
+            head_check=('git rev-parse --verify feat/x >/dev/null 2>&1 && '
+                        'git rev-parse --verify origin/feat/x >/dev/null 2>&1 && '
+                        'test "$(git rev-parse feat/x)" = "$(git rev-parse origin/feat/x)"'),
+            extra_conditions=simple_condition("SUBJECT", "git status --porcelain"))
+        reconcile.reconcile(text, "close", repo=self.tmp)
+        self.assertEqual(before, snapshot())
 
 
 # --------------------------------------------------------------------------- D — budget
@@ -721,16 +750,36 @@ class TestDisclosureSeed(unittest.TestCase):
     def test_T10_a_disabled_challenger_is_line_one(self):
         header, conditions = rc.parse(contract(challenger="off"))
         seed = rc.disclosure_seed(header, conditions)
-        first = seed.splitlines()[1]
-        self.assertIn("CHALLENGER: OFF", first)
-        self.assertIn("not evidence of independence", first + seed)
+        challenger_line = seed.splitlines()[2]
+        self.assertIn("CHALLENGER: OFF", challenger_line)
+        self.assertIn("not evidence of independence", challenger_line + seed)
 
-    def test_T11_the_default_records_the_challenger_as_having_run(self):
-        header, conditions = rc.parse(contract())
-        self.assertIn("CHALLENGER: ON", rc.disclosure_seed(header, conditions).splitlines()[1])
+    def test_T11_the_default_records_both_seats_as_having_run(self):
+        seed = rc.disclosure_seed(*rc.parse(contract())).splitlines()
+        self.assertIn("REVIEWER: ON", seed[1])
+        self.assertIn("CHALLENGER: ON", seed[2])
+
+    def test_T15_no_reviewer_alone_leaves_the_challenger_recorded_as_ON(self):
+        """v1.14.0 F / T15 — the two seats are separate decisions. A morning reader must be able to
+        tell 'clean, nobody looked' from 'clean, the blind reviewer looked'."""
+        seed = rc.disclosure_seed(*rc.parse(contract(reviewer="off"))).splitlines()
+        self.assertIn("REVIEWER: OFF", seed[1])
+        self.assertIn("--no-reviewer", seed[1])
+        self.assertIn("CHALLENGER: ON", seed[2])
+        self.assertNotIn("BOTH SEATS OFF", "\n".join(seed))
+
+    def test_T15_no_challenger_alone_leaves_the_reviewer_recorded_as_ON(self):
+        seed = rc.disclosure_seed(*rc.parse(contract(challenger="off"))).splitlines()
+        self.assertIn("REVIEWER: ON", seed[1])
+        self.assertIn("CHALLENGER: OFF", seed[2])
+
+    def test_both_seats_waived_is_recorded_not_refused(self):
+        text = contract(reviewer="off", challenger="off")
+        rc.validate(text, "t0")                       # no policy refuses to run
+        self.assertIn("BOTH SEATS OFF", rc.disclosure_seed(*rc.parse(text)))
 
     def test_unchecked_agent_claims_are_carried_into_the_disclosure(self):
-        text = contract(extra_conditions=simple_condition("CLAIMED", "true", "false", "true"))
+        text = contract(extra_conditions=simple_condition("CLAIMED", "true"))
         header, conditions = rc.parse(text)
         seed = rc.disclosure_seed(header, conditions)
         self.assertIn("UNCHECKED AGENT CLAIMS: 1", seed)
@@ -761,24 +810,22 @@ class TestWriteDerivesValues(unittest.TestCase):
         spec = {
             "key": "PROJ-1", "started": "t", "plugin-version": "1.11.0", "plugin-path": "/p",
             "repo": self.tmp, "base": "main", "branch": "feat/PROJ-1-x", "remote": "origin",
-            "merge-strategy": "squash", "challenger": "on",
+            "merge-strategy": "squash", "reviewer": "on", "challenger": "on",
             "handover-authorisation": "approved 22:58 — push feat/PROJ-1-x, open the PR; nothing else",
             "call-ceiling": "140",
             "per-call-estimate": "3100", "ceiling-source": "ledger", "token-budget": "unmeasured",
             "conditions": [
                 {"id": "PR-EXISTS", "statement": "the PR exists and its state is readable",
-                 "origin": "floor", "derived-by": "echo OPEN", "value": "", "check": "gh pr view 1",
-                 "force-broken": "gh pr close 1", "force-holding": "gh pr reopen 1"},
+                 "origin": "floor", "derived-by": "echo OPEN", "value": "",
+                 "check": "gh pr view 1"},
                 {"id": "TREE-COMPARISON",
                  "statement": "no commit landed on the branch beyond what the PR carries",
                  "origin": "floor", "derived-by": "echo deadbee", "value": "",
-                 "check": "git diff --quiet main feat/PROJ-1-x -- .",
-                 "force-broken": "git commit --allow-empty -m x", "force-holding": "true"},
+                 "check": "git diff --quiet main feat/PROJ-1-x -- ."},
                 {"id": "LOCAL-HEAD-PUSHED",
                  "statement": "nothing is stranded on this machine: local head == the remote's",
                  "origin": "floor", "derived-by": rc.AGENT_CLAIM, "value": "the agent says so",
-                 "check": HEAD_MAIN_CHECK,
-                 "force-broken": "git commit --allow-empty -m y", "force-holding": "git push"},
+                 "check": HEAD_MAIN_CHECK},
             ],
         }
         text = rc.write(spec, repo=self.tmp)
@@ -816,7 +863,8 @@ CLEAN_LINES = {
     "RULE SECTIONS": "RULE SECTIONS: 0 applicable — 0 by change-type | 0 by recalled handle — none",
     "HANDLES": "HANDLES: 0 recalled | 0 traced | 0 does not apply | 0 unanswered",
     "EXCLUSIONS": "EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring | "
-                  "0 with an overdue predecessor",
+                  "0 with an overdue predecessor | 0 input-shape-dependent AC(s) | "
+                  "0 proven on a real corpus",
     "CLAIMS": "CLAIMS: 0 claim(s) from 0 lesson entr(ies) | T1=0 T2=0 T3=0 T4=0 T5=0 T6=0 | "
               "0 unclassified",
     "RECURRENCE": "RECURRENCE: 0 recurring | 0 superseded (0 retired) | 0 promotion candidate(s)",
@@ -1130,6 +1178,212 @@ class TestCheckLinesDiscipline(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
         for token in cl.GRAMMARS:
             self.assertIn(token, proc.stdout)
+
+
+# ===========================================================================================
+# v1.14.0 — fixture provenance (A), evidence provenance (E), the size margin (G)
+# ===========================================================================================
+#
+# Numbered to match the build spec's teeth table so a later reader can map an assertion to the field
+# case it came from. Every fixture is a synthetic working doc built in memory: no project, no dispatch.
+
+
+def excl(n=0, e=0, r=0, o=0, s=0, c=0):
+    return (f"EXCLUSIONS: {n} recorded | {e} with a checkable expiry | {r} recurring "
+            f"(class seen >= 3) | {o} with an overdue predecessor | "
+            f"{s} input-shape-dependent AC(s) | {c} proven on a real corpus")
+
+
+class TestFixtureProvenance(unittest.TestCase):
+    """A — an AC whose correctness depends on the SHAPE OF REAL INPUT may not close on authored
+    fixtures alone. Four field cases, four real-data defects, four green fixture suites: the fixture is
+    part of the diff, so a diff and the fixture shaped to it agree with each other and nothing else."""
+
+    def test_T1_an_input_shape_AC_on_authored_fixtures_alone_blocks_gate_2(self):
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl(s=1, c=0)}))
+        self.assertEqual(status, 2, out)
+        self.assertIn("GATE BROKEN EXCLUSIONS", out)
+        self.assertIn("s - c > n", out)
+
+    def test_T2_the_same_AC_proven_on_the_real_corpus_passes(self):
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl(s=1, c=1)}))
+        self.assertEqual(status, 0, out)
+        self.assertIn("EXCLUSIONS: PASS", out)
+
+    def test_T3_authored_plus_an_exclusion_with_a_checkable_expiry_passes(self):
+        """The honest escape, and it is the EXISTING one — 1.12.0's exclusion, not a second hatch."""
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl(n=1, e=1, s=1, c=0)}))
+        self.assertEqual(status, 0, out)
+
+    def test_T4_authored_plus_an_exclusion_with_NO_expiry_is_still_blocked(self):
+        """1.12.0's rule still bites: an exclusion with no checkable expiry does not count as recorded."""
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl(n=1, e=0, s=1, c=0)}))
+        self.assertEqual(status, 2, out)
+        self.assertIn("e != n", out)
+
+    def test_T5_an_AC_comparing_two_literal_values_costs_nothing(self):
+        """THE ANTI-TAX CONTROL. Most ACs are `n/a`; an all-zero line passes and adds no work at all."""
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl()}))
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("GATE BROKEN", out)
+        self.assertNotIn("input-shape-dependent AC(s) | 0 proven", out.split("EXCLUSIONS: PASS")[-1])
+
+    def test_more_corpus_proofs_than_input_shape_ACs_is_a_contradiction(self):
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl(s=1, c=2)}))
+        self.assertEqual(status, 2, out)
+        self.assertIn("c > s", out)
+
+    def test_G1_a_greenfield_design_phase_with_no_corpus_is_clean(self):
+        """GREENFIELD — a fresh project has no corpus and must run with ZERO extra steps."""
+        out, status = run(workdoc(phase="design", replace={"EXCLUSIONS": excl()},
+                                  drop=("CLAIMS", "RECURRENCE", "FALSIFY", "RECURRING-T2",
+                                        "PROMOTION", "LEDGER TOTAL")))
+        self.assertEqual(status, 0, out)
+        self.assertIn("0 MISSING", out)
+
+    def test_G3_a_backend_project_is_unaffected_by_anything_in_A(self):
+        out, status = run(workdoc(track="backend", replace={"EXCLUSIONS": excl()}))
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("SURFACES", out)
+
+    def test_the_canonical_form_still_parses_against_itself(self):
+        counts, _, problems = cl.parse_line("EXCLUSIONS", cl.GRAMMARS["EXCLUSIONS"]["canonical"]
+                                            .split(": ", 1)[1].replace("<n>", "0").replace("<e>", "0")
+                                            .replace("<r>", "0").replace("<o>", "0")
+                                            .replace("<s>", "0").replace("<c>", "0"))
+        self.assertEqual(problems, [])
+        self.assertEqual(counts["s"], 0)
+        self.assertEqual(counts["c"], 0)
+
+
+class TestEvidenceProvenance(unittest.TestCase):
+    """E — test evidence carries the SHA of the tree it ran on, and a gate refuses evidence from a
+    different tree. This sits UNDERNEATH every other gate: a green suite from a stale tree satisfies
+    all of them, because nothing else asks which tree produced it."""
+
+    TREE = "b7d5e29aa11"
+
+    def _doc(self, block):
+        return workdoc(phase="review", extra=block)
+
+    def test_T14_evidence_matching_the_tree_passes_with_no_extra_work(self):
+        out, status = run(self._doc("Ran at `b7d5e29`\n\n```\n$ pytest -q\n84 passed\n```"),
+                          tree=self.TREE)
+        self.assertEqual(status, 0, out)
+        self.assertIn("1 on the tree under review", out)
+        self.assertIn("0 from ANOTHER tree", out)
+
+    def test_T11_evidence_from_another_tree_is_refused(self):
+        out, status = run(self._doc("Ran at `c40b7e1`\n\n```\n$ pytest -q\n84 passed\n```"),
+                          tree=self.TREE)
+        self.assertEqual(status, 2, out)
+        self.assertIn("1 from ANOTHER tree", out)
+        self.assertIn("REFUSED", out)
+
+    def test_T12_a_container_built_before_the_last_commit_is_refused(self):
+        """This is ticket 150: `docker build` ran before the last edits landed, so COPY captured the
+        previous tree and the delta-green run was green against code that was no longer the code."""
+        block = ("Ran at `c40b7e1`  <!-- the tree the image was BUILT FROM -->\n\n"
+                 "```\n$ docker run --rm atlas-ci pytest -q\n84 passed\n```")
+        out, status = run(self._doc(block), tree=self.TREE)
+        self.assertEqual(status, 2, out)
+        self.assertIn("is NOT the tree under review", out)
+
+    def test_T13_evidence_whose_tree_cannot_be_established_is_never_a_pass(self):
+        out, status = run(self._doc("```\n$ ./scripts/migrate --check\n0 rows changed\n```"),
+                          tree=self.TREE)
+        self.assertEqual(status, 3, out)
+        self.assertIn("provenance-unknown", out)
+        self.assertNotIn("PASS (line", out.split("EVIDENCE")[-1])
+
+    def test_T13_the_explicit_marker_is_also_provenance_unknown(self):
+        out, status = run(self._doc("Ran at `provenance-unknown`\n\n```\n$ pytest -q\nok\n```"),
+                          tree=self.TREE)
+        self.assertEqual(status, 3, out)
+        self.assertIn("1 provenance-unknown", out)
+
+    def test_a_stale_record_outranks_an_unknown_one_on_the_exit_status(self):
+        block = ("Ran at `c40b7e1`\n\n```\n$ pytest -q\nok\n```\n\n"
+                 "```\n$ npm test\nok\n```")
+        out, status = run(self._doc(block), tree=self.TREE)
+        self.assertEqual(status, 2, out)          # a FAIL is a stronger answer than not-checkable
+
+    def test_without_the_tree_the_axis_is_ABSENT_not_silently_clean(self):
+        """An axis that was not asked is a different answer from an axis that was verified."""
+        out, status = run(self._doc("```\n$ pytest -q\nok\n```"))
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("evidence :", out)
+
+    def test_a_fence_that_is_not_empirical_output_is_not_an_evidence_record(self):
+        """Only the shipped `$ <command>` shape is a record — a code sample is not test evidence."""
+        out, status = run(self._doc("```\ndef f(x):\n    return x\n```"), tree=self.TREE)
+        self.assertEqual(status, 0, out)
+        self.assertIn("0 empirical-output record(s)", out)
+
+    def test_the_shipped_marker_shape_binds_to_its_block(self):
+        """The template puts `Ran at <sha>` directly above the fence; that shape must bind."""
+        block = "Ran at `b7d5e29`\n\n```\n$ pytest -q -k proving\n1 passed\n```"
+        out, status = run(self._doc(block), tree=self.TREE)
+        self.assertEqual(status, 0, out)
+        self.assertIn("1 on the tree under review", out)
+
+    def test_a_marker_too_far_from_its_block_fails_SAFE_to_unknown_not_to_a_pass(self):
+        """The lookback is deliberately narrow. A marker a paragraph away is not claimed as this
+        block's provenance — the axis reports provenance-unknown rather than GUESSING a pass, which is
+        the direction a provenance check must fail in."""
+        block = ("Ran at `b7d5e29`\n\nsome prose\n\nand more prose\n\n"
+                 "```\n$ pytest -q -k proving\n1 passed\n```")
+        out, status = run(self._doc(block), tree=self.TREE)
+        self.assertEqual(status, 3, out)
+        self.assertIn("1 provenance-unknown", out)
+
+    def test_the_marker_binds_inside_the_block_too(self):
+        block = "```\n$ pytest -q\n1 passed\nRan at b7d5e29\n```"
+        out, status = run(self._doc(block), tree=self.TREE)
+        self.assertEqual(status, 0, out)
+        self.assertIn("1 on the tree under review", out)
+
+
+class TestSizeMargin(unittest.TestCase):
+    """G — the size budget is surfaced BEFORE it bites. mango measures no ceiling of its own; the
+    project supplies it, this reuses the byte length already computed, adds no counted line, and never
+    blocks."""
+
+    def test_T17_a_doc_just_under_the_ceiling_surfaces_its_margin_and_blocks_nothing(self):
+        doc = workdoc()
+        budget = int(len(doc.encode("utf-8")) / 0.9)
+        out, status = run(doc, size_budget=budget)
+        self.assertEqual(status, 0, out)
+        self.assertIn("SIZE:", out)
+        self.assertIn("margin left", out)
+        self.assertIn("nothing is blocked", out)
+
+    def test_a_doc_over_the_ceiling_is_reported_and_still_does_not_block(self):
+        doc = workdoc()
+        out, status = run(doc, size_budget=10)
+        self.assertEqual(status, 0, out)
+        self.assertIn("over budget", out)
+
+    def test_a_doc_well_inside_the_ceiling_warns_about_nothing(self):
+        doc = workdoc()
+        out, status = run(doc, size_budget=len(doc.encode("utf-8")) * 10)
+        self.assertEqual(status, 0, out)
+        self.assertIn("size:", out)
+        self.assertNotIn("SIZE:", out)
+
+    def test_with_no_budget_configured_nothing_is_reported(self):
+        out, _ = run(workdoc())
+        self.assertNotIn("size:", out)
+
+    def test_a_nonsense_budget_is_ignored_rather_than_crashing(self):
+        for bad in ("", "lots", "0", "-5", None):
+            self.assertEqual(cl.size_margin("x" * 10, bad), ("", []), bad)
+
+    def test_the_margin_rides_the_doc_line_and_adds_no_counted_line(self):
+        doc = workdoc()
+        out, _ = run(doc, size_budget=len(doc.encode("utf-8")) * 2)
+        doc_line = next(ln for ln in out.splitlines() if ln.strip().startswith("doc "))
+        self.assertIn("size:", doc_line)
 
 
 if __name__ == "__main__":

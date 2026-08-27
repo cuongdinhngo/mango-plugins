@@ -7,8 +7,8 @@ grammar, and parsed back before the run starts: if it does not parse, the run do
 What this script guarantees and what it does not:
 
   * GUARANTEED — the contract is well-formed and internally consistent: every condition carries a
-    statement, a check, a `force-broken` case and a `force-holding` case; the three floor conditions
-    are present and are the shipped ones; no `${PLACEHOLDER}` survives past its binding phase.
+    statement and a runnable check; the three floor conditions are present and are the shipped ones;
+    no `${PLACEHOLDER}` survives past its binding phase.
   * NOT GUARANTEED — that any recorded value is TRUE. Machine-writing guarantees the grammar, not the
     facts. So every value that CAN be derived is derived by running a command and recording its real
     output; everything else is marked `agent-claim (unchecked)` and is carried into DISCLOSURE.
@@ -47,6 +47,7 @@ HEADER_KEYS = [
     "branch",
     "remote",
     "merge-strategy",
+    "reviewer",
     "challenger",
     "handover-authorisation",
     "call-ceiling",
@@ -55,10 +56,12 @@ HEADER_KEYS = [
     "token-budget",
 ]
 
-# Every condition declares these SIX fields. `force-broken` and `force-holding` are mandatory GRAMMAR
-# FIELDS, not report columns: a condition missing either does not parse, so an unforceable condition
-# can never reach RECONCILE to be counted.
-CONDITION_KEYS = ["statement", "origin", "derived-by", "value", "check", "force-broken", "force-holding"]
+# Every condition declares these FIVE fields. `force-broken` / `force-holding` were mandatory grammar
+# fields until v1.14.0; the forced-case positive control they fed is RETIRED, so they are no longer part
+# of the grammar and a contract carrying either is REJECTED as an unknown field — never tolerated and
+# silently ignored, which would leave a field nothing consumes looking like a live requirement.
+CONDITION_KEYS = ["statement", "origin", "derived-by", "value", "check"]
+RETIRED_CONDITION_KEYS = ("force-broken", "force-holding")
 
 # The fixed floor — three conditions the agent may not author, may not rename, and may not drop.
 FLOOR = {
@@ -162,7 +165,13 @@ def parse(text):
             else:
                 header[key] = value
         else:
-            if key not in CONDITION_KEYS:
+            if key in RETIRED_CONDITION_KEYS:
+                reasons.append(
+                    f"CONDITION {current['id']}: '{key}' is a RETIRED field — the forced-case "
+                    "positive control was removed in v1.14.0 and nothing consumes it. Delete the "
+                    "line; a contract carrying it is rejected, never silently ignored."
+                )
+            elif key not in CONDITION_KEYS:
                 reasons.append(f"CONDITION {current['id']}: unknown field '{key}'")
             elif key in current["fields"]:
                 reasons.append(f"CONDITION {current['id']}: field '{key}' appears more than once")
@@ -253,7 +262,7 @@ def check_phase(conditions, phase):
             reasons.append(f"CONDITION {cond['id']}: 'statement' may never be UNBOUND")
         if fields.get("origin") not in ("floor", "agent"):
             reasons.append(f"CONDITION {cond['id']}: 'origin' must be 'floor' or 'agent'")
-        for key in ("value", "check", "force-broken", "force-holding"):
+        for key in ("value", "check"):
             val = fields.get(key, "")
             if "UNBOUND" in val and not UNBOUND_RE.search(val):
                 reasons.append(
@@ -271,8 +280,9 @@ def validate(text, phase):
     """Full validation. Returns the parsed (header, conditions) or raises ContractError."""
     header, conditions = parse(text)
     reasons = check_floor(header, conditions) + check_phase(conditions, phase)
-    if header.get("challenger") not in ("on", "off"):
-        reasons.append("header 'challenger' must be exactly 'on' or 'off'")
+    for seat in ("reviewer", "challenger"):
+        if header.get(seat) not in ("on", "off"):
+            reasons.append(f"header '{seat}' must be exactly 'on' or 'off'")
     if not header.get("handover-authorisation", "").strip():
         reasons.append(
             "header 'handover-authorisation' is empty — the run performs two outward actions with "
@@ -343,14 +353,26 @@ def bind(text, bindings, phase="gate2"):
 def disclosure_seed(header, conditions):
     """The machine-writable floor of DISCLOSURE. Everything else only the agent knows."""
     out = ["DISCLOSURE"]
-    state = header.get("challenger", "")
-    if state == "off":
+    # Line one records BOTH independent eyes, SEPARATELY. Waiving review is two decisions, not one:
+    # a morning reader must be able to tell "clean, nobody looked" from "clean, the blind reviewer
+    # looked". Collapsing them into one state loses exactly that distinction.
+    reviewer, challenger = header.get("reviewer", ""), header.get("challenger", "")
+    out.append(
+        "  1a. REVIEWER: " + (
+            "OFF — waived by `--no-reviewer`. No rule-book-grounded review of the diff ran; "
+            "a clean result below carries no reviewer finding because none was sought."
+            if reviewer == "off" else
+            "ON — the rule-book-grounded reviewer ran."))
+    out.append(
+        "  1b. CHALLENGER: " + (
+            "OFF — waived by `--no-challenger`. Nothing independent re-derived the requirements from "
+            "the raw ticket. A clean result below is not evidence of independence."
+            if challenger == "off" else
+            "ON — the ticket-blind challenger ran."))
+    if reviewer == "off" and challenger == "off":
         out.append(
-            "  1. CHALLENGER: OFF — waived by `--no-challenger`. Nothing independent re-derived the "
-            "requirements from the raw ticket. A clean result below is not evidence of independence."
-        )
-    else:
-        out.append("  1. CHALLENGER: ON — the ticket-blind challenger ran.")
+            "      BOTH SEATS OFF — nothing but the author looked at this diff. This is recorded, "
+            "not refused: the flag plus this line is the mechanism.")
     claims = [c for c in conditions if c["fields"].get("derived-by") == AGENT_CLAIM]
     out.append(f"  2. UNCHECKED AGENT CLAIMS: {len(claims)} — no command derived these values.")
     for cond in claims:

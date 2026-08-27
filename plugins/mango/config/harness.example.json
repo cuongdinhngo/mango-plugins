@@ -56,6 +56,11 @@
   "agent_brief_path": "docs/AGENT_BRIEF.md",
   "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",
 
+  "//real_corpus_path": "OPTIONAL path to (or name of) a REAL indexed repository this project accepts as its reality check — input the change's author did not write. design's per-AC verification plan records a fixture provenance of authored | real-corpus | n/a; only an INPUT-SHAPE-DEPENDENT AC (a heuristic, grouping, ranking, summary or classification — output judged 'sensible' rather than 'equal to X') needs more than authored fixtures, and every other AC reads n/a and costs nothing. Unset → design REPORTS the corpus is not configured and records the claim as a coverage-gap exclusion with a checkable expiry; it is never silently downgraded to a passing 'authored'. A fresh project with no corpus runs with zero extra steps.",
+  "real_corpus_path": null,
+  "//doc_size_budget": "OPTIONAL size ceiling in BYTES for the per-ticket working doc. PROJECT-supplied — mango has no ceiling of its own. When set, scripts/check_lines.py reports the margin on its `doc` line and warns from 80% so the ceiling is surfaced BEFORE it bites rather than discovered after. It NEVER blocks: the budget is the project's rule, not a mango gate. Unset → no margin is reported and nothing changes.",
+  "doc_size_budget": null,
+
   "//docs_dir": "OPTIONAL directory where the opt-in descriptive adapters write their regenerable maps (sitemap.md, db-map.md). Descriptive facts only — never normative rules. Unset → the adapters have nowhere to write and report they are not configured.",
   "docs_dir": null,
   "//code_map_cmd": "OPTIONAL command for /mango:sitemap to emit the code surface (routes/endpoints + modules). Opt-in & stack-specific; unset → sitemap reports it is not configured and does nothing.",

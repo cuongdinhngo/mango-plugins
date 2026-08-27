@@ -5,6 +5,114 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.14.0] — 2026-08-27
+
+**Nothing in mango ran the deliverable against input the agent did not author, and nothing asked which
+tree produced a green test result.** Both are now checked. Two mechanisms are retired in the same
+version, on measurement rather than taste.
+
+**A — fixture provenance: an AC whose correctness depends on the shape of real input may not close on
+authored fixtures alone.** Four measured field cases, each found by a real-data probe and missed by a
+green fixture suite: a layer heuristic that collapsed every application file into a single useless
+layer; a rewrite of that same heuristic that reintroduced the same defect inverted, believed fixed; 13
+flat core files collapsing into one layer while 282 dependency files made the largest layer, so an
+"architecture overview" was 67% dependency noise; and a docstring reader returning `/**` on real input
+while two of its three declared fields had no column to read at all. Four tickets, four real-data
+defects, zero fixture-suite findings.
+
+The mechanism is structural, not a lapse: **the fixture is part of the diff.** A fixture shaped to the
+implementation makes the whole diff self-consistent, so the reviewer reads the diff, the ticket-blind
+challenger reads the diff, and both correctly report consistency — because it is consistent. One of the
+four tickets had already written the lesson into its own acceptance criterion ("*a green unit suite over
+authored fixtures is explicitly insufficient*") and the process still had no way to act on it.
+
+`design`'s per-AC verification plan gains a **fixture provenance** column — `authored | real-corpus |
+n/a` — and `authored` is a layer-match `❌` that blocks Gate 2 **only** for an input-shape-dependent AC:
+one whose expected output cannot be written down before running it (a heuristic, a grouping, a ranking,
+a summary, a classification — output judged *sensible* rather than *equal to X*). **`n/a` is the default
+and the overwhelmingly common answer, and it costs nothing**; the trigger is deliberately narrow,
+because a version demanding a corpus for every AC is a tax and gets turned off. The escape is the one
+that already exists and now has teeth: 1.12.0's coverage-gap exclusion with its checkable `expiry:` —
+no second hatch. `config.real_corpus_path` names the corpus, follows the optional-path convention
+(unset → reported, never silently dropped), and `doctor` **resolves** it rather than trusting it. A
+`real-corpus` cell must carry the resolved corpus plus the command and its actual output; a bare label
+naming nothing checkable reads as `authored`. **No new counted line**: the `EXCLUSIONS:` line is
+extended with `<s> input-shape-dependent AC(s) | <c> proven on a real corpus`, and `check_lines.py`
+counts `s - c <= n` on its gates axis — the escape from an unproven provenance IS a coverage-gap
+exclusion, so the two belong on one line.
+
+**B — `--prove` and the forced-case positive control are retired.** Three field runs, every condition
+`FORCE-UNPROVEN`: the floor's `force-broken` / `force-holding` cases are literal `true`/`false` that
+cannot mutate real state, and genuinely forcing them would require destructive acts an unattended run
+may never perform. The mini-spec flagged this as a possible dead end when the discipline was designed;
+three runs settle it. Gone: the flag, `prove_one`, the `proven` counted line, and — since nothing
+consumed them — `force-broken` / `force-holding` as contract grammar. A contract carrying either is
+**rejected with a named reason**, and `--prove` is **refused**, never quietly ignored. **The `t0` run is
+kept unchanged** — every bound condition observed in its failing state against the real world before any
+work exists, in about two seconds, and the one place in the envelope where a claim was earned rather
+than asserted. One earlier forced case left `refs/remotes/origin/<branch>` repointed at `main` while
+exiting 0; with the control gone the only commands the script runs are each condition's read-only
+`check`, asserted by a test that snapshots every ref, HEAD, the log and the status across a full close
+run.
+
+**C — a template and a skill showing the same artifact must show the same form.** 1.13.0 required every
+registered canonical to appear verbatim somewhere; that check was blind to artifacts it has no grammar
+for. Generalised to **every labelled artifact shown in both a template and a skill** — 16 pairs
+compared, with the same two citation tolerances (a prefix is a citation; a `…` elsewhere than a trailing
+`, …` elides rather than competes). It found one disagreement immediately: the stale-review marker
+shipped as both `Reviewed at <commit SHA>` and `Reviewed at <sha>`, now unified to the emitting skill's
+form. The working-doc template's `Current phase:` field — whose absence made `check_lines.py`'s
+missing-when-required axis unrunnable on a real doc — is now asserted, and every skill that writes
+`Session status` is required to preserve it and to say what reads it.
+
+**D — README claims re-checked.** Corrected: *"green at each milestone run"* is gone — the repo carries
+no record of any eval result, so the honest statement is that the newest version's fixture wording is
+unproven and "the suite is green" is a claim about the last milestone, not about `main`. The eval
+coverage claim now carries a **number that `validate.py` enforces against `tests/eval/fixtures/`**,
+so it cannot silently age. *"The public skill/config API has been stable since 1.0"* no longer held as
+written and now names its exception: 1.14.0 removes the two contract fields and `--prove`.
+
+**E — test evidence carries the tree it ran on.** Across seven consecutive unattended tickets, one
+defect escaped to `main`: a container image was built **before** the last edits landed, so its `COPY`
+captured the previous tree, and the delta-green run was green against code that was no longer the code.
+It missed a document over its size budget and several unsynced blocks, and the fix had to be patched in
+on a later branch. **mango's gates trusted the test result handed to them and nothing asked which tree
+produced it**, which sits underneath every other gate — `check_lines.py` can verify a counted line's
+arithmetic but cannot ask where the number came from.
+
+Every empirical-output block now carries a **`Ran at <sha>`** marker in the same shape and vocabulary as
+the stale-review guard's `Reviewed at <sha>`; where the suite ran in a container the SHA is **the tree
+the image was built from**, not the checkout the agent is standing in — that distinction is the whole
+defect. `check_lines.py --tree <sha>` verdicts every record against the tree under review and **refuses**
+one from another tree, reusing the stale-review guard's rule rather than building a second mechanism.
+The honest limit is stated rather than papered over: where nothing can establish the tree, the evidence
+is **`provenance-unknown`** — a third state alongside `could-not-run` and `not-checkable`, on its own
+exit status, and **never a pass**. An axis the caller did not ask for is reported as **absent**, never as
+clean.
+
+**F — waiving review is two decisions, not one.** `--no-challenger` turned off both independent eyes,
+and the challenger is the **cheaper** of the two (about 58k against the reviewer's ~108k per round), so
+one flag lost the cheap seat along with the expensive one. Split into `--no-reviewer` and
+`--no-challenger` on both `solve` and `autorun`, both defaulting to their seat running, neither implying
+the other, routed through `review`'s single dispatch decision for each. The `RUN CONTRACT` records both
+seats and `DISCLOSURE` line one reports each **separately**, so a morning reader can tell "clean, nobody
+looked" from "clean, the blind reviewer looked". **No policy refuses to run when both are waived** —
+that directive was withdrawn once already after two field waivers; the flag plus the disclosure is the
+mechanism.
+
+**G — the size budget is surfaced before it bites.** Several tickets hit the ceiling and needed repeated
+pruning with no warning that a document was approaching it. mango measures no ceiling of its own, so the
+project supplies one (`config.doc_size_budget`, optional) and `check_lines.py` **extends the `doc` line
+it already prints** with the margin, warning from 80%. No new counted line, and it never blocks: the
+budget is the project's rule, not a mango gate. Unset → nothing is reported and nothing costs anything.
+
+**Deliberately not in this version.** The envelope's keep-or-drop decision waits for cleaner data — three
+runs caught one defect, produced one, and `--prove` was inert; B removes the inert part only. `refine`'s
+want-decision reaching `j` in the field is a ticket-selection problem, not a mechanism problem: five
+field runs, five dodges, every ticket pre-locked, and `refine` self-skipping a locked ticket is correct
+behaviour. And an agent can still quote a `check_lines.py` verdict it never ran — stated as unpreventable
+in 1.13.0, not attempted here.
+
 ## [1.13.0] — 2026-08-18
 
 **No script parsed any counted line. Now one does — and there is exactly one grammar for it to parse.**

@@ -2216,9 +2216,38 @@ def validate_envelope_scripts():
     rec = (scripts / "reconcile.py").read_text(encoding="utf-8")
     bud = (scripts / "budget.py").read_text(encoding="utf-8")
 
-    check(re.search(r'"force-broken", "force-holding"', rc) is not None,
-          "envelope: force-broken and force-holding must be mandatory CONDITION grammar fields — a "
-          "condition missing either may never reach RECONCILE to be counted")
+    # v1.14.0 (B) — the forced-case positive control is RETIRED, and may not creep back. Three field
+    # runs reported FORCE-UNPROVEN on EVERY condition: the floor's forced cases are literal true/false
+    # that cannot mutate real state, and genuinely forcing them would need destructive acts an
+    # unattended run may never perform. The checks below are the removal's teeth — a later edit
+    # re-adding the fields, the flag or the counted line fails here.
+    check(re.search(r'"force-broken", "force-holding"\]', rc) is None,
+          "envelope (B): force-broken/force-holding are RETIRED — they must not be CONDITION grammar "
+          "fields again; nothing consumes them and a field nothing consumes reads as a live requirement")
+    check(re.search(r'RETIRED_CONDITION_KEYS', rc) is not None,
+          "envelope (B): run_contract must name the retired condition fields explicitly, so a contract "
+          "carrying one is REJECTED with a named reason rather than tolerated and silently ignored")
+    check(re.search(r"is a RETIRED field", rc) is not None,
+          "envelope (B): a contract carrying `force-broken`/`force-holding` must be rejected with a "
+          "message naming the retirement — consistently rejected, never quietly ignored")
+    check(re.search(r"def prove_one", rec) is None
+          and re.search(r'prove\s*=\s*"--prove" in args', rec) is None,
+          "envelope (B): reconcile must carry no forced-case machinery — `prove_one` and the `--prove` "
+          "wiring are removed, not left inert")
+    check(re.search(r"--prove was RETIRED", rec) is not None,
+          "envelope (B): `--prove` must be REFUSED with a named reason if passed, never silently ignored")
+    check(re.search(r"shown BROKEN when forced", rec) is None,
+          "envelope (B): the `proven` counted line goes with the control that fed it — a counted line "
+          "reporting a control that no longer runs is exactly the ceremony v1.13.0 exists to end")
+    check(re.search(r"MUTATES NOTHING", rec) is not None
+          and re.search(r"NOTHING REMAINING HERE MUTATES\s*\n?GIT STATE", rec) is not None,
+          "envelope (B): reconcile must state that no remaining code path mutates git state — the "
+          "forced cases were the only ones that ever tried, and one left a remote ref repointed")
+    for mutating in (r"git checkout", r"git commit", r"git push", r"git reset", r"git update-ref",
+                     r"git branch\s+-", r"git switch"):
+        check(re.search(rf"sh\([^)]*{mutating}", rc + rec) is None,
+              f"envelope (B): no shipped code path in the envelope scripts may hand /{mutating}/ to the "
+              f"shell — the scripts run each condition's read-only `check` and nothing else")
     for cid in ("PR-EXISTS", "TREE-COMPARISON", "LOCAL-HEAD-PUSHED"):
         check(re.search(rf'"{cid}"', rc) is not None,
               f"envelope: the fixed floor must ship {cid} — the agent may not author it")
@@ -2243,10 +2272,12 @@ def validate_envelope_scripts():
     check(re.search(r"narrows the judgement", rec) is not None,
           "envelope: the merge-strategy verdict must say it narrows the judgement rather than removing it")
     check(re.search(r"FORCE-UNPROVEN", rec) is not None,
-          "envelope: a forced case whose mutation did not land must be reported, never counted")
-    check(re.search(r"conditions: \{declared\} declared", rec) is not None
-          and re.search(r"proven    : \{shown_broken\} shown BROKEN", rec) is not None,
-          "envelope: RECONCILE must emit both counted lines in the shipped grammar")
+          "envelope: the retirement must record what was measured — every forced case reported "
+          "FORCE-UNPROVEN across three field runs, which is why the control is gone")
+    check(re.search(r"conditions: \{declared\} declared", rec) is not None,
+          "envelope: RECONCILE must emit its counted line in the shipped grammar")
+    check(re.search(r"The `t0` run is KEPT", rec) is not None,
+          "envelope (B): the t0 run is the part that earned its claim and must be preserved explicitly")
     check(re.search(r"phase == \"t0\" and state == HOLDING", rec) is not None,
           "envelope: a condition reporting HOLDING at t0 must be struck — it describes something else")
 
@@ -2359,7 +2390,9 @@ def validate_exclusion_expiry():
               "discharge")
         # A3 — the counted line, overdue surfacing, and the not-block-first control.
         check(re.search(r"`EXCLUSIONS: <n> recorded \| <e> with a checkable expiry \| "
-                        r"<r> recurring.{0,60}\| <o> with an overdue predecessor`", design) is not None,
+                        r"<r> recurring.{0,60}\| <o> with an overdue predecessor \| "
+                        r"<s> input-shape-dependent AC\(s\) \| <c> proven on a real corpus`",
+                        design) is not None,
               "exclusion-expiry: design must emit the counted `EXCLUSIONS:` line in the shipped grammar")
         check(re.search(r"overdue predecessor", design, re.IGNORECASE) is not None
               and re.search(r"does not add a new artifact|extends the line", design, re.IGNORECASE)
@@ -2386,6 +2419,10 @@ def validate_exclusion_expiry():
           "exclusion-expiry: templates/ticket.md exclusion table must add a Seen (recurrence) column")
     check(re.search(r"`EXCLUSIONS: <n> recorded", ticket) is not None,
           "exclusion-expiry: templates/ticket.md must carry the EXCLUSIONS counted line")
+    check(re.search(r"<s> input-shape-dependent AC\(s\) \| <c> proven on a real corpus", ticket)
+          is not None,
+          "exclusion-expiry: templates/ticket.md's EXCLUSIONS line must carry the fixture-provenance "
+          "fields — the template is where a doc gets its slot, and a line with no slot goes missing")
 
 
 def validate_v1_12_0_fixtures():
@@ -2669,6 +2706,471 @@ def validate_v1_13_0_fixtures():
               f"v1.13.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
 
 
+# --- v1.14.0 -------------------------------------------------------------------------------------
+
+
+def validate_fixture_provenance():
+    """v1.14.0 (A) — an AC whose correctness depends on the SHAPE OF REAL INPUT may not close on
+    authored fixtures alone.
+
+    Four measured field cases (a layer heuristic collapsing a whole app into one layer; the SAME defect
+    reintroduced inverted while believed fixed; 282 vendor files making the largest "architecture" layer;
+    two of three declared fields inert because the columns do not exist) were each found by a real-data
+    probe and missed by a green fixture suite. The mechanism is structural, not a lapse: THE FIXTURE IS
+    PART OF THE DIFF, so a fixture shaped to the implementation makes the whole diff self-consistent and
+    both the reviewer and the ticket-blind challenger correctly report that consistency.
+
+    What is guarded here is the shape that keeps this from becoming a tax as much as the teeth: `n/a` is
+    the default and costs nothing, the trigger is narrow and named, the escape is 1.12.0's exclusion
+    with its checkable expiry (never a second hatch), and an unconfigured corpus is an honest recording
+    rather than a silent pass."""
+    plugin = ROOT / "plugins" / "mango"
+    design = skill_text("design")
+    ticket = (plugin / "templates" / "ticket.md").read_text(encoding="utf-8")
+    example = plugin / "config" / "harness.example.json"
+
+    if check(bool(design), "provenance: skills/design/ is missing or unreadable"):
+        # A1 — the column exists, in ONE form, on the verification plan.
+        check(re.search(r"fixture provenance \(authored \| real-corpus \| n/a\)", design) is not None,
+              "provenance: design's verification plan must carry a `fixture provenance (authored | "
+              "real-corpus | n/a)` column")
+        # The anti-tax controls come FIRST, because a version that taxes every AC gets turned off.
+        check(re.search(r"`n/a` is the default", design) is not None
+              and re.search(r"no extra step of any\s*\n?\s*kind follows|costs nothing", design) is not None,
+              "provenance: `n/a` must be the DEFAULT and must cost nothing — most ACs do not depend on "
+              "the shape of real input and must pay nothing at all (T5, the anti-tax control)")
+        check(re.search(r"narrow", design, re.IGNORECASE) is not None
+              and re.search(r"getting it broad|narrow.{0,40}matters more", design, re.IGNORECASE)
+              is not None,
+              "provenance: design must state the trigger is deliberately NARROW — a design demanding a "
+              "corpus for every AC is a tax and will be turned off")
+        check(re.search(r"expected output cannot be written\s*\n?\s*down before running it", design)
+              is not None,
+              "provenance: the trigger must be DEFINED, not left to taste — an AC is input-shape-"
+              "dependent when its expected output cannot be written down before running it")
+        for cue in ("heuristic", "grouping", "ranking", "summar", "classification"):
+            check(re.search(cue, design, re.IGNORECASE) is not None,
+                  f"provenance: the trigger's signal list must name /{cue}/ — these are the four measured "
+                  f"field cases, not a taxonomy invented here")
+        # The teeth.
+        check(re.search(r"`authored` is a layer-match `❌`", design) is not None
+              and re.search(r"Gate 2 is blocked", design) is not None,
+              "provenance: for an input-shape-dependent AC, `authored` must be a layer-match ❌ that "
+              "BLOCKS Gate 2 (T1)")
+        check(re.search(r"fixture is part of the diff|fixture is\s*\n?\s*part of the diff", design,
+                        re.IGNORECASE) is not None,
+              "provenance: design must state WHY authored fixtures cannot carry this proof — the "
+              "fixture is part of the diff, so the diff and the fixture shaped to it agree with each "
+              "other and with nothing else")
+        # The escape is the EXISTING one, never a second hatch.
+        check(re.search(r"no second escape hatch is added", design) is not None
+              and re.search(r"same checkable `expiry:`|same exclusion", design, re.IGNORECASE) is not None,
+              "provenance: the escape must REUSE 1.12.0's coverage-gap exclusion with its checkable "
+              "`expiry:` — a second escape hatch would be a parallel mechanism (T3/T4)")
+        # Checkability, not presence — the anti-pattern this version is highest-risk for.
+        check(re.search(r"must NAME something checkable, not be a label", design) is not None,
+              "provenance: a `real-corpus` value must NAME something checkable — this is the eighth "
+              "instance of the presence-vs-checkability defect if it accepts any string (T6)")
+        check(re.search(r"reads as `authored` and the\s*\n?\s*layer-match `❌` stands", design) is not None,
+              "provenance: a `real-corpus` cell with no resolved corpus and no command+output must read "
+              "as `authored`, so the layer-match ❌ still stands (T6)")
+        check(re.search(r"[Pp]resence is not checkability", design) is not None,
+              "provenance: design must restate that presence is not checkability for this field too")
+        # A2 — the corpus key, and the unset convention.
+        check("config.real_corpus_path" in design,
+              "provenance: design must name `config.real_corpus_path` as where the corpus is declared")
+        check(re.search(r"never a silent `authored`", design) is not None,
+              "provenance: an unset/unresolvable corpus must be an HONEST RECORDING — never silently "
+              "downgraded to a passing `authored` (A2's convention)")
+        check(re.search(r"when config\.real_corpus_path is configured", design) is not None,
+              "provenance: the no-corpus escape must name a CHECKABLE expiry condition a non-author can "
+              "verify, not vague prose")
+        check(re.search(r"fresh project with no corpus.{0,80}pays nothing at all", design, re.DOTALL)
+              is not None,
+              "provenance: a greenfield project with no corpus must run with ZERO extra steps — a "
+              "failure here blocks the version (G1)")
+        # A3 — the counted line is EXTENDED, never joined by a second one.
+        check(re.search(r"extended, not joined by\s*\n?\s*a second one", design) is not None,
+              "provenance: the verdict must EXTEND the `EXCLUSIONS:` line — a new counted line is the "
+              "ceremony v1.13.0 exists to end (A3)")
+        check(re.search(r"`s - c > n` blocks Gate 2", design) is not None,
+              "provenance: design must state the arithmetic gate — an input-shape-dependent AC on "
+              "authored fixtures alone with no exclusion covering it blocks Gate 2")
+
+    # The template carries the column and the note, or a doc built from it has nowhere to record them.
+    check(re.search(r"fixture provenance \(authored / real-corpus / n/a\)", ticket) is not None,
+          "provenance: templates/ticket.md's verification-plan table must carry the fixture-provenance "
+          "column — a template with no slot for a field is how one goes missing")
+    check(re.search(r"input-shape-dependent", ticket) is not None
+          and re.search(r"real_corpus_path", ticket) is not None,
+          "provenance: templates/ticket.md must explain the narrow trigger and name the corpus key")
+
+    # The harness parses the arithmetic — the registry must carry the two fields and the gate.
+    sys.path.insert(0, str(plugin / "scripts"))
+    import check_lines as cl                                   # noqa: PLC0415 - loaded on demand
+    spec = cl.GRAMMARS["EXCLUSIONS"]
+    check("input-shape-dependent" in spec["canonical"] and "real corpus" in spec["canonical"],
+          "provenance: check_lines.py's EXCLUSIONS grammar must carry the two provenance fields — a "
+          "counted line nothing parses is ceremony")
+    check(any("s - c > n" in msg for _, msg in spec["gates"]),
+          "provenance: check_lines.py must count `s - c <= n` on the GATES axis, so the harness (not "
+          "the agent) decides whether the provenance arithmetic closes Gate 2")
+    counts = {"n": 0, "e": 0, "r": 0, "o": 0, "s": 1, "c": 0}
+    check(cl.broken_gates("EXCLUSIONS", counts)[1] != [],
+          "provenance: an input-shape-dependent AC with no corpus proof and no exclusion must BREAK the "
+          "gate (T1) — asserted against the parser, not against the prose")
+    check(cl.broken_gates("EXCLUSIONS", dict(counts, c=1))[1] == [],
+          "provenance: the same AC proven on a real corpus must PASS (T2)")
+    check(cl.broken_gates("EXCLUSIONS", dict(counts, n=1, e=1))[1] == [],
+          "provenance: the same AC covered by an exclusion with a checkable expiry must PASS (T3)")
+    check(cl.broken_gates("EXCLUSIONS", dict(counts, n=1, e=0))[1] != [],
+          "provenance: an exclusion with NO checkable expiry must still block (T4 — 1.12.0's rule "
+          "still bites)")
+    check(cl.broken_gates("EXCLUSIONS", {"n": 0, "e": 0, "r": 0, "o": 0, "s": 0, "c": 0})[1] == [],
+          "provenance: an all-zero line must pass with no extra work (T5/G1/G3 — the anti-tax control)")
+
+    # The corpus key follows the OPTIONAL-path convention, and doctor resolves it rather than assuming.
+    data = load_json(example)
+    if isinstance(data, dict):
+        check("real_corpus_path" in data and data["real_corpus_path"] is None,
+              "provenance: harness.example.json must declare `real_corpus_path`, defaulting to null — "
+              "unset is the greenfield default and must cost nothing")
+        check(re.search(r"OPTIONAL", str(data.get("//real_corpus_path", ""))) is not None
+              and re.search(r"[Uu]nset", str(data.get("//real_corpus_path", ""))) is not None,
+              "provenance: `real_corpus_path` must follow the OPTIONAL-path convention — unset is "
+              "REPORTED, never silently dropped")
+    doctor = skill_text("doctor")
+    check(re.search(r"real_corpus_path", doctor) is not None
+          and re.search(r"does not resolve|must exist", doctor) is not None,
+          "provenance: doctor must RESOLVE a configured corpus path rather than trusting it (G2)")
+    check(re.search(r"[Ss]kip silently when the key is unset", doctor) is not None,
+          "provenance: doctor must skip silently when no corpus is configured — a fresh project having "
+          "none is normal, not a finding (G1)")
+
+
+def validate_evidence_provenance():
+    """v1.14.0 (E) — test evidence carries the SHA of the tree it ran on, and a gate refuses evidence
+    from a different tree.
+
+    A Docker image built BEFORE the last edits landed made a delta-green run green against code that
+    was no longer the code; the defect it missed reached `main`. mango's gates trust the test result
+    handed to them and nothing asks WHICH TREE produced it, so this sits underneath every other gate.
+    The mechanism is the stale-review guard's, pointed at a different artifact — never a second one —
+    and `provenance-unknown` is a third state alongside `could-not-run` and `not-checkable`, never a
+    pass."""
+    plugin = ROOT / "plugins" / "mango"
+    ticket = (plugin / "templates" / "ticket.md").read_text(encoding="utf-8")
+    execute, review, analysis = skill_text("execute"), skill_text("review"), skill_text("analysis")
+
+    # The marker REUSES the stale-review guard's shape and vocabulary — one marker, one meaning.
+    for name, body in (("execute", execute), ("review", review), ("analysis", analysis)):
+        check(re.search(r"Ran at <sha>|Ran at `?<sha", body) is not None,
+              f"evidence: {name} must name the `Ran at <sha>` marker — the tree the command ran against")
+    check(re.search(r"same shape and vocabulary as\s*\n?\s*review's `Reviewed at <sha>` marker",
+                    execute) is not None
+          and re.search(r"no second mechanism", execute) is not None,
+          "evidence: the marker must REUSE the `Reviewed at <sha>` shape and vocabulary — one marker, "
+          "one meaning, never a parallel mechanism")
+    check(re.search(r"stale-review guard's own rule\s*\n?\s*pointed at a different artifact", review)
+          is not None,
+          "evidence: review must state the refusal is the stale-review guard's rule pointed at a "
+          "different artifact, not a second mechanism")
+
+    # The container distinction IS the defect — a checkout SHA where an image SHA was needed.
+    for name, body in (("execute", execute), ("review", review), ("analysis", analysis),
+                       ("templates/ticket.md", ticket)):
+        check(re.search(r"container", body, re.IGNORECASE) is not None
+              and re.search(r"BUILT FROM|built from", body) is not None,
+              f"evidence: {name} must state that for a containerised suite the recorded SHA is the tree "
+              f"the CONTAINER WAS BUILT FROM, not the checkout the agent is standing in — that "
+              f"distinction is the whole defect")
+    check(re.search(r"rebuild", execute, re.IGNORECASE) is not None,
+          "evidence: execute must name rebuilding from the current tree as the cheap fix, preferred to "
+          "recording an unknown")
+
+    # provenance-unknown is a THIRD STATE, never a pass.
+    for name, body in (("execute", execute), ("review", review), ("templates/ticket.md", ticket)):
+        check("provenance-unknown" in body,
+              f"evidence: {name} must carry `provenance-unknown` as the third state")
+        check(re.search(r"never a pass|NEVER a pass", body) is not None,
+              f"evidence: {name} must state that provenance-unknown is never a pass — a gate that "
+              f"cannot verify provenance must say it could not, not assume it was fine")
+
+    # The harness reads the axis; the calling skills pass the tree under review.
+    for name in ("solve", "autorun", "finalise", "review"):
+        body = skill_text(name)
+        check(re.search(r"--tree", body) is not None,
+              f"evidence: {name} must pass `--tree` to check_lines.py — without the tree under review "
+              f"the axis is not run, and an axis that was not run is not clean")
+        check(re.search(r"git rev-parse HEAD", body) is not None,
+              f"evidence: {name} must name where the tree under review comes from (`git rev-parse HEAD`)")
+
+    src = (plugin / "scripts" / "check_lines.py").read_text(encoding="utf-8")
+    check(re.search(r"EVIDENCE PROVENANCE", src) is not None,
+          "evidence: check_lines.py must carry the evidence-provenance check")
+    check(re.search(r"PROVENANCE_UNKNOWN = \"provenance-unknown\"", src) is not None,
+          "evidence: check_lines.py must name provenance-unknown as a value, not a phrase")
+    check(re.search(r"def evidence_records", src) is not None
+          and re.search(r"def check_evidence", src) is not None,
+          "evidence: check_lines.py must ship both halves — finding the records, and verdicting them")
+    check(re.search(r"evidence_stale", src) is not None and re.search(r"status = 2", src) is not None,
+          "evidence: evidence from ANOTHER tree must reach exit status 2 — the gate does not close")
+    check(re.search(r"evidence_unknown", src) is not None,
+          "evidence: evidence whose tree cannot be established must reach the not-checkable exit "
+          "status, never a pass")
+    check(re.search(r"absent from the report entirely", src) is not None,
+          "evidence: without `--tree` the axis must be ABSENT, not silently reported clean — it was "
+          "not asked, which is a different answer from verified")
+
+    sys.path.insert(0, str(plugin / "scripts"))
+    import check_lines as cl                                   # noqa: PLC0415 - loaded on demand
+    stamped = "Ran at `deadbee`\n\n```\n$ pytest -q\n1 passed\n```\n"
+    _, _, stale, unknown = cl.check_evidence(stamped, "deadbee1234")
+    check(not stale and not unknown,
+          "evidence: evidence whose SHA IS the tree under review must pass with no extra work (T14)")
+    _, _, stale, unknown = cl.check_evidence(stamped, "0badc0de")
+    check(stale and not unknown,
+          "evidence: evidence from another tree must be REFUSED (T11/T12 — this is the container built "
+          "before the last commit)")
+    _, _, stale, unknown = cl.check_evidence("```\n$ pytest -q\n1 passed\n```\n", "deadbee")
+    check(unknown and not stale,
+          "evidence: evidence with no marker must be provenance-unknown, never a pass (T13)")
+
+
+def validate_review_seat_split():
+    """v1.14.0 (F) — waiving review is TWO decisions, not one.
+
+    `--no-challenger` alone turned off both independent eyes, and the challenger is the CHEAPER of the
+    two (about 58k against the reviewer's ~108k per round), so one flag lost the cheap seat along with
+    the expensive one. Both flags default to their seat running; DISCLOSURE line one records each
+    SEPARATELY, so a morning reader can tell "clean, nobody looked" from "clean, the blind reviewer
+    looked". No policy refuses to run when both are waived — that directive was withdrawn once already
+    after two field waivers; the flag plus the disclosure is the mechanism."""
+    review, solve, autorun = skill_text("review"), skill_text("solve"), skill_text("autorun")
+    for name, body in (("review", review), ("solve", solve), ("autorun", autorun)):
+        check("--no-reviewer" in body and "--no-challenger" in body,
+              f"seat-split: skills/{name}/ must name BOTH `--no-reviewer` and `--no-challenger`")
+        check(re.search(r"[Nn]either implies the other", body) is not None,
+              f"seat-split: {name} must state that neither flag implies the other — one flag for both "
+              f"loses the cheap seat with the expensive one")
+    check(re.search(r"single.{0,40}reviewer-dispatch decision", review, re.IGNORECASE) is not None,
+          "seat-split: review must declare itself the SINGLE reviewer-dispatch decision, as it already "
+          "is for the challenger — never a parallel one in solve/autorun")
+    check(re.search(r"58k", review + autorun) is not None
+          and re.search(r"108k", review + autorun) is not None,
+          "seat-split: the two seats' measured costs must be stated — the asymmetry is why one flag "
+          "for both is wrong")
+    check(re.search(r"clean \(challenger only — REVIEWER: OFF\)", review) is not None,
+          "seat-split: a reviewer-less clean verdict must be reported as challenger-only, never bare")
+    check(re.search(r"clean \(nobody looked — REVIEWER: OFF, CHALLENGER: OFF\)", review) is not None,
+          "seat-split: with both seats waived the verdict must say nobody looked")
+    check(re.search(r"under `--no-reviewer` this criterion is not satisfied, it is\s*\n?\s*ABSENT",
+                    review) is not None,
+          "seat-split: with the reviewer off, 'reviewer reports no Critical' is ABSENT, not a criterion "
+          "met — the same treatment the challenger's criterion already gets")
+    for name, body in (("review", review), ("autorun", autorun)):
+        check(re.search(r"recorded, not refused", body) is not None,
+              f"seat-split: {name} must state that both seats waived is RECORDED, not refused — the "
+              f"refuse-to-start directive was withdrawn once already after two field waivers and is "
+              f"not re-introduced. Asserted PER SKILL: a shared phrase checked over the union survives "
+              f"being deleted from either file alone.")
+    check(re.search(r"each seat is recorded SEPARATELY|recorded SEPARATELY", autorun + review)
+          is not None,
+          "seat-split: DISCLOSURE line one must record each seat separately")
+    check(re.search(r"clean, nobody looked", autorun + review) is not None,
+          "seat-split: the disclosure must let a morning reader tell 'clean, nobody looked' from "
+          "'clean, the blind reviewer looked'")
+
+    rc = (ROOT / "plugins" / "mango" / "scripts" / "run_contract.py").read_text(encoding="utf-8")
+    check(re.search(r'"reviewer",\n\s*"challenger",', rc) is not None,
+          "seat-split: the RUN CONTRACT must carry a `reviewer` header field beside `challenger` — a "
+          "seat with no slot in the contract cannot be recorded or compared across runs")
+    check(re.search(r'for seat in \("reviewer", "challenger"\)', rc) is not None,
+          "seat-split: both seats must be validated to exactly on/off")
+    check(re.search(r'"  1a\. REVIEWER: "', rc) is not None
+          and re.search(r'"  1b\. CHALLENGER: "', rc) is not None,
+          "seat-split: disclosure_seed must emit BOTH seats on line one, separately")
+    check(re.search(r"BOTH SEATS OFF", rc) is not None,
+          "seat-split: the seed must say plainly when nothing but the author looked at the diff")
+
+
+def validate_size_margin():
+    """v1.14.0 (G) — the working-doc size budget is surfaced BEFORE it bites, not after.
+
+    Several tickets hit the ceiling and needed repeated pruning with no warning that a document was
+    approaching it. mango measures no ceiling of its own — the project supplies it — so this reuses the
+    byte length `check_lines.py` already computes for the doc fingerprint, extends the `doc` line it
+    already prints, adds NO counted line, and never blocks."""
+    plugin = ROOT / "plugins" / "mango"
+    src = (plugin / "scripts" / "check_lines.py").read_text(encoding="utf-8")
+    check(re.search(r"def size_margin", src) is not None,
+          "size-margin: check_lines.py must compute the margin")
+    check(re.search(r"It NEVER blocks", src) is not None,
+          "size-margin: the margin must NEVER block — the budget is the project's rule, not a mango gate")
+    check(re.search(r"pct >= 80", src) is not None,
+          "size-margin: the warning must fire BEFORE the ceiling, not at it")
+    check(re.search(r"mango measures no ceiling of its own", src) is not None,
+          "size-margin: the script must say the ceiling is the project's, never mango's")
+    check(re.search(r'f" \| size: \{used\}B of \{budget\}B', src) is not None,
+          "size-margin: the margin must EXTEND the existing `doc` line — no new counted line")
+    check(re.search(r"NO NEW COUNTED LINE", src) is not None,
+          "size-margin: the no-new-counted-line discipline must still stand after this addition")
+
+    sys.path.insert(0, str(plugin / "scripts"))
+    import check_lines as cl                                   # noqa: PLC0415 - loaded on demand
+    field, notes = cl.size_margin("x" * 900, 1000)
+    check("900B of 1000B (90%)" in field and notes and "margin left" in notes[0],
+          "size-margin: a doc just under the ceiling must surface its margin (T17)")
+    field, notes = cl.size_margin("x" * 100, 1000)
+    check(field and not notes,
+          "size-margin: a doc well inside the ceiling reports its size and warns about nothing")
+    check(cl.size_margin("x" * 100, None) == ("", []),
+          "size-margin: with no budget configured NOTHING is reported and nothing costs anything")
+
+    data = load_json(plugin / "config" / "harness.example.json")
+    if isinstance(data, dict):
+        check("doc_size_budget" in data and data["doc_size_budget"] is None,
+              "size-margin: harness.example.json must declare `doc_size_budget`, defaulting to null")
+
+
+def validate_template_skill_consistency():
+    """v1.14.0 (C) — where a template and a skill both show the same artifact, they must show the SAME
+    FORM, and the working-doc template must carry `Current phase:`.
+
+    v1.13.0 found `templates/ticket.md` shipping a five-field `RECALL:` line missing exactly the field
+    the field omitted: the agent was obeying the wrong one of two shipped texts. That check required
+    every REGISTERED canonical to appear verbatim somewhere. This generalises it to EVERY labelled
+    artifact shown in both a template and a skill, registered or not — which is how the two forms of the
+    `Reviewed at` marker were found.
+
+    Two citation tolerances, the same ones the registered check already applies: a form that is a
+    PREFIX of a longer one is a citation, and a `…` elsewhere than a trailing `, …` elides part of the
+    line rather than competing with it."""
+    plugin = ROOT / "plugins" / "mango"
+    ticket = plugin / "templates" / "ticket.md"
+    if not check(ticket.exists(), "tpl-consistency: templates/ticket.md is missing"):
+        return
+    body = ticket.read_text(encoding="utf-8")
+
+    # --- `Current phase:` — the field whose absence made the missing-when-required axis unrunnable.
+    check(re.search(r"^- \*\*Current phase:\*\*", body, re.MULTILINE) is not None,
+          "tpl-consistency: templates/ticket.md's `Session status` block must carry `Current phase:` — "
+          "a working doc that drops it makes check_lines.py's missing-when-required axis report "
+          "not-checkable, which is UNVERIFIED, not clean")
+    for name in ("refine", "analysis", "design", "execute", "review", "finalise", "quick"):
+        skill = skill_text(name)
+        if "Session status" not in skill:
+            continue
+        check(re.search(r"`Current phase:`", skill) is not None,
+              f"tpl-consistency: {name} writes `Session status`, so it must PRESERVE the template's "
+              f"`Current phase:` field — the template carrying it is worthless if a phase overwrites "
+              f"the block without it")
+        check(re.search(r"missing-when-required", skill) is not None,
+              f"tpl-consistency: {name} must say WHAT reads `Current phase:` (the missing-when-required "
+              f"axis), so the field is not silently dropped as decoration")
+
+    # --- the generalised same-artifact / same-form check.
+    def labelled_spans(paths):
+        found = {}
+        for path in paths:
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                continue
+            for line in text.splitlines():
+                for span in re.findall(r"`([^`]+)`", line):
+                    span = span.strip().replace("\\|", "|")
+                    m = re.match(r"^(.{2,60}?)<[a-zA-Z]", span)
+                    if not m:
+                        continue
+                    label = m.group(1).strip()
+                    if not re.match(r"^[A-Za-z][A-Za-z0-9 _-]*:?$", label):
+                        continue
+                    found.setdefault(label, {}).setdefault(span, set()).add(
+                        str(path.relative_to(ROOT)))
+        return found
+
+    in_templates = labelled_spans(sorted(plugin.glob("templates/*.md")))
+    in_skills = labelled_spans(sorted(plugin.glob("skills/*/*.md")))
+    shared = sorted(set(in_templates) & set(in_skills))
+    check(len(shared) >= 15,
+          f"tpl-consistency: only {len(shared)} artifact(s) are shown in BOTH a template and a skill — "
+          f"the check has stopped seeing the surface it is meant to compare")
+    for label in shared:
+        forms = {}
+        for source in (in_templates[label], in_skills[label]):
+            for span, where in source.items():
+                forms.setdefault(span, set()).update(where)
+        real = [f for f in forms
+                if "…" not in f.replace(", …", "")
+                and not any(other != f and other.startswith(f) for other in forms)]
+        check(len(real) <= 1,
+              f"tpl-consistency: the artifact `{label}` is shown in {len(real)} different forms across "
+              f"the shipped templates and skills. An agent emitting either is complying with one of two "
+              f"shipped texts, so a 'deviation' is not even well defined. Found: "
+              + " ;; ".join(f"`{f}` -> {sorted(forms[f])}" for f in sorted(real)))
+
+
+def validate_readme_eval_claim():
+    """v1.14.0 (D) — the root README's eval-coverage claim carries a NUMBER, so it is enforced rather
+    than left to age. CONTRIBUTING's release checklist says every Maturity claim must map to a repo
+    source; this is the source for that one, and a claim nothing checks is how the README sat two
+    versions behind before."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    actual = len(list((ROOT / "tests" / "eval" / "fixtures").glob("*.md")))
+    m = re.search(r"one fixture per behaviour, (\d+) of them", readme)
+    if not check(m is not None,
+                 "readme-claim: the root README's Maturity section must state the fixture count as a "
+                 "number — an unenforced 'a behavioural eval suite' claim cannot go stale loudly"):
+        return
+    check(int(m.group(1)) == actual,
+          f"readme-claim: the root README claims {m.group(1)} eval fixtures; tests/eval/fixtures holds "
+          f"{actual}. A README that over- or under-claims is the same defect class mango exists to "
+          f"prevent.")
+
+
+def validate_v1_14_0_fixtures():
+    """v1.14.0 — the behavioural teeth are registered eval fixtures: the file exists, run.sh dispatches
+    it, and FIXTURE_SKILLS keys it to the skill it exercises. A fixture that exists but is never
+    dispatched is not coverage. (Asserted dispatch-free here; the eval runs at end of month, so treat
+    every assertion's WORDING as unproven until it has.)"""
+    required = {
+        "provenance-authored-blocks": ("design",
+            "an AC about a grouping heuristic, proven on authored fixtures only, is a layer-match ❌ "
+            "and Gate 2 is blocked (T1); the same AC with an expiry-less exclusion is still blocked (T4)"),
+        "provenance-real-corpus-passes": ("design",
+            "the same AC proven on the real corpus passes (T2); a `real-corpus` cell naming nothing "
+            "checkable is flagged and reads as authored (T6)"),
+        "provenance-na-costs-nothing": ("design",
+            "THE ANTI-TAX CONTROL — an AC comparing two literal values is `n/a` and pays nothing (T5); "
+            "an `authored` fixture plus an exclusion with a checkable expiry is the honest escape (T3)"),
+        "greenfield-no-corpus-clean": ("design autorun",
+            "GREENFIELD — a fresh project with no corpus configured completes with the corpus reported "
+            "unconfigured and no extra step, no warning, no block (G1/G2/G3)"),
+        "evidence-stale-tree-refused": ("review execute",
+            "evidence from a container built before the last commit is refused — ticket 150 (T11/T12)"),
+        "evidence-provenance-unknown": ("review",
+            "evidence whose tree cannot be established is provenance-unknown, never a pass (T13); "
+            "evidence matching the tree passes with no extra work (T14)"),
+        "no-reviewer-challenger-runs": ("review autorun",
+            "`--no-reviewer` alone skips the reviewer and the challenger STILL RUNS; DISCLOSURE records "
+            "both seats separately (T15); neither flag passed runs both (T16)"),
+    }
+    fixtures = ROOT / "tests" / "eval" / "fixtures"
+    runsh = ROOT / "tests" / "eval" / "run.sh"
+    if not check(runsh.exists(), "v1.14.0-fixtures: tests/eval/run.sh is missing"):
+        return
+    rs = runsh.read_text(encoding="utf-8")
+    for name, (skill, why) in required.items():
+        check((fixtures / f"{name}.md").exists(),
+              f"v1.14.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
+              f"v1.14.0-fixtures: run.sh must dispatch the {name} fixture (an unregistered fixture is "
+              "not coverage)")
+        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
+              f"v1.14.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -2771,6 +3273,13 @@ def main():
     validate_v1_12_0_fixtures()
     validate_counted_line_checker()
     validate_v1_13_0_fixtures()
+    validate_fixture_provenance()
+    validate_evidence_provenance()
+    validate_review_seat_split()
+    validate_size_margin()
+    validate_template_skill_consistency()
+    validate_readme_eval_claim()
+    validate_v1_14_0_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

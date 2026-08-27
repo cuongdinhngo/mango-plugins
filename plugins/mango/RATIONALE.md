@@ -299,3 +299,82 @@ line a lifecycle phase must emit.
 the template had no place for any of them. A doc built from a template with no slot for a line is a doc
 where writing that line takes an act of memory rather than filling in a blank — and `EXCLUSIONS:`, which
 did have a slot, still went missing once, so the slot is necessary rather than sufficient.
+
+## design — why an authored fixture cannot prove an input-shape-dependent AC (v1.14.0)
+
+**Rule (in `design`, step 6):** an AC whose expected output cannot be written down before running it —
+a heuristic, a grouping, a ranking, a summary, a classification — is a layer-match `❌` when its only
+proof is fixtures the change itself authored.
+
+**Why.** Four tickets in a row shipped a real-data defect under a green fixture suite. One collapsed
+every application file into a single useless layer. The next rewrote that heuristic and reintroduced
+the same defect inverted, believing it fixed. A third produced an "architecture overview" that was 67%
+dependency noise, because 282 vendored files made the largest layer. A fourth declared three fields of
+which two had no column to read at all. Every one was found by a real-data probe; no fixture suite
+found any.
+
+The mechanism is structural rather than a lapse: **the fixture is part of the diff.** A fixture shaped
+to the implementation makes the whole diff self-consistent, so the reviewer reads the diff and the
+ticket-blind challenger reads the diff and both correctly report consistency — because it is
+consistent. Nothing in mango ran the deliverable against input the agent did not author.
+
+The trigger is deliberately narrow, and that narrowness is the design, not a compromise: the third of
+those four tickets had already written the lesson into its own acceptance criterion and the process
+still could not act on it, so the failure mode to avoid is not under-reach but a rule so broad it gets
+turned off. Most ACs read `n/a` and pay nothing.
+
+## autorun — why the forced-case positive control was retired (v1.14.0)
+
+**Rule (in `autorun` and `reconcile.py`):** `--prove`, the `proven` counted line, and the
+`force-broken` / `force-holding` contract fields are removed. A contract carrying either field is
+rejected; `--prove` is refused.
+
+**Why.** Three field runs, and **every condition reported `FORCE-UNPROVEN`**. The floor's forced cases
+are literal `true`/`false` that cannot mutate real state, and genuinely forcing them would require
+destructive acts an unattended run is not permitted to perform — closing the PR, rewriting the pushed
+branch. The mini-spec flagged this as a possible dead end when the discipline was designed; three runs
+settled it. A field nothing consumes still reads as a live requirement, so it was removed rather than
+left in place, and it is rejected rather than tolerated so the removal cannot be half-done.
+
+One earlier forced case left `refs/remotes/origin/<branch>` repointed at `main` and exited 0 silently.
+That is the second reason the machinery is gone rather than merely unused: it was the only part of the
+envelope that ever tried to mutate git state.
+
+**What was kept, and why.** The `t0` run: every bound condition observed in its failing state against
+the real world before any work exists, in about two seconds. It is the one place in the envelope where
+a claim was earned rather than asserted, and it survives untouched.
+
+## review, execute — why test evidence carries the tree it ran on (v1.14.0)
+
+**Rule (in `execute`, `analysis` and `review`):** every empirical-output block carries `Ran at <sha>`,
+and a gate refuses evidence whose SHA is not the tree under review.
+
+**Why.** Across seven consecutive unattended tickets one defect escaped to `main`. A container image
+was built **before** the last edits landed, so its `COPY` captured the previous tree. The delta-green
+run was green — against code that was no longer the code. It missed a document over its size budget and
+several unsynced blocks, and the fix had to be patched in on a later branch.
+
+mango's gates trusted the test result handed to them, and nothing checked which tree produced it. That
+sits underneath every other gate: a green suite from a stale tree satisfies all of them.
+`check_lines.py` can verify a counted line's arithmetic but cannot ask where the number came from.
+
+The mechanism is not new — the stale-review guard already diffs the live tree against a recorded
+`Reviewed at <sha>` marker. This is the same rule pointed at a second artifact, which is why the marker
+copies its shape and vocabulary rather than inventing a parallel one. Where a container's build tree
+genuinely cannot be established the evidence is `provenance-unknown`, never a pass: a gate that cannot
+verify provenance must say it could not, not assume it was fine.
+
+## review — why waiving review is two flags (v1.14.0)
+
+**Rule (in `review`, `solve` and `autorun`):** `--no-reviewer` and `--no-challenger` are separate
+flags, each defaulting to its seat running, and neither implies the other.
+
+**Why.** One flag turned off both independent eyes, and the challenger is the **cheaper** of the two —
+roughly 58k against the reviewer's ~108k per round. Collapsing them meant the expensive seat and the
+cheap one were always lost together, so an operator trimming cost lost the ticket-blind re-derivation
+they were not trying to trim. The operator's own conclusion after seven unattended runs was that a
+defect of the kind that escaped is exactly the kind the challenger catches.
+
+**No policy refuses to run when both are waived.** That directive was proposed once, withdrawn after
+two field waivers, and is not re-introduced here: a directive waived twice is not a mechanism. The
+flags plus a `DISCLOSURE` line that records each seat separately are the mechanism.

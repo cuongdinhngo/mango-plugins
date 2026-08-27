@@ -98,13 +98,52 @@ this phase.
    proving test (step 7).** Emit a table with one row per acceptance criterion / at-risk
    requirement:
 
-   `AC | risk layer (logic | integration | runtime/3p | e2e) | proof artifact (unit | integration | e2e | manual-recorded) | layer-match? ✅/❌`
+   `AC | risk layer (logic | integration | runtime/3p | e2e) | proof artifact (unit | integration | e2e | manual-recorded) | fixture provenance (authored | real-corpus | n/a) | layer-match? ✅/❌`
 
    Classify each AC's **risk layer** first — the layer where the requirement can *actually fail* —
    then choose its proof artifact to match. A requirement that can only fail at integration/runtime
    (classification cue: worded as "renders / runs / dispatches / persists / sends") cannot be proven
    by a pure-logic test. Do **not** triage on keywords alone — the gate keys on the **risk-layer vs
    proof-layer comparison** the plan records; the wording is only a hint to classify the risk layer.
+
+   **Fixture provenance — `n/a` for almost every AC, and it costs nothing.** Beside the proof
+   artifact, each row records where that proof's INPUT came from: `authored` (fixtures this change
+   wrote), `real-corpus` (a run over the indexed repository named in `config.real_corpus_path`), or
+   `n/a`. **`n/a` is the default and the overwhelmingly common answer** — an AC comparing two values, a
+   config default, a signature, an error message, a returned status: its correctness does not depend on
+   the shape of real input, so the cell reads `n/a`, no corpus is wanted, and **no extra step of any
+   kind follows**.
+
+   **The narrow trigger — an AC is *input-shape-dependent* when its expected output cannot be written
+   down before running it.** That is the whole test, and it is deliberately narrow: an AC asserting
+   `f(x) == y` names its own answer; an AC asserting the output is *sensible*, *coherent*, *useful* or
+   *balanced* does not. In practice the signals are that the AC concerns a **heuristic**, a
+   **grouping** or bucketing, a **ranking** or ordering, a **summary**, or a **classification** —
+   anything judged "sensible" rather than "equal to X". **Getting this trigger narrow matters more than
+   getting it broad:** a design that demands a corpus for every AC is a tax and will be turned off.
+
+   **For an input-shape-dependent AC, `authored` is a layer-match `❌` and Gate 2 is blocked.** A
+   fixture is part of the diff. A fixture shaped to the implementation makes the whole diff
+   self-consistent, so the reviewer and the ticket-blind challenger both read it and both correctly
+   report consistency — because it is consistent. A green suite over authored fixtures is therefore
+   **not** evidence that the heuristic behaves on real input. The row passes only when it is EITHER
+   upgraded to `real-corpus`, OR recorded as a coverage-gap exclusion — **the same exclusion, with the
+   same checkable `expiry:`, described below; no second escape hatch is added.**
+
+   **`real-corpus` must NAME something checkable, not be a label.** A row claiming `real-corpus`
+   carries the **resolved corpus** (the `config.real_corpus_path` value, resolved on disk) **and the
+   command you ran against it plus its actual output** — trimmed, verbatim, never re-typed, the same
+   empirical-output rule step 4's `traced` handles apply. A `real-corpus` cell with no corpus resolved,
+   or with no command and no output, is **not** a real-corpus proof: it reads as `authored` and the
+   layer-match `❌` stands. **Presence is not checkability** here either — a field that accepts any
+   string is worth nothing.
+
+   **No corpus configured is an honest recording, never a silent `authored`.** When
+   `config.real_corpus_path` is unset or does not resolve, say so plainly — *"no real corpus is
+   configured; AC-n is proven on authored fixtures alone"* — and record the row as a coverage-gap
+   exclusion whose `expiry:` is the checkable condition `when config.real_corpus_path is configured`.
+   **A fresh project with no corpus and no input-shape-dependent AC pays nothing at all**: every row
+   reads `n/a`, the counted line closes with zeros, and no step, warning or block is added.
 
    **Frontend ACs, surface-aware rows, the under-coverage banner, and the `DESIGN.md` contract
    (frontend track).** When `config.track` includes frontend, **READ
@@ -163,14 +202,21 @@ this phase.
 
    **The counted line — emit it on EVERY run, zeros included:**
 
-   `EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring (class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor`
+   `EXCLUSIONS: <n> recorded | <e> with a checkable expiry | <r> recurring (class seen ≥ 3 → discharged/escalated) | <o> with an overdue predecessor | <s> input-shape-dependent AC(s) | <c> proven on a real corpus`
+
+   The last two fields carry the **fixture-provenance** verdict — this line is **extended, not joined by
+   a second one**, because the escape from an unproven provenance IS a coverage-gap exclusion. `<s>`
+   counts the ACs classified input-shape-dependent above; `<c>` counts those actually proven on the
+   real corpus.
 
    `e < n` (an exclusion with no `expiry:` or an unverifiable one), or an `r` that names a
    third-occurrence class **silently re-recorded** instead of discharged or escalated, **blocks Gate 2**
-   — as unmissable as an unfilled matrix column. `o > 0` is a **surfacing**: mango reports it; the
+   — as unmissable as an unfilled matrix column. **`s - c > n` blocks Gate 2 too**: an
+   input-shape-dependent AC left on authored fixtures alone, with no recorded exclusion covering it, is
+   exactly the defect these fields exist to catch. `o > 0` is a **surfacing**: mango reports it; the
    **human** decides whether the overdue exclusion is discharged. `n = 0` closes the line with all zeros
    and adds **no** work: `EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring
-   (class seen ≥ 3 → discharged/escalated) | 0 with an overdue predecessor`. **A first exclusion of a class, with a checkable expiry, is legitimate and
+   (class seen ≥ 3 → discharged/escalated) | 0 with an overdue predecessor | 0 input-shape-dependent AC(s) | 0 proven on a real corpus`. **A first exclusion of a class, with a checkable expiry, is legitimate and
    common — accepted with no escalation and no extra step** (`r = 0`); blocking a first, well-formed
    deferral would make every genuinely deferred check a gate failure.
 7. **Proving test (at the matching layer).** With the risk layer classified (step 6), name the
@@ -190,11 +236,12 @@ this phase.
     covered by` filled `k/N`, every assumption tagged and every `novel-untested` 3p/runtime one
     resolved (spike result or integration-shaped proving test), proving test named and runnable, the
     verification plan has **no ❌** (or every ❌ is recorded as a human-approved coverage-gap
-    exclusion carrying a **checkable `expiry:`** and a follow-up), the **`EXCLUSIONS:` counted line**
-    emitted with `e == n`, every third-occurrence class discharged or escalated (never silently
+    exclusion carrying a **checkable `expiry:`** and a follow-up), every plan row carries a **fixture
+    provenance** value with no input-shape-dependent AC left on `authored` alone, the
+    **`EXCLUSIONS:` counted line** emitted with `e == n` and `s - c <= n`, every third-occurrence class discharged or escalated (never silently
     re-recorded) and any overdue predecessor surfaced, rollback + porting recorded, and — when track
     includes frontend —
     `DESIGN.md` created/updated (per `<mango>/skills/design/frontend.md`) and, for any universal/app-wide frontend requirement,
     the proof manifest laid out **one row per (AC × surface)** with `N == M + X` (no under-coverage
-    banner standing). Write Phase 2 into the working doc and update `Session status`, then STOP and
+    banner standing). Write Phase 2 into the working doc and update `Session status` (**keep the template's `Current phase:` field filled** — `check_lines.py` reads it to run its missing-when-required axis, and a doc that drops the field reports that axis `not-checkable`, never clean), then STOP and
     wait for the user. Do not begin execution.

@@ -80,8 +80,23 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
 
 ## Steps
 
-1. **Run the reviewer agent** on the working-tree diff — `reviewer` or `reviewer-max` per the
-   **Reviewer selection** rule above. It reads `config.rulebook_path` / `config.standards_path` and
+1. **Run the reviewer agent — unless `--no-reviewer` was passed** — on the working-tree diff:
+   `reviewer` or `reviewer-max` per the **Reviewer selection** rule above.
+
+   **Waiving review is TWO decisions, not one.** `--no-reviewer` and `--no-challenger` are
+   **separate flags, each defaulting to its seat RUNNING**, and neither implies the other. They buy
+   different things at different prices: the reviewer grounds findings in `config.rulebook_path` and
+   costs roughly 108k per round; the ticket-blind challenger re-derives the requirements and costs
+   roughly 58k. Collapsing them into one waiver loses the **cheaper** seat together with the expensive
+   one. This is the **single** reviewer-dispatch decision in mango, exactly as step 2 is the single
+   challenger-dispatch decision: `solve` and `autorun` route through both and build no parallel one.
+   When the flag is set, state `REVIEWER: OFF (--no-reviewer)` in the review output, record it in the
+   working doc beside the challenger's state, and — under `autorun` — carry it to **line one of
+   `DISCLOSURE`, where each seat is recorded SEPARATELY**. A morning reader must be able to tell
+   *"clean, nobody looked"* from *"clean, the blind reviewer looked"*. Without the flag the reviewer
+   runs and `REVIEWER: ON` is recorded the same way. **Both seats waived is recorded, not refused** —
+   the flags plus the disclosure are the mechanism. (`quick` never reaches this step: the lite lane
+   runs its own reviewer-only check, so both flags are inert there rather than a second way to waive.) It reads `config.rulebook_path` / `config.standards_path` and
    returns a verdict (BLOCK / CHANGES REQUESTED / LGTM) plus findings. **When TRACK (from analysis)
    includes frontend, inject `<mango>/templates/frontend-rubric.md` into the reviewer's
    brief** (and the challenger's) so it also scores the frontend rubric — see the **Frontend track**
@@ -139,6 +154,25 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    **outside** the change is a **recorded baseline exclusion** — it does **not** block clean, and it
    is **not** a silent pass (it is named). A **new** failure the change introduced, or a claimed fix
    that did not land, blocks clean.
+6a. **Evidence provenance — refuse a test result from a tree that is not the one under review.**
+   Every empirical-output block this ticket recorded (execute's sweep and proving test, analysis's
+   `BASELINE`, and your own run above) carries a **`Ran at <sha>`** marker. Take the SHA of the tree
+   under review — the `HEAD` you are reviewing — and **refuse any evidence whose marker is a different
+   tree**, routing that claim back to be re-run here. This is the **stale-review guard's own rule
+   pointed at a different artifact**, not a second mechanism: a review scoped to a superseded SHA is
+   refused, and so is a suite result produced by one. **Where the suite ran in a container, the marker
+   is the tree the container was BUILT FROM** — an image built before the last edits landed makes a
+   green run green against code that is no longer the code, and every gate above it inherits that. A
+   marker reading `provenance-unknown` (or absent) is **UNVERIFIED, never a pass**: say the provenance
+   could not be established and re-run the claim on the tree under review rather than assuming it was
+   fine. The harness reads this axis for you:
+
+   ```
+   python3 <mango>/scripts/check_lines.py check <work-doc> --phase review --tree $(git rev-parse HEAD)
+   ```
+
+   **Its exit status IS the verdict** — `2` includes evidence from another tree, `3` includes evidence
+   whose tree could not be established. Quote the `evidence :` line it printed; do not restate it.
 7. **Fill `Ph3/4 proven by`** (`k/N`) for every matrix row and universal-inventory item. For a
    counted **"for each of N"** requirement, verify **item-by-item** and fill the **per-item** rows of
    its inventory checklist — the gate is not clean until **every** item is confirmed (or each
@@ -150,7 +184,9 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    exclusion **blocks clean** — the proof must be upgraded to its risk layer, or the gap recorded as
    a human-approved exclusion. A green proving test at the wrong layer is not coverage.
 9. **Decide clean vs not clean.** Clean requires ALL of:
-   - reviewer reports no Critical;
+   - reviewer reports no Critical — **under `--no-reviewer` this criterion is not satisfied, it is
+     ABSENT:** report the verdict as `clean (challenger only — REVIEWER: OFF)` and never as a criterion
+     met. With **both** flags set, report `clean (nobody looked — REVIEWER: OFF, CHALLENGER: OFF)`;
    - challenger finds every item met — **except** a challenger "not met" that corresponds to a
      **recorded, human-approved coverage-gap exclusion** (from design's verification plan / the
      working doc's *Coverage-gap exclusions* slot) does **not** block clean: it is a known proof-tier
@@ -164,8 +200,8 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
      proof-manifest check below) — any `M + X < N` blocks with a visible `surfaces proven: <M+X>/<N>`;
    - proving test green.
    **Not clean → loop back to the relevant phase and STOP.** Clean → record the **stale-review
-   guard** marker `Reviewed at <commit SHA>` plus the set of reviewed files in the working doc (step
-   10), write Phase 4, update `Session status`, and proceed to finalise.
+   guard** marker `Reviewed at <sha>` plus the set of reviewed files in the working doc (step
+   10), write Phase 4, update `Session status` (**keep the template's `Current phase:` field filled** — `check_lines.py` reads it to run its missing-when-required axis, and a doc that drops the field reports that axis `not-checkable`, never clean), and proceed to finalise.
 10. **Record the reviewed commit (stale-review guard).** On a clean verdict, capture the exact
     `HEAD` SHA and the set of files the review covered, and write a `Reviewed at <sha>` marker (with
     the reviewed-file list **and the working-doc path** — the separate `<config.work_dir>/<KEY>.work.md`

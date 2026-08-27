@@ -303,5 +303,5 @@ every how-decision carries a **citation** (an uncited how-decision is flagged as
 silently cited as a how-decision; every want-decision was asked in want-language; any handed-back
 want-decision is `ASSUMED (awaiting ratification)` (never settled prose) and requires an explicit
 next-gate confirm (tripwire checked); the exposure-checker ran (1 dispatch) unless refine skipped; and
-the `REFINE:` line is emitted. Then write Phase 0 into the working doc + `Session status` and continue
+the `REFINE:` line is emitted. Then write Phase 0 into the working doc + `Session status` (**keep the template's `Current phase:` field filled** — `check_lines.py` reads it to run its missing-when-required axis, and a doc that drops the field reports that axis `not-checkable`, never clean) and continue
 to `analysis` (or, on an epic, the epic path).

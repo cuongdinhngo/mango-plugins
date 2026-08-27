@@ -26,6 +26,15 @@ Four behaviours are **Experimental** today:
   Experimental**: it reports and never rewrites, `not-checkable` is never a pass, it ships no counted
   line of its own, and the checker's own absence never blocks a run and never reads as clean.
 
+- **the reach of the evidence-provenance marker.** That test evidence carries the SHA of the tree it ran
+  against, and that a gate refuses evidence from a different tree, is Stable — it is the stale-review
+  guard's own rule pointed at a second artifact. What is Experimental is how much of a project's
+  evidence the marker reaches: it binds the shipped `$ <command>` empirical-output shape, so evidence
+  recorded in some other shape is counted `provenance-unknown` rather than silently skipped, and where
+  a container's build tree can be established varies by project. **Its safety boundaries are NOT
+  Experimental**: `provenance-unknown` is a third state and never a pass, and an axis the caller did not
+  ask for is reported as absent rather than as clean.
+
 - **breakdown re-ratification** (surfacing a post-gate split delta for an explicit human re-approve):
   validated once in the field, its re-ratification trigger and granularity may change until a second
   epic exercises it.

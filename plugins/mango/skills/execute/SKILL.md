@@ -99,6 +99,20 @@ directly — never spawn a model for a one-line shell command.
    prose can promise more than the code delivered, a real paste cannot. **If you did not run it, say
    so** and mark the claim unproven rather than describing an outcome you did not observe. The same
    holds for a command that **failed**: paste the failure verbatim, never a summary of it.
+
+   **Every pasted block carries `Ran at <sha>` — the tree the command ran against.** Stamp each
+   empirical-output block with the SHA of the tree that produced it, in the same shape and vocabulary as
+   review's `Reviewed at <sha>` marker — one marker, one meaning, no second mechanism. **Where the suite
+   ran inside a container or another prepared environment, the SHA is the tree the
+   CONTAINER WAS BUILT FROM**, not the checkout you are standing in: an image built before the last edits landed captures
+   the previous tree, and a green run against it is green against code that is no longer the code.
+   Establish it from the build itself — the SHA baked into the image, the commit the build step checked
+   out, or a **rebuild from the current tree, which is the cheap fix and is preferred to recording an
+   unknown**. If it genuinely cannot be established, write `Ran at provenance-unknown` — a third state
+   alongside `could-not-run` and `not-checkable`, and **never a pass**. Evidence whose SHA is not the
+   tree under review is **refused** at review: every gate trusts the test result handed to it, and
+   nothing else asks which tree produced it.
+
    If the realized diff **materially exceeds** the
    approved change list or the declared `SCOPE` has crossed up a tier (S/M → L), do not absorb it —
    surface the *outgrew-its-ticket* nudge at the next gate (review) so the human can re-scope or
@@ -111,7 +125,7 @@ directly — never spawn a model for a one-line shell command.
    first so a **real committed diff exists** for the ref-based review; only bookkeeping still-in-flight
    (the working doc's Phase-4 slot) may remain uncommitted at dispatch.
 7. **Write back + flow to review.** Write Phase 3 **complete on disk** into the working doc (including
-   the sweep result and `Ph3/4 proven by` progress), update `Session status`, then flow straight into
+   the sweep result and `Ph3/4 proven by` progress), update `Session status` (**keep the template's `Current phase:` field filled** — `check_lines.py` reads it to run its missing-when-required axis, and a doc that drops the field reports that axis `not-checkable`, never clean), then flow straight into
    the `review` phase. When reporting this write-back into the conversation, emit only the **delta** —
    the changed rows/cells, "working doc **unchanged except** Phase 3" — not a full reprint of the doc
    (see `solve`'s response-token discipline). Do not perform any outward action (no push, no PR, no

@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.13.0-blue)
+![version](https://img.shields.io/badge/version-1.14.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -96,7 +96,7 @@ flowchart LR
 |-------|--------------|
 | **0 · refine** | Exposes the ticket's unresolved product decisions — resolves the *how* ones with a citation, asks you the *want* ones — then self-skips when the ticket is already clear. Never authors your intent. |
 | **1 · analysis** | Decomposes every section into a counted requirements matrix, records a `BASELINE` for the existing test state, and gathers the Phase-1 evidence behind each row. |
-| **2 · design** | The approach, the rejected alternatives, the smallest change-list traced to matrix rows, and a per-requirement verification plan whose layer-match is a hard gate. |
+| **2 · design** | The approach, the rejected alternatives, the smallest change-list traced to matrix rows, and a per-requirement verification plan whose layer-match — and, for an AC whose answer depends on the shape of real input, whose **fixture provenance** — is a hard gate. |
 | **3 · execute** | Only the approved changes, on one branch, with the proving test — committed *before* review is dispatched. |
 | **4 · review** | An independent, ticket-blind **challenger** rebuilds the requirements and judges the diff against them. |
 | **5 · finalise** | PR draft, tracker update, and a durable lesson — one explicit approval per outward action. |
@@ -112,8 +112,10 @@ the artifacts they already emit, instead of waiting for you to type "go". **No g
 review seat included — and **there is no auto-merge**: the run stops when the PR exists, and the merge
 stays yours. It writes a machine-parsed `RUN CONTRACT` before starting, a harness-run `RECONCILE` at t0
 and after the last push, and a `DISCLOSURE` list of what was *not* verified, to read first in the
-morning. `--no-challenger` (on `solve` too) waives the ticket-blind challenger explicitly; it runs by
-default, and a waiver is line one of that disclosure.
+morning. `--no-reviewer` and `--no-challenger` (on `solve` too) waive the two review seats
+**separately** — both run by default, neither flag implies the other, and each seat's state is recorded
+on line one of that disclosure, so a morning reader can tell "clean, nobody looked" from "clean, the
+blind reviewer looked".
 
 ---
 
@@ -171,11 +173,18 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 ## Maturity
 
 Field-proven on multiple real projects across several stacks, including a large-scale production
-codebase, with a behavioural eval suite — one fixture per behaviour, green at each **milestone run** —
-and fault-injection-tested escalation paths; the public skill/config API has been stable since 1.0. A
-release registers its fixtures and is gated by `validate.py` plus the dispatch-free script suites; the
-behavioural eval is a milestone gate, so **the newest version's fixture wording is unproven until that
-run**.
+codebase, with a behavioural eval suite — one fixture per behaviour, 119 of them — and
+fault-injection-tested escalation paths. **Every release is gated by `validate.py` and the
+dispatch-free script suites**, both run in CI on every push; the
+behavioural eval is a **milestone** gate that costs real tokens, so **the newest version's fixture
+wording is unproven until that run**, and the repo carries no record of a past run's result — treat
+"the suite is green" as a claim about the last milestone, not about `main`.
+
+The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
+CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.
+Three field runs measured the forced-case control inert — every condition reported `FORCE-UNPROVEN` —
+so it was retired rather than left as ceremony. A contract carrying either field is rejected with a
+named reason, and `--prove` is refused rather than silently ignored.
 
 **Used by engineers beyond its author — including a maintainer of a major open-source frontend
 framework — on their own projects.**
@@ -187,7 +196,8 @@ different underlying model.
 The **unattended lane** (`/mango:autorun`, 1.11.0) is marked **Experimental**: its gate conditions are
 the shipped, field-tested ones, and it has now driven real tickets to a pull request unattended — what
 stays Experimental is the exact condition set a `RUN CONTRACT` should carry and the call-count budget
-proxy. Its safety boundaries are not Experimental — no gate is removed, the review seat is never degraded
+proxy — with one part of the condition set now settled and removed: the forced-case positive control
+was measured inert across three runs and is retired. Its safety boundaries are not Experimental — no gate is removed, the review seat is never degraded
 away, and there is no auto-merge.
 
 The **counted-line checker** (`scripts/check_lines.py`, 1.13.0) is the newest surface. That the harness
@@ -196,6 +206,14 @@ the grammar registry's tolerance boundary — which spellings are inflection and
 Its safety boundaries are not Experimental: it reports and never rewrites, `not-checkable` is never a
 pass, it adds no counted line of its own, and where it cannot run the run says so instead of claiming to
 have checked.
+
+**Evidence provenance** (1.14.0) is the newest surface on it: test evidence records the SHA of the tree
+it ran against — for a containerised suite, the tree the **image was built from** — and a gate refuses
+evidence from a different tree, reusing the stale-review guard's rule rather than building a second one.
+Settled and not Experimental: `provenance-unknown` is a third state and never a pass, and an axis the
+caller did not ask for is reported as absent rather than as clean. **Experimental** is how much of a
+project's evidence the marker reaches: it binds the shipped `$ <command>` empirical-output shape, and
+evidence recorded in some other shape is counted `provenance-unknown` rather than silently skipped.
 
 Per-phase maturity (Stable / Experimental) is tracked in
 [`plugins/mango/PRINCIPLES.md`](./plugins/mango/PRINCIPLES.md).

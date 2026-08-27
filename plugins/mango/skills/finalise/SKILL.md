@@ -261,7 +261,10 @@ goes through `config.tracker.cli` — **never** an MCP.
    print only the **delta** plus the summary line — a new row, "ledger **unchanged except** row N" —
    never a full reprint of the whole ledger on each update; the completeness gate reads the ledger
    **complete on disk**, not a re-pasted copy in the response.
-10. **Update `Session status`** with a concrete next action (never "continue") and state the
+10. **Update `Session status`** with a concrete next action (never "continue"), keeping the
+    template's **`Current phase:`** field filled — `check_lines.py` reads it to run its
+    missing-when-required axis, and a doc that drops the field reports that axis `not-checkable`,
+    never clean — and state the
    **revert path** (branch, commits, how to undo a merge/transition).
 11. **Learning-loop self-check.** Before finishing, confirm each: steps `3a`–`3e` ran **before** the PR
     body and the outward-action list (steps 4–5), not after; every lesson entry was **split** into
@@ -279,8 +282,16 @@ goes through `config.tracker.cli` — **never** an MCP.
     and let its **exit status** answer:
 
     ```
-    python3 <mango>/scripts/check_lines.py check <work-doc> --phase finalise
+    python3 <mango>/scripts/check_lines.py check <work-doc> --phase finalise \
+        --tree $(git rev-parse HEAD) [--size-budget <config.doc_size_budget>]
     ```
+
+    **Pass `--tree` — it is the same guard as step 1, on a different artifact.** Step 1 refuses a
+    review scoped to a superseded SHA; `--tree` refuses **test evidence** produced by a tree that is not
+    the one under review, including a container built before the last edits landed. Evidence whose tree
+    cannot be established reads `provenance-unknown` and is **UNVERIFIED, never a pass**. Pass
+    `--size-budget` when `config.doc_size_budget` is set, so the working doc's remaining margin is
+    surfaced **before** the ceiling bites; it never blocks and is omitted entirely when the key is unset.
 
     `0` clean · `2` a line FAILED its canonical grammar, a required line was MISSING, or an arithmetic
     gate condition is BROKEN — **the final gate does not close** · `3` nothing failed but something was

@@ -31,8 +31,9 @@ operator pre-authorised at handover.
 ## Usage
 
 ```
-/mango:autorun <KEY>                    # the challenger runs (default)
-/mango:autorun <KEY> --no-challenger    # the challenger is waived, and DISCLOSURE says so first
+/mango:autorun <KEY>                    # both review seats run (default)
+/mango:autorun <KEY> --no-reviewer      # the rule-book reviewer is waived; DISCLOSURE says so first
+/mango:autorun <KEY> --no-challenger    # the ticket-blind challenger is waived; DISCLOSURE says so first
 ```
 
 ### Handover authorisation (required — take it before anything else)
@@ -57,15 +58,21 @@ python3 <mango>/scripts/run_contract.py validate .mango/run-contract-<KEY>.txt -
 
 **If it does not parse, the run does not start.** The script — not you — decides that.
 
-- **Every condition declares a `force-broken` and a `force-holding` case as mandatory grammar fields.**
-  A condition missing either does not parse, so an unforceable condition never reaches `RECONCILE` to be
-  counted. A predicate never shown to fail is not evidence when it holds; a predicate never shown to
-  hold on a clean run is a false-red waiting to happen.
+- **A condition declares a statement, an origin, a `derived-by`, a value and a runnable `check` — and
+  nothing else.** `force-broken` / `force-holding` are **retired**: they fed a forced-case positive
+  control that reported `FORCE-UNPROVEN` on every condition across three field runs, because the floor's
+  forced cases cannot mutate real state and genuinely forcing them would need destructive acts this run
+  may never perform. A contract still carrying either field is **rejected by the parser** — not
+  tolerated and quietly ignored, which would leave a field nothing consumes looking like a live
+  requirement.
 - **Derive every derivable value with a command.** Put the command in `derived-by:` and let the script
   run it and record its real output. Anything you cannot derive is marked `agent-claim (unchecked)` and
   is carried into `DISCLOSURE`. **The contract's guarantee is *well-formed and internally consistent*,
   never *true*** — machine-writing guarantees the grammar, not the values. Do not state a count you did
   not run a command to get.
+- **Record BOTH review seats** in the contract's `reviewer` and `challenger` header fields, each
+  exactly `on` or `off`. They are separate decisions and are recorded separately; a contract whose
+  either field is anything else does not parse.
 - **Record the resolved plugin version and path** (`plugin-version`, `plugin-path`). An in-session
   plugin update does not re-resolve the slash-command root, so an overnight run must be able to answer
   "which version did this?".
@@ -138,18 +145,28 @@ Invoke the phases in the same order `solve` does — `refine` → `analysis` →
 over the working doc — never your own reading of the line:
 
 ```
-python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished>
+python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished> \
+    --tree $(git rev-parse HEAD) [--size-budget <config.doc_size_budget>]
 ```
 
 **Its exit status IS the verdict.** `0` clean · `2` a line FAILED its canonical grammar, a required line
-was MISSING, or an arithmetic gate condition is BROKEN — **the gate does not close** · `3` nothing failed
-but something was **not checkable** (a counted line mango ships no grammar for, an undeclared phase, an
-unreadable doc) — **UNVERIFIED, not clean.** Quote the counted lines the script printed; do **not**
+was MISSING, an arithmetic gate condition is BROKEN, or **test evidence ran against a tree that is not
+the one under review** — **the gate does not close** · `3` nothing failed but something was **not
+checkable** (a counted line mango ships no grammar for, an undeclared phase, an unreadable doc, or
+**evidence whose tree could not be established** — `provenance-unknown`) — **UNVERIFIED, not clean.**
+
+Quote the counted lines the script printed; do **not**
 restate them in your own words, do **not** re-type a line it rejected, and do **not** announce a gate
 passed. **If the script itself cannot run** (no `python3`, the path unresolvable), say so plainly, record
 `check-lines: could-not-run` alongside the run's other unverified items, fall back to reading the line
 against its shipped grammar, and **do not claim to have checked** — the checker's own absence never
 blocks the run and never reads as clean.
+
+**`--tree` names the tree under review**, so a green suite produced by a different tree — a container
+built before the last edits landed — is refused instead of trusted by every gate above it. It is the
+stale-review guard's rule pointed at test evidence, not a second mechanism. **`--size-budget` is passed
+only when `config.doc_size_budget` is set**: it surfaces the working doc's remaining margin before the
+ceiling bites, and never blocks.
 
 **If the line does not parse against the shipped grammar, the gate does not close** — a line that is
 *narrated* rather than emitted, that carries a count contradicting its own row list, or that names an
@@ -184,17 +201,25 @@ it honestly could.
 
 On any of these: finish every unaffected part, write `RECONCILE` and `DISCLOSURE`, and stop.
 
-## Step 3 — the challenger flag
+## Step 3 — the two review-seat flags
 
-**Default: the challenger runs.** `--no-challenger` turns it off explicitly. It is an argument rather
-than an improvised instruction, so the choice is recorded rather than remembered. Pass the flag through
-to `review` — `review` owns the single challenger-dispatch decision and this skill adds no parallel one.
+**Default: both seats run.** `--no-reviewer` waives the rule-book-grounded reviewer; `--no-challenger`
+waives the ticket-blind challenger. **They are separate decisions and neither implies the other** —
+the challenger is the *cheaper* seat (about 58k against the reviewer's ~108k per round), so one flag
+covering both would lose the cheap one along with the expensive one. Each is an argument rather than an
+improvised instruction, so the choice is recorded rather than remembered. Pass both through to
+`review` — `review` owns the single reviewer-dispatch decision and the single challenger-dispatch
+decision, and this skill adds no parallel one.
 
-**A disabled challenger is the FIRST LINE of `DISCLOSURE`.** At `solve` the operator types the flag and
-remembers it. At `autorun` they typed it at 23:00 and read the PR at 08:00, and a clean result is
-uninterpretable without knowing whether anything independent looked at it. Record the flag state in the
-`RUN CONTRACT` too, so a later comparison across runs is possible: *do runs with the challenger have
-fewer defects reaching the PR?*
+**A waived seat is the FIRST LINE of `DISCLOSURE`, and each seat is recorded SEPARATELY.** At `solve`
+the operator types the flag and remembers it. At `autorun` they typed it at 23:00 and read the PR at
+08:00, and a clean result is uninterpretable without knowing which eyes, if any, were open: a morning
+reader must be able to tell *"clean, nobody looked"* from *"clean, the blind reviewer looked"*. Record
+both states in the `RUN CONTRACT` too, so a later comparison across runs is possible: *do runs with the
+challenger have fewer defects reaching the PR?*
+
+**Both seats waived is recorded, not refused.** The run still proceeds; the flags plus the disclosure
+are the mechanism. There is no policy here that refuses to start.
 
 ## Step 4 — token budget, because the operator is asleep
 
@@ -257,22 +282,22 @@ else; every other enumerated action is deferred to the morning and listed in `DI
 Then, **after the last push**:
 
 ```
-python3 <mango>/scripts/reconcile.py run <contract> --phase close --repo <repo> --prove
+python3 <mango>/scripts/reconcile.py run <contract> --phase close --repo <repo>
 ```
 
 **The harness runs the commands; you read the verdict.** Do not run the checks yourself and type the
-output — transcribe the two counted lines the script printed:
+output — transcribe the counted line the script printed:
 
 ```
 RECONCILE
   conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run
-  proven    : <b> shown BROKEN when forced | <h> shown HOLDING on a clean run
 ```
 
-`--prove` is the **forced-case positive control**: each condition must be observed to FLIP —
-`force-holding` produces `HOLDING`, then `force-broken` produces `BROKEN`. A case that does not flip is
-reported `FORCE-UNPROVEN` and **is not counted**, because a mutation that silently did not apply reports
-a green that means nothing.
+**The forced-case positive control is retired** — `--prove`, its `proven` line, and the
+`force-broken` / `force-holding` grammar fields are all gone. It is refused if passed. **The `t0` run is
+unchanged and is the part that earned its claim:** every bound condition observed in its failing state
+against the real world before any work exists. **Nothing in the remaining path mutates git state** — the
+only commands run are each condition's read-only `check`.
 
 **`could-not-run` is a third state**, distinct from `HOLDING` and `BROKEN`: the check's named shell
 (`bash`) was not on PATH, so the check did not run at all. **A check that cannot run never reports
@@ -290,8 +315,8 @@ Seed it from the contract, then append:
 python3 <mango>/scripts/run_contract.py disclosure-seed <contract>
 ```
 
-The seed carries line one (the challenger flag state), every unchecked agent claim from the contract,
-and the budget line. Append to it everything mango already produces as raw material: coverage-gap
+The seed carries line one — **the reviewer's state and the challenger's state, recorded separately** —
+every unchecked agent claim from the contract, and the budget line. Append to it everything mango already produces as raw material: coverage-gap
 exclusions, every `unmeasured` ledger cell, baseline exclusions, recorded design deviations, unexercised
 paths, every degradation taken from the ladder, which review step ran, and every outward action deferred
 to the morning.
