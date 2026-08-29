@@ -614,8 +614,67 @@ provision_sandbox() {  # <dir>
   printf '%s\n' "$BASELINE_VERIFY_BODY" >"$dir/tests/baseline/verify.sh"
   git -C "$dir" -c user.email=eval@example.com -c user.name=mango-eval add tests/baseline/verify.sh >/dev/null 2>&1
   git -C "$dir" -c user.email=eval@example.com -c user.name=mango-eval commit -q -m "eval: pre-existing red baseline check (fixture scaffolding)" >/dev/null 2>&1
+  # Record the baseline this tree must be restored to before EVERY job (see reset_sandbox). Kept
+  # BESIDE the tree, not inside it, so `git clean -fdx` can never delete the thing that defines clean.
+  printf '%s\t%s\n' "$(git -C "$dir" rev-parse --abbrev-ref HEAD)" "$(git -C "$dir" rev-parse HEAD)" >"${dir}.base"
 }
 provision_sandbox "$SANDBOX"
+
+# reset_sandbox <dir> — restore a worker clone to the state provision_sandbox left it in.
+# Per-worker isolation was only HALF the invariant. A worker claims MANY jobs and ran every one of
+# them in ONE tree, with no reset in between: whatever job N wrote — a work doc, a docs/LESSONS.md, a
+# stray branch, a commit — was still on disk when job N+1 started. That residue does not race; it
+# silently FALSIFIES the premise of any fixture whose ticket describes a project state. A greenfield
+# fixture that injects "no lesson record has ever been written" reads the previous job's LESSONS.md,
+# correctly refuses its own ticket as false, and fails an assertion that was right all along — and
+# which job lands where depends on the scheduler, so it fails intermittently. Every job now starts
+# from the recorded baseline, and assert_job_start_clean below turns that into a counted assertion.
+reset_sandbox() {  # <dir>
+  local dir="$1" branch base b
+  [ -f "${dir}.base" ] || return 0
+  IFS=$'\t' read -r branch base <"${dir}.base"
+  [ -n "${base:-}" ] || return 0
+  git -C "$dir" checkout -q --force "$branch" 2>/dev/null || git -C "$dir" checkout -q --force "$base"
+  git -C "$dir" reset -q --hard "$base"
+  for b in $(git -C "$dir" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null || true); do
+    [ "$b" = "$branch" ] || git -C "$dir" branch -q -D "$b" >/dev/null 2>&1 || true
+  done
+  git -C "$dir" clean -qfdx >/dev/null 2>&1 || true
+  # The rule book and the tickets dir are UNTRACKED scaffolding, so `clean` takes them: re-lay them
+  # exactly as provision_sandbox did. The red-baseline check is committed, so `reset --hard` has it.
+  mkdir -p "$dir/docs/tickets"
+  printf '%s\n' "$EVAL_RULES_BODY" >"$dir/docs/EVAL_RULES.md"
+}
+
+# assert_job_start_clean <dir> — echoes each residue it finds and returns non-zero on any; returns 0
+# iff <dir> is at its provisioned baseline: on the base branch, no branch from an earlier job, no
+# work doc, no lessons file, rule book present. Parameterized on the dir so the guard is self-tested
+# below against a THROWAWAY dirtied repo — its teeth are proven without dirtying a real worker tree.
+assert_job_start_clean() {  # <dir>
+  local dir="$1" bad=0 branch base head stray docs
+  [ -f "${dir}.base" ] || { echo "    RESIDUE: no provisioning baseline recorded for $dir"; return 1; }
+  IFS=$'\t' read -r branch base <"${dir}.base"
+  head="$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
+  [ "$head" = "$branch" ] || { echo "    RESIDUE: HEAD is on '$head', not '$branch'"; bad=1; }
+  stray="$(git -C "$dir" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null | grep -v "^${branch}$" || true)"
+  [ -z "$stray" ] || { echo "    RESIDUE: branch(es) left by an earlier job: $(echo $stray)"; bad=1; }
+  docs="$( (cd "$dir" && ls docs/tickets/*.work.md docs/LESSONS.md) 2>/dev/null || true)"
+  [ -z "$docs" ] || { echo "    RESIDUE: artifact(s) left by an earlier job: $(echo $docs)"; bad=1; }
+  [ -s "$dir/docs/EVAL_RULES.md" ] || { echo "    RESIDUE: the scaffolded rule book is missing"; bad=1; }
+  [ "$bad" -eq 0 ]
+}
+
+# assert_job_starts_clean <ledger-file> — the run-level half: zero jobs started on a dirtied tree.
+# Parameterized on the ledger so it is self-tested against a synthetic residue row.
+assert_job_starts_clean() {  # <ledger-file>
+  local ledger="$1" residue
+  residue="$(grep -c '^residue' "$ledger" 2>/dev/null || true)"; residue="${residue:-0}"
+  [ "$residue" -eq 0 ] && return 0
+  echo "    RESIDUE: $residue job(s) started on a tree an earlier job had dirtied:"
+  grep '^residue' "$ledger" | sed 's/^/      /'
+  return 1
+}
+
 PLUGIN_DIR="$SANDBOX/plugins/mango"
 
 # All fixtures run headless inside a throwaway clone against the SHIPPED skills
@@ -636,6 +695,7 @@ claude_run() {  # <repo-dir> <prompt...>
 JOBS_DIR="$TMPROOT/jobs";     mkdir -p "$JOBS_DIR"
 CLAIMS_DIR="$TMPROOT/claims"; mkdir -p "$CLAIMS_DIR"
 WORKER_LEDGER="$TMPROOT/worker-trees"; : >"$WORKER_LEDGER"
+JOB_START_LEDGER="$TMPROOT/job-starts";   : >"$JOB_START_LEDGER"
 DONE_LEDGER="$TMPROOT/dispatched";     : >"$DONE_LEDGER"
 JOB_COUNT=0
 PHASE=collect        # collect | assert — see the two-pass note in the header
@@ -719,6 +779,14 @@ worker() {  # <index>
   printf 'created\t%s\n' "$wtree" >>"$WORKER_LEDGER"
   while read -r idx; do
     mkdir "$CLAIMS_DIR/$idx" 2>/dev/null || continue   # already claimed — next
+    # Every job starts from the provisioned baseline, never from the previous job's leftovers, and
+    # the outcome is RECORDED so "each job started clean" is a counted assertion, not a comment.
+    reset_sandbox "$repo"
+    if assert_job_start_clean "$repo" >/dev/null 2>&1; then
+      printf 'clean\t%s\n' "$idx" >>"$JOB_START_LEDGER"
+    else
+      printf 'residue\t%s\t%s\n' "$idx" "$(cut -f2 <"$JOBS_DIR/$idx.meta")" >>"$JOB_START_LEDGER"
+    fi
     dispatch_one "$idx" "$repo" "$w"
   done <"$JOBS_DIR/schedule"
   rm -rf "$wtree"
@@ -785,7 +853,7 @@ assert_contains() {
   [ "$PHASE" = assert ] || return 0
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
-  if grep -qiE "$regex" "$file"; then
+  if grep -qiE -- "$regex" "$file"; then
     echo "  PASS: $label  [$rel]"
     prof_assert "$(basename "$file" .log)" PASS
   else
@@ -806,7 +874,7 @@ assert_all() {
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
   for re in "$@"; do
-    grep -qiE "$re" "$file" || missing="$missing /$re/"
+    grep -qiE -- "$re" "$file" || missing="$missing /$re/"
   done
   if [ -z "$missing" ]; then
     echo "  PASS: $label  [$rel]"
@@ -827,7 +895,7 @@ assert_absent() {
   [ "$PHASE" = assert ] || return 0
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
-  if grep -qiE "$regex" "$file"; then
+  if grep -qiE -- "$regex" "$file"; then
     echo "  FAIL: $label (present, must be absent: /$regex/)  [$rel]"
     fails=$((fails + 1))
     prof_assert "$(basename "$file" .log)" FAIL
@@ -862,6 +930,12 @@ run_prompt() {
 banner() { [ "$PHASE" = assert ] || return 0; echo; echo "$1"; }
 
 # --- Emphasis/glyph-agnostic assertion tokens ---------------------------------
+# EVERY regex reaches grep after `--`. A regex that starts with `-` (the fixtures assert on literal
+# flags: `--tree`, `--no-reviewer`, `--no-challenger`) is otherwise parsed as an OPTION: grep exits 2
+# with "unrecognized option", which assert_contains/assert_all read as "no match" and assert_absent
+# would read as "absent" — a permanent red that no wording can clear, and a permanent GREEN on the
+# absent side. Four assertions were unpassable this way from the day they shipped.
+#
 # The convention lives in tests/eval/README.md: match the DECISION, tolerate markdown emphasis,
 # widen over wording — NEVER over outcome. Three shapes broke assertions that were judging
 # demonstrably CORRECT behaviour, so they are named once here and reused:
@@ -885,7 +959,20 @@ RE_BEFORE_GATE='before[*_ ]{1,4}.{0,20}ratif|before[*_ ]{1,4}(the )?(split-?)?ga
 # The verify-only negative is stated as a COST CONTRAST as often as a negation: "round 2 costs zero
 # dispatches … one scoped proof re-run", "re-deriving them would re-pay for facts already proven".
 RE_NO_BLANKET_RERUN='not[*_ ]{1,4}.*(blanket|re-?deriv|full suite|entire suite)|without[*_ ]{1,4}.*full|not[*_ ]{1,4}re-?run the (full|entire)|does[*_ ]{1,4}not[*_ ]{1,4}re-?run|no[*_ ]{1,4}(full|blanket|whole-?suite|entire)[^.]{0,24}(build|suite|run|re-?review|re-?deriv)|no[*_ ]{1,4}re-?deriv|zero[*_ ]{1,4}(subagent |critic )?dispatch|costs?[*_ ]{1,4}zero|re-?deriv(ing|e|ation)?[^.]{0,30}(would|not|never|no need|re-?pay)'
-RE_BEFORE_CHILD='before[*_ ]{1,4}.{0,24}(child|branch)|before any child|prior to[*_ ]{1,4}.{0,20}(child|branch)|only then[^.]{0,40}(child|branch|cut)|(child|branch)[^.]{0,60}uncommitted|(commit|scaffold)[^.]{0,40}too late|last act[^.]{0,40}breakdown'
+RE_BEFORE_CHILD='before[*_ ]{1,4}.{0,24}(child|branch)|before any child|prior to[*_ ]{1,4}.{0,20}(child|branch)|only then[^.]{0,40}(child|branch|cut)|(child|branch)[^.]{0,60}uncommitted|(commit|scaffold)[^.]{0,40}too late|last act[^.]{0,40}breakdown|zero child branch|no child branch|committed[*_ ]{0,4}first|between[^.]{0,60}first child'
+# A correct run states the ordering as a WINDOW ("committed in the window between the split ratifying
+# and the first child creating its branch"), as a COUNT ("zero child branches exist at that moment"),
+# or as a RANK ("committed first") — none of which contains `before` next to `child`. The outcome
+# asserted is unchanged: the scaffold commit precedes every child branch.
+RE_ROUTES_TO_REVIEW='refus|rout(e|es|ed|ing)|re-?run review|re-?review|blocked|fresh[*_ ]{1,4}.{0,10}review|back to[*_ ]{1,6}.{0,8}review'
+# The refusal is written in the CONTINUOUS ("Refusing to finalise", "Routing back to review"), where a
+# regex demanding the infinitive (`refuse` / `route`) matches neither.
+RE_DOES_NOT_ESTABLISH='does not|not[*_ ]{1,4}(establish|a measurement)|no evidence|says nothing|false.?green'
+# The negative is as often a QUESTION answered ("Does 84 passed establish AC1 and AC2? No — three
+# reasons"), a re-description ("not a measurement of that tree") or the verdict word ("false-green").
+RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{0,24}(remov|lost|gone|not moved)|gap|inert|uncovered|no longer|out of recall|nothing yet replaces|stop[^.]{0,30}(appearing|surfaced)'
+# The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
+# the claims out of recall while nothing yet replaces them").
 
 # --- Post-run safety guard (v1.6.1, Fix 1) -----------------------------------
 # Every fixture runs inside $SANDBOX, so the LIVE checkout must stay pristine. This
@@ -1050,7 +1137,7 @@ assert_contains "stale-source: marks it stale"              "$t" 'stale'
 # Routing widened over phrasing (refuse / route back / re-run review / blocked / fresh review). The
 # separate `stale` and bare-go assertions remain the outcome guards, so a stale verdict that then
 # proceeds/stops WITHOUT routing, or a honoured bare "go", still fails the suite.
-assert_contains "stale-source: refuses + routes to review"  "$t" 'refuse|route|re-?run review|re-?review|blocked|fresh review'
+assert_contains "stale-source: refuses + routes to review"  "$t" "$RE_ROUTES_TO_REVIEW"
 assert_contains "stale-source: bare go does not override"   "$t" 'does not override|not override|only a fresh|bare .?go'
 
 # behavioural-drift (Fix v1.2): execute's design-conformance self-check. An approach implemented
@@ -1922,7 +2009,7 @@ assert_all "promote-retire: the retirement reason names the rule that landed" "$
 assert_all "promote-retire: both claims in the class are offered" "$t" 'CLM-740' 'CLM-741'
 assert_all "promote-retire: retirement never deletes the record" "$t" 'not deleted|never delete|stays|remains|history' 'record|claim|LESSONS'
 assert_all "promote-retire: the written rule carries the handle so the rule can be recalled" "$t" 'blast-radius-grep|handle' 'writ|carr|cite|record'
-assert_all "promote-retire: the ordering rationale — retiring first would remove coverage" "$t" 'before|first|order' 'remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|gap|inert|uncovered|no longer'
+assert_all "promote-retire: the ordering rationale — retiring first would remove coverage" "$t" 'before|first|order' "$RE_ORDER_COVERAGE"
 assert_absent "promote-retire: no silent auto-retire" "$t" '(I have|I) (now )?marked (CLM-740|both claims) retired'
 
 # T8 plugin-root-newest-version: a host that sets no plugin-root variable returned EIGHT candidates in the
@@ -2194,7 +2281,7 @@ assert_absent "greenfield-corpus: the missing corpus is not treated as a finding
 t="$(run_fixture evidence-stale-tree-refused 'Run the mango review skill against the injected state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
 assert_all "evidence-stale: the evidence is refused" "$t" 'c40b7e1|evidence' 'refus|reject|not[ *_]{1,4}accept|stale|does not (count|close)'
 assert_all "evidence-stale: the container SHA is the tree it was BUILT from" "$t" 'container|image|docker' 'built from|build|COPY|not[ *_]{1,4}the checkout'
-assert_all "evidence-stale: 84 passed does not establish the ACs on b7d5e29" "$t" '84 passed|green|b7d5e29' 'does not|not[ *_]{1,4}establish|no evidence|says nothing'
+assert_all "evidence-stale: 84 passed does not establish the ACs on b7d5e29" "$t" '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
 assert_all "evidence-stale: the fix is to re-run on the tree under review" "$t" 'rebuild|re-run|rerun' 'b7d5e29|tree under review|HEAD|current'
 assert_contains "evidence-stale: the --tree invocation is shown" "$t" '--tree'
 
@@ -2308,7 +2395,7 @@ _ac="$TMPROOT/assertion-convention"; mkdir -p "$_ac"
 re_all_match() {
   local f="$1"; shift
   local re
-  for re in "$@"; do grep -qiE "$re" "$f" || return 1; done
+  for re in "$@"; do grep -qiE -- "$re" "$f" || return 1; done
   return 0
 }
 # selftest_assertion <label> <correct-file> <wrong-file> <regex...> — one counted assertion: the
@@ -2470,6 +2557,84 @@ AC
 selftest_assertion "cost-contrast form of the verify-only negative (verify-only-scoped)" \
   "$_ac/verifyonly.correct" "$_ac/verifyonly.wrong" \
   'only .*(proof|affected|named|fix)|scoped|affected proof' "$RE_NO_BLANKET_RERUN"
+
+# --- the four tokens widened after the 1.14.0 milestone run -------------------
+# Each failed on a transcript whose DECISION was correct, so each is proven both ways here before it
+# is allowed to ship widened: it must match the wording that used to fail, and still miss a WRONG
+# decision. The wrong transcripts state the opposite outcome, not merely different words.
+cat >"$_ac/route.correct" <<'AC'
+## Stale-review guard — PROJ-502: **STALE. Refusing to finalise.**
+Remaining set is non-empty and beyond the reviewed set, so no outward action is taken: no PR, no push,
+no tracker write. Routing back to `review`. Only a fresh clean review covering the current tree clears
+it; a bare "go" does not override the guard.
+AC
+cat >"$_ac/route.wrong" <<'AC'
+Not stale — the reviewed set covers the current tree. I proceed to finalise, push the branch and open
+the PR. A bare "go" is sufficient approval here and the recorded review marker stands.
+AC
+selftest_assertion "continuous-form refusal — \"Refusing / Routing back\" (stale-source-change)" \
+  "$_ac/route.correct" "$_ac/route.wrong" \
+  'stale' "$RE_ROUTES_TO_REVIEW"
+
+cat >"$_ac/establish.correct" <<'AC'
+### 3. Does "84 passed" establish AC1 and AC2 on the reviewed tree? No — three independent reasons.
+- **Provenance.** It is not a measurement of `b7d5e29` at all: the image froze the tree at `c40b7e1`.
+Execute's write-up — "delta-green — 84 passed, no new failure against the recorded BASELINE" — is a
+**false-green**: correct arithmetic against the wrong tree.
+AC
+cat >"$_ac/establish.wrong" <<'AC'
+"84 passed" establishes AC1 and AC2 on b7d5e29. The suite is green, the recorded evidence is accepted
+as a measurement of the reviewed tree, and Gate 4 closes on it.
+AC
+selftest_assertion "question-answered form of the negative (evidence-stale-tree-refused)" \
+  "$_ac/establish.correct" "$_ac/establish.wrong" \
+  '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
+
+cat >"$_ac/ordering.correct" <<'AC'
+## 5. Why the rule must exist and be recallable first
+Retiring first would take the two claims out of recall while nothing yet replaces them, so the
+heuristic would silently stop appearing at the gate it was learned at — coverage removed, not moved,
+with no red anywhere to show it.
+AC
+cat >"$_ac/ordering.wrong" <<'AC'
+I marked CLM-740 and CLM-741 retired first and then drafted §4.2. The order of the two steps is
+interchangeable; either way the class ends up recorded exactly once.
+AC
+selftest_assertion "subject-first ordering rationale (promote-offers-retirement)" \
+  "$_ac/ordering.correct" "$_ac/ordering.wrong" \
+  'before|first|order' "$RE_ORDER_COVERAGE"
+
+cat >"$_ac/window.correct" <<'AC'
+**WHEN.** The epic scaffold is committed to a shared ref in the window between the split ratifying and
+the first child creating its branch. At the moment the scaffold commit lands, **zero child branches
+exist**; every child then branches *from* that commit. Committed first, the child's later change to
+its own stub is a diff against a committed file — unambiguously an edit.
+AC
+cat >"$_ac/window.wrong" <<'AC'
+Each child ticket cuts its branch first; the epic scaffold and BACKLOG stubs are committed afterwards,
+once the six children already exist on their own branches. The scaffold commit is the last step.
+AC
+selftest_assertion "ordering as a window / a count / a rank (epic-scaffold-committed)" \
+  "$_ac/window.correct" "$_ac/window.wrong" \
+  'scaffold|stub|backlog' 'commit' "$RE_BEFORE_CHILD"
+
+# --- option-shaped regex self-test -------------------------------------------
+# The fixtures assert on literal flags (`--tree`, `--no-reviewer`, `--no-challenger`). Without `--`,
+# grep parses those as OPTIONS and exits 2, which reads as "no match" on assert_contains/assert_all
+# and as "absent" on assert_absent — four assertions were unpassable, and the absent side would have
+# been silently green. This proves the judgement, not the wording: a flag PRESENT must match, a flag
+# ABSENT must not.
+cat >"$_ac/flag.correct" <<'AC'
+Re-run the check on the tree under review: check_lines.py check <doc> --phase review --tree $(git rev-parse HEAD).
+The seat that was waived is named in the verdict: REVIEWER: OFF (--no-reviewer); the challenger still ran.
+AC
+cat >"$_ac/flag.wrong" <<'AC'
+Re-run the check on the tree under review: check_lines.py check <doc> --phase review.
+The seat that was waived is named in the verdict; the challenger still ran.
+AC
+selftest_assertion "option-shaped regex is judged, not swallowed by grep (--tree / --no-reviewer)" \
+  "$_ac/flag.correct" "$_ac/flag.wrong" \
+  '--tree' '--no-reviewer'
 
 # --- validator jargon-guard self-test (v1.7.5 Fix 1b) ------------------------
 # The TEETH of the false-green fix. v1.7.4 claimed validate.py enforced a zero-jargon grep over shipped
@@ -2639,6 +2804,53 @@ if assert_worker_trees_disposed "$WORKER_LEDGER"; then
   echo "  PASS: worker-isolation-guard: all $_wcreated per-worker clone(s) disposed (no worker tree left on disk)"
 else
   echo "  FAIL: worker-isolation-guard: a per-worker clone was not disposed (leaks printed above)"
+  fails=$((fails + 1))
+fi
+
+# (4) Per-JOB isolation, the third face of the same invariant: a worker tree is shared by every job
+# that worker claims, so "each job started from the provisioned baseline" needs its own teeth. Both
+# guards are proven NON-VACUOUS first — one against a throwaway repo dirtied exactly the way a
+# fixture dirties a tree, one against a synthetic residue ledger — then asserted against the real run.
+_jd="$TMPROOT/job-start-selftest"; rm -rf "$_jd"; mkdir -p "$_jd"
+git init -q "$_jd/repo"
+git -C "$_jd/repo" -c user.email=eval@example.com -c user.name=mango-eval commit -q --allow-empty -m init
+git -C "$_jd/repo" branch -q -M main
+mkdir -p "$_jd/repo/docs/tickets"
+printf 'x\n' >"$_jd/repo/docs/EVAL_RULES.md"
+printf '%s\t%s\n' main "$(git -C "$_jd/repo" rev-parse HEAD)" >"$_jd/repo.base"
+total=$((total + 1))
+if ! assert_job_start_clean "$_jd/repo" >/dev/null 2>&1; then
+  echo "  FAIL: job-isolation-guard: guard rejects an already-CLEAN tree (unusable)"
+  fails=$((fails + 1))
+else
+  : >"$_jd/repo/docs/LESSONS.md"; : >"$_jd/repo/docs/tickets/PROJ-999.work.md"
+  git -C "$_jd/repo" checkout -q -b feat/PROJ-999-residue
+  if assert_job_start_clean "$_jd/repo" >/dev/null 2>&1; then
+    echo "  FAIL: job-isolation-guard: guard is VACUOUS — missed a tree dirtied by an earlier job"
+    fails=$((fails + 1))
+  else
+    echo "  PASS: job-isolation-guard: catches a tree dirtied by an earlier job (non-vacuous)"
+  fi
+fi
+rm -rf "$_jd" 2>/dev/null || true
+
+_jl="$TMPROOT/job-start-ledger-selftest"
+printf 'residue\t1\tsynthetic-fixture\n' >"$_jl"
+total=$((total + 1))
+if assert_job_starts_clean "$_jl" >/dev/null 2>&1; then
+  echo "  FAIL: job-isolation-guard: ledger guard is VACUOUS — missed a recorded residue row"
+  fails=$((fails + 1))
+else
+  echo "  PASS: job-isolation-guard: catches a recorded residue row (non-vacuous)"
+fi
+rm -f "$_jl" 2>/dev/null || true
+
+total=$((total + 1))
+if assert_job_starts_clean "$JOB_START_LEDGER"; then
+  _jclean="$(grep -c '^clean' "$JOB_START_LEDGER" 2>/dev/null || true)"; _jclean="${_jclean:-0}"
+  echo "  PASS: job-isolation-guard: all $_jclean job(s) started from the provisioned baseline (no residue from an earlier job)"
+else
+  echo "  FAIL: job-isolation-guard: a job started on a tree an earlier job had dirtied (rows printed above)"
   fails=$((fails + 1))
 fi
 
