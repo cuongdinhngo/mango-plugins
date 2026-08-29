@@ -7,7 +7,7 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Four behaviours are **Experimental** today:
+Five behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact

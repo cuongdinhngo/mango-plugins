@@ -7,6 +7,15 @@
 > parallel, their ~9.5 min is noise against the ~2 h 34 m parallelism removes, and each merge would
 > trade a distinct non-vacuity proof for seconds. Numbers below describe the sequential runner and are
 > not re-measured per release; the timing table is the input to the scheduler's longest-first ordering.
+>
+> **Recommendation (2) did not stay fixed, and that is on record here.** §1's flap #2
+> (`epic-scaffold-committed`) was addressed in 1.8.0 by widening `RE_BEFORE_CHILD` once, and it broke a
+> **second** time after the 1.14.0 milestone run — on a correct transcript stating the ordering as a
+> *window*, a *count* and a *rank*, with no `before` anywhere near `child`. Three sibling assertions
+> missed the same way. The lesson generalised into convention rule 8 in
+> [`README.md`](./README.md) (*expect the paraphrase, not your keyword*); a widened token now ships only
+> with a paired self-test proving it still misses the opposite outcome. Read §1's classifications as
+> what was true at v1.7.6, not as a closed file.
 
 Milestone run of `bash tests/eval/run.sh --no-cache` at HEAD `0bcafa9` (v1.7.6), 2026-07-31 21:35:25 → 2026-08-01 00:31:55 (+07:00). Two goals in one pass: VERIFY the behavioural suite, and MEASURE it so the trim + parallel-dispatch work has evidence behind it.
 

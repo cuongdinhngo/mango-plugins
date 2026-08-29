@@ -62,6 +62,19 @@ removes are real: fixtures whose `execute` branches and commits would race insid
 another in-flight dispatch. After the run, one assertion proves every worker tree was disposed (proven
 non-vacuous against an undisposed tree) alongside the existing live-checkout guard.
 
+**Per-JOB reset is the other half of that invariant.** A worker claims *many* jobs, so a clone that is
+private to the worker is still shared across every job that worker runs: whatever job N wrote — a work
+doc, a `docs/LESSONS.md`, a stray branch, a commit — was on disk when job N+1 started. That residue does
+not *race*; it silently **falsifies the premise** of any fixture whose ticket describes a project state,
+and a greenfield fixture injecting "no lesson record has ever been written" then reads the previous job's
+lessons file, correctly refuses its own ticket as false, and fails an assertion that was right all along.
+Which job lands on which worker is the scheduler's business, so it fails *intermittently*.
+`provision_sandbox` records each tree's baseline branch+SHA **beside** the tree (so `git clean -fdx` can
+never delete the definition of clean); `reset_sandbox` restores that baseline before **every** job, and
+`assert_job_start_clean` turns "this job started clean" into a **counted assertion** per job rather than
+a comment. Both guards are proven non-vacuous first — the per-tree guard against a throwaway dirtied
+repo, the ledger guard against a synthetic residue row.
+
 `--only <regex>` filters both the dispatch and the judging. It is a **dev-loop** tool: the run is
 reported `PARTIAL`, its skipped assertions are counted, and **no cache entry is written** — a cache
 green may only ever be minted by a run that proved the whole suite. CI passes no arguments.
@@ -88,10 +101,12 @@ written to match the *behaviour*, not one transcript's phrasing. The standing ru
 5. **Never pin a single glyph, and expect emphasis *inside* a word.** A `❌` may be written into the
    working-doc table rather than the response text, and `**S**mall` / `**I**ndependent` break a
    contiguous substring match — as do `**before**` the gate and `**before**` the first child branch. Use
-   the shared `RE_*` tokens at the top of `run.sh` (`RE_INVEST_LETTERS`, `RE_INVEST_SMALL`,
-   `RE_NOT_SPLIT`, `RE_ZERO_WANTS`, `RE_LAYER_MISMATCH`, `RE_BEFORE_CHILD`, `RE_BEFORE_GATE`,
-   `RE_NO_BLANKET_RERUN`) — each is proven **both ways** by the assertion-convention self-test below, and
+   the shared `RE_*` tokens at the top of `run.sh` — `RE_INVEST_LETTERS`, `RE_INVEST_SMALL`,
+   `RE_NOT_SPLIT`, `RE_ZERO_WANTS`, `RE_LAYER_SUBJECT`, `RE_LAYER_MISMATCH`, `RE_BEFORE_GATE`,
+   `RE_NO_BLANKET_RERUN`, `RE_BEFORE_CHILD`, `RE_ROUTES_TO_REVIEW`, `RE_DOES_NOT_ESTABLISH`,
+   `RE_ORDER_COVERAGE` — each proven **both ways** by the assertion-convention self-test below, and
    `scripts/validate.py` fails the build if an assertion regex is a bare glyph again.
+
 6. **Never put a bare literal separator between two load-bearing words.** A space in the regex cannot
    match `**not** split`, and a space cannot match a hyphen (`no change` vs `no-change`). Write the
    separator as a class: `not[*_ ]{1,6}split`, `no[ -]change`. This single class caused most of v1.8.0's
@@ -99,6 +114,23 @@ written to match the *behaviour*, not one transcript's phrasing. The standing ru
 7. **A negative may be stated as a count.** A skill emits `0 want-decisions asked` as readily as "did
    not ask", so an assertion demanding a negation phrase fails on correct behaviour. Accept the
    zero-count form (`RE_ZERO_WANTS`).
+
+8. **A correct run may not contain your keyword at all — expect the paraphrase.** The four forms that
+   have actually broken assertions on demonstrably correct behaviour, each now carried by an `RE_*`
+   token: an ordering stated as a **window** ("in the window between the split ratifying and the first
+   child creating its branch"), a **count** ("zero child branches exist") or a **rank** ("committed
+   first") — none of which contains `before` anywhere near `child`; a refusal written in the
+   **continuous** ("Refusing" / "Routing back", not `refuse` / `route`); a negative answered as a
+   **question** ("Does 84 passed establish …? No"); and a rationale written **subject-first**
+   ("coverage removed, not moved"). Widen for the paraphrase, never for the opposite outcome — rule 4
+   still binds, and the self-test enforces it.
+
+9. **Pass `--` before every assertion regex.** `grep -qiE "$regex"` parses a regex that begins with `-`
+   as an **option**: grep exits 2 with "unrecognized option", which reads as *no match* on the contains
+   side and as *absent* — a silent **GREEN** — on the absent side. Every option-shaped assertion
+   (`--tree`, `--no-reviewer`, `--no-challenger`) was unpassable from the day it shipped for exactly
+   this reason. `assert_contains` / `assert_all` / `assert_absent` all pass `--`, and a self-test pins
+   the judgement in both directions: a flag present must match, a flag absent must not.
 
 ## Verify-incremental (build discipline — the Finish flow)
 
@@ -157,6 +189,13 @@ deterministic:
   checkable instead of a promise.
 - **per-worker-isolation guard** — every worker clone the parallel dispatcher created was disposed and
   is gone from disk, proven non-vacuous against a synthetic undisposed tree.
+- **job-isolation guard** (3 counted assertions) — every job started from its tree's provisioned
+  baseline, with no branch, work doc or lessons file left by an earlier job. The per-tree guard is
+  proven non-vacuous against a throwaway dirtied repo and the ledger guard against a synthetic residue
+  row, *before* the run's own ledger is judged — so a green here can never mean "the guard never looked".
+- **option-shaped-regex guard** — an assertion regex beginning with `-` must be judged, not swallowed by
+  grep as an option: the self-test asserts a present flag matches and an absent one does not, in both
+  directions, so the `--` fix cannot silently regress into a false green (see convention rule 9).
 - **validator jargon-guard self-test** — injects each banned phrase (`v1 — …`, `enough to run and
   learn`, `n=1`, `v1-learning`) into a shipped operational file **inside the sandbox clone** and asserts
   `scripts/validate.py` **FAILS**, then that removal restores green. This is the teeth of the v1.7.5
@@ -168,16 +207,20 @@ deterministic:
   `RATIONALE.md` fails, so the "why" can never be pulled back onto the runtime path. Teeth for the
   v1.7.6 *skills are directive-only* rule — same injection discipline as the jargon guard.
 
-- **envelope script suite** (`tests/envelope/test_envelope.py`, 50 stdlib-only tests) — the three
-  envelope scripts `autorun` runs (`RUN CONTRACT`, `RECONCILE`, `BUDGET`) carry their own tests, and
-  `run.sh` invokes them so a suite nobody runs cannot rot. It covers the **mechanical** half of the
-  v1.11.0 teeth table: contract grammar and two-phase binding, a t0 condition reporting `HOLDING` being
-  struck, the tree/head floor conditions against real throwaway git repos (squash-clean, correction
-  after merge, an unpushed commit, no `origin` remote), merge-strategy detection on a repo that switched
-  strategy mid-history, budget arithmetic and its `unknown`, and the forced-case positive control. Each
-  git test builds and destroys its own repo under `tempfile`; the live checkout is never touched. The
-  **judgement** half — which cut to take, whether a gate closes, what reaches DISCLOSURE — stays in the
-  `autorun-*` fixtures, because only a model run can demonstrate it.
+- **harness script suite** (`tests/envelope/test_envelope.py`, 128 stdlib-only tests) — every script
+  under `plugins/mango/scripts/` carries its own tests, and `run.sh` invokes them so a suite nobody runs
+  cannot rot. Three families: the **envelope** scripts `autorun` runs (`RUN CONTRACT`, `RECONCILE`,
+  `BUDGET`) — contract grammar and two-phase binding, the handover slot, a t0 condition reporting
+  `HOLDING` being struck, the tree/head floor conditions against real throwaway git repos (squash-clean,
+  correction after merge, an unpushed commit, no `origin` remote), merge-strategy detection on a repo
+  that switched strategy mid-history, budget arithmetic and its `unknown`, and — since 1.14.0 — that the
+  **forced-case control is retired**: a contract carrying `force-broken` / `force-holding` is rejected
+  with a named reason and `reconcile.py --prove` is refused rather than silently ignored; the
+  **counted-line checker** (`check_lines.py`, 1.13.0, teeth `T1–T9` / `G1–G3`); and **1.14.0's
+  provenance work** — fixture provenance, evidence provenance, and the size margin. Each git test builds
+  and destroys its own repo under `tempfile`; the live checkout is never touched. The **judgement** half
+  — which cut to take, whether a gate closes, what reaches DISCLOSURE — stays in the `autorun-*`
+  fixtures, because only a model run can demonstrate it.
 
 Prefer this shape for anything a deterministic check can prove — reserve `claude -p` fixtures for
 behaviour only a model run can demonstrate. A change that is a **pure deletion of non-behavioural

@@ -85,8 +85,11 @@ independent fresh runs, not a regex tuned to one transcript.
 **It dispatches in parallel.** `--workers N` (default a safe value; `--workers 8` is the milestone
 setting, `--workers 1` the sequential debugging mode) runs the fixtures concurrently, each worker in
 **its own throwaway clone** with **its own per-job `.harness.json`** — so a fixture that branches and
-commits, or one that repoints `test_command`, cannot affect another in flight. Assertions are still
-judged in script order, so the output reads like a sequential run. See
+commits, or one that repoints `test_command`, cannot affect another in flight. A worker also **resets
+its clone to the provisioned baseline before every job**, because one worker runs many jobs in one tree
+and job N's work doc, lessons file or stray branch would otherwise falsify the *premise* of job N+1 —
+an intermittent red that looks behavioural and is not. Each job's clean start is a counted assertion.
+Assertions are still judged in script order, so the output reads like a sequential run. See
 [`tests/eval/README.md`](./tests/eval/README.md) for the two-pass structure and the isolation guards.
 
 **Verify-incremental (build discipline).** The suite is expensive, so while building a fix run only the

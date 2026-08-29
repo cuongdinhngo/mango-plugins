@@ -270,15 +270,29 @@ concluding no-change.
 
 ### Maturity — Stable vs Experimental
 
-Shipped behaviour carries an honest maturity level (defined in [`PRINCIPLES.md`](./PRINCIPLES.md)):
-**Stable** = committed, field-tested behaviour, safe to rely on (the default); **Experimental** = works
-and is validated, but its exact shape may still change until further real-world use. Two behaviours are
-Experimental today: **breakdown re-ratification**, and the **learning loop's classification/promotion
-machinery** (where the six-type boundaries fall, which recall key each type gets, how recurrence is
-scored) — though the loop's **five invariants are not Experimental**: the classifier proposes and the
-human confirms, recall is advisory, falsification precedes ratification, lessons never modify mango, and
-everything is project-local. Everything else on the ticket and epic paths is Stable. When an Experimental
-behaviour graduates, the CHANGELOG records it (e.g. `re-ratification: Experimental → Stable`).
+Shipped behaviour carries an honest maturity level (the single source is
+[`principles/maturity.md`](./principles/maturity.md), read on demand from
+[`PRINCIPLES.md`](./PRINCIPLES.md)): **Stable** = committed, field-tested behaviour, safe to rely on
+(the default); **Experimental** = works and is validated, but its exact shape may still change until
+further real-world use. Five behaviours are Experimental today:
+
+- **the unattended lane** (`autorun`, 1.11.0) — the unattended closing itself, the exact condition set a
+  `RUN CONTRACT` should carry, and the call-count budget proxy.
+- **the counted-line checker's grammar registry** (`check_lines.py`, 1.13.0) — which spellings are an
+  inflection and which are a paraphrase.
+- **the reach of the evidence-provenance marker** (1.14.0) — how much of a project's evidence the
+  shipped `$ <command>` output shape reaches.
+- **breakdown re-ratification** — its trigger and granularity, validated once in the field.
+- **the learning loop's classification/promotion machinery** — where the six-type boundaries fall, which
+  recall key each type gets, how recurrence is scored.
+
+In every case the **safety boundaries are not Experimental**: no gate is removed and there is no
+auto-merge; the checker reports and never rewrites and `not-checkable` is never a pass;
+`provenance-unknown` is a third state and never a pass; and the loop's five invariants hold — the
+classifier proposes and the human confirms, recall is advisory, falsification precedes ratification,
+lessons never modify mango, and everything is project-local. Everything else on the ticket and epic
+paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
+`re-ratification: Experimental → Stable`).
 
 ### Skills are directive-only
 

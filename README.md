@@ -177,8 +177,19 @@ codebase, with a behavioural eval suite — one fixture per behaviour, 119 of th
 fault-injection-tested escalation paths. **Every release is gated by `validate.py` and the
 dispatch-free script suites**, both run in CI on every push; the
 behavioural eval is a **milestone** gate that costs real tokens, so **the newest version's fixture
-wording is unproven until that run**, and the repo carries no record of a past run's result — treat
-"the suite is green" as a claim about the last milestone, not about `main`.
+wording is unproven until that run** — treat "the suite is green" as a claim about the last milestone,
+not about `main`.
+
+**Where `main` actually stands.** The 1.14.0 milestone run returned **543/552**, and none of the nine
+failures was a behavioural regression: all three causes were defects in the *eval harness itself* —
+`grep` parsing an option-shaped assertion regex as an option (a silent green on the absent side, and
+four assertions unpassable since the day they shipped), a worker never resetting its clone between
+jobs (so one job's residue falsified the next job's premise), and four assertions that missed a
+correct run's paraphrase. All three are fixed on `main`, each with a paired non-vacuity self-test.
+`validate.py` (2051 checks), the harness script suite (128 tests) and the dispatch-free self-tests
+(51) are green at HEAD; **the behavioural suite has not been re-verified end to end since that fix** —
+the re-run was stopped at 47 of 126 dispatches, so the per-job reset is proven at the harness level
+only.
 
 The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
 CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.
