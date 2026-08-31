@@ -5,6 +5,45 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.14.1] — 2026-08-31
+
+**Patch: no skill, script, template or config changed — the runtime-loaded maturity companion and the
+plugin README did, and the eval harness's promote/retire ordering assertion did.**
+
+`principles/maturity.md` said *"Four behaviours are Experimental today"* above **five** bullets, and the
+plugin README's Maturity summary named only two of the five. Both are runtime-loaded or reader-facing
+text, so the count going stale is the class this repo treats as binding. Corrected, with
+`principles/maturity.md` restated as the single source the README points at rather than paraphrases.
+
+**The eight fixtures affected by the 1.14.0 milestone's nine failures were re-run and returned 91/92.**
+Eight of the nine are confirmed fixed on fresh transcripts. Most importantly `greenfield-promote-zeros`
+passed 6/6 while running **seventh of eight jobs in one shared clone**, immediately after a job that
+writes the lessons file — the exact adjacency that produced the original failure — with
+`job-isolation-guard` reporting all eight jobs starting from the provisioned baseline and both of its
+non-vacuity proofs green. **The per-job `reset_sandbox` is no longer proven at the harness level only.**
+
+**The ninth was a second flap of one token, not a regression.** `RE_ORDER_COVERAGE` looked for the
+NEGATIVE form of the promote-before-retire rationale ("coverage would be *removed*") while a correct run
+stated the same decision in the AFFIRMATIVE, three separate ways — *"coverage has to be moved rather
+than dropped"*, *"the guidance disappears while looking like it was promoted"*, *"neither the claims nor
+a rule reach the next ticket"*. Widened over **wording only**, with the three alternatives taken
+verbatim from that transcript.
+
+**A token on WHY is the fragile half — so the ORDER is now judged too.** A rationale is the freest prose
+a transcript contains. `RE_PROMOTE_BEFORE_RETIRE` judges the ordering itself and an `assert_absent`
+refuses a run presenting retire-first as acceptable — both added **beside** the rationale assertion,
+never instead of it, because the reason assertion is what separates a run that reached the right order
+from one that reached it by luck. **No CHECK removed, no outcome guard loosened.** Written down as
+assertion-convention **rule 10**.
+
+All three assertions are verified in both directions against the real transcript that failed and a
+wrong one stating the opposite outcome — correct matches, wrong misses, negative control fires only on
+the wrong transcript — plus paired `selftest_assertion` entries.
+
+**Not a green.** The re-run was PARTIAL (8 of 119 fixtures, 468 assertions skipped, no cache written),
+and `run.sh` changing invalidates the cache by design, so the next milestone run is full-fresh
+regardless.
+
 ## [1.14.0] — 2026-08-27
 
 **Nothing in mango ran the deliverable against input the agent did not author, and nothing asked which

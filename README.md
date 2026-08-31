@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.14.0-blue)
+![version](https://img.shields.io/badge/version-1.14.1-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -187,9 +187,15 @@ four assertions unpassable since the day they shipped), a worker never resetting
 jobs (so one job's residue falsified the next job's premise), and four assertions that missed a
 correct run's paraphrase. All three are fixed on `main`, each with a paired non-vacuity self-test.
 `validate.py` (2051 checks), the harness script suite (128 tests) and the dispatch-free self-tests
-(51) are green at HEAD; **the behavioural suite has not been re-verified end to end since that fix** —
-the re-run was stopped at 47 of 126 dispatches, so the per-job reset is proven at the harness level
-only.
+are green at HEAD. Since that fix, the **eight affected fixtures** were re-run on their own and
+returned **91/92**: all four option-shaped assertions pass, so do the three widened wording tokens, and
+`greenfield-promote-zeros` passed 6/6 while running **seventh of eight jobs in a single shared clone**,
+immediately after a job that writes the lessons file — the exact adjacency that produced the original
+failure — so **the per-job reset is now proven behaviourally, not only at the harness level**. The one
+remaining failure was a *second* flap of one wording token on a demonstrably correct run; it is widened
+over wording, and an assertion on the **ordering outcome** now sits beside it. **The full behavioural
+suite has still not been re-verified end to end** — that was a PARTIAL run of 8 of 119 fixtures with
+468 assertions skipped and no cache written, so the next milestone run is full-fresh.
 
 The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
 CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.
