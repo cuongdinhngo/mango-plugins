@@ -971,7 +971,7 @@ RE_DOES_NOT_ESTABLISH='does not|not[*_ ]{1,4}(establish|a measurement)|no eviden
 # The negative is as often a QUESTION answered ("Does 84 passed establish AC1 and AC2? No — three
 # reasons"), a re-description ("not a measurement of that tree") or the verdict word ("false-green").
 RE_PROMOTE_BEFORE_RETIRE='writ[^.]{0,24}first|(rule|it)[^.]{0,30}recallable first|must exist[^.]{0,34}first|before[^.]{0,30}(retir|the claims are retired)|only (then|after)[^.]{0,34}retir|(never|not) be reordered|retire[^.]{0,20}(second|last|after)'
-RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{0,24}(remov|lost|gone|not moved)|gap|inert|uncovered|no longer|out of recall|nothing yet replaces|stop[^.]{0,30}(appearing|surfaced)|coverage[^.]{0,30}drop|guidance[^.]{0,24}disappear|neither[^.]{0,44}(claim|rule)[^.]{0,34}reach'
+RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{0,24}(remov|lost|gone|not moved|hole)|gap|inert|uncovered|no longer|out of recall|nothing yet replaces|stop[^.]{0,30}(appearing|surfaced|recall)|coverage[^.]{0,30}drop|guidance[^.]{0,24}disappear|neither[^.]{0,44}(claim|rule)[^.]{0,34}reach|no check at all'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
 
@@ -2662,6 +2662,28 @@ selftest_assertion "affirmative rationale for the promote/retire order (was: onl
   'before|first|order' "$RE_ORDER_COVERAGE"
 selftest_assertion "the ORDER itself, judged apart from the reason given for it" \
   "$_ac/order.correct" "$_ac/order.wrong" \
+  "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
+
+# Flap THREE of the same rationale token (v1.14.1 post-release, 3x-fresh re-proof of dbd269d). Runs 1
+# and 2 matched; run 3 stated the reason MORE completely than either — mechanism, consequence, and the
+# failure mode by name — and still missed, because it wrote the consequence as a "coverage HOLE" and as
+# the claims "stop being RECALLED", where the token carried gap/uncovered and stop-appearing/surfaced.
+# Widened over WORDING only, verbatim from that transcript; the ORDER assertion beside it passed 3/3,
+# which is the measurement that matters. The corpus is kept so a later narrowing cannot silently
+# un-cover this paraphrase. The wrong side is the shared retire-first-is-fine text.
+cat >"$_ac/order3.correct" <<'AC'
+**5 — Why rule first, retire second.** Because a `handle:`-carrying rule only becomes an applicable
+`RULE SECTIONS` entry at analysis once recall surfaces that handle — coverage is *moved*, never
+simultaneous. Retire first and the claims stop being recalled while nothing in the rule book has
+picked the class up, so the next ticket that greps one directory hits no check at all: a silent
+coverage hole that looks like tidy bookkeeping. That is the false-green failure mode this ordering
+exists to prevent, so the two steps are never reordered.
+AC
+selftest_assertion "consequence as a coverage HOLE / claims stop being RECALLED (flap 3)" \
+  "$_ac/order3.correct" "$_ac/order.wrong" \
+  'before|first|order' "$RE_ORDER_COVERAGE"
+selftest_assertion "the ORDER itself, on the flap-3 corpus" \
+  "$_ac/order3.correct" "$_ac/order.wrong" \
   "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
 
 # --- validator jargon-guard self-test (v1.7.5 Fix 1b) ------------------------
