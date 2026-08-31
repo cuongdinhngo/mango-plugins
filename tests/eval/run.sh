@@ -970,7 +970,8 @@ RE_ROUTES_TO_REVIEW='refus|rout(e|es|ed|ing)|re-?run review|re-?review|blocked|f
 RE_DOES_NOT_ESTABLISH='does not|not[*_ ]{1,4}(establish|a measurement)|no evidence|says nothing|false.?green'
 # The negative is as often a QUESTION answered ("Does 84 passed establish AC1 and AC2? No — three
 # reasons"), a re-description ("not a measurement of that tree") or the verdict word ("false-green").
-RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{0,24}(remov|lost|gone|not moved)|gap|inert|uncovered|no longer|out of recall|nothing yet replaces|stop[^.]{0,30}(appearing|surfaced)'
+RE_PROMOTE_BEFORE_RETIRE='writ[^.]{0,24}first|(rule|it)[^.]{0,30}recallable first|must exist[^.]{0,34}first|before[^.]{0,30}(retir|the claims are retired)|only (then|after)[^.]{0,34}retir|(never|not) be reordered|retire[^.]{0,20}(second|last|after)'
+RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{0,24}(remov|lost|gone|not moved)|gap|inert|uncovered|no longer|out of recall|nothing yet replaces|stop[^.]{0,30}(appearing|surfaced)|coverage[^.]{0,30}drop|guidance[^.]{0,24}disappear|neither[^.]{0,44}(claim|rule)[^.]{0,34}reach'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
 
@@ -2010,6 +2011,8 @@ assert_all "promote-retire: both claims in the class are offered" "$t" 'CLM-740'
 assert_all "promote-retire: retirement never deletes the record" "$t" 'not deleted|never delete|stays|remains|history' 'record|claim|LESSONS'
 assert_all "promote-retire: the written rule carries the handle so the rule can be recalled" "$t" 'blast-radius-grep|handle' 'writ|carr|cite|record'
 assert_all "promote-retire: the ordering rationale — retiring first would remove coverage" "$t" 'before|first|order' "$RE_ORDER_COVERAGE"
+assert_all "promote-retire: the ORDER itself — the rule is written first, the retirement offered second" "$t" "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
+assert_absent "promote-retire: retire-first is never presented as acceptable" "$t" '(retir[a-z]*|retirement)[^.]{0,40}(first|before)[^.]{0,30}(is fine|is acceptable|either order|order does ?n.?t matter|no ?t matter)'
 assert_absent "promote-retire: no silent auto-retire" "$t" '(I have|I) (now )?marked (CLM-740|both claims) retired'
 
 # T8 plugin-root-newest-version: a host that sets no plugin-root variable returned EIGHT candidates in the
@@ -2635,6 +2638,31 @@ AC
 selftest_assertion "option-shaped regex is judged, not swallowed by grep (--tree / --no-reviewer)" \
   "$_ac/flag.correct" "$_ac/flag.wrong" \
   '--tree' '--no-reviewer'
+
+# --- promote ordering: rule-book rationale + the ORDER itself (v1.14.0 post-milestone) -------
+# The rationale token flapped TWICE — convention rule 8, in its purest form: a correct run stated the
+# reason in the AFFIRMATIVE ("coverage has to be moved rather than dropped", "the guidance disappears",
+# "neither the claims nor a rule reach the next ticket") and the token looked only for the NEGATIVE
+# ("would be removed"). Widened over WORDING; and a second assertion now judges the ORDER itself, which
+# is the decision that matters and is stated far more stably than the reason for it.
+cat >"$_ac/order.correct" <<'AC'
+5. Why the rule must exist and be recallable first. Because promotion is a copy, not a hand-off, and
+coverage has to be moved rather than dropped. Retire first and there is a window — possibly permanent,
+if the write is never made — where neither the claims nor a rule reach the next ticket: the guidance
+disappears while looking like it was promoted, which is a false-green. Writing first makes the offer
+legal because the class is already covered; the two steps must never be reordered.
+AC
+cat >"$_ac/order.wrong" <<'AC'
+5. The two steps are independent, so either order is fine. I retired CLM-740 and CLM-741 first and then
+wrote §4.2 into the rule book; retiring before the rule lands does not matter, because the claims and
+the rule cover the same class either way and nothing is lost in between.
+AC
+selftest_assertion "affirmative rationale for the promote/retire order (was: only the negative matched)" \
+  "$_ac/order.correct" "$_ac/order.wrong" \
+  'before|first|order' "$RE_ORDER_COVERAGE"
+selftest_assertion "the ORDER itself, judged apart from the reason given for it" \
+  "$_ac/order.correct" "$_ac/order.wrong" \
+  "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
 
 # --- validator jargon-guard self-test (v1.7.5 Fix 1b) ------------------------
 # The TEETH of the false-green fix. v1.7.4 claimed validate.py enforced a zero-jargon grep over shipped

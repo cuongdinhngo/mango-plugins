@@ -125,6 +125,18 @@ written to match the *behaviour*, not one transcript's phrasing. The standing ru
    ("coverage removed, not moved"). Widen for the paraphrase, never for the opposite outcome — rule 4
    still binds, and the self-test enforces it.
 
+10. **Judge the OUTCOME; treat the REASON as the fragile half.** A rationale is the freest prose a
+   transcript contains, so a keyword on *why* flaps where a keyword on *what was decided* does not.
+   `RE_ORDER_COVERAGE` — the reason retiring a claim before its rule lands is wrong — has now missed a
+   **correct** run twice: it looked for the **negative** ("coverage would be *removed*") while the run
+   stated the same thing in the **affirmative** ("coverage has to be *moved* rather than dropped", "the
+   guidance *disappears*", "neither the claims nor a rule *reach* the next ticket"). Rule 8 covers the
+   widening; this rule covers what to do next. **Do not swap the rationale assertion for an outcome
+   one — add the outcome one beside it** (no CHECK is ever removed): `RE_PROMOTE_BEFORE_RETIRE` judges
+   the ordering itself, and an `assert_absent` refuses a run that presents retire-first as acceptable.
+   The reason assertion keeps its value — it is what distinguishes a run that reached the right order
+   by luck — but the outcome assertion is the one that should not need widening again.
+
 9. **Pass `--` before every assertion regex.** `grep -qiE "$regex"` parses a regex that begins with `-`
    as an **option**: grep exits 2 with "unrecognized option", which reads as *no match* on the contains
    side and as *absent* — a silent **GREEN** — on the absent side. Every option-shaped assertion
