@@ -5,6 +5,36 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.14.2] — 2026-08-31
+
+**Patch: nothing inside the plugin changed — no skill, script, template, principle or config. This
+version records an eval-harness assertion fix and a root-README rewrite.**
+
+The promote/retire **rationale** token missed a third time, on run 3 of a 3x-fresh re-proof of the
+previous widening. That run stated the reason more completely than either run that passed — mechanism,
+consequence, and the failure mode by name — and still missed: it wrote the consequence as a "coverage
+HOLE" and as the claims "stop being RECALLED", where the token carried gap/uncovered and
+stop-appearing/surfaced. Widened over **wording** only, three alternatives verbatim from that
+transcript; the outcome is untouched, and the **ORDER** assertion added beside it in 1.14.1 has now
+passed 6/6 without a single miss — the measurement that matters, and the reason the reason-token is no
+longer the only thing standing between a correct run and a green.
+
+The flap-3 transcript is kept as a paired non-vacuity self-test, so a later narrowing cannot silently
+un-cover this paraphrase, and the ORDER assertion is exercised on that same corpus. Proved
+two-directionally before any dispatch: the widened token matches all three transcripts, the previous
+token reproduces the flap on run 3 alone, and the retire-first-is-fine text still misses. Re-proved
+**3x fresh** on `promote-offers-retirement`: 65/65, 65/65, 65/65, three distinct transcripts, no cache
+hit.
+
+The root README's *Maturity* status had become a running account of the project's own verification
+bookkeeping — PARTIAL runs, assertions skipped, cache state, and what the next run would cost. That is
+internal process on a public front page, and one line of it promised a run that is not scheduled. The
+section now states what the gates establish: the dated 1.14.0 result, the three eval-harness defects
+behind all nine of its failures, their paired non-vacuity self-tests, and the guards green at HEAD.
+Every result carries the release it was measured on, so each number is scoped by its own attribution.
+Contributor procedure is untouched: `CONTRIBUTING.md` and `tests/eval/README.md` still define the
+full-suite bar, this file keeps its history, and `EVAL-PROFILE.md` keeps its measurements.
+
 ## [1.14.1] — 2026-08-31
 
 **Patch: no skill, script, template or config changed — the runtime-loaded maturity companion and the
