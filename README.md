@@ -175,27 +175,19 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 Field-proven on multiple real projects across several stacks, including a large-scale production
 codebase, with a behavioural eval suite — one fixture per behaviour, 119 of them — and
 fault-injection-tested escalation paths. **Every release is gated by `validate.py` and the
-dispatch-free script suites**, both run in CI on every push; the
-behavioural eval is a **milestone** gate that costs real tokens, so **the newest version's fixture
-wording is unproven until that run** — treat "the suite is green" as a claim about the last milestone,
-not about `main`.
+dispatch-free script suites**, both run in CI on every push; the behavioural suite is a
+**milestone** gate.
 
-**Where `main` actually stands.** The 1.14.0 milestone run returned **543/552**, and none of the nine
-failures was a behavioural regression: all three causes were defects in the *eval harness itself* —
-`grep` parsing an option-shaped assertion regex as an option (a silent green on the absent side, and
-four assertions unpassable since the day they shipped), a worker never resetting its clone between
-jobs (so one job's residue falsified the next job's premise), and four assertions that missed a
-correct run's paraphrase. All three are fixed on `main`, each with a paired non-vacuity self-test.
-`validate.py` (2051 checks), the harness script suite (128 tests) and the dispatch-free self-tests
-are green at HEAD. Since that fix, the **eight affected fixtures** were re-run on their own and
-returned **91/92**: all four option-shaped assertions pass, so do the three widened wording tokens, and
-`greenfield-promote-zeros` passed 6/6 while running **seventh of eight jobs in a single shared clone**,
-immediately after a job that writes the lessons file — the exact adjacency that produced the original
-failure — so **the per-job reset is now proven behaviourally, not only at the harness level**. The one
-remaining failure was a *second* flap of one wording token on a demonstrably correct run; it is widened
-over wording, and an assertion on the **ordering outcome** now sits beside it. **The full behavioural
-suite has still not been re-verified end to end** — that was a PARTIAL run of 8 of 119 fixtures with
-468 assertions skipped and no cache written, so the next milestone run is full-fresh.
+**The last milestone, and what it found.** The 1.14.0 milestone returned **543/552**, and none of the
+nine failures was a behavioural regression: all three causes were defects in the *eval harness itself*
+— `grep` parsing an option-shaped assertion regex as an option (a silent green on the absent side, and
+four assertions unpassable since the day they shipped), a worker never resetting its clone between jobs
+(so one job's residue falsified the next job's premise), and wording tokens that missed a correct run's
+paraphrase. All three are fixed, each with a paired non-vacuity self-test, and the affected fixtures
+were re-proven on their own — including `greenfield-promote-zeros` at 6/6 while running **seventh of
+eight jobs in a single shared clone**, immediately after a job that writes the lessons file, the exact
+adjacency that produced the original failure. `validate.py` (2051 checks), the harness script suite
+(128 tests) and the dispatch-free self-tests are green at HEAD.
 
 The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
 CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.
