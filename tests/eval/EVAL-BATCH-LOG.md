@@ -104,6 +104,7 @@ recur. What each of the ten is there to answer:
 | 2 | `refine` | 21 | ✅ green | 2026-09-01 | ✅ | 145 / 0 | 11m30s | 21 / 0 | unmeasured | 21, not the ~12 estimated — every refine-mapped fixture |
 | 3 | `analysis` | 13 | ✅ green | 2026-09-01 | ✅ | 102 / 0 | 6m07s | 13 / 0 | unmeasured | anchors load-bearing — unanchored `full` also matches `greenfield-full-run` |
 | 4 | `design` | 17 | 🔴 red (environment) | 2026-09-01 | ✅ | 96 / 22 | 6m48s | 17 / 0 | unmeasured | 7 fixtures hit `API Error: 529`; the other 10 green. **No behavioural finding.** |
+| 4↻ | `design` — re-run | 17 | ✅ green | 2026-09-01 | ✅ | 118 / 0 | 6m01s | 17 / 0 | unmeasured | all 17 dispatched for real; `API Error` sweep clean |
 | 5 | `execute` | ~12 | ⬜ not run | | | | | | | |
 | 6 | `review` + `challenger` | ~13 | ⬜ not run | | | | | | | |
 | 7 | `finalise` + learning loop | ~13 | ⬜ not run | | | | | | | |
@@ -122,15 +123,16 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 3 / 10   (1 — stop-gate; 2 — refine; 3 — analysis).  Batch 4 RED on environment.
-Jobs run           : 61 / 126  (10 + 21 + 13 + 17; no overlap between batches)
-Assertions passed  : 454 / 476.  All 22 failures are one cause: API Error 529 on 7 batch-4 fixtures.
-Proven green       : 54 fixtures.  7 unproven (529'd, need a re-run) — design is 10/17 proven.
-Tokens spent       : unmeasured (the host reports none; 61 dispatches, ~30 min at 8 workers)
-Estimated remaining: 65 jobs + the 7 to re-run — but no batch writes cache, so the remaining
-                     work is still one full 126-job pass
-Run still valid    : yes — fingerprint unchanged at e23452eb…1da28. Batches 1-3 are VALIDATED
-                     against the false-green risk batch 4 exposed (see the vacuity audit below).
+Batches green      : 4 / 10   (1 — stop-gate; 2 — refine; 3 — analysis; 4 — design, on re-run)
+Fixtures proven    : 61 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
+Jobs proven green  : 61 / 126
+Dispatches spent   : 78  (10 + 21 + 13 + 17 red + 17 re-run) — 17 of them paid twice, to a 529
+Assertions passed  : 476 / 476 across the four green batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 78 dispatches, ~37 min at 8 workers)
+Estimated remaining: 58 jobs (51 fixtures + 7 scenarios) — but no batch writes cache, so the
+                     remaining work is still one full 126-job pass
+Run still valid    : yes — fingerprint unchanged at e23452eb…1da28. Batches 1-3 validated by the
+                     vacuity audit; batch 4 re-proved on fresh transcripts with no API error.
 ```
 
 ---
@@ -381,6 +383,49 @@ Recorded, not applied, per the freeze:
 **Decision after this batch: continue.** The batch is red on the host, not on mango; the seven 529'd
 fixtures need a re-run, and the three harness defects wait for a version of their own after the freeze
 lifts.
+
+---
+
+## Batch 4 ↻ — `design` re-run — ✅ GREEN
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 0706425
+Selector used   : unchanged from batch 4 — re-verified 17/17 before dispatching
+Jobs run        : 17   (the full batch, not only the seven that 529'd)
+Result          : 118 pass / 0 fail   (448 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 353s dispatch / 361s total, 8 workers
+Fresh / cached  : 17 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none. `design` is now 17 of 17 proven.
+
+**The whole batch was re-run, not just the seven.** A partial run caches nothing, so re-running the ten
+that had already passed cost ten dispatches — paid deliberately, to get one green batch rather than a
+result stitched from two runs, and to give the ten a second fresh transcript.
+
+**Every pass in this batch was checked against the defect batch 4 exposed.** Before reading the result:
+
+| Check | Result |
+|---|---|
+| `API Error` in any of the 17 transcripts | **none** |
+| Transcript size | 7.2 KB – 17.8 KB (the 529'd ones were 5.1 KB of host noise) |
+| Real mango artifacts present (`Gate 2` / `HANDLES:` / `EXCLUSIONS:` / verification plan) | **17 / 17** |
+| Assertions attributed per fixture | 2–5 each, 61 fixture-level passes in total |
+| Jobs starting from the provisioned baseline | 17 / 17 |
+
+The three assertions that passed vacuously in the red run — `blast-radius: folds it in as collateral`,
+`unanswered: the unanswered handle is named as the cause`, `recurrence: mango does not auto-discharge`
+— all passed here on transcripts that contain a genuine run, so they are **now earned rather than
+vacuous**. That does not repair them: they would pass again on a no-run, and the fix is still item 1 and
+item 3 of the deferred list.
+
+**Decision after this batch: continue to batch 5 (`execute`).** The four deferred `run.sh` fixes stand
+unapplied; the freeze holds.
 
 ---
 
