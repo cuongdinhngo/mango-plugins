@@ -103,7 +103,7 @@ recur. What each of the ten is there to answer:
 | 1 | The unknowns | 10 | ✅ green | 2026-09-01 | ✅ | 111 / 0 | 5m01s | 10 / 0 | unmeasured | **stop-gate CLEARED** — the four Class-A assertions passed on a real transcript for the first time |
 | 2 | `refine` | 21 | ✅ green | 2026-09-01 | ✅ | 145 / 0 | 11m30s | 21 / 0 | unmeasured | 21, not the ~12 estimated — every refine-mapped fixture |
 | 3 | `analysis` | 13 | ✅ green | 2026-09-01 | ✅ | 102 / 0 | 6m07s | 13 / 0 | unmeasured | anchors load-bearing — unanchored `full` also matches `greenfield-full-run` |
-| 4 | `design` | ~13 | ⬜ not run | | | | | | | |
+| 4 | `design` | 17 | 🔴 red (environment) | 2026-09-01 | ✅ | 96 / 22 | 6m48s | 17 / 0 | unmeasured | 7 fixtures hit `API Error: 529`; the other 10 green. **No behavioural finding.** |
 | 5 | `execute` | ~12 | ⬜ not run | | | | | | | |
 | 6 | `review` + `challenger` | ~13 | ⬜ not run | | | | | | | |
 | 7 | `finalise` + learning loop | ~13 | ⬜ not run | | | | | | | |
@@ -122,13 +122,15 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 3 / 10   (1 — the stop-gate; 2 — refine; 3 — analysis)
-Jobs run           : 44 / 126  (10 + 21 + 13; no overlap between batches)
-Assertions passed  : 358 / 358 across three batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 44 dispatches, ~23 min at 8 workers)
-Estimated remaining: 82 jobs — but see the pre-flight finding: no batch writes cache, so the
-                     remaining work is still one full 126-job pass, not 82 batched jobs
-Run still valid    : yes — fingerprint unchanged at e23452eb…1da28
+Batches green      : 3 / 10   (1 — stop-gate; 2 — refine; 3 — analysis).  Batch 4 RED on environment.
+Jobs run           : 61 / 126  (10 + 21 + 13 + 17; no overlap between batches)
+Assertions passed  : 454 / 476.  All 22 failures are one cause: API Error 529 on 7 batch-4 fixtures.
+Proven green       : 54 fixtures.  7 unproven (529'd, need a re-run) — design is 10/17 proven.
+Tokens spent       : unmeasured (the host reports none; 61 dispatches, ~30 min at 8 workers)
+Estimated remaining: 65 jobs + the 7 to re-run — but no batch writes cache, so the remaining
+                     work is still one full 126-job pass
+Run still valid    : yes — fingerprint unchanged at e23452eb…1da28. Batches 1-3 are VALIDATED
+                     against the false-green risk batch 4 exposed (see the vacuity audit below).
 ```
 
 ---
@@ -283,6 +285,102 @@ All 13 had assertions attributed to their transcript. All 8 worker clones dispos
 from the provisioned baseline, live checkout untouched.
 
 **Decision after this batch: continue.**
+
+---
+
+## Batch 4 — `design` (Gate 2) — 🔴 RED on environment
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 9bccc9f
+Fixtures matched: 17 — verified dispatch-free BEFORE dispatching
+Jobs run        : 17
+Result          : 96 pass / 22 fail   (448 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 401s dispatch / 408s total, 8 workers
+Fresh / cached  : 17 / 0
+Tokens          : unmeasured
+```
+
+**Every one of the 22 failures has a single cause: `API Error: 529 Overloaded`.** Seven fixtures never
+ran; their transcripts contain the harness header, the host's permission warnings, and the 529 line.
+Nothing about mango's behaviour is implicated, and no assertion wording is at fault.
+
+| Fixture | pass / fail | Cause | Class |
+|---|---|---|---|
+| `provenance-authored-blocks` | 0 / 5 | API Error 529 | environment |
+| `provenance-na-costs-nothing` | 0 / 4 | API Error 529 | environment |
+| `frontend-layer` | 0 / 3 | API Error 529 | environment |
+| `surface-denominator` | 0 / 2 | API Error 529 | environment |
+| `exclusion-recurrence-escalates` | 1 / 4 | API Error 529 | environment |
+| `handle-unanswered-blocks` | 1 / 3 | API Error 529 | environment |
+| `blast-radius` | 1 / 1 | API Error 529 | environment |
+
+The other **ten dispatched cleanly and were green**: `design-layer`, `design-blastradius-shared-type`,
+`design-blastradius-value-threading`, `check-lines-missing-blocks`, `exclusion-expiry-checkable`,
+`exclusion-expiry-required`, `handle-does-not-apply-closes`, `ondemand-companion-read`, `per-clause`,
+`provenance-real-corpus-passes`. So `design` is **10 of 17 proven**, 7 unproven pending a re-run.
+
+### The finding that matters — three assertions PASSED on a transcript that never ran
+
+`blast-radius`, `handle-unanswered-blocks` and `exclusion-recurrence-escalates` each recorded a **PASS**
+against a transcript whose entire content is a 529. Three distinct mechanisms:
+
+| run.sh | Assertion | Why it passed on nothing |
+|---|---|---|
+| 1056 | `blast-radius: folds it in as collateral` | needs `/blast[ -]radius|collateral/` — the harness's own header line is `== fixture: blast-radius ==`. **The regex matched the fixture's name.** |
+| 1854 | `unanswered: the unanswered handle is named as the cause` | needs `/handle/` AND `/unanswered/` — both present in `== fixture: handle-unanswered-blocks ==` |
+| 2182 | `recurrence: mango does not auto-discharge the overdue class` | `assert_absent` — a transcript with no run contains nothing, so nothing is present to fail it |
+
+`assert_judgeable` asks only whether the transcript is **non-empty**. A 529 produces a file that exists
+and is non-empty yet contains no run — a third state the harness does not model. mango itself added
+exactly this state in 1.14.0 for test evidence (`provenance-unknown`, "never a pass"); its own eval
+harness has no equivalent for a dispatch that did not happen.
+
+### Vacuity audit — 510 assertions, dispatch-free, `run.sh` untouched
+
+Each assertion's regexes were tested against a synthetic no-run transcript (the real observed 529 body,
+with the header rewritten per fixture). 510 audited, 1 unparsed (`run.sh:1545`, an interpolated
+`$RE_INVEST_SMALL|…`).
+
+**Exactly one job would go FULLY GREEN on a transcript that never ran:**
+
+- **`ledger-gate-complete`** (`run.sh:1290`) — its single assertion looks for
+  `/proceed|passes|not block|does not block|complete/`, and its own name contains **complete**. This
+  assertion **cannot fail**, on any transcript, ever. A scenario, so it has no fixture file. It was in
+  none of batches 1–4 and has not run this cycle.
+
+**53 further jobs have SOME vacuous assertion** (1 of n), so a 529 there still shows red — which is why
+batch 4's 529s were caught rather than passing silently. Worst ratios: `autorun-challenger-default-on`
+3/6, `autorun-clarification-stops` 3/6, `promote-offers-retirement` 3/10, `greenfield-check-lines-clean`
+2/4, `check-lines-one-grammar` 2/6, `premise-to-be-created` 2/4, `loop-project-local` 2/6,
+`rule-section-provisional-no-block` 2/5.
+
+**Batches 1–3 are therefore VALIDATED, not suspect.** All 44 of their fixtures have at least one
+assertion that a no-run transcript would visibly fail, and all three batches reported zero failures — so
+no fixture in them silently 529'd. The usual "environment fault ⇒ earlier batches are suspect" rule is
+discharged here by measurement rather than by assumption.
+
+### Deferred — every fix touches `run.sh` and would void the run
+
+Recorded, not applied, per the freeze:
+
+1. **A no-run transcript must never be judged.** Detect `API Error: <code>` (and an empty model reply)
+   and report the job as `dispatch-failed` on its own status — never a pass, never a wording failure.
+   The vocabulary already exists in mango's own `provenance-unknown`.
+2. **`ledger-gate-complete` (`run.sh:1290`) is unfalsifiable** and must be re-written so its regex cannot
+   match its own name. This is the one true false-green in the suite.
+3. **The header should not be greppable.** `== fixture: <name> ==` is inside the file the assertions
+   grep, which is what makes a fixture's own name a matchable token. Writing it to a sidecar, or
+   stripping it before the assert pass, removes ~54 partial vacuities at the root rather than one at a
+   time.
+4. Optionally, retry a 529 once before recording the job — a transient host fault is not a result.
+
+**Decision after this batch: continue.** The batch is red on the host, not on mango; the seven 529'd
+fixtures need a re-run, and the three harness defects wait for a version of their own after the freeze
+lifts.
 
 ---
 
