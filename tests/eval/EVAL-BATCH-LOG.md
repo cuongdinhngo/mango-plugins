@@ -101,7 +101,7 @@ recur. What each of the ten is there to answer:
 | # | Batch | Jobs | Status | Date | fp ok | Pass/Fail | Wall | Fresh/Cached | Tokens | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | The unknowns | 10 | ✅ green | 2026-09-01 | ✅ | 111 / 0 | 5m01s | 10 / 0 | unmeasured | **stop-gate CLEARED** — the four Class-A assertions passed on a real transcript for the first time |
-| 2 | `refine` | ~12 | ⬜ not run | | | | | | | |
+| 2 | `refine` | 21 | ✅ green | 2026-09-01 | ✅ | 145 / 0 | 11m30s | 21 / 0 | unmeasured | 21, not the ~12 estimated — every refine-mapped fixture |
 | 3 | `analysis` | ~12 | ⬜ not run | | | | | | | |
 | 4 | `design` | ~13 | ⬜ not run | | | | | | | |
 | 5 | `execute` | ~12 | ⬜ not run | | | | | | | |
@@ -122,11 +122,12 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 1 / 10   (batch 1 — the stop-gate)
-Jobs run           : 10 / 126
-Tokens spent       : unmeasured (the host reports none; 10 dispatches, ~5 min at 8 workers)
-Estimated remaining: 116 jobs — but see the pre-flight finding: no batch writes cache,
-                     so the remaining work is one full 126-job pass, not 116 batched jobs
+Batches green      : 2 / 10   (1 — the stop-gate; 2 — refine)
+Jobs run           : 31 / 126  (10 + 21; no overlap — batch 2 excluded epic-scaffold-committed)
+Assertions passed  : 256 / 256 across both batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 31 dispatches, ~16.5 min at 8 workers)
+Estimated remaining: 95 jobs — but see the pre-flight finding: no batch writes cache, so the
+                     remaining work is still one full 126-job pass, not 95 batched jobs
 Run still valid    : yes — fingerprint unchanged at e23452eb…1da28
 ```
 
@@ -205,6 +206,45 @@ doc), and the eval-isolation guard's injected-leak control fired as it should.
 **Decision after this batch: continue — but not as ten batches.** The stop-gate is clear, so nothing
 remaining is unknown enough to justify paying twice. Per the pre-flight finding, the rest is one full
 126-job pass, which is also the only run that can mint the cache.
+
+---
+
+## Batch 2 — `refine` (phase 0)
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 12a10b1
+Selector used   : ^(check-lines-one-grammar|claim-retired-promoted|epic-exposure-checker|greenfield-full-run
+                  |premise-falsified|premise-to-be-created|recall-area-type5|recall-retired-skipped
+                  |recall-symbol-type1|recall-type2-handle|recall-type6-expiry|recall-zero-no-busywork
+                  |refine-acceptance-bar-is-want|refine-assumed-on-handback|refine-backstop-challenger
+                  |refine-classify-A-vs-B|refine-consistency-is-how|refine-direction-not-tool
+                  |refine-epic-detect-breakdown|refine-skip-clear-ticket|refine-want-unattended-stops)$
+Fixtures matched: 21 — verified dispatch-free BEFORE dispatching, against the full 126-job list
+Jobs run        : 21
+Result          : 145 pass / 0 fail   (421 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 683s dispatch / 690s total, 8 workers
+Fresh / cached  : 21 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+**Scope note — 21 jobs, not the ~12 the strategy estimated.** The batch is defined as every fixture
+mapping to `refine` in `FIXTURE_SKILLS`, derived from the map rather than from a name prefix: the eight
+`refine-*` fixtures, the six `recall-*` ones, both `premise-*`, `epic-exposure-checker`,
+`claim-retired-promoted`, `check-lines-one-grammar`, `greenfield-full-run`, and
+`refine-epic-detect-breakdown`. `epic-scaffold-committed` also maps to `refine` and was excluded — batch
+1 already ran it, and a partial run caches nothing, so re-running it would have bought nothing.
+
+Every one of the 21 had assertions attributed to its transcript — no fixture was dispatched without
+being judged. All 8 worker clones disposed, all 21 jobs started from the provisioned baseline, live
+checkout untouched.
+
+**Decision after this batch: continue.**
 
 ---
 
