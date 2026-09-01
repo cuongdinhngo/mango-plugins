@@ -100,7 +100,7 @@ recur. What each of the ten is there to answer:
 
 | # | Batch | Jobs | Status | Date | fp ok | Pass/Fail | Wall | Fresh/Cached | Tokens | Notes |
 |---|---|---|---|---|---|---|---|---|---|---|
-| 1 | The unknowns | ~10 | ⬜ not run | | | | | | | **stop-gate — if red, do not run batch 2** |
+| 1 | The unknowns | 10 | ✅ green | 2026-09-01 | ✅ | 111 / 0 | 5m01s | 10 / 0 | unmeasured | **stop-gate CLEARED** — the four Class-A assertions passed on a real transcript for the first time |
 | 2 | `refine` | ~12 | ⬜ not run | | | | | | | |
 | 3 | `analysis` | ~12 | ⬜ not run | | | | | | | |
 | 4 | `design` | ~13 | ⬜ not run | | | | | | | |
@@ -122,11 +122,12 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 0 / 10
-Jobs run           : 0 / 126
-Tokens spent       : 
-Estimated remaining: 
-Run still valid    : yes / VOID (fingerprint changed at batch __)
+Batches green      : 1 / 10   (batch 1 — the stop-gate)
+Jobs run           : 10 / 126
+Tokens spent       : unmeasured (the host reports none; 10 dispatches, ~5 min at 8 workers)
+Estimated remaining: 116 jobs — but see the pre-flight finding: no batch writes cache,
+                     so the remaining work is one full 126-job pass, not 116 batched jobs
+Run still valid    : yes — fingerprint unchanged at e23452eb…1da28
 ```
 
 ---
@@ -164,6 +165,46 @@ Tokens          :            ← or `unmeasured`
 - **environment** → fix it, and mark every earlier batch as suspect.
 
 **Decision after this batch:** continue / stop / restart — and why.
+
+---
+
+## Batch 1 — the unknowns (stop-gate)
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : ccc7e63
+Selector used   : ^(autorun-challenger-default-on|autorun-no-challenger-disclosed|epic-scaffold-committed
+                  |evidence-provenance-unknown|evidence-stale-tree-refused|greenfield-no-corpus-clean
+                  |greenfield-promote-zeros|no-reviewer-challenger-runs|promote-offers-retirement
+                  |stale-source-change)$
+Fixtures matched: 10  — verified dispatch-free BEFORE dispatching, against the full 126-job list
+Jobs run        : 10
+Result          : 111 pass / 0 fail   (455 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 294s dispatch / 301s total, 8 workers
+Fresh / cached  : 10 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+**What this batch settled — the reason it went first:**
+
+| Question | Answer |
+|---|---|
+| Do the four Class-A option-shaped assertions pass now that `--` reaches `grep`? | **Yes, all four**, on a real transcript for the first time since they shipped in 1.14.0 |
+| Do the four Class-B widenings hold on a fresh run? | **Yes** — `epic-scaffold-committed` 2/2, `stale-source-change` 3/3, `evidence-stale` question-answered negative, `promote-offers-retirement` 10/10 |
+| Is the thrice-widened promote/retire rationale token stable? | **Yes**, and the ORDER assertion added beside it in 1.14.1 passed again — 7/7 lifetime, still no miss |
+| Is the per-job `reset_sandbox` fix real, or proven at harness level only? | **Real.** `greenfield-promote-zeros` 6/6, with `job-isolation-guard` reporting all 10 jobs started from the provisioned baseline and both non-vacuity proofs green |
+
+All 8 worker clones disposed; the live checkout was untouched (HEAD on `main`, no stray branch, no work
+doc), and the eval-isolation guard's injected-leak control fired as it should.
+
+**Decision after this batch: continue — but not as ten batches.** The stop-gate is clear, so nothing
+remaining is unknown enough to justify paying twice. Per the pre-flight finding, the rest is one full
+126-job pass, which is also the only run that can mint the cache.
 
 ---
 
