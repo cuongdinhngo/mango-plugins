@@ -102,7 +102,7 @@ recur. What each of the ten is there to answer:
 |---|---|---|---|---|---|---|---|---|---|---|
 | 1 | The unknowns | 10 | ✅ green | 2026-09-01 | ✅ | 111 / 0 | 5m01s | 10 / 0 | unmeasured | **stop-gate CLEARED** — the four Class-A assertions passed on a real transcript for the first time |
 | 2 | `refine` | 21 | ✅ green | 2026-09-01 | ✅ | 145 / 0 | 11m30s | 21 / 0 | unmeasured | 21, not the ~12 estimated — every refine-mapped fixture |
-| 3 | `analysis` | ~12 | ⬜ not run | | | | | | | |
+| 3 | `analysis` | 13 | ✅ green | 2026-09-01 | ✅ | 102 / 0 | 6m07s | 13 / 0 | unmeasured | anchors load-bearing — unanchored `full` also matches `greenfield-full-run` |
 | 4 | `design` | ~13 | ⬜ not run | | | | | | | |
 | 5 | `execute` | ~12 | ⬜ not run | | | | | | | |
 | 6 | `review` + `challenger` | ~13 | ⬜ not run | | | | | | | |
@@ -122,12 +122,12 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 2 / 10   (1 — the stop-gate; 2 — refine)
-Jobs run           : 31 / 126  (10 + 21; no overlap — batch 2 excluded epic-scaffold-committed)
-Assertions passed  : 256 / 256 across both batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 31 dispatches, ~16.5 min at 8 workers)
-Estimated remaining: 95 jobs — but see the pre-flight finding: no batch writes cache, so the
-                     remaining work is still one full 126-job pass, not 95 batched jobs
+Batches green      : 3 / 10   (1 — the stop-gate; 2 — refine; 3 — analysis)
+Jobs run           : 44 / 126  (10 + 21 + 13; no overlap between batches)
+Assertions passed  : 358 / 358 across three batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 44 dispatches, ~23 min at 8 workers)
+Estimated remaining: 82 jobs — but see the pre-flight finding: no batch writes cache, so the
+                     remaining work is still one full 126-job pass, not 82 batched jobs
 Run still valid    : yes — fingerprint unchanged at e23452eb…1da28
 ```
 
@@ -243,6 +243,44 @@ mapping to `refine` in `FIXTURE_SKILLS`, derived from the map rather than from a
 Every one of the 21 had assertions attributed to its transcript — no fixture was dispatched without
 being judged. All 8 worker clones disposed, all 21 jobs started from the provisioned baseline, live
 checkout untouched.
+
+**Decision after this batch: continue.**
+
+---
+
+## Batch 3 — `analysis` (Gate 1)
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 3c6a5e8
+Selector used   : ^(analysis-section-coverage|freeform|full|greenfield-recall-handles-none-match|lite
+                  |multi-clause-want|red-baseline|rule-section-by-handle|rule-section-handle-na-closes
+                  |rule-section-handle-unanswered|rule-section-provisional-no-block
+                  |uncodified-standard-nudge|vague-requirement)$
+Fixtures matched: 13 — verified dispatch-free BEFORE dispatching, against the full 126-job list
+Jobs run        : 13
+Result          : 102 pass / 0 fail   (464 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 360s dispatch / 367s total, 8 workers
+Fresh / cached  : 13 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+**The anchors earned their keep here.** Three of these fixtures are named `full`, `lite` and `freeform` —
+bare words. Unanchored, `full` also matches `greenfield-full-run` (already run in batch 2), so the
+`^(…)$` form is what keeps the batches non-overlapping rather than merely approximately so.
+`greenfield-full-run` maps to `refine analysis` and was counted under batch 2.
+
+`red-baseline` carries a per-job `test_command` override, and both `harness-parameterisation` self-tests
+passed alongside it — the green default and the per-job override each land in `test_command`, so a
+deliberately red baseline was judged against the command it is supposed to run.
+
+All 13 had assertions attributed to their transcript. All 8 worker clones disposed, all 13 jobs started
+from the provisioned baseline, live checkout untouched.
 
 **Decision after this batch: continue.**
 
