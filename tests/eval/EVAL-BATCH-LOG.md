@@ -109,7 +109,7 @@ recur. What each of the ten is there to answer:
 | 6 | `review` + `challenger` | 11 | ✅ green | 2026-09-01 | ✅ | 90 / 0 | 4m11s | 11 / 0 | unmeasured | 6 of the 17 review-mapped fixtures were already paid for by batches 1, 4 and 5 |
 | 7 | `finalise` + learning loop | 21 | ✅ green | 2026-09-01 | ✅ | 142 / 0 | 4m53s | 21 / 0 | unmeasured | includes the `solve` cost-ledger fixtures; run survived a repo path rename |
 | 8 | `autorun` + contract + reconcile | 7 | ✅ green | 2026-09-01 | ✅ | 104 / 0 | 15m13s | 7 / 0 | unmeasured | slowest batch — autorun is the heaviest scheduler weight |
-| 9 | `promote` + `codify` + `breakdown` | ~13 | ⬜ not run | | | | | | | |
+| 9 | `promote` + `codify` + `breakdown` | 8 | ✅ green | 2026-09-01 | ✅ | 86 / 0 | 5m54s | 8 / 0 | unmeasured | cross-ticket paths; 5 of the 13 mapped were already paid for |
 | 10 | supporting skills + greenfield controls | ~13 | ⬜ not run | | | | | | | |
 | — | **Final pass** (whole suite, expect all cached) | 126 | ⬜ not run | | | | | | | proves green *together*, not in ten fragments |
 
@@ -123,17 +123,16 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 8 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute;
-                     6 review; 7 finalise + learning loop; 8 autorun)
-Fixtures proven    : 104 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
-Jobs proven green  : 104 / 126
-Dispatches spent   : 121  (10+21+13+17 red+17 re-run+4+11+21+7) — 17 paid twice, to a 529
-Assertions passed  : 878 / 878 across the eight green batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 121 dispatches, ~66 min)
-Estimated remaining: 22 jobs (15 fixtures + 7 scenarios) — but no batch writes cache, so the
-                     remaining work is still one full 126-job pass
+Batches green      : 9 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute;
+                     6 review; 7 finalise + learning loop; 8 autorun; 9 promote/codify/breakdown)
+Fixtures proven    : 112 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
+Jobs proven green  : 112 / 126
+Dispatches spent   : 129  (10+21+13+17 red+17 re-run+4+11+21+7+8) — 17 paid twice, to a 529
+Assertions passed  : 964 / 964 across the nine green batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 129 dispatches, ~72 min)
+Remaining          : batch 10 = 14 jobs — 7 fixtures + all 7 scenarios.  112 + 14 = 126 exactly.
 Run still valid    : yes — fingerprint unchanged at e23452eb…1da28 across a repo path rename.
-                     Batches 1-3 validated by the vacuity audit; 4↻ through 8 swept for API Error.
+                     Batches 1-3 validated by the vacuity audit; 4↻ through 9 swept for API Error.
 ```
 
 ---
@@ -589,6 +588,45 @@ of batches 1–8 alike, so the strategy's expectation that batch 8 would be low-
 reason it predicted — the envelope's guarantees do not depend on a dispatch.
 
 **Decision after this batch: continue to batch 9 (`promote` + `codify` + `breakdown`).**
+
+---
+
+## Batch 9 — `promote` + `codify` + `breakdown` (the cross-ticket paths)
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : d970788
+Selector used   : ^(breakdown-invest-enumerated|breakdown-reratify|codify-drift-count
+                  |epic-lesson-capture|invest-force-resplit|promote-idempotent
+                  |promote-single-lesson-noop|promote-two-lessons-one-rule)$
+Fixtures matched: 8 — verified dispatch-free BEFORE dispatching
+Jobs run        : 8
+Result          : 86 pass / 0 fail   (480 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 347s dispatch / 354s total, 8 workers
+Fresh / cached  : 8 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none. Five of the 13 fixtures mapping to `promote`, `codify` or `breakdown` were already
+proven — `epic-scaffold-committed` and `promote-offers-retirement` in batch 1,
+`greenfield-promote-zeros` in batch 1, `refine-epic-detect-breakdown` in batch 2 and
+`promotion-rulebook-wiring` in batch 7 — so 8 dispatches closed all three skills.
+
+**No-run check:** no `API Error` in any of the 8 transcripts; sizes 2.2–4.8 KB, each with assertions
+attributed (3–6 per fixture).
+
+**The remaining work is now exactly determined.** 112 jobs proven, and batch 10 holds the last 14: the
+7 supporting-skill fixtures (`budget-rtk-wire-guidance`, `optimizer-adoption-gated`, `rtk-degrade`,
+`greenfield-quick-direct`, `quick-direct-recall`, `host-context-file-default`, `host-context-file-agents`)
+plus **all 7 scenarios**, none of which has run this cycle. 112 + 14 = 126.
+
+Two mapped skills still have no behavioural fixture at all — `db-map` and `version-check` — unchanged
+since 1.14.1 and to be carried into the closing entry, not into batch 10.
+
+**Decision after this batch: continue to batch 10 — the last one.**
 
 ---
 
