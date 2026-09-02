@@ -107,7 +107,7 @@ recur. What each of the ten is there to answer:
 | 4↻ | `design` — re-run | 17 | ✅ green | 2026-09-01 | ✅ | 118 / 0 | 6m01s | 17 / 0 | unmeasured | all 17 dispatched for real; `API Error` sweep clean |
 | 5 | `execute` | 4 | ✅ green | 2026-09-01 | ✅ | 66 / 0 | 4m40s | 4 / 0 | unmeasured | only 4 new — `per-clause` and `evidence-stale-tree-refused` came with batches 4 and 1 |
 | 6 | `review` + `challenger` | 11 | ✅ green | 2026-09-01 | ✅ | 90 / 0 | 4m11s | 11 / 0 | unmeasured | 6 of the 17 review-mapped fixtures were already paid for by batches 1, 4 and 5 |
-| 7 | `finalise` + learning loop | ~13 | ⬜ not run | | | | | | | |
+| 7 | `finalise` + learning loop | 21 | ✅ green | 2026-09-01 | ✅ | 142 / 0 | 4m53s | 21 / 0 | unmeasured | includes the `solve` cost-ledger fixtures; run survived a repo path rename |
 | 8 | `autorun` + contract + reconcile | ~13 | ⬜ not run | | | | | | | |
 | 9 | `promote` + `codify` + `breakdown` | ~13 | ⬜ not run | | | | | | | |
 | 10 | supporting skills + greenfield controls | ~13 | ⬜ not run | | | | | | | |
@@ -123,16 +123,17 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 6 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute; 6 review)
-Fixtures proven    : 76 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
-Jobs proven green  : 76 / 126
-Dispatches spent   : 93  (10 + 21 + 13 + 17 red + 17 re-run + 4 + 11) — 17 paid twice, to a 529
-Assertions passed  : 632 / 632 across the six green batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 93 dispatches, ~46 min)
-Estimated remaining: 43 jobs (36 fixtures + 7 scenarios) — but no batch writes cache, so the
+Batches green      : 7 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute;
+                     6 review; 7 finalise + learning loop)
+Fixtures proven    : 97 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
+Jobs proven green  : 97 / 126
+Dispatches spent   : 114  (10+21+13+17 red+17 re-run+4+11+21) — 17 paid twice, to a 529
+Assertions passed  : 774 / 774 across the seven green batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 114 dispatches, ~51 min)
+Estimated remaining: 29 jobs (22 fixtures + 7 scenarios) — but no batch writes cache, so the
                      remaining work is still one full 126-job pass
-Run still valid    : yes — fingerprint unchanged at e23452eb…1da28. Batches 1-3 validated by the
-                     vacuity audit; batches 4↻, 5 and 6 swept for API Error, none found.
+Run still valid    : yes — fingerprint unchanged at e23452eb…1da28 across a repo path rename.
+                     Batches 1-3 validated by the vacuity audit; 4↻ through 7 swept for API Error.
 ```
 
 ---
@@ -501,6 +502,54 @@ dispatch the live checkout is on `main` at `9752102`, clean, with no stray branc
 assertions passed, including the three non-vacuity controls.
 
 **Decision after this batch: continue to batch 7 (`finalise` + the learning loop).**
+
+---
+
+## Batch 7 — `finalise` + the learning loop + the cost ledger
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 574d208
+Repo path       : /home/cuong-ngo/WORKSPACE/PROJECTS/mango-plugins   ← renamed mid-run, see below
+Fixtures matched: 21 — verified dispatch-free BEFORE dispatching
+Jobs run        : 21
+Result          : 142 pass / 0 fail   (424 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 285s dispatch / 293s total, 8 workers
+Fresh / cached  : 21 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none. Covers both the `finalise`-mapped fixtures and the four `solve`-mapped cost-ledger
+ones (`ledger-auto-append`, `ledger-label`, `usage-unmeasured-marker`, `workdoc-solve-autopath`); only
+`stale-source-change` was already paid for, in batch 1.
+
+**The anchors were load-bearing in an unusually sharp way.** Four job names are prefixes of others:
+`ledger-gate` / `ledger-gate-complete`, and `ledger-content-gate` / `ledger-content-gate-marker`. In
+both pairs the longer name is a **scenario**, with no `FIXTURE_SKILLS` entry, so an unanchored selector
+would have dispatched two scenarios this batch had no business running — one of which,
+`ledger-gate-complete`, is the single unfalsifiable assertion the vacuity audit found. It remains unrun.
+
+**No-run check:** no `API Error` in any of the 21 transcripts, and all 21 carry real artifacts (a
+ledger, a `CLAIMS:` line, a lesson record, a counted gate). Transcripts here run 1.7–7.6 KB — smaller
+than the 5.1 KB the 529'd jobs produced, because those 5.1 KB were almost entirely host permission
+warnings and these are actual short answers. **Size is not the discriminator; the `API Error` sweep and
+the artifact check are.**
+
+87 of the 142 passes are attributed to the 21 fixtures; the other 55 are the dispatch-free self-tests
+(assertion-convention, validator guards, the envelope suite, cache, harness parameterisation, isolation).
+
+### The repository was renamed during this batch
+
+Between batch 6 and batch 7 the parent directory changed case — `WORKSPACE/Projects` →
+`WORKSPACE/PROJECTS` — and the shell lost its working directory mid-command. Verified before dispatching
+anything: clean tree, HEAD `574d208`, all eight batch commits present, batch log intact, and **the
+`run.sh` fingerprint unchanged**. The fingerprint is the run's identity, not the path, so **the run
+remains valid** and batches 1–6 still stand. `CLAUDE.md` and the session config still name the old path.
+
+**Decision after this batch: continue to batch 8 (`autorun` + contract + reconcile).**
 
 ---
 
