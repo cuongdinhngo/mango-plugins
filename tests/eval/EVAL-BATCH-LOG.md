@@ -1035,9 +1035,56 @@ now proven on real output, with no `API Error` in any transcript.
 
 Coverage after batch 4: **60 of 126 jobs**.
 
+## Batch 5 ↻ — `execute` (phase 3), re-run under the new ruler — ✅ GREEN
+
+Four fixtures, one part — the derived set matched the recorded selector exactly.
+
+```
+Date            : 2026-09-02
+git status      : clean
+HEAD SHA        : c6f298d
+Selector used   : ^(behavioural-drift|execute-commit-before-review|format-scope|no-runner-proof)$
+Result          : 82 pass / 0 fail — 218s dispatch / 226s total, 8 workers
+Fresh / cached  : 4 / 0
+Coverage        : 4/4 judged green · 4 ledger rows · 4 cache entries minted
+Run id          : 20260902T144313Z-454824
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+**The isolation guards were read, not assumed — this is the batch that branches and commits.** All
+three fired their non-vacuity controls and then passed: the live checkout untouched (HEAD on `main`, no
+stray `PROJ-*` branch, no work doc), all 4 per-worker clones disposed, all 4 jobs started from the
+provisioned baseline. Live tree confirmed at `c6f298d` on `main`, clean, before and after.
+
+Coverage after batch 5: **64 of 126 jobs**.
+
+## Paused here
+
+Work paused by request after batch 5. Batches 6–10 remain, under this same fingerprint
+`82580ae5a827`. What is left, derived from `FIXTURE_SKILLS` minus the green ledger rows —
+**55 fixtures + 7 scenarios = 62 jobs**:
+
+| Skill group | Left | Note |
+|---|---|---|
+| `finalise` (+`codify`) | 17 | the largest remaining group; needs 2–3 parts |
+| `review` | 11 | batch 6, has a recorded selector |
+| `autorun` | 7 | batch 8, has a recorded selector |
+| `breakdown` | 4 | batch 9 |
+| `budget` | 3 | `budget-rtk-wire-guidance` here — its green was wiped by the v1.15.0 FP change |
+| `promote` | 3 | batch 9 |
+| `solve`/`solve finalise` | 4 | batch 7 |
+| `quick`, `init doctor`, `codify` | 5 | batch 10 territory |
+| `refine` | 1 | `refine-consistency-is-how` — R1, stays red by design this pass |
+| scenarios | 7 | **foreground, split** — the background attempt was stopped host-side |
+
+Timing rule learned this pass: this cycle runs ≈1.55× slower than the previous one, so any batch whose
+predecessor took over ~380s must be split to stay under the 600s tool ceiling. Splitting is free.
+
 ## Next
 
-Batches 5–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
+Batches 6–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
 (7 fixtures + 7 scenarios): its one background attempt was stopped host-side 3.5s after launch having
 judged zero assertions. Batch 10 also has no recorded `Selector used` line, so its selector has to be
 rebuilt and verified dispatch-free like any other. Expect to split most batches on the 600s timeout.
