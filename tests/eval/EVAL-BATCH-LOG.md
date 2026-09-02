@@ -105,7 +105,7 @@ recur. What each of the ten is there to answer:
 | 3 | `analysis` | 13 | ✅ green | 2026-09-01 | ✅ | 102 / 0 | 6m07s | 13 / 0 | unmeasured | anchors load-bearing — unanchored `full` also matches `greenfield-full-run` |
 | 4 | `design` | 17 | 🔴 red (environment) | 2026-09-01 | ✅ | 96 / 22 | 6m48s | 17 / 0 | unmeasured | 7 fixtures hit `API Error: 529`; the other 10 green. **No behavioural finding.** |
 | 4↻ | `design` — re-run | 17 | ✅ green | 2026-09-01 | ✅ | 118 / 0 | 6m01s | 17 / 0 | unmeasured | all 17 dispatched for real; `API Error` sweep clean |
-| 5 | `execute` | ~12 | ⬜ not run | | | | | | | |
+| 5 | `execute` | 4 | ✅ green | 2026-09-01 | ✅ | 66 / 0 | 4m40s | 4 / 0 | unmeasured | only 4 new — `per-clause` and `evidence-stale-tree-refused` came with batches 4 and 1 |
 | 6 | `review` + `challenger` | ~13 | ⬜ not run | | | | | | | |
 | 7 | `finalise` + learning loop | ~13 | ⬜ not run | | | | | | | |
 | 8 | `autorun` + contract + reconcile | ~13 | ⬜ not run | | | | | | | |
@@ -123,16 +123,16 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 4 / 10   (1 — stop-gate; 2 — refine; 3 — analysis; 4 — design, on re-run)
-Fixtures proven    : 61 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
-Jobs proven green  : 61 / 126
-Dispatches spent   : 78  (10 + 21 + 13 + 17 red + 17 re-run) — 17 of them paid twice, to a 529
-Assertions passed  : 476 / 476 across the four green batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 78 dispatches, ~37 min at 8 workers)
-Estimated remaining: 58 jobs (51 fixtures + 7 scenarios) — but no batch writes cache, so the
+Batches green      : 5 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute)
+Fixtures proven    : 65 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
+Jobs proven green  : 65 / 126
+Dispatches spent   : 82  (10 + 21 + 13 + 17 red + 17 re-run + 4) — 17 of them paid twice, to a 529
+Assertions passed  : 542 / 542 across the five green batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 82 dispatches, ~42 min)
+Estimated remaining: 54 jobs (47 fixtures + 7 scenarios) — but no batch writes cache, so the
                      remaining work is still one full 126-job pass
 Run still valid    : yes — fingerprint unchanged at e23452eb…1da28. Batches 1-3 validated by the
-                     vacuity audit; batch 4 re-proved on fresh transcripts with no API error.
+                     vacuity audit; batches 4↻ and 5 swept for API Error, none found.
 ```
 
 ---
@@ -426,6 +426,43 @@ item 3 of the deferred list.
 
 **Decision after this batch: continue to batch 5 (`execute`).** The four deferred `run.sh` fixes stand
 unapplied; the freeze holds.
+
+---
+
+## Batch 5 — `execute` (phase 3)
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 699f0c0
+Selector used   : ^(behavioural-drift|execute-commit-before-review|format-scope|no-runner-proof)$
+Fixtures matched: 4 — verified dispatch-free BEFORE dispatching
+Jobs run        : 4    (4 workers — one per job)
+Result          : 66 pass / 0 fail   (500 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 273s dispatch / 280s total
+Fresh / cached  : 4 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+**Only four jobs, and that is correct.** `execute` maps six fixtures, but `per-clause` (design execute)
+ran in batch 4 and `evidence-stale-tree-refused` (review execute) ran in batch 1. Deriving from
+`FIXTURE_SKILLS` rather than from the strategy's ~12 estimate is what keeps a fixture from being paid
+for twice — the opposite error to the one that cost 17 dispatches on the 529.
+
+**No-run check applied, as it now is to every batch:** no `API Error` in any of the four transcripts,
+sizes 6.6–8.1 KB, and all four carry real execute artifacts (change list, proving test, verification
+sweep, branch/commit).
+
+**These are the fixtures that branch and commit, so isolation was checked directly, not just asserted.**
+The live checkout after dispatch: HEAD on `main` at `699f0c0`, `git status` clean, no stray `PROJ-*`
+branch, all 4 worker clones disposed, all 4 jobs started from the provisioned baseline — and both
+non-vacuity controls (injected leak, undisposed tree) fired as they should.
+
+**Decision after this batch: continue to batch 6 (`review` + `challenger`).**
 
 ---
 
