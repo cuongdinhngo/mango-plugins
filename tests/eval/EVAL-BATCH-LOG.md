@@ -983,9 +983,32 @@ Each fix must ship with its paired `selftest_assertion` — a `good` transcript 
 wording and a `bad` one that actually asked the question, so the widened token still misses wrong
 behaviour.
 
+## Batch 3 ↻ — `analysis` (Gate 1), re-run under the new ruler — ✅ GREEN
+
+Split in two on the timeout: the original 360s projected to ~558s at batch 1's observed 1.55× slowdown,
+too close to the 600s ceiling to risk. Partition verified exact (union 13, `diff` empty).
+
+```
+Date            : 2026-09-02
+git status      : clean
+HEAD SHA        : 1fd64bf
+Selector verified: 13 named · 13 present · 13 matched · 0 absent · 0 unnamed · 0 already-green
+Part A (9 fixtures) : 103 pass / 0 fail — 341s dispatch / 350s total · 9/9 green · 9 minted
+Part B (4 fixtures) :  86 pass / 0 fail — 352s dispatch / 360s total · 4/4 green · 4 minted
+Fresh / cached  : 13 / 0
+Coverage        : 13/13 judged green · 13 ledger rows · 13 cache entries minted
+Run ids         : 20260902T141815Z-419585 · 20260902T142412Z-425863
+Tokens          : unmeasured
+```
+
+**Failures:** none. The Gate-1 fixtures include the four `rule-section-*` handle paths and the two
+happy-path runs (`full`, `lite`, `freeform`), all judged on header-stripped text.
+
+Coverage after batch 3: **43 of 126 jobs**.
+
 ## Next
 
-Batches 3–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
+Batches 4–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
 (7 fixtures + 7 scenarios): its one background attempt was stopped host-side 3.5s after launch having
 judged zero assertions. Batch 10 also has no recorded `Selector used` line, so its selector has to be
 rebuilt and verified dispatch-free like any other. Expect to split most batches on the 600s timeout.
