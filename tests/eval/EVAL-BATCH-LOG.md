@@ -106,7 +106,7 @@ recur. What each of the ten is there to answer:
 | 4 | `design` | 17 | 🔴 red (environment) | 2026-09-01 | ✅ | 96 / 22 | 6m48s | 17 / 0 | unmeasured | 7 fixtures hit `API Error: 529`; the other 10 green. **No behavioural finding.** |
 | 4↻ | `design` — re-run | 17 | ✅ green | 2026-09-01 | ✅ | 118 / 0 | 6m01s | 17 / 0 | unmeasured | all 17 dispatched for real; `API Error` sweep clean |
 | 5 | `execute` | 4 | ✅ green | 2026-09-01 | ✅ | 66 / 0 | 4m40s | 4 / 0 | unmeasured | only 4 new — `per-clause` and `evidence-stale-tree-refused` came with batches 4 and 1 |
-| 6 | `review` + `challenger` | ~13 | ⬜ not run | | | | | | | |
+| 6 | `review` + `challenger` | 11 | ✅ green | 2026-09-01 | ✅ | 90 / 0 | 4m11s | 11 / 0 | unmeasured | 6 of the 17 review-mapped fixtures were already paid for by batches 1, 4 and 5 |
 | 7 | `finalise` + learning loop | ~13 | ⬜ not run | | | | | | | |
 | 8 | `autorun` + contract + reconcile | ~13 | ⬜ not run | | | | | | | |
 | 9 | `promote` + `codify` + `breakdown` | ~13 | ⬜ not run | | | | | | | |
@@ -123,16 +123,16 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 5 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute)
-Fixtures proven    : 65 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
-Jobs proven green  : 65 / 126
-Dispatches spent   : 82  (10 + 21 + 13 + 17 red + 17 re-run + 4) — 17 of them paid twice, to a 529
-Assertions passed  : 542 / 542 across the five green batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 82 dispatches, ~42 min)
-Estimated remaining: 54 jobs (47 fixtures + 7 scenarios) — but no batch writes cache, so the
+Batches green      : 6 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute; 6 review)
+Fixtures proven    : 76 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
+Jobs proven green  : 76 / 126
+Dispatches spent   : 93  (10 + 21 + 13 + 17 red + 17 re-run + 4 + 11) — 17 paid twice, to a 529
+Assertions passed  : 632 / 632 across the six green batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 93 dispatches, ~46 min)
+Estimated remaining: 43 jobs (36 fixtures + 7 scenarios) — but no batch writes cache, so the
                      remaining work is still one full 126-job pass
 Run still valid    : yes — fingerprint unchanged at e23452eb…1da28. Batches 1-3 validated by the
-                     vacuity audit; batches 4↻ and 5 swept for API Error, none found.
+                     vacuity audit; batches 4↻, 5 and 6 swept for API Error, none found.
 ```
 
 ---
@@ -463,6 +463,44 @@ branch, all 4 worker clones disposed, all 4 jobs started from the provisioned ba
 non-vacuity controls (injected leak, undisposed tree) fired as they should.
 
 **Decision after this batch: continue to batch 6 (`review` + `challenger`).**
+
+---
+
+## Batch 6 — `review` + `challenger` (phase 4, the two critics)
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 9752102
+Selector used   : ^(caveman-critic-guard|challenger-pr-body-refused|challenger-unmet|conditional-LGTM
+                  |ondemand-read-no-plugin-root|review-git-isolation|rubric-hover
+                  |verify-only-bookkeeping-carveout|verify-only-main-loop|verify-only-scoped
+                  |worktree-env-fault)$
+Fixtures matched: 11 — verified dispatch-free BEFORE dispatching
+Jobs run        : 11
+Result          : 90 pass / 0 fail   (476 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 244s dispatch / 251s total, 8 workers
+Fresh / cached  : 11 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+`review` maps 17 fixtures; 6 of them — the two `evidence-*`, `no-reviewer-challenger-runs`, both
+`autorun-*challenger*`, and `execute-commit-before-review` — were already proven by batches 1, 4 and 5,
+so 11 dispatches covered the phase. The anchors matter again here: unanchored, `verify-only` alone would
+have collapsed three distinct fixtures into one pattern.
+
+**No-run check:** no `API Error` in any of the 11 transcripts; sizes 6.3–12.5 KB; all 11 carry real
+review artifacts (a verdict — `BLOCK` / `CHANGES REQUESTED` / `LGTM` — or a named finding).
+
+**Isolation:** `review-git-isolation` and `worktree-env-fault` exercise git state directly. After
+dispatch the live checkout is on `main` at `9752102`, clean, with no stray branch; all 7 isolation
+assertions passed, including the three non-vacuity controls.
+
+**Decision after this batch: continue to batch 7 (`finalise` + the learning loop).**
 
 ---
 
