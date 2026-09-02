@@ -1006,9 +1006,38 @@ happy-path runs (`full`, `lite`, `freeform`), all judged on header-stripped text
 
 Coverage after batch 3: **43 of 126 jobs**.
 
+## Batch 4 ↻ — `design` (Gate 2), re-run under the new ruler — ✅ GREEN
+
+**Selector rebuilt, not copied.** Batch 4 is the one batch with no recorded `Selector used` line, so the
+fixture set was derived from `FIXTURE_SKILLS` in `run.sh` — the authoritative map — as every fixture
+mapping to `design`: 18 mapped, 1 already green from an earlier batch, **17 to run**, which is exactly
+the count the original batch 4 recorded. Split in two on the timeout (353s × 1.55 ≈ 547s, too close to
+600s); partition verified exact and every name confirmed present on disk.
+
+```
+Date            : 2026-09-02
+git status      : clean
+HEAD SHA        : (batch 3 record)
+Selector source : FIXTURE_SKILLS, skill = design, minus already-green
+Part A (9 fixtures) : 103 pass / 0 fail — 355s dispatch / 363s total · 9/9 green · 9 minted
+Part B (8 fixtures) : 102 pass / 0 fail — 290s dispatch / 298s total · 8/8 green · 8 minted
+Fresh / cached  : 17 / 0
+Coverage        : 17/17 judged green · 17 ledger rows · 17 cache entries minted
+Run ids         : 20260902T143116Z-430758 · 20260902T143725Z-443440
+Tokens          : unmeasured
+```
+
+**Failures:** none — and this is the batch that mattered most. The original batch 4 went red on
+`API Error: 529`: **seven fixtures never ran**, and three assertions passed anyway on the harness's own
+header text. Under this version those seven would have failed loudly (Fix 1: a transcript carrying an
+API error is not judgeable) and the three could not have matched the header at all (Fix 3). All 17 are
+now proven on real output, with no `API Error` in any transcript.
+
+Coverage after batch 4: **60 of 126 jobs**.
+
 ## Next
 
-Batches 4–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
+Batches 5–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
 (7 fixtures + 7 scenarios): its one background attempt was stopped host-side 3.5s after launch having
 judged zero assertions. Batch 10 also has no recorded `Selector used` line, so its selector has to be
 rebuilt and verified dispatch-free like any other. Expect to split most batches on the 600s timeout.
