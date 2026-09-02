@@ -108,7 +108,7 @@ recur. What each of the ten is there to answer:
 | 5 | `execute` | 4 | ✅ green | 2026-09-01 | ✅ | 66 / 0 | 4m40s | 4 / 0 | unmeasured | only 4 new — `per-clause` and `evidence-stale-tree-refused` came with batches 4 and 1 |
 | 6 | `review` + `challenger` | 11 | ✅ green | 2026-09-01 | ✅ | 90 / 0 | 4m11s | 11 / 0 | unmeasured | 6 of the 17 review-mapped fixtures were already paid for by batches 1, 4 and 5 |
 | 7 | `finalise` + learning loop | 21 | ✅ green | 2026-09-01 | ✅ | 142 / 0 | 4m53s | 21 / 0 | unmeasured | includes the `solve` cost-ledger fixtures; run survived a repo path rename |
-| 8 | `autorun` + contract + reconcile | ~13 | ⬜ not run | | | | | | | |
+| 8 | `autorun` + contract + reconcile | 7 | ✅ green | 2026-09-01 | ✅ | 104 / 0 | 15m13s | 7 / 0 | unmeasured | slowest batch — autorun is the heaviest scheduler weight |
 | 9 | `promote` + `codify` + `breakdown` | ~13 | ⬜ not run | | | | | | | |
 | 10 | supporting skills + greenfield controls | ~13 | ⬜ not run | | | | | | | |
 | — | **Final pass** (whole suite, expect all cached) | 126 | ⬜ not run | | | | | | | proves green *together*, not in ten fragments |
@@ -123,17 +123,17 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 7 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute;
-                     6 review; 7 finalise + learning loop)
-Fixtures proven    : 97 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
-Jobs proven green  : 97 / 126
-Dispatches spent   : 114  (10+21+13+17 red+17 re-run+4+11+21) — 17 paid twice, to a 529
-Assertions passed  : 774 / 774 across the seven green batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 114 dispatches, ~51 min)
-Estimated remaining: 29 jobs (22 fixtures + 7 scenarios) — but no batch writes cache, so the
+Batches green      : 8 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute;
+                     6 review; 7 finalise + learning loop; 8 autorun)
+Fixtures proven    : 104 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
+Jobs proven green  : 104 / 126
+Dispatches spent   : 121  (10+21+13+17 red+17 re-run+4+11+21+7) — 17 paid twice, to a 529
+Assertions passed  : 878 / 878 across the eight green batches, 0 failures
+Tokens spent       : unmeasured (the host reports none; 121 dispatches, ~66 min)
+Estimated remaining: 22 jobs (15 fixtures + 7 scenarios) — but no batch writes cache, so the
                      remaining work is still one full 126-job pass
 Run still valid    : yes — fingerprint unchanged at e23452eb…1da28 across a repo path rename.
-                     Batches 1-3 validated by the vacuity audit; 4↻ through 7 swept for API Error.
+                     Batches 1-3 validated by the vacuity audit; 4↻ through 8 swept for API Error.
 ```
 
 ---
@@ -550,6 +550,45 @@ anything: clean tree, HEAD `574d208`, all eight batch commits present, batch log
 remains valid** and batches 1–6 still stand. `CLAUDE.md` and the session config still name the old path.
 
 **Decision after this batch: continue to batch 8 (`autorun` + contract + reconcile).**
+
+---
+
+## Batch 8 — `autorun` + RUN CONTRACT + RECONCILE
+
+```
+Date            : 2026-09-01
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 1f4ae27
+Selector used   : ^(autorun-budget-degrades|autorun-clarification-stops|autorun-gate-grammar-mismatch
+                  |check-lines-contradiction-blocks|check-lines-not-checkable|greenfield-autorun-clean
+                  |greenfield-check-lines-clean)$
+Fixtures matched: 7 — verified dispatch-free BEFORE dispatching
+Jobs run        : 7    (7 workers — one per job)
+Result          : 104 pass / 0 fail   (462 assertions skipped — PARTIAL, no cache written)
+Wall clock      : 906s dispatch / 913s total
+Fresh / cached  : 7 / 0
+Tokens          : unmeasured
+```
+
+**Failures:** none. Six of the 13 `autorun`-mapped fixtures were already proven by batches 1, 2, 4 and
+6, so 7 dispatches closed the phase.
+
+**The slowest batch of the run — 15m13s for 7 jobs, against 4m53s for 21 in batch 7.** That is the
+expected shape, not an anomaly: `SKILL_WEIGHT` gives `autorun` the top weight of 4, and these fixtures
+drive a whole unattended lifecycle. `greenfield-autorun-clean` alone produced a 14.4 KB transcript
+carrying 11 assertions, and `autorun-budget-degrades` 11.8 KB carrying 10.
+
+**No-run check:** no `API Error` in any of the 7 transcripts; all 7 carry real envelope artifacts (a
+`RUN CONTRACT`, a `RECONCILE`, a `DISCLOSURE` line, or a counted `CHECK`/`GATES:` line).
+
+**The envelope itself was already covered, dispatch-free, in every batch of this run.** The RUN CONTRACT
+/ RECONCILE / BUDGET scripts are script-enforced: the envelope suite's **128 tests** ran green as part
+of batches 1–8 alike, so the strategy's expectation that batch 8 would be low-surprise held for the
+reason it predicted — the envelope's guarantees do not depend on a dispatch.
+
+**Decision after this batch: continue to batch 9 (`promote` + `codify` + `breakdown`).**
 
 ---
 
