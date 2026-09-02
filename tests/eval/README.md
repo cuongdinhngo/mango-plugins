@@ -34,6 +34,31 @@ checkout; everything is torn down on exit.
 > which is a real ticket's default — so the check is still exercised both ways: it fires and halts on a
 > missing named identifier, and stays silent on a to-be-created path.
 
+## Where a run's results live
+
+Four files, one job each. Nothing is appended to a file whose job is to be current.
+
+| File | Job | Update pattern |
+|---|---|---|
+| [`EVAL-STATUS.md`](./EVAL-STATUS.md) | the **current** cycle — what is green, what is red, what runs next | rewritten in place |
+| [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md) | permanent findings and the rules they produced | appended, rarely |
+| [`EVAL-ARCHIVE.md`](./EVAL-ARCHIVE.md) | superseded cycles, verbatim | appended once per cycle close |
+| [`EVAL-PROFILE.md`](./EVAL-PROFILE.md) | per-fixture cost/latency profile | appended |
+
+The **authority** is none of them: it is `.cache/coverage.<runner-fp>.tsv`, one machine-readable row per
+job per run carrying the job's skills-hash and all four ruler components. A markdown file cannot be
+asked whether a job was missed, which is why status is **read** rather than typed:
+
+```
+bash tests/eval/coverage-report.sh              # dashboard: green / red / stale / ruler uniformity
+bash tests/eval/coverage-report.sh --remaining  # bare list of fixtures with no green row
+bash tests/eval/coverage-report.sh --md         # a markdown table to paste into EVAL-STATUS.md
+```
+
+`coverage-report.sh` dispatches nothing, writes nothing, and **is not the gate** — it says so in its own
+output. The gate is `run.sh --verify-suite`, which holds the ledger against the suite's own registered
+job list and re-checks every hash. Only its output may be cited as evidence the suite passes.
+
 ## Parallel dispatch (where the wall-time went)
 
 A full instrumented run measured the suite at **100% `claude -p` latency**: harness overhead (clone,
