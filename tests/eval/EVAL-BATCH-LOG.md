@@ -910,12 +910,84 @@ for once. The run row vouches for the harness itself: `selftests=71, selftest_fa
 Live checkout untouched afterwards (HEAD `df45512` on `main`, clean); all 8 worker clones disposed; all
 10 jobs started from the provisioned baseline; every isolation guard's injected-leak control fired.
 
+## Batch 2 ↻ — `refine` (phase 0), re-run under the new ruler — 🟡 20/21
+
+Split into three parts because a single invocation would have exceeded the 600s tool timeout: batch 1
+ran 1.55× slower than its predecessor (457s vs 294s), so batch 2's old 690s projected to ~1070s.
+**Splitting is now free** — each part mints its own cache entries and writes its own coverage rows, so
+no fixture is dispatched twice. The three parts were verified to partition the 21 exactly: union = 21,
+zero duplicates, `diff` against the verified selector empty.
+
+```
+Date            : 2026-09-02
+git status      : clean
+HEAD SHA        : a8c58de
+Selector verified: 21 named · 21 present on disk · 21 matched · 0 named-but-absent ·
+                  0 matched-but-unnamed · 0 overlap with batch 1 · 0 already-green — dispatch-free
+Part A (8 fixtures) : 113 pass / 0 fail — 383s dispatch / 392s total · 8/8 green · 8 minted
+Part B (7 fixtures) :  99 pass / 0 fail — 298s dispatch / 307s total · 7/7 green · 7 minted
+Part C (6 fixtures) :  90 pass / 1 FAIL — 366s dispatch / 374s total · 5/6 green · 5 minted
+Fresh / cached  : 21 / 0
+Coverage        : 20 of 21 judged green · 20 ledger rows · 20 cache entries minted
+Run ids         : 20260902T135446Z-400577 · 20260902T140124Z-407359 · 20260902T140637Z-412885
+Tokens          : unmeasured
+```
+
+**One failure, and it is the assertion, not the behaviour.**
+
+`refine-consistency-is-how` → *"refine-consistency: NOT asked as a want-decision"*. The run was correct:
+H1 was filed, resolved as *"apply to ALL consumers sharing the recipe"*, carried its citation, and was
+flagged for ratification at Gate 1 — and the transcript says so in as many words: **"It was **not** put
+to the user as an open want — asking it would have laundered a decision refine could make."** The regex
+missed it on window width, not on outcome:
+
+```
+regex : not .{0,20}(ask|want-decision|open want)
+text  : not** put to the user as an open want
+                                   └─ "open want" at offset 25 > 20; the ** emphasis eats 2
+```
+
+This is a widen-over-emphasis case, which the rule-book permits; it is **not** an outcome change. It is
+recorded in the register below rather than fixed here — see the strategy note.
+
+## Strategy — discovery pass, then proof pass
+
+Editing `run.sh` changes `RUNNER_FP`, which wipes every `.green` and starts a fresh ledger. That is the
+design working: the fingerprint is the ruler. But it means **fixing an assertion mid-cycle throws away
+every green bought so far**, and the loss grows with each batch — fix at batch 2 and lose 30 fixtures,
+fix at batch 8 and lose 100.
+
+So this cycle is deliberately **two passes**:
+
+1. **Discovery (this pass).** Run every batch under runner `82580ae5a827` and record each red. Reds
+   stay unfixed; `run.sh` is not touched, so no green is invalidated and no batch is paid for twice.
+2. **Proof.** Apply every regex fix in **one** edit — one fingerprint change, one wipe — then run the
+   full suite once and prove it with `--verify-suite`.
+
+The considered alternative was to split `DISPATCH_FP` (what determines a transcript) from `RUNNER_FP`
+(the ledger's ruler), so an assertion-only edit would keep the transcripts and the proof pass would be a
+free re-judge. It is ~$50 cheaper and was **rejected on risk**: it means new cache-invalidation
+machinery, and the cache is exactly where a false-green would hide. Paying twice for a blunt, obviously
+correct ruler is the cheaper mistake.
+
+**A discovery-pass green is not a green.** Every row written in this pass is measured under a ruler that
+the proof pass will replace. Nothing here may be cited as evidence the suite passes.
+
+## Register — reds to fix in the single edit
+
+| # | Job | Assertion | Class | Evidence |
+|---|-----|-----------|-------|----------|
+| R1 | `refine-consistency-is-how` | `refine-consistency: NOT asked as a want-decision` | wording / emphasis window | behaviour correct; `not** put to the user as an open want`, "open want" at offset 25 vs `.{0,20}` |
+
+Each fix must ship with its paired `selftest_assertion` — a `good` transcript carrying the observed
+wording and a `bad` one that actually asked the question, so the widened token still misses wrong
+behaviour.
+
 ## Next
 
-Batches 2–10, re-planned against this fingerprint, then `bash tests/eval/run.sh --verify-suite`.
-Batch 10 must run **foreground, split in two halves** (7 fixtures + 7 scenarios): its one background
-attempt was stopped host-side 3.5s after launch having judged zero assertions. Batch 10 also has no
-recorded `Selector used` line, so its selector has to be rebuilt and verified dispatch-free like any
-other.
+Batches 3–10 under this same fingerprint. Batch 10 must run **foreground, split in two halves**
+(7 fixtures + 7 scenarios): its one background attempt was stopped host-side 3.5s after launch having
+judged zero assertions. Batch 10 also has no recorded `Selector used` line, so its selector has to be
+rebuilt and verified dispatch-free like any other. Expect to split most batches on the 600s timeout.
 
-Coverage after batch 1: **10 of 126 jobs** hold a green row.
+Coverage after batch 2: **30 of 126 jobs** hold a green row in the discovery ledger.
