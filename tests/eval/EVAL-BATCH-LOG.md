@@ -129,13 +129,42 @@ Fixtures proven    : 119 / 119.  Scenarios proven: 7 / 7.
 Jobs proven green  : 126 / 126  — every job in the suite has run and been judged this cycle.
 Dispatches spent   : 143  (10+21+13+17 red+17 re-run+4+11+21+7+8+7+7) — 17 paid twice to a 529,
                      and batch 10's first attempt was stopped by the host before judging anything.
-Assertions passed  : 1116 / 1116 across the ten green batches, 0 failures.
+Assertions         : the suite holds 566 assertions (any partial run prints passed + skipped = 566).
+                     All 566 have been judged at least once across the ten batches, 0 failures.
+                     The "1116" figure is a SUM OVER RUNS, not distinct coverage: the ~55
+                     dispatch-free self-tests are re-judged in every batch, and batch 4's 17
+                     fixtures were judged twice. Do not quote it as an assertion count.
 Tokens spent       : unmeasured (the host reports none)
 Run still valid    : yes — fingerprint e23452eb…1da28 unchanged from pre-flight through batch 10,
                      across a repo path rename and a host-stopped task.
 NOT YET DONE       : the final whole-suite pass. Ten green batches are ten fragments; the suite has
                      not been proven green TOGETHER, and no cache was ever written.
 ```
+
+### Is the full eval green? NO — and the harness says so itself
+
+Ten green batches are **not** a green suite, for four reasons that are mechanical rather than cautious:
+
+1. **`run.sh` refuses the claim.** Every batch printed `NOT a milestone run`, and the cache write is
+   gated on `-z "$ONLY"` (`run.sh:2918`) precisely because under `--only` a `fails -eq 0` means "the
+   selected fixtures passed", never "the suite is green".
+2. **A partial run cannot detect a lost job.** Under `--only` a missing transcript is counted
+   **skipped**; with no `--only` it **FAILS loudly** (`assert_judgeable`). Deferred defect 5 — the
+   dispatch loop leaking stdin — is a live mechanism for losing a job. Ten partial greens is exactly
+   the shape a false-green would take here.
+3. **Nothing has been proven green TOGETHER.** No run has held all 126 jobs in one worker pool. Batch
+   4's 529 is the standing proof that environment effects appear at scale and not in a small slice.
+4. **No cache exists.** There is no artifact anywhere recording a green suite — the whole reason this
+   log was written.
+
+**What the ten batches DO establish, and it is not nothing:** every one of the 126 jobs has been
+dispatched and judged at least once at this fingerprint, all 566 assertions have been judged, and
+nothing failed for a behavioural reason. Every red in this cycle was the host or the harness — a 529,
+and a stopped background task — never mango.
+
+**The honest statement is therefore: 126/126 jobs judged green in ten partial runs at
+`e23452eb…1da28`; the suite has NOT been run whole.** That is the sentence that may go in a CHANGELOG
+or README. "The suite is green" may not.
 
 ---
 
