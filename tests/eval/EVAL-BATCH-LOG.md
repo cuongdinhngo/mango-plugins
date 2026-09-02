@@ -110,7 +110,8 @@ recur. What each of the ten is there to answer:
 | 7 | `finalise` + learning loop | 21 | ✅ green | 2026-09-01 | ✅ | 142 / 0 | 4m53s | 21 / 0 | unmeasured | includes the `solve` cost-ledger fixtures; run survived a repo path rename |
 | 8 | `autorun` + contract + reconcile | 7 | ✅ green | 2026-09-01 | ✅ | 104 / 0 | 15m13s | 7 / 0 | unmeasured | slowest batch — autorun is the heaviest scheduler weight |
 | 9 | `promote` + `codify` + `breakdown` | 8 | ✅ green | 2026-09-01 | ✅ | 86 / 0 | 5m54s | 8 / 0 | unmeasured | cross-ticket paths; 5 of the 13 mapped were already paid for |
-| 10 | supporting skills + greenfield controls | ~13 | ⬜ not run | | | | | | | |
+| 10a | supporting skills (7 fixtures) | 7 | ✅ green | 2026-09-02 | ✅ | 87 / 0 | 3m15s | 7 / 0 | unmeasured | run in the FOREGROUND after the background task was stopped by the host |
+| 10b | all 7 scenarios | 7 | ✅ green | 2026-09-02 | ✅ | 65 / 0 | 0m40s | n/a | unmeasured | first time any scenario ran this cycle; scenarios are never cacheable |
 | — | **Final pass** (whole suite, expect all cached) | 126 | ⬜ not run | | | | | | | proves green *together*, not in ten fragments |
 
 **Status values:** ⬜ not run · 🟡 running · ✅ green · 🔴 red · ⚠️ void (fingerprint changed)
@@ -123,16 +124,17 @@ estimate dressed as a measurement. Dispatch totals are the one figure the ledger
 ## Running total
 
 ```
-Batches green      : 9 / 10   (1 stop-gate; 2 refine; 3 analysis; 4 design on re-run; 5 execute;
-                     6 review; 7 finalise + learning loop; 8 autorun; 9 promote/codify/breakdown)
-Fixtures proven    : 112 / 119.  Scenarios run: 0 / 7 — no scenario has run this cycle.
-Jobs proven green  : 112 / 126
-Dispatches spent   : 129  (10+21+13+17 red+17 re-run+4+11+21+7+8) — 17 paid twice, to a 529
-Assertions passed  : 964 / 964 across the nine green batches, 0 failures
-Tokens spent       : unmeasured (the host reports none; 129 dispatches, ~72 min)
-Remaining          : batch 10 = 14 jobs — 7 fixtures + all 7 scenarios.  112 + 14 = 126 exactly.
-Run still valid    : yes — fingerprint unchanged at e23452eb…1da28 across a repo path rename.
-                     Batches 1-3 validated by the vacuity audit; 4↻ through 9 swept for API Error.
+Batches green      : 10 / 10 — every batch green.
+Fixtures proven    : 119 / 119.  Scenarios proven: 7 / 7.
+Jobs proven green  : 126 / 126  — every job in the suite has run and been judged this cycle.
+Dispatches spent   : 143  (10+21+13+17 red+17 re-run+4+11+21+7+8+7+7) — 17 paid twice to a 529,
+                     and batch 10's first attempt was stopped by the host before judging anything.
+Assertions passed  : 1116 / 1116 across the ten green batches, 0 failures.
+Tokens spent       : unmeasured (the host reports none)
+Run still valid    : yes — fingerprint e23452eb…1da28 unchanged from pre-flight through batch 10,
+                     across a repo path rename and a host-stopped task.
+NOT YET DONE       : the final whole-suite pass. Ten green batches are ten fragments; the suite has
+                     not been proven green TOGETHER, and no cache was ever written.
 ```
 
 ---
@@ -627,6 +629,74 @@ Two mapped skills still have no behavioural fixture at all — `db-map` and `ver
 since 1.14.1 and to be carried into the closing entry, not into batch 10.
 
 **Decision after this batch: continue to batch 10 — the last one.**
+
+---
+
+## Batch 10 — supporting skills + every scenario — ✅ GREEN (two foreground halves)
+
+```
+Date            : 2026-09-02
+fingerprint     : e23452eb45532e966e6f0a89290b8573fc5b179100c99ec1716796f727d1da28
+                  matches header : yes
+git status      : clean
+HEAD SHA        : 058827e
+Half A (7 fixtures)  : 87 pass / 0 fail — 188s dispatch / 195s total, 7 workers
+Half B (7 scenarios) : 65 pass / 0 fail —  33s dispatch /  40s total, 7 workers
+Fixtures matched: 7 + 7 — each half verified dispatch-free BEFORE dispatching
+Fresh / cached  : 7 / 0 for half A; half B reports 0/0 because scenarios are not tallied as
+                  fixtures and can never cache-hit (cache_get is gated on kind = fixture)
+Tokens          : unmeasured
+```
+
+**Failures:** none. Half A covered `budget` ×3, `quick` ×2 and `init`/`doctor` ×2. Half B covered
+**all seven scenarios — the first time any scenario has run this cycle.** Every one of the 14 intended
+jobs had assertions attributed to its transcript, and no `API Error` appeared in either half.
+
+**Why two foreground halves.** The first attempt at batch 10 ran as a background task and was **stopped
+by the host 3.5s after launch, 1.5s after the turn ended**, having judged **zero** assertions. Ruled out
+on evidence: not a crash (the notification said `was stopped`, uniquely among 11 launches), not
+resources (626 GB disk / 18 GB RAM free, no kernel OOM), not the `rtk` PreToolUse rewrite (identical on
+all 11 launches, ten survived), not `run.sh` (its `trap cleanup EXIT` ran, `TMPROOT` removed, no orphan
+processes or clones), and not another session (the two other CLI instances were in different projects).
+The residual cause is host-side on the Stop/interrupt path. Splitting into two foreground halves, each
+well under the tool timeout, avoids that path entirely and costs nothing — no batch writes cache anyway.
+
+**`ledger-gate-complete` ran, and its pass is still not evidence.** The scenario produced a real
+1113-byte answer, so the pass is earned on *this* transcript. The assertion remains unfalsifiable: its
+regex `proceed|passes|not block|does not block|complete` matches the string `ledger-gate-complete` in
+the harness's own header line. Deferred fix item 2 stands unchanged.
+
+### NEW FINDING — the dispatch loop leaks its stdin into the model's prompt
+
+`ledger-gate-complete`'s transcript ends with the model saying *"the trailing `1 2 3 4 5 6 7` in your
+message didn't parse as part of the question"*. There were exactly 7 jobs in that half, and the
+scheduler's job list is the integers 1..7.
+
+`claude_run` runs `( cd "$repo" && claude -p … "$@" )` with **no stdin redirection**, and it is called
+from inside `while read -r idx; do … done <"$JOBS_DIR/schedule"` (`run.sh:780-791`). The child inherits
+the loop's stdin — the schedule file — and reads it, so the remaining job indices arrive appended to the
+prompt. Two consequences:
+
+1. **Prompt pollution.** A dispatched job can be judged on a transcript whose prompt was not the prompt
+   the fixture wrote. Here it only cost some wasted output; it could as easily change a decision.
+2. **A silent-skip path, worse than the pollution.** A worker whose child consumed its schedule sees
+   EOF and stops claiming. With fewer workers than jobs, a registered job can go undispatched — and
+   under `--only`, a missing transcript is counted **skipped**, never failed (`assert_judgeable`). A
+   full run fails loudly on a missing transcript; **every partial run in this cycle would have gone
+   quietly green.**
+
+**It did not bite this cycle, and that is checked rather than assumed:** every batch's intended fixtures
+were confirmed to have assertions attributed to their transcripts, batch by batch, so no job was lost.
+
+Deferred like the rest — the fix is one redirection (`< /dev/null`, or a distinct fd for the loop) and
+it touches `run.sh`:
+
+5. **`claude_run` must not inherit the dispatch loop's stdin.** Redirect the child's stdin from
+   `/dev/null` and/or read the schedule on a dedicated descriptor, so no job list can ever reach a
+   model's prompt and no worker can lose its queue to a child.
+
+**Decision after this batch: all ten batches are green. What remains is the final whole-suite pass —
+the one thing ten fragments cannot establish.**
 
 ---
 
