@@ -177,6 +177,34 @@ check afterwards which ruler it used. `scripts/validate.py` gained **3 new check
 
 ---
 
+## The selector-derivation script under-counted the fixture map by 46%
+
+Found 2026-09-02, deriving batch 6's selector. `FIXTURE_SKILLS` is a bash associative array written
+several `[key]="value"` pairs to a line, for readability. My extraction was
+`sed -n 's/^[[:space:]]*\[\([^]]*\)\]="\([^"]*\)".*/\1\t\2/p'` — a substitution, so it rewrites
+**one match per line** and silently drops the rest. It reported **64** entries where the map holds
+**119**, and a coherent-looking skill histogram on top of them (`6 review`, not the true `12`).
+
+Nothing flagged it. The block is 64 lines long, so "64 entries" agreed with the line count and looked
+like a clean parse; the count is also close enough to the 64 green rows then in the ledger to pass a
+glance. Re-extracting with `grep -oE '\[[a-zA-Z0-9_-]+\]="[^"]*"'` gives 119 keys, 119 distinct —
+matching the 119 fixtures on disk, which is the cross-check that catches it.
+
+The cost was zero only because the derived batch was checked against an independent number: this
+cycle's own status file already recorded `review 11`, and the corrected derivation reproduced it
+(12 pure-`review` fixtures, 1 already green). Under the wrong parse, six of the eleven would have gone
+unrun and the batch would have reported green.
+
+### Rule
+> **A derivation that feeds a dispatch must reproduce a number it did not compute.** Every selector is
+> derived fresh — from `FIXTURE_SKILLS` re-parsed with `grep -oE`, intersected with
+> `coverage-report.sh --remaining` — then proven an exact partition with zero named-but-absent and zero
+> over-matched jobs *before* dispatch. Copying a recorded selector skips the check that a rebuild
+> performs. This is the third silent-corruption-in-a-text-pipeline defect in this cycle; the first two
+> were an empty `sed` regex reusing its predecessor and a glob matching its own generated output.
+
+---
+
 ## Rules that keep a cycle valid
 
 These are process rules, learned the hard way, and they cost nothing to follow.

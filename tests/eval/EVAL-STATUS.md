@@ -63,11 +63,11 @@ correct ruler is the cheaper mistake.
 |---|---|
 | Runner fingerprint | `82580ae5a827` |
 | Plugin-tree fingerprint | `136caac19f92` |
-| Fixtures green | 64 of 119 on disk (+0 scenario rows) |
+| Fixtures green | 75 of 119 on disk (+0 scenario rows) |
 | Rows not green | 1 |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 (must be 1) |
-| Fixtures with no green row | 55 |
+| Fixtures with no green row | 44 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`.
 
@@ -80,6 +80,7 @@ Regenerate with `bash tests/eval/coverage-report.sh --md`.
 | 3 ↻ | `analysis` (Gate 1) | 2 | 13 | 189 / 189 | 693s | ✅ green |
 | 4 ↻ | `design` (Gate 2) | 2 | 17 | 205 / 205 | 645s | ✅ green |
 | 5 ↻ | `execute` (phase 3) | 1 | 4 | 82 / 82 | 218s | ✅ green |
+| 6 ↻ | `review` (Gate 3) | 2 | 11 | 177 / 177 | 283s | ✅ green |
 
 Assertion counts include the 71 dispatch-free self-tests once per part, so they do not sum to 511.
 
@@ -96,6 +97,15 @@ Notes worth carrying:
   All three fired their non-vacuity controls, then passed.
 - **Selector rebuilt for batch 4** from `FIXTURE_SKILLS` rather than copied: it is the one batch with no
   recorded selector. 18 map to `design`, 1 already green, 17 run — exactly the original's count.
+- **Batch 6's selector was rebuilt too**, and the rebuild caught a counting bug in my own
+  extraction: `FIXTURE_SKILLS` packs several `[key]="value"` pairs per line, so a
+  one-match-per-line `sed` reported **64** entries instead of **119**. Re-derived with
+  `grep -oE`, it gives 119 distinct keys — 12 map to `review`, 1 already green, **11 ran**,
+  matching the count this file already carried. Both parts were then proven an exact
+  partition with zero named-but-absent and zero over-matched jobs before dispatch.
+- **Batch 6 ran 1.7× faster than the cycle predicted** — 283s of dispatch for 11 jobs
+  (≈26s/job) against the ≈1.55× slowdown seen in batches 1–5. Two parts were more than the
+  ceiling required; splitting cost nothing, so the margin stays.
 - **Timing:** this cycle runs ≈**1.55×** slower than cycle 1, so any batch whose predecessor took over
   ~380s must be split to stay under the 600s tool ceiling. Splitting is free.
 
@@ -110,13 +120,12 @@ and a `bad` one that actually asked the question, so the widened token still mis
 
 ### Next
 
-**Paused by request after batch 5.** Batches 6–10 remain, under this same fingerprint. What is left,
-derived from `FIXTURE_SKILLS` minus the green rows — **55 fixtures + 7 scenarios = 62 jobs**:
+Batches 7–10 remain, under this same fingerprint. What is left, derived from `FIXTURE_SKILLS`
+minus the green rows — **44 fixtures + 7 scenarios = 51 jobs**:
 
 | Group | Left | Note |
 |---|---|---|
 | `finalise` (+`codify`) | 17 | largest remaining; needs 2–3 parts |
-| `review` | 11 | has a recorded selector |
 | `autorun` | 7 | has a recorded selector |
 | `breakdown` | 4 | |
 | `budget` | 3 | includes `budget-rtk-wire-guidance`, whose green was wiped by the v1.15.0 FP change |
@@ -125,6 +134,9 @@ derived from `FIXTURE_SKILLS` minus the green rows — **55 fixtures + 7 scenari
 | `quick`, `init doctor`, `codify` | 5 | |
 | `refine` | 1 | R1 — stays red by design this pass |
 | scenarios | 7 | **foreground, split** — the background attempt was stopped host-side |
+
+Derive every remaining selector the batch-6 way — from `FIXTURE_SKILLS` re-parsed with `grep -oE`,
+intersected with `coverage-report.sh --remaining` — never by copying a recorded one.
 
 Then: one edit fixing the register, then a full pass, then `bash tests/eval/run.sh --verify-suite`.
 
