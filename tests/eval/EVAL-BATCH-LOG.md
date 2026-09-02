@@ -857,8 +857,65 @@ run 2  --only '^budget-rtk-wire-guidance$'   1 CACHE-HIT, 0 dispatches, 74/74, 8
 Run 1 minting a cache entry is the thing that had never happened before: every `--only` batch in the
 ten above minted nothing, which is why the plan cost ~2×.
 
+---
+
+# Re-run cycle — v1.15.0 ruler
+
+Every batch below is measured under one identity, and each records its own coverage rows. The bar is
+`--verify-suite`, not the sum of the `EVAL:` lines.
+
+```
+Runner fingerprint  : 82580ae5a8272bb39fd5d0f2fce0e17260d01ee4c85e7d4d8df9e7d33334b492
+Plugin-tree fp      : 136caac19f92894859da81a6a1439332d6b1aa173474c52ad4a457b5e79aa5f0
+Model / CLI         : cli-default / 2.1.258 (Claude Code)
+Suite               : 126 jobs · 511 transcript assertions · 71 dispatch-free self-tests
+```
+
+## Batch 1 ↻ — the unknowns, re-run under the new ruler — ✅ GREEN
+
+```
+Date            : 2026-09-02
+git status      : clean
+HEAD SHA        : df45512
+Selector used   : ^(autorun-challenger-default-on|autorun-no-challenger-disclosed|epic-scaffold-committed
+                  |evidence-provenance-unknown|evidence-stale-tree-refused|greenfield-no-corpus-clean
+                  |greenfield-promote-zeros|no-reviewer-challenger-runs|promote-offers-retirement
+                  |stale-source-change)$
+Selector verified: 10 named in the regex · 10 present on disk · 10 matched · 0 named-but-absent ·
+                  0 matched-but-unnamed — checked against the 119 fixture basenames, dispatch-free
+Fixtures matched: 10
+Result          : 127 pass / 0 fail   (455 assertion(s) skipped — PARTIAL)
+                  = 56 fixture assertions + 71 self-tests
+Wall clock      : 457s dispatch / 465s total, 8 workers
+Fresh / cached  : 10 / 0
+Coverage        : 10/10 judged green · 10 ledger rows · 10 cache entries minted
+Run id          : 20260902T130931Z-354709   (selftests 71, selftest_fails 0)
+Tokens          : unmeasured
+```
+
+**Failures:** none.
+
+**The fixture assertion count did not move: 56 before Fix 3, 56 after.** Batch 1's earlier `111 pass`
+was the same 56 fixture assertions plus the 55 self-tests of the day; this run is those 56 plus 71.
+So for these ten fixtures, stripping the harness header from the judged text removed no assertion and
+broke none — the checks that could previously have matched the header were also matching real output,
+and now only real output. That is the outcome to want, and it was not the outcome to assume: the header
+strip is exactly the kind of change that turns a silent pass into a red.
+
+**What this batch now records that its predecessor could not.** Ten coverage rows, each carrying the
+runner fingerprint, plugin-tree fingerprint, model and CLI version it was measured under, plus the
+assertion count it was proven against — and ten minted cache entries, so these ten fixtures are paid
+for once. The run row vouches for the harness itself: `selftests=71, selftest_fails=0`.
+
+Live checkout untouched afterwards (HEAD `df45512` on `main`, clean); all 8 worker clones disposed; all
+10 jobs started from the provisioned baseline; every isolation guard's injected-leak control fired.
+
 ## Next
 
-Re-run the twelve batches (the ten above, re-planned against the new fingerprint), then
-`bash tests/eval/run.sh --verify-suite`. Expect the 32 previously-unfalsifiable assertions to be
-judged on real output for the first time; any of them that now fails was never actually passing.
+Batches 2–10, re-planned against this fingerprint, then `bash tests/eval/run.sh --verify-suite`.
+Batch 10 must run **foreground, split in two halves** (7 fixtures + 7 scenarios): its one background
+attempt was stopped host-side 3.5s after launch having judged zero assertions. Batch 10 also has no
+recorded `Selector used` line, so its selector has to be rebuilt and verified dispatch-free like any
+other.
+
+Coverage after batch 1: **10 of 126 jobs** hold a green row.
