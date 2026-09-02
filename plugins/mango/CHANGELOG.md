@@ -5,6 +5,88 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.15.0] — 2026-09-02
+
+**Minor: nothing inside the plugin changed — no skill, script, template, principle or config. This
+version makes a milestone run SPLITTABLE INTO BATCHES, and fixes three ways the eval harness could
+score a fixture that never ran.**
+
+The suite costs ~$70 in one go, so it gets run a skill-group at a time — and until now a set of green
+batches could not be a green suite, for two reasons that were both this project's own bookkeeping
+rather than anything irreducible. The verdicts always did compose: the transcript cache stores a
+**transcript**, never a verdict, so every assertion is re-judged from text on every run, and no
+assertion in this suite reads across two transcripts. What was missing was a **counted artifact**. Ten
+green batches lived in an operator's notes, where nothing could re-check that no job had been missed,
+that no green had gone stale, or that every batch had used the same ruler — and *ruler* was the real
+gap, because the per-fixture skills-hash keys everything a fixture reads from the skill corpus and
+deliberately nothing else. `scripts/*.py`, `plugin.json`, the model, and the `claude` CLI could all
+have changed between two batches with no hash noticing.
+
+**`--verify-suite`** is that artifact's checker. It dispatches nothing and costs nothing: it runs the
+collect pass to learn from the assertion **call sites** exactly what the suite is — every job, its
+kind, its assertion count, derived and never hardcoded — then holds the **coverage ledger** against it.
+Every run now writes one ledger row per job it judged, carrying the job's skills-hash and the four
+components of the run's measurement identity (runner fingerprint, plugin-tree fingerprint, model, CLI
+version). The gate refuses if a registered job has no row, a row is not green, a row's skills-hash is
+no longer what its files hash to (a **stale** green), any two rows disagree on any component of the
+ruler, a row was proven against fewer assertions than the suite now holds, or the run that owns a row
+failed — or never ran — its dispatch-free self-tests. Each of those seven refusals has a **paired
+non-vacuity self-test** against a synthetic ledger carrying that exact defect: a bookkeeping gate does
+not ship on an assurance that it works. A full single invocation still satisfies the bar and now clears
+the same gate at the end of its own run, so the machinery a batched green depends on cannot rot
+unnoticed.
+
+A `--only` batch now also **mints the cache entry each of its green fixtures earned**, instead of
+minting nothing. The old gate was suite-wide (`no failures AND no --only`), which was standing in for
+"is this transcript trustworthy?" and answered it only indirectly — at the price of making a batched
+suite pay for every fixture twice, once in the batch and again in the full pass. The evidence is per
+fixture and now exact: the fixture passed **all** of its own assertions, a failed dispatch can no
+longer be green at all (below), and no assertion reads across transcripts, so a sibling failing says
+nothing about this one. Still fail-safe to run: an unhashable fixture, a `--no-cache` run, or any doubt
+mints nothing.
+
+**Three false-green defects, all in the harness rather than in any assertion — which is why no
+assertion could have found them.**
+
+- A `claude -p` that dies on `API Error: 529 Overloaded` still writes a transcript file, and a fixture
+  that never ran is the perfect false green: three assertions in this suite have passed on 529
+  transcripts. A transcript carrying the CLI's own error shape, or an empty body, is now **not
+  judgeable** — every one of its assertions fails loudly, `--only` or not. A no-run is never scored,
+  not as a pass and not as a skip.
+- The harness wrote its own provenance header (`== fixture: <name> ==`) into the file the assertions
+  grep, and that header carries the fixture **name**. For `budget-rtk-wire-guidance`, a check looking
+  for `/wire/` or `/budget/` matched the harness's text and passed whatever the model said. Assertions
+  are now judged against the body with those header lines stripped, so a check can only pass on output
+  the model actually produced.
+
+  The blast radius was **counted, not estimated**, by running the assert pass twice with no dispatch:
+  once over transcripts containing only the header, and once over transcripts containing neither the
+  header nor anything else. **32 assertions across 31 jobs** passed on the header alone — every one of
+  them fully unfalsifiable, passing on any transcript whatsoever. That is 32 of the suite's 511
+  transcript assertions, and no assertion could have found it, because the vacuity was in the harness
+  rather than in any single check. The 25 further passes seen on an empty body are `assert_absent`
+  negative controls, which pass on the absence of their pattern by design; those are now safe for the
+  other reason above — a transcript with no body is no longer judgeable at all.
+- `ledger-gate-complete` was the fully-unfalsifiable one. Its single check was
+  `proceed|passes|not block|does not block|complete`, and its prompt asks "does finalise proceed or
+  block?" — so a **wrong** "it blocks" answer matched `/proceed/` by echoing the question, and
+  `/complete/` matched the scenario's own name in the header. It is now decision-level: the outcome
+  token must say the gate goes through **and** the reasoning token must name the count identity that
+  makes it go through. A "blocks" answer matches neither. **No CHECK removed, no outcome guard
+  loosened** — this one is strictly narrowed.
+
+Also fixed: every dispatched `claude -p` inherited the worker loop's stdin, which is the job schedule
+itself (`while read -r idx; do … done <"$JOBS_DIR/schedule"`). A dispatch could consume schedule lines
+and silently drop jobs from the run — a coverage hole no assertion can see, because a dropped job is
+not asserted either. Dispatches now run with `</dev/null`; the prompt travels in argv and needs no
+stdin.
+
+The documented milestone bar moves with this, in `CONTRIBUTING.md` and `tests/eval/README.md`: from
+"one `--no-cache` full pass" to "every job green under one ruler, proven by `--verify-suite`". That
+**widens how the bar can be reached, and narrows what counts as reaching it** — a bare full pass never
+recorded the runner, plugin tree, model or CLI version behind its own result, so nobody could check
+afterwards what ruler it used. One full invocation still clears it.
+
 ## [1.14.2] — 2026-08-31
 
 **Patch: nothing inside the plugin changed — no skill, script, template, principle or config. This

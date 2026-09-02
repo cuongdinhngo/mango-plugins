@@ -766,3 +766,99 @@ Append the closing entry to `EVAL-PROFILE.md` too. The 1.14.0 CHANGELOG (§D) re
 run, and why a `grep` bug that made four assertions **unpassable** survived undetected.
 
 A result nobody stores is a result nobody has.
+
+---
+
+# v1.15.0 — the batched run is now provable, and three no-run defects are closed
+
+**Date:** 2026-09-02  ·  **Version:** 1.14.2 → 1.15.0
+
+## What the ten batches actually established, and what they did not
+
+The ten green batches recorded above were real: 126/126 jobs judged, every one of the suite's
+transcript assertions judged at least once, 0 failures. The arithmetic composes, and this was verified
+rather than assumed — the cache stores a **transcript**, never a verdict, so every assertion is
+re-judged from text on every run, and a script confirmed **0** assertions read across two transcripts.
+
+What the ten greens were not was a **counted artifact**. They lived in this file, where nothing could
+re-check that no job had been missed, that no green had gone stale, or that every batch had used the
+same ruler. And *ruler* was the real gap: the per-fixture skills-hash keys everything a fixture reads
+from the skill corpus and deliberately nothing else, so `scripts/*.py`, `plugin.json`, the model and
+the `claude` CLI could all have changed across the ~21 hours the ten batches spanned with no hash
+noticing. Nothing did change (the only commits in that window touched this log; CLI held at 2.1.258),
+but **"nothing changed" and "an artifact proves nothing changed" are different claims**, and this repo
+exists to keep them apart.
+
+## What shipped
+
+| | |
+|---|---|
+| `--verify-suite` | No dispatch, no cost. Learns the suite from the assertion **call sites** (126 jobs, 511 transcript assertions — derived, never hardcoded), then holds the coverage ledger against it. Refuses on: a job with no row, a non-green row, a **stale** skills-hash, a row disagreeing on runner-fp / plugin-tree-fp / model / CLI, a row proven against fewer assertions than the suite now holds, or an owning run whose self-tests failed or never ran. All seven refusals **self-tested non-vacuously** against synthetic ledgers. |
+| Coverage ledger | `coverage.<runner-fp>.tsv` + `runs.<runner-fp>.tsv`, one row per job per run, append-only, last-row-wins. Carries the job's skills-hash and all four ruler components. |
+| Change A | A `--only` batch now **mints its green fixtures' cache entries**, on per-entry evidence instead of the old suite-wide gate. This is the ~2× cost of a batched suite, removed. |
+| Change B | A full pass now clears the same coverage gate before printing its result, so the machinery a batched green depends on cannot rot unnoticed. |
+| Fix 1 | A transcript carrying `API Error: …` or an empty body is **not judgeable** — every assertion on it fails loudly, `--only` or not. A no-run is never scored, not as a pass and not as a skip. This is the batch-4 defect, closed. |
+| Fix 2 | `ledger-gate-complete` rewritten decision-level. Its old single check could not be failed by any answer. Strictly narrowed. |
+| Fix 3 | The harness header is stripped before any regex sees the transcript. |
+| Fix 5 | Dispatches run with `</dev/null`; they no longer inherit — and can no longer consume — the worker loop's job schedule. |
+
+## Fix 3's blast radius, counted rather than estimated
+
+Method: run the assert pass twice with no dispatch — once over transcripts containing **only** the
+harness header, once over transcripts containing neither the header nor anything else. The difference
+is exactly what the header was carrying.
+
+```
+passes on a header-only body : 57
+passes on a no-header body   : 25   ← assert_absent negative controls, passing by design
+HEADER-CAUSED assertions     : 32   ← fully unfalsifiable: passed on ANY transcript
+distinct jobs affected       : 31
+```
+
+**32 of the suite's 511 transcript assertions were unfalsifiable**, not the "one" the earlier static
+audit found. The static audit looked for jobs whose *every* assertion was vacuous; it could not see an
+individual check escaping through the harness's own text. The 25 `assert_absent` passes are correct
+behaviour for a negative control, and are now safe against a no-run for Fix 1's reason instead.
+
+## The documented bar moved — deliberately, and it narrowed
+
+`CONTRIBUTING.md` and `tests/eval/README.md` previously set the bar at one `--no-cache` full pass.
+It is now **every job green under one ruler, proven by `--verify-suite`**. That **widens how the bar
+can be reached** (batches, or one invocation) and **narrows what counts as reaching it** — a bare full
+pass never recorded the runner, plugin tree, model or CLI version behind its own result, so nobody
+could check afterwards which ruler it used. `scripts/validate.py` gained **3 new checks per doc (+6,
+2051 → 2057)** pinning the new bar; **no check was removed** and the three old ones still pass.
+
+## State at this entry — read this before the next batch
+
+```
+Gates green at this HEAD : validate.py 2057/2057 · envelope 128/128 · --verify-suite 16/17
+                           (the 17th is the coverage gate, correctly REFUSING: see below)
+Suite size               : 126 jobs · 511 transcript assertions · 71 dispatch-free self-tests
+                           (was 55; this version adds 16 non-vacuity proofs) = 582 total
+Runner fingerprint       : CHANGED by this version
+Plugin-tree fingerprint  : CHANGED by this version (plugin.json version bump)
+```
+
+**The ten green batches above no longer count, and cannot be made to count.** Editing `run.sh` changes
+the runner fingerprint, which is by design the key that invalidates every reused measurement — and the
+coverage ledger did not exist while those batches ran, so there is nothing to migrate. This is the
+honest price of the fix, and it is the right price: 32 of those assertions were unfalsifiable at the
+time they passed, and Fix 1 means seven fixtures that never ran in batch 4 would now have failed loudly
+instead of yielding three vacuous passes. **Those ten greens were measured with a broken ruler.**
+
+Proved end-to-end before this entry, at a cost of one dispatch:
+
+```
+run 1  --only '^budget-rtk-wire-guidance$'   1 fresh dispatch, 74/74, 1 ledger row, 1 cache entry minted
+run 2  --only '^budget-rtk-wire-guidance$'   1 CACHE-HIT, 0 dispatches, 74/74, 80s → 7s
+```
+
+Run 1 minting a cache entry is the thing that had never happened before: every `--only` batch in the
+ten above minted nothing, which is why the plan cost ~2×.
+
+## Next
+
+Re-run the twelve batches (the ten above, re-planned against the new fingerprint), then
+`bash tests/eval/run.sh --verify-suite`. Expect the 32 previously-unfalsifiable assertions to be
+judged on real output for the first time; any of them that now fails was never actually passing.
