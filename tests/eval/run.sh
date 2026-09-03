@@ -1429,7 +1429,11 @@ assert_contains "behavioural-drift: surfaces it to review / not clean"    "$t" '
 # responsive") must be pinned to a measurable or logged as a manual-check exclusion, and may not carry
 # a bare ✅.
 t="$(run_fixture vague-requirement 'Run the mango analysis skill on this ticket. Apply the Gate-1 falsifiability check in the AC-validation step to each acceptance value. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not falsifiable|not measurable|unmeasurable|vague|manual-check'
+# proof pass, batch 1: "neither falsifiable nor excluded" is the SAME verdict as "not falsifiable" — a real run
+# phrased the negation with neither/nor and the token missed it, while the sibling ✅-guard assertion
+# passed on that very transcript. Widened over WORDING only: `(neither|nor) falsifiable` cannot match
+# an affirmative verdict ("AC-1 is falsifiable"), so the assertion still fails the wrong outcome.
+assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not falsifiable|(neither|nor) falsifiable|not measurable|unmeasurable|vague|manual-check'
 # Decision-level: it is pinned to a measurable OR logged as a manual-check exclusion (outcome), and it
 # may not carry a bare ✅ (the guard) — so a silent ✅ drops a token and fails.
 assert_all "vague-requirement: cannot carry a bare ✅"             "$t" 'falsifiable|measurable|manual-check' 'may not|cannot|not carry|flag|pin|Gate[ -]?1 question|exclusion'

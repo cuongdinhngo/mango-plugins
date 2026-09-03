@@ -26,20 +26,23 @@ may be cited as evidence the suite passes.
 
 ---
 
-## Cycle 2, proof pass — the v1.15.1 ruler
+## Cycle 2, proof pass — the batch-1 ruler
 
-The discovery pass is finished and its ruler is gone. The single edit landed on 2026-09-03 as
-**v1.15.1**; it changed `RUNNER_FP`, which wiped all 118 `.green` entries and started a fresh ledger.
-Everything below the *Register* describes the discovery pass and is kept only as evidence of what was
-found — **no row from it may be cited.**
+The discovery pass is finished and its ruler is gone. The v1.15.1 edit landed on 2026-09-03 and
+changed `RUNNER_FP`, wiping all 118 `.green` entries. **Batch 1 then found a behavioural red and it was
+fixed on the spot**, which moved the ruler a second time and voided batch 1's own 12 rows — see *Batch 1,
+attempt 1* below. That is the strategy working, not failing: the loss is 12 jobs at batch 1, and would
+have been ~100 at batch 8. Everything below the *Register* describes the discovery pass and is kept only
+as evidence of what was found — **no row from it may be cited.**
 
 ```
-Runner fingerprint  : ecf9e4c6bfb0e98e…   (v1.15.1 — the proof-pass ruler)
-Plugin-tree fp      : 9b199a8b5b77c989…   (moved: the 1.15.1 version bump is inside it)
+Runner fingerprint  : 3be2609b8f887d12…   (the batch-1 fix — the ruler now in force)
+Plugin-tree fp      : 9b199a8b5b77c989…   (UNCHANGED — the batch-1 fix is harness-only, no plugin bump)
 Model / CLI         : cli-default / 2.1.259 (Claude Code) — PINNED, see below
 Suite               : 126 jobs · 511 transcript assertions · dispatch-free self-tests +6 on v1.15.0
-Ledger              : empty — 0 of 126 jobs recorded
-Superseded ruler    : 82580ae5a827 (v1.15.0, CLI 2.1.258→.259) — 118 rows, none usable
+Ledger              : empty — 0 of 126 jobs recorded (batch 1 re-runs from scratch)
+Superseded rulers   : ecf9e4c6bfb0 (v1.15.1) — 12 rows from batch 1 attempt 1, none usable
+                      82580ae5a827 (v1.15.0, CLI 2.1.258→.259) — 118 rows, none usable
 ```
 
 Re-read the fingerprint before each batch, never from this line:
@@ -82,7 +85,7 @@ at batch 8 and lose 100. So this cycle is deliberately two passes:
    not fixed**; `run.sh` was not touched, so no batch was paid for twice. All 126 jobs were dispatched
    and judged: 118 rows written, 6 scenarios green but unrecordable, 2 behavioural reds, 1 blocking
    harness defect. Nothing was left to discover.
-2. **Proof — running now,** under runner `ecf9e4c6bfb0`. The one permitted `run.sh` edit has landed
+2. **Proof — running now,** under runner `3be2609b8f88`. The permitted `run.sh` edits have landed
    (see *Register*). Every job re-runs, batch by batch, under a pinned CLI; then `--verify-suite`,
    which for the first time this cycle is a gate that **can** pass.
 
@@ -99,7 +102,7 @@ correct ruler is the cheaper mistake.
 
 | Metric | Value |
 |---|---|
-| Runner fingerprint | `ecf9e4c6bfb0` |
+| Runner fingerprint | `3be2609b8f88` |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
 | Jobs recorded | 0 of 126 |
 | Rows not green | 0 |
@@ -148,6 +151,51 @@ with `--workers 8` a part of ≤ 8 jobs is one wave — so that 564s is a *singl
 inside the 600s tool ceiling. Splitting the group does not make that job faster; it only means a
 ceiling kill loses 3 jobs instead of 9, and a killed run writes no rows at all. If a part of batch 7 is
 killed, re-run it as single jobs. The new per-job timing output names the slow one on the first part.
+
+### Batch 1, attempt 1 — voided by its own fix (ruler `ecf9e4c6bfb0`)
+
+Ran 2026-09-03 with CLI 2.1.259 pinned and both selectors verified dispatch-free beforehand.
+
+| Part | Jobs | Assertions | Slowest job | Dispatch | Result |
+|---|---|---|---|---|---|
+| 00 | 7 | 97 / 97 | `freeform` 393s | 393s | ✅ green |
+| 01 | 6 | 101 / 102 | `vague-requirement` 244s | 244s | 🔴 1 red |
+
+Both parts confirmed the writer fix shipped in v1.15.1: all 5 `coverage-row WRITER` self-tests passed,
+and the ledger accumulated across two separate runs (7 → 12 rows) exactly as the coverage gate requires.
+
+**The red, and why it was a wording fix.** `vague-requirement: flags AC-1 as not falsifiable` missed.
+The transcript's verdict was *"AC-1 split into two clauses, both flagged as **neither falsifiable nor
+excluded**, both barred from a matrix `✅`"* — the correct outcome, phrased with `neither … nor` instead
+of `not`. The sibling assertion `cannot carry a bare ✅` passed on that same transcript, which is what
+distinguishes a wording miss from an outcome miss: the guard fired, only the token failed to see it. So
+the token was widened over wording, to `not falsifiable|(neither|nor) falsifiable|…`, and the widen was
+proved in both directions before the ruler moved:
+
+| Check | Result |
+|---|---|
+| new token vs the real transcript | matches — the red clears |
+| new token vs a synthetic wrong outcome (`AC-1 is falsifiable`, carries a `✅`) | no match — still fails |
+| **old** token vs the real transcript | miss — so the widen is load-bearing, not cosmetic |
+| the added alternative alone vs the wrong outcome | no match |
+
+**No plugin version bump.** The fix is harness-only, so `plugin.json` stayed at 1.15.1 and
+`PLUGIN_TREE_FP` did not move. Bumping it would have moved a second identity component for a change
+that touched nothing inside the plugin — the trap this document warns about two sections up.
+
+A static sweep for the same `neither … nor` blind spot across the other 513 assertions was **considered
+and not acted on**: it can only be judged against a real transcript, and speculatively widening ~40
+negation tokens to pre-empt a hypothesis is how a suite stops discriminating. A second ruler move later
+is the cheaper mistake. The class is recorded in EVAL-FINDINGS so the next instance is recognised on
+sight rather than re-derived.
+
+**Cost of the move:** the 12 rows above are void and batch 1 re-runs in full under `3be2609b8f88`.
+
+### Batches run — proof pass (ruler `3be2609b8f88`)
+
+| Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
+|---|---|---|---|---|---|---|
+| 1 | `analysis` | 2 | 13 | — | — | pending re-run |
 
 ### Batches run — discovery pass (superseded ruler `82580ae5a827`)
 
@@ -255,12 +303,13 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — all three FIXED in v1.15.1 (2026-09-03)
+### Register — all four FIXED (R1/R2/D1 in v1.15.1; R3 during batch 1)
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
 | R1 | `refine-consistency-is-how` | `refine-consistency: NOT asked as a want-decision` | wording / emphasis window | Behaviour **correct**: H1 filed, resolved "apply to ALL consumers sharing the recipe", cited, flagged for ratification. Transcript says *"It was **not** put to the user as an open want"*. Regex is `not .{0,20}(ask\|want-decision\|open want)`; `open want` lands at offset **25** because the `**` emphasis eats 2. |
 | R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
+| R3 | `vague-requirement` | `vague-requirement: flags AC-1 as not falsifiable` | wording / emphasis window | Found in batch 1, not the discovery pass, because the discovery pass's `analysis` batch happened to draw a transcript phrased with `not`. Behaviour **correct**: AC-1 split into two clauses, both flagged, both barred from a matrix `✅`. The verdict was worded *"neither falsifiable nor excluded"*, which the `not …`-only token could not see. Fixed by adding `(neither\|nor) falsifiable`; proved load-bearing and still discriminating in both directions before the ruler moved. See *Batch 1, attempt 1*. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
 **All three are fixed**, in one edit as planned. What shipped, and what proves each:
@@ -286,12 +335,14 @@ H1s in one table is exactly the kind of collision this file exists to avoid.)
 
 ### Next — run the ten batches
 
-Gates re-run after the edit, on 2026-09-03:
+Gates re-run after the batch-1 fix, on 2026-09-03, under ruler `3be2609b8f88`:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
 bash tests/eval/run.sh --verify-suite  → 21/22; the one failure is the empty ledger, by design
+                                          (suite still 126 jobs · 511 assertions — R3 widened a
+                                           token, it did not add or remove an assertion)
 ```
 
 That last line is the state to expect until batch 10 lands: the 21 harness checks pass, and the gate
@@ -300,6 +351,16 @@ refuses because no job has a row yet. It is the first time this cycle the gate h
 Then, per batch: pin the CLI, confirm `claude --version`, build the part selectors and verify them
 dispatch-free, run, record the row in the table above, commit. Reds this time are **fixed as found** —
 the discovery pass is over, and there is nothing left to keep a ruler intact for.
+
+Batch 1 has now exercised that rule once (R3), at the cheapest possible point in the pass. Two operational
+notes it produced:
+
+- **Run each part in the foreground.** Both background attempts at part 01 were reaped within ~10s of the
+  dispatch line — no error, no residue, just `[killed]` — while part 00 had survived 401s in background.
+  Foreground with a 600s ceiling is the reliable shape, and it fits every part except possibly batch 7's.
+- **A killed run writes nothing and damages nothing.** Both kills left the ledger at exactly its prior row
+  count, the checkout clean, no stray branch, no live process, and no worker clone on disk — checked, not
+  assumed, before re-dispatching.
 
 Finally `bash tests/eval/run.sh --verify-suite` with all 126 rows in, and paste its output below.
 

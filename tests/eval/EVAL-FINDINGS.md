@@ -384,6 +384,60 @@ of ruler and belongs to its own cycle with its own full pass.
 
 ---
 
+## A negation token written `not X` cannot see `neither X nor Y`
+
+Batch 1 of the proof pass went 101/102 on one assertion:
+
+```
+FAIL: vague-requirement: flags AC-1 as not falsifiable
+      (missing /not falsifiable|not measurable|unmeasurable|vague|manual-check/)
+```
+
+The behaviour was right. The transcript said:
+
+> **AC-1 split into two clauses, both flagged as neither falsifiable nor excluded, both barred from a
+> matrix `✅`**
+
+`neither falsifiable nor excluded` *is* the negative verdict — arguably a more precise one, since it
+reports on exclusion as well. The token only knew how to spell the negation one way.
+
+The reason this is worth writing down is not the regex. It is **how the wording/outcome distinction was
+settled**, because that is the judgement that decides whether widening is legitimate or is the suite
+quietly losing its teeth. Two independent signals said *wording*:
+
+- **The sibling assertion passed on the same transcript.** `vague-requirement: cannot carry a bare ✅`
+  is an `assert_all` over the guard itself, and it fired. So the mechanism under test demonstrably ran;
+  only one description of it went unrecognised.
+- **The failing token is a synonym list, not a condition.** All five of its alternatives mean the same
+  thing. A token like that failing is evidence about vocabulary. A token encoding a *condition* failing
+  is evidence about behaviour, and must never be widened.
+
+Then the widen was proved in **four** directions before the ruler was allowed to move — the third is
+the one usually skipped, and it is the one that distinguishes a necessary fix from a cosmetic one:
+
+| Check | Why it has to be run |
+|---|---|
+| new token vs the real transcript → match | the red actually clears |
+| new token vs a synthetic **wrong** outcome → no match | the assertion still fails bad behaviour |
+| **old** token vs the real transcript → miss | the widen is load-bearing; if the old token matched, the red had another cause |
+| the added alternative alone vs the wrong outcome → no match | the new clause is not the leaky one |
+
+A static sweep of the other 513 assertions for the same shape was considered and **rejected**. About 40
+carry a literal `not <word>`, but which of them a model will phrase with `neither … nor` is unknowable
+without a transcript, and pre-emptively widening 40 negation tokens against a hypothesis is precisely
+how a suite stops discriminating. A second ruler move later is the cheaper mistake than a suite that
+passes everything.
+
+### Rule
+
+**Widen a negation token only against a transcript that actually failed on it, and prove the old token
+missed that same transcript.** Two questions decide whether widening is allowed at all: did a sibling
+assertion confirm the mechanism ran, and is the failing token a synonym list or a condition? Synonyms
+plus a passing sibling is wording — widen. A condition failing is outcome — fix the skill, never the
+token. And never widen a token class speculatively across assertions that have not failed: the four
+proof directions cannot be run without a real red, so a speculative widen is unprovable by
+construction.
+
 ## Rules that keep a cycle valid
 
 These are process rules, learned the hard way, and they cost nothing to follow.
@@ -392,7 +446,8 @@ These are process rules, learned the hard way, and they cost nothing to follow.
    one of those changes the runner fingerprint, which wipes every `.green` and starts a fresh ledger —
    so a fix applied at batch 2 throws away 30 greens, and one applied at batch 8 throws away 100.
    Record the red, fix them all in **one** edit, then run the proof pass. See
-   [`EVAL-STATUS.md`](./EVAL-STATUS.md) → *Strategy*.
+   [`EVAL-STATUS.md`](./EVAL-STATUS.md) → *Strategy*. In the **proof** pass the calculus inverts: a red
+   found at batch 1 costs 12 jobs to fix and one found at batch 8 costs 100, so fix it immediately.
 2. **Verify the selector before dispatching.** `--only 'greenfield'` once matched 3 of 4 fixtures and
    reported success. Check it dispatch-free: every name in the regex present on disk, every match
    named, nothing extra.
@@ -401,8 +456,16 @@ These are process rules, learned the hard way, and they cost nothing to follow.
 4. **Record the row before starting the next batch**, not at the end of the cycle.
 5. **Split a batch that would exceed the tool timeout.** Splitting is free now that each part mints its
    own cache entries and writes its own coverage rows — no fixture is dispatched twice.
-6. **Scenarios run foreground.** The one background attempt was stopped host-side 3.5s after launch
-   having judged zero assertions; the residual cause is on the Stop/interrupt path.
+6. **Run every part in the foreground — not just scenarios.** First seen on a scenario part stopped
+   host-side 3.5s after launch having judged zero assertions, so it was written up as a scenario
+   quirk. Batch 1 of the proof pass showed it is not: two background dispatches of an ordinary
+   **fixture** part were reaped within ~10s of the dispatch line — `[killed]`, no error, no partial
+   output — while a sibling part had run 401s in background without trouble. So it is intermittent and
+   not scenario-specific, and the residual cause is still on the Stop/interrupt path. A killed run is
+   *safe* — it writes no rows and leaves nothing behind — but it is wasted wall-clock, and the 600s
+   foreground ceiling covers any part whose slowest job is under ~400s. Before re-dispatching a killed
+   part, confirm rather than assume the state is untouched: ledger row count, `git status`, no stray
+   `PROJ-*` branch, no live `run.sh`, no worker clone left on disk.
 
 ---
 
