@@ -63,11 +63,11 @@ correct ruler is the cheaper mistake.
 |---|---|
 | Runner fingerprint | `82580ae5a827` |
 | Plugin-tree fingerprint | `136caac19f92` |
-| Fixtures green | 92 of 119 on disk (+0 scenario rows) |
+| Fixtures green | 99 of 119 on disk (+0 scenario rows) |
 | Rows not green | 1 |
 | Stale greens | 0 |
 | Distinct rulers among rows | 2 (must be 1) |
-| Fixtures with no green row | 27 |
+| Fixtures with no green row | 20 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`.
 
@@ -82,6 +82,7 @@ Regenerate with `bash tests/eval/coverage-report.sh --md`.
 | 5 ↻ | `execute` (phase 3) | 1 | 4 | 82 / 82 | 218s | ✅ green |
 | 6 ↻ | `review` (Gate 3) | 2 | 11 | 177 / 177 | 283s | ✅ green |
 | 7 ↻ | `finalise` (+`codify`) | 3 | 17 | 289 / 289 | 445s | ✅ green ⚠️ CLI split |
+| 8 ↻ | `autorun` (unattended) | 1 | 7 | 120 / 120 | 564s | ✅ green ⚠️ 27s under the ceiling |
 
 Assertion counts include the 71 dispatch-free self-tests once per part, so they do not sum to 511.
 
@@ -112,8 +113,23 @@ Notes worth carrying:
   `coverage-report.sh` says so: `distinct rulers among rows 2 (NOT uniform — --verify-suite
   will refuse)`. This is the machinery working, not failing: the ruler that was invisible to
   every hash before v1.15.0 is now the thing that shouts. See [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md).
+- **Batch 8 nearly timed out, and my sizing reasoning was wrong in a way worth keeping.** I ran
+  all 7 jobs as one part because with 8 workers and 7 jobs the wall time is the *slowest job's*
+  latency, not the sum — correct in form. But I took that latency from batch 6 (≈26s/job) when
+  an `autorun` fixture drives a whole ticket unattended: the part took **564s** against my ~200s
+  estimate, 27s inside the 600s tool ceiling. Eight such jobs would have hit it.
+- **No artifact records per-job latency.** `run.sh` keeps no per-job timing, and cache-entry
+  mtimes are all written at end-of-part, so they are batch-uniform and useless as a measurement
+  (checked: batch 6's nine entries carry exactly two timestamps, one per part). Part wall-time
+  is the only observable, so latency per group cannot be derived after the fact — only measured
+  by running a small part of that group first.
 - **Timing:** this cycle runs ≈**1.55×** slower than cycle 1, so any batch whose predecessor took over
   ~380s must be split to stay under the 600s tool ceiling. Splitting is free.
+  **Superseded by batch 8:** the predecessor's *total* is the wrong predictor when workers ≥ jobs,
+  because wall time is then the slowest job's latency and that varies by group by an order of
+  magnitude (≈26s for a `review` fixture, ≈560s for an `autorun` one). For a group whose
+  latency has never been measured, dispatch **2–3 jobs first** and size the rest from what
+  that part actually took.
 
 ### Register — reds to fix in the single edit
 
@@ -126,22 +142,25 @@ and a `bad` one that actually asked the question, so the widened token still mis
 
 ### Next
 
-Batches 8–10 remain, under this same runner fingerprint. What is left, derived from
-`FIXTURE_SKILLS` minus the green rows — **27 fixtures + 7 scenarios = 34 jobs**:
+Batches 9–10 remain, under this same runner fingerprint. What is left, derived from
+`FIXTURE_SKILLS` minus the green rows — **20 fixtures + 7 scenarios = 27 jobs**:
 
 | Group | Left | Note |
 |---|---|---|
-| `autorun` | 7 | |
-| `breakdown` | 4 | |
-| `solve` / `solve finalise` | 4 | |
-| `quick`, `init doctor`, `codify` | 5 | |
+| `quick`, `init doctor`, `codify` | 5 | latency unmeasured — probe with 2 first |
+| `breakdown` | 4 | latency unmeasured |
+| `solve` / `solve finalise` | 4 | latency unmeasured; `solve` drives a whole ticket, expect `autorun`-scale |
 | `budget` | 3 | includes `budget-rtk-wire-guidance`, whose green was wiped by the v1.15.0 FP change |
-| `promote` | 3 | |
+| `promote` | 3 | latency unmeasured |
 | `refine` | 1 | R1 — stays red by design this pass |
 | scenarios | 7 | **foreground, split** — the background attempt was stopped host-side |
 
 Derive every remaining selector the batch-6 way — from `FIXTURE_SKILLS` re-parsed with `grep -oE`,
 intersected with `coverage-report.sh --remaining` — never by copying a recorded one.
+
+**Bundle into the proof-pass `run.sh` edit** (it is the only edit this cycle allows, so anything
+wanted in `run.sh` must ride with it): per-job dispatch timing in the run output, so a group's latency
+becomes an artifact instead of something re-learned by nearly timing out.
 
 **Pin the CLI before the proof pass.** The install is native
 (`~/.local/bin/claude` → `~/.local/share/claude/versions/<v>`), `autoUpdates` is already `false` in
