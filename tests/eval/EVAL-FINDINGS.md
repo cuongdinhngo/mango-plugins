@@ -323,6 +323,67 @@ to draw.
 
 ---
 
+## The proof-pass edit, and the two things it turned up in itself
+
+The single edit that fixes D1, R1 and R2 landed on 2026-09-03 as **v1.15.1** (harness-only; nothing
+inside the plugin changed). D1's fix is one line in `skills_files`, but the *test* for it is the point:
+the row-writing block became a function, `cov_row_for`, purely so the self-tests can call it. Four new
+dispatch-free checks now exercise the writer on a job with no fixture file on disk — the hash returns
+status 0, a green row comes out, that row satisfies the real gate against the real current hashes and
+the real measurement identity, and the same holds for a real registered scenario label — plus a fifth
+that asserts the control job genuinely has no file, so the set cannot pass vacuously. Each was
+confirmed red with the fix reverted: **`--verify-suite` reports 17/22 with the defect and 21/22 with
+it fixed** — the 4 substantive checks flip, and the one failure left in both cases is the ledger being
+empty. Every one of them is *reported*; none kills the run.
+
+Writing those tests produced two findings of their own.
+
+### `set -e` is ignored inside an `if` condition — including a subshell that re-sets it
+
+The obvious way to assert "this statement no longer fails" is to wrap it:
+
+```bash
+if ( set -euo pipefail; _sh="$(skills_hash "$_nf")"; [ -n "$_sh" ] ); then …
+```
+
+That check **passed with the defect present**. Bash ignores `errexit` for commands in an `if`
+condition, and re-setting it inside the subshell does not restore it there. Measured in isolation: the
+same call captured normally gives `rc=1` with a 64-character hash on stdout — a real status, invisible
+to the wrapper.
+
+The second half of that measurement matters as much as the first. The hash was **not empty** under the
+defect: `cat` failing part-way through still leaves `sha256sum` a digest of the files that did exist.
+So a check written against emptiness — the plausible one, and the one the gate's own error message
+("no current skills-hash") suggests — would also have passed. Only the status distinguishes the two
+worlds.
+
+### Rule
+> **Assert an exit status by capturing it (`rc=0; out="$(f)" || rc=$?`), never by wrapping the call in
+> an `if` condition.** And when a defect has two observable consequences, check the one that actually
+> differs: here, status, not emptiness. A guard that passes in both worlds is the same vacuity this
+> file exists to record, whoever wrote it.
+
+### Every assertion in this suite is line-bounded, and nothing says so
+
+Recorded, **not fixed.** `assert_contains` and `assert_all` judge with `grep -qiE`, which matches
+within a single line. So every widened window — `.{0,20}`, `[^.]{0,30}` — is bounded twice: by the
+window, and by wherever the model happened to wrap. R1's own token is a case in point: "It was **not**
+put to the user as an open want" matches because it landed on one line, and would not have if the
+model had broken it after "an".
+
+This is not R1's defect and not new — all 511 assertions have always been measured this way, and every
+green in the ledger was measured under it. That is exactly why it is not fixed here: switching to a
+whitespace-insensitive match would re-interpret every assertion in the suite at once, which is a change
+of ruler and belongs to its own cycle with its own full pass.
+
+### Rule
+> **A token has to fit on one line of real output.** Prefer a short load-bearing phrase over a long
+> window; when a window must be wide, expect the model to wrap it and write the alternative that
+> survives the wrap. Changing how the match treats newlines is a ruler change, never a fix folded into
+> a batch.
+
+---
+
 ## Rules that keep a cycle valid
 
 These are process rules, learned the hard way, and they cost nothing to follow.

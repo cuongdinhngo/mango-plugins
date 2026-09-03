@@ -5,6 +5,59 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.15.1] — 2026-09-03
+
+**Patch: nothing inside the plugin changed — no skill, script, template, principle or config. The
+milestone bar `--verify-suite` introduced in 1.15.0 could never have passed. This version makes it
+satisfiable, and adds the self-test whose absence let an unsatisfiable gate ship.**
+
+The bar is "every job in the suite green under one ruler", and seven of the suite's 126 jobs are
+**scenarios** — jobs registered by `run_prompt`, whose prompt is self-contained and which therefore
+have no fixture file on disk. The function that computes a job's skills-hash emitted that file's path
+unconditionally, so for a scenario `cat` failed; under `pipefail` the failure became the pipeline's
+status, and under `errexit` it propagated out of the row-writer's `_h="$(skills_hash …)"` assignment
+and killed the run. Observed on a run of all seven scenarios: six passed every assertion, and **zero
+coverage rows were written** — no summary, no failure line, exit 1. The 119 fixture jobs walk the same
+code and were never affected, because for them the file exists. The fix emits the path only when it is
+there.
+
+Why nothing caught it: the coverage gate's self-tests **did** cover a `scenario` row — a row typed by
+hand into a synthetic ledger. That proves the *reader* of a row. The defect was in the *writer*, and
+the writer had no test at all. The rule, now enforced rather than noted: **a gate self-tested against
+synthetic inputs is not self-tested against real ones**, and a gate that cannot pass is the same class
+of defect as one that cannot fail. The row-writing code is now a function (`cov_row_for`) so it can be
+called, and four new dispatch-free checks exercise it on a job with no fixture file: the hash returns
+status 0, a green row is produced, that row satisfies the real gate against the real current hashes and
+the real measurement identity, and — when the run registers one — the same holds for a real registered
+scenario label. Each was confirmed to go red with the fix reverted. A fifth check asserts the control
+job really has no file on disk, so the set cannot pass vacuously.
+
+Two fixture-level repairs found in the same pass, both recorded before either was fixed:
+
+- **A negative stated with the negation emphasised.** `refine-consistency-is-how` asserts the scope
+  question was not put to the user as an open want. Behaviour was correct — the how-decision was
+  resolved by citation and flagged for ratification — but the run wrote it as "It was **not** put to
+  the user as an open want", where the `**` consumes two characters of a twenty-character window and
+  pushes the token to offset 25. This is the emphasis class the suite already names, so the token is
+  now hoisted into `RE_NOT_ASKED_AS_WANT`, shared by the fixture and a **paired self-test** carrying
+  that exact wording, and its gap is bounded by `[^.]` so a wider window can never leap a sentence
+  boundary and pick up a negation belonging to a different claim. The outcome asserted is unchanged: a
+  run that actually asked the question emits neither a negation nor a zero count and still fails.
+- **An underspecified scenario premise, repaired at the premise — not the assertion.**
+  `ledger-gate-complete` stated the ledger's row **count** and said nothing about row **content**,
+  while mango's ledger gate has both conditions. A correct run answered "not enough information: row
+  count alone doesn't clear it", split the two conditions and cited the skill. That is better
+  behaviour than the assertion expected, which makes the class *outcome* — and this suite does not
+  widen an assertion over outcome. The prompt now states that every row carries a token value, leaving
+  the dispatch-count identity as the only condition under test. Row content stays where it already
+  was, in `ledger-content-gate-marker`.
+
+**Per-job dispatch timing is now printed on every run**, with the slowest job named. A batch of N jobs
+at `--workers N` is one wave, so its wall time is the slowest job's latency and not the sum — sizing
+the next batch from a per-job mean under-estimates it by the group's whole spread. One batch of seven
+came within 27 seconds of the tool timeout that way. The figure a batch should be sized from is now
+measured and printed rather than recalled.
+
 ## [1.15.0] — 2026-09-02
 
 **Minor: nothing inside the plugin changed — no skill, script, template, principle or config. This

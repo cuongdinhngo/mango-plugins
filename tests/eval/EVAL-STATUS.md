@@ -26,15 +26,50 @@ may be cited as evidence the suite passes.
 
 ---
 
-## Cycle 2 — the v1.15.0 ruler
+## Cycle 2, proof pass — the v1.15.1 ruler
+
+The discovery pass is finished and its ruler is gone. The single edit landed on 2026-09-03 as
+**v1.15.1**; it changed `RUNNER_FP`, which wiped all 118 `.green` entries and started a fresh ledger.
+Everything below the *Register* describes the discovery pass and is kept only as evidence of what was
+found — **no row from it may be cited.**
 
 ```
-Runner fingerprint  : 82580ae5a8272bb39fd5d0f2fce0e17260d01ee4c85e7d4d8df9e7d33334b492
-Plugin-tree fp      : 136caac19f92894859da81a6a1439332d6b1aa173474c52ad4a457b5e79aa5f0
-Model / CLI         : cli-default / 2.1.258 (Claude Code)
-Suite               : 126 jobs · 511 transcript assertions · 71 dispatch-free self-tests
-Started             : 2026-09-02, at df45512
+Runner fingerprint  : ecf9e4c6bfb0e98e…   (v1.15.1 — the proof-pass ruler)
+Plugin-tree fp      : 9b199a8b5b77c989…   (moved: the 1.15.1 version bump is inside it)
+Model / CLI         : cli-default / 2.1.259 (Claude Code) — PINNED, see below
+Suite               : 126 jobs · 511 transcript assertions · dispatch-free self-tests +6 on v1.15.0
+Ledger              : empty — 0 of 126 jobs recorded
+Superseded ruler    : 82580ae5a827 (v1.15.0, CLI 2.1.258→.259) — 118 rows, none usable
 ```
+
+Re-read the fingerprint before each batch, never from this line:
+
+```
+sha256sum tests/eval/run.sh
+```
+
+### Pin the CLI for the whole pass
+
+The CLI moved 2.1.258 → 2.1.259 in the middle of the discovery pass and split its ledger into two
+rulers, which is a refusal condition. Four versions are on disk. Every batch of this pass runs with
+2.1.259 first on `PATH`:
+
+```
+export PATH="$HOME/.cache/mango-eval-cli-pin:$PATH"    # → claude 2.1.259, verified
+claude --version                                        # confirm before every batch
+```
+
+The pin is a directory holding one symlink to `~/.local/share/claude/versions/2.1.259`. If a batch
+ever reports a different CLI, stop: the rows already written are the ones that count, and mixing a
+second version costs the whole pass.
+
+**And the same trap has a second door.** `plugin_tree_fp` hashes `plugins/mango/.claude-plugin/*.json`
+and `plugins/mango/scripts/*.py`, so the 1.15.1 version bump moved it from `136caac19f92` to
+`9b199a8b5b77` — deliberately, before any batch ran. **No edit to `plugin.json` or to any
+`plugins/mango/scripts/*.py` until the pass is proven**, or the rows split into two rulers exactly as
+the CLI bump split them. Skill and doc edits are a different matter: they move the per-fixture
+skills-hash instead, which shows up as a **stale** green rather than a mixed ruler — still a refusal,
+still worth not doing mid-pass.
 
 ### Strategy — a discovery pass, then a proof pass
 
@@ -43,10 +78,13 @@ design working: the fingerprint **is** the ruler. But it means fixing an asserti
 every green bought so far, and the loss grows with each batch — fix at batch 2 and lose 30 fixtures, fix
 at batch 8 and lose 100. So this cycle is deliberately two passes:
 
-1. **Discovery (running now).** Every batch under runner `82580ae5a827`. Reds are **recorded, not
-   fixed**; `run.sh` is not touched, so no green is invalidated and no batch is paid for twice.
-2. **Proof.** Apply every fix in **one** edit — one fingerprint change, one wipe — then run the full
-   suite once and prove it with `--verify-suite`.
+1. **Discovery — done, 2026-09-02.** Every batch under runner `82580ae5a827`. Reds were **recorded,
+   not fixed**; `run.sh` was not touched, so no batch was paid for twice. All 126 jobs were dispatched
+   and judged: 118 rows written, 6 scenarios green but unrecordable, 2 behavioural reds, 1 blocking
+   harness defect. Nothing was left to discover.
+2. **Proof — running now,** under runner `ecf9e4c6bfb0`. The one permitted `run.sh` edit has landed
+   (see *Register*). Every job re-runs, batch by batch, under a pinned CLI; then `--verify-suite`,
+   which for the first time this cycle is a gate that **can** pass.
 
 The considered alternative was to split `DISPATCH_FP` (what determines a transcript) from `RUNNER_FP`
 (the ledger's ruler), so an assertion-only edit would keep the transcripts and the proof pass would be a
@@ -54,24 +92,64 @@ free re-judge. It is ~$50 cheaper and was **rejected on risk**: it means new cac
 machinery, and the cache is exactly where a false-green would hide. Paying twice for a blunt, obviously
 correct ruler is the cheaper mistake.
 
-> **A discovery-pass green is not a green.** Every row in this pass is measured under a ruler the proof
-> pass will replace. Nothing here may be cited as evidence the suite passes.
+> **A discovery-pass green is not a green.** Every row in that pass was measured under a ruler this
+> one replaced. Nothing in the *Batches run* table below may be cited as evidence the suite passes.
 
-### Coverage
+### Coverage — proof pass
 
 | Metric | Value |
 |---|---|
-| Runner fingerprint | `82580ae5a827` |
-| Plugin-tree fingerprint | `136caac19f92` |
-| Fixtures green | 118 of 119 on disk (+0 scenario rows) |
-| Rows not green | 1 |
+| Runner fingerprint | `ecf9e4c6bfb0` |
+| Plugin-tree fingerprint | `9b199a8b5b77` |
+| Jobs recorded | 0 of 126 |
+| Rows not green | 0 |
 | Stale greens | 0 |
-| Distinct rulers among rows | 2 (must be 1) |
-| Fixtures with no green row | 1 |
+| Distinct rulers among rows | 0 (must be 1 once rows exist) |
 
-Regenerate with `bash tests/eval/coverage-report.sh --md`.
+Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
+`bash tests/eval/run.sh --verify-suite`, and only its output counts.
 
-### Batches run
+### The batch plan
+
+126 jobs = 119 fixtures + 7 scenarios, grouped by the skill each fixture's `FIXTURE_SKILLS` entry names
+first. Group sizes are **larger than the discovery pass's** because nothing is cached now — every job
+re-runs. Re-derive them rather than trusting this table:
+
+```
+sed -n '/^declare -A FIXTURE_SKILLS=(/,/^)$/p' tests/eval/run.sh \
+  | grep -oE '\[[a-zA-Z0-9_-]+\]="[^"]*"' | sed 's/^\[//; s/\]="/\t/; s/"$//' \
+  | awk -F'\t' '{split($2,a," "); print a[1]}' | sort | uniq -c | sort -rn
+```
+
+(`grep -oE`, not `sed -n s///p`: the map packs several `[key]="value"` pairs per line, and a
+one-match-per-line substitution under-counted it by 46% once already.) Cross-checks that must hold
+before dispatching anything: 119 map keys, 119 `fixtures/*.md` on disk, the two lists **identical**,
+7 scenario labels from `$(run_prompt <label>`, and 126 registered by `--verify-suite` itself.
+
+| Batch | Group | Jobs | Parts | Note |
+|---|---|---|---|---|
+| 1 | `analysis` | 13 | 3 | Gate 1 |
+| 2 | `refine` | 22 | 4 | phase 0, the largest group; carries **R1** |
+| 3 | `design` | 18 | 3 | Gate 2 |
+| 4 | `review` | 14 | 3 | Gate 3 |
+| 5 | `finalise` + `codify` | 19 | 4 | |
+| 6 | `execute` + `breakdown` | 8 | 2 | `execute` branches and commits — isolation guards matter |
+| 7 | `autorun` | 9 | 3 | ⚠️ **the ceiling risk** — see below |
+| 8 | `promote` + `solve` | 9 | 2 | |
+| 9 | `budget` + `quick` + `init` | 7 | 2 | |
+| 10 | scenarios | 7 | 2 | carries **R2**; the first pass that can record a scenario row at all |
+
+Sums to 126. Each part's selector is built and **verified dispatch-free** immediately before its run —
+every name present on disk, every match named, nothing extra — because `--only` matching is unanchored
+(`grep -qE "$ONLY"`), so every selector must be `^(a|b|c)$`.
+
+**Batch 7 is the one to watch.** In the discovery pass the `autorun` part of 7 jobs took **564s**, and
+with `--workers 8` a part of ≤ 8 jobs is one wave — so that 564s is a *single job's* latency, 27s
+inside the 600s tool ceiling. Splitting the group does not make that job faster; it only means a
+ceiling kill loses 3 jobs instead of 9, and a killed run writes no rows at all. If a part of batch 7 is
+killed, re-run it as single jobs. The new per-job timing output names the slow one on the first part.
+
+### Batches run — discovery pass (superseded ruler `82580ae5a827`)
 
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
@@ -177,7 +255,7 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — reds to fix in the single edit
+### Register — all three FIXED in v1.15.1 (2026-09-03)
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
@@ -185,59 +263,45 @@ Notes worth carrying:
 | R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
-R1 ships with a paired `selftest_assertion` — a `good` transcript carrying the observed wording and a
-`bad` one that actually asked the question, so the widened token still misses wrong behaviour.
+**All three are fixed**, in one edit as planned. What shipped, and what proves each:
 
-**R2 is not a widening.** Its class is *outcome*, and this repo does not widen over outcome, so the
-repair is to the scenario's **premise**: state that every row carries a token value, leaving the
-dispatch-count gate as the only thing under test and `ledger-content-gate-marker` as the sibling that
-tests content. Widening the assertion to accept "not enough information" would erase the distinction
-the gate exists to draw.
-
-**D1 is a harness fix, not a behavioural one**, and it is the reason batch 10 has no rows. It must land
-in the same edit — every other item here is moot while the gate cannot be satisfied at all. (Named D1, not H1: R1's own evidence quotes a mango *want-hypothesis* labelled H1, and two different H1s in one table is exactly the kind of collision this file exists to avoid.)
-
-### Next
-
-**The discovery pass is complete.** All 126 jobs have been dispatched and judged under this runner
-fingerprint. Two behavioural reds and one blocking harness defect are in the register above; nothing
-is left to discover.
-
-| State | Jobs | Note |
+| # | Fix | Proof it is not vacuous |
 |---|---|---|
-| green, recorded | 118 | fixtures; **75** under CLI 2.1.258, **43** under 2.1.259 — the 76 `--verify-suite` reports counts the red R1 row, which is also at .258 |
-| green, **unrecordable** | 6 | scenarios — judged green, no row possible until D1 is fixed |
-| red | 2 | R1 (`refine-consistency-is-how`), R2 (`ledger-gate-complete`) |
+| D1 | `skills_files` emits the fixture path only `if [ -f … ]`, and returns 0. The row-writing block became a function, `cov_row_for`, **so that the self-tests can call it.** | 4 new dispatch-free checks on a job with no fixture file: `skills_hash` returns status 0, a green row is produced, that row satisfies the real gate against the real current hashes and real identity, and the same holds for the real registered scenario label (`per-clause-both`). Confirmed by reverting the one-line fix and re-running the gate: **`--verify-suite` reports 17/22 with the defect and 21/22 with it fixed** — the 4 substantive writer checks flip, and the remaining failure in both cases is the empty ledger. Reported as failures, never a dead run. A 5th check asserts the control job really has no file, so the set cannot pass vacuously. |
+| R1 | Token hoisted to `RE_NOT_ASKED_AS_WANT`, shared by the fixture and **two** paired self-tests. Window widened over emphasis only (`not[*_ ]{1,6}[^.]{0,30}…`) and bounded by `[^.]`, so it can never leap a sentence boundary. | Checked against 5 transcripts offline: the field wording and the emphasised form now match, the zero-count form is unaffected, and **both** wrong transcripts — which actually asked the question — still miss. The new paired self-test's `good` file deliberately carries no zero-count line, so it can only pass through the widened alternative. |
+| R2 | The scenario's **premise** completed: the prompt now states every row carries a token value, so the dispatch-count identity is the only condition under test. The assertion is untouched. | Row content stays tested where it already was, in `ledger-content-gate-marker`. Widening the assertion to accept "not enough information" was rejected: the class is *outcome*, and this suite does not widen over outcome. |
 
-Derive every remaining selector the batch-6 way — from `FIXTURE_SKILLS` re-parsed with `grep -oE`,
-intersected with `coverage-report.sh --remaining` — never by copying a recorded one.
+Also in the edit: **per-job dispatch timing**, printed on every run with the slowest job named — the
+figure batch 8 needed and had to nearly time out to learn. `plugin.json` 1.15.0 → **1.15.1**, the
+CHANGELOG entry carrying the reasons, and the root README badge (which had silently sat at 1.14.2).
 
-**Bundle into the proof-pass `run.sh` edit** (it is the only edit this cycle allows, so anything
-wanted in `run.sh` must ride with it): per-job dispatch timing in the run output, so a group's latency
-becomes an artifact instead of something re-learned by nearly timing out.
+Two findings came out of writing the tests rather than the fixes, and both are in
+[`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md): **`set -e` is ignored inside an `if` condition**, which made
+my own first version of the D1 status check pass under the defect; and **every assertion in this suite
+is line-bounded by `grep`**, recorded and deliberately *not* fixed, because changing it would
+re-interpret all 511 assertions at once — a ruler change, not a batch fix.
 
-**Pin the CLI before the proof pass.** The install is native
-(`~/.local/bin/claude` → `~/.local/share/claude/versions/<v>`), `autoUpdates` is already `false` in
-`~/.claude.json`, and the version moved anyway — `autoUpdatesProtectedForNative: true` is in the same
-file. 2.1.258 is still on disk. Put the chosen version's directory first on `PATH` for the proof
-pass and record which version it was — a bump landing inside it splits the ruler and wastes the run.
+(Named D1, not H1: R1's own evidence quotes a mango *want-hypothesis* labelled H1, and two different
+H1s in one table is exactly the kind of collision this file exists to avoid.)
 
-**The proof pass will not fit in one invocation, and the numbers say so.** The R1 fix lands inside
-`run.sh`, which moves `RUNNER_FP` and wipes all 118 cache entries (`run.sh:631`), so every job runs
-fresh. 126 jobs at `--workers 8` is 16 waves; the ten part-waves measured this cycle averaged ~204s
-and the slowest was 564s, putting a full pass at roughly **55–90 minutes** — six to nine times the
-600s tool ceiling. The earlier "~30 minutes" estimate in this file was wrong.
+### Next — run the ten batches
 
-So the proof pass runs **the same way this discovery pass did**: batched, but every batch under one
-pinned CLI and one unchanged `run.sh`, so all 126 rows share a ruler. `CONTRIBUTING.md` already allows
-this — a full pass in one invocation satisfies the bar but is *not* the only way to reach it. The
-route is not the proof; `--verify-suite` is.
+Gates re-run after the edit, on 2026-09-03:
 
-Then: **one edit** carrying D1 (with its real-scenario-row self-test), R1's widened token with its
-paired self-test, and R2's completed premise — plus the per-job timing above. That edit moves
-`RUNNER_FP`, wipes all 118 cache entries, and every job re-runs under one pinned CLI. Finally
-`bash tests/eval/run.sh --verify-suite`, which for the first time this cycle will be a gate that
-*can* pass.
+```
+python3 scripts/validate.py            → 2057 checks run, 0 failed
+python3 tests/envelope/test_envelope.py → 128 tests, OK
+bash tests/eval/run.sh --verify-suite  → 21/22; the one failure is the empty ledger, by design
+```
+
+That last line is the state to expect until batch 10 lands: the 21 harness checks pass, and the gate
+refuses because no job has a row yet. It is the first time this cycle the gate has been *able* to pass.
+
+Then, per batch: pin the CLI, confirm `claude --version`, build the part selectors and verify them
+dispatch-free, run, record the row in the table above, commit. Reds this time are **fixed as found** —
+the discovery pass is over, and there is nothing left to keep a ruler intact for.
+
+Finally `bash tests/eval/run.sh --verify-suite` with all 126 rows in, and paste its output below.
 
 ### Closing entry — fill after the proof pass
 

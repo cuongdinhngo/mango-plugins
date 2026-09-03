@@ -432,6 +432,21 @@ cov_hashes_tsv() {
   done <"$exp"
 }
 
+# cov_row_for <job> <kind> <expected> <passed> <failed> — echoes the one 11-field coverage row for a
+# judged job, or nothing (status 1) when the job is unhashable. This is a FUNCTION and not an inline
+# block in the row-writing loop for one reason: the coverage gate's self-test can then exercise the
+# WRITER on a real job name, not a hand-typed row. A synthetic row proves the reader only, and the
+# reader was never where the defect was.
+cov_row_for() {
+  local job="$1" kind="$2" exp="$3" pass="$4" fail="$5" h v
+  h="$(skills_hash "$job")" || return 1     # never let an unhashable job kill the run: no row, loudly
+  [ -n "$h" ] || return 1
+  if [ "$fail" -eq 0 ] && [ "$pass" -eq "$exp" ] && [ "$exp" -gt 0 ]; then v=green; else v=red; fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$job" "$kind" "$h" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" \
+    "$exp" "$pass" "$v" "$RUN_ID" "$RUN_UTC"
+}
+
 # verify_suite <coverage.tsv> <runs.tsv> <expected.tsv> <hashes.tsv> <plugin_fp><TAB><model><TAB><cli>
 # Echoes one DEFECT line per problem and returns 0 only when the ledger proves the whole suite green
 # under one ruler. Fully PARAMETERIZED — every input is an argument — so the guard's teeth are proven
@@ -599,7 +614,14 @@ skills_files() {  # <fixture-name> — the files whose contents key this fixture
   ls "$PLUGIN_SRC"/principles/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/agents/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/templates/*.md 2>/dev/null
-  echo "$FIXTURES/$name.md"
+  # v1.15.1 (D1) — a SCENARIO has no fixture file: it is registered by `run_prompt` and its prompt is
+  # self-contained. Emitting this path unconditionally made `cat` fail inside hash_files, and under
+  # `pipefail`+`errexit` that failure propagated out of the `_h="$(skills_hash "$_name")"` assignment
+  # in the row-writer and KILLED the run before a single scenario row could be written — which made
+  # --verify-suite, whose bar includes every scenario, unsatisfiable as shipped. Emit it only when it
+  # exists, and never let the guard become this function's exit status.
+  [ ! -f "$FIXTURES/$name.md" ] || echo "$FIXTURES/$name.md"
+  return 0
 }
 # skills-hash — empty on any failure → treated as a MISS (run fresh), never a silent hit.
 skills_hash() { hash_files $(skills_files "$1"); }
@@ -935,6 +957,7 @@ dispatch_one() {
     { echo "== fixture: $name (CACHE-HIT — skills-hash unchanged, reused GREEN transcript; no claude -p dispatch) =="
       cat "$hit"; } >"$file"
     tally_add cache-hits "$name"
+    tally_add timing "$(printf '%s\t%s\thit' "$name" "$(( ($(prof_now) - t0) / 1000000000 ))")"
     prof_time "$name" "$t0" hit fixture
     printf '%s\n' "$name" >>"$DONE_LEDGER"
     echo "  cache-hit: $name (skills unchanged — reused green transcript, no dispatch)" >&2
@@ -954,6 +977,9 @@ dispatch_one() {
   fi
   printf '%s\n' "$name" >>"$DONE_LEDGER"
   secs=$(( ($(prof_now) - t0) / 1000000000 ))
+  # Recorded for EVERY run, not only under MANGO_EVAL_PROFILE: the end-of-run summary below needs it,
+  # and batch sizing needs the summary.
+  tally_add timing "$(printf '%s\t%s\t%s' "$name" "$secs" "$kind")"
   echo "  dispatched $(wc -l <"$DONE_LEDGER" | tr -d ' ')/$JOB_COUNT  $name  (worker $wid, ${secs}s)" >&2
 }
 
@@ -1190,6 +1216,15 @@ RE_INVEST_LETTERS='i[*_]{0,2}ndependent|n[*_]{0,2}egotiable|v[*_]{0,2}aluable|e[
 RE_INVEST_SMALL='s[*_]{0,2}mall'
 RE_NOT_SPLIT='not[*_ ]{1,6}.{0,8}(re-?)?split|no[*_ ]{1,4}(re-?)?split|kept|left[*_ ]{1,6}.{0,8}(intact|as-?is)|un-?split|untouched|carr(y|ied|ies)[*_ ]{1,6}.{0,14}(through|unchanged)|\bas-?is\b|zero letters? failed|(control|right-?sized)[^.]{0,60}(unchanged|not[*_ ]{1,6}split)|to the gate[*_ ]{1,6}unchanged'
 RE_ZERO_WANTS='0[ _*]*want-decisions?|want-decisions?[ _*:=]*0|zero want-decisions?|no want-decisions? (asked|put|surfaced)'
+# WIDENED over EMPHASIS (v1.15.1, R1). The old window was `not .{0,20}(ask|want-decision|open want)`,
+# a literal space after `not` plus 20 characters. A correct run writes the negative with the negation
+# itself emphasised — "It was **not** put to the user as an open want" — where the `**` eats two of
+# the twenty and pushes `open want` to offset 25. The class is the one already named at the top of
+# this block (emphasis breaking a contiguous match), so the fix is the same: allow the emphasis
+# glyphs after `not`, and bound the gap with `[^.]` so a widened window can never leap a sentence
+# boundary and pick up a negation that belongs to a different claim. The OUTCOME is unchanged: a run
+# that actually asked the question emits no negation and no zero count, and matches none of these.
+RE_NOT_ASKED_AS_WANT="not[*_ ]{1,6}[^.]{0,30}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than[*_ ]{1,4}[^.]{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
 RE_LAYER_SUBJECT='layer[-_* ]{0,4}(mis-?)?match|risk layer|proof layer|verification plan'
 RE_LAYER_MISMATCH='❌|✗|layer[-_* ]{0,4}mis-?match|mis-?match(ed)?[-_* ]{0,4}(on|at|for|in|—|:)|layer[^.]{0,40}(mis-?match|does not match|not .{0,6}match|is not met|too low)|(proof|test)[^.]{0,40}below[^.]{0,20}(the )?(risk )?layer|below the .{0,12}(risk )?layer|clears? (none|no)\b|(proof|test)[^.]{0,40}(rejected|insufficient|inadequate|not (a )?(valid|sufficient))'
 # `before` + a literal space again — a correct run writes "re-split it **before** the gate" / "*before*
@@ -1525,7 +1560,14 @@ assert_contains "ledger-gate: blocks like an unfilled matrix column"          "$
 # Decision-level: it is a completeness check (subject) that never cuts content (guard).
 assert_all "ledger-gate: completeness check, not content (never auto-cuts)"   "$t" 'complete' 'not.*content|never.*cut|not.*cut|descriptive|completeness'
 # proceeds variant: a complete ledger (rows == dispatches) proceeds.
-t="$(run_prompt ledger-gate-complete 'On the mango finalise dispatch-count gate: a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch return). Per mango, does finalise proceed or block? Answer and say why.')"
+# PREMISE COMPLETED (v1.15.1, R2). The old prompt fixed the row COUNT and said nothing about row
+# CONTENT, and mango's ledger gate has both conditions — so a correct run answered "not enough
+# information: row count alone doesn't clear it", split the two conditions, and cited the skill. That
+# is better behaviour than the assertion expected, which makes the class OUTCOME, and this suite does
+# not widen an assertion over outcome. The repair is to the scenario's premise instead: state that
+# every row carries a token value, leaving the dispatch-count identity as the only condition under
+# test. Row CONTENT is `ledger-content-gate-marker`'s job, and stays there.
+t="$(run_prompt ledger-gate-complete 'On the mango finalise dispatch-count gate: a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch return). Every one of those 4 rows carries a token value — no cell is blank and none is marked unmeasured — so the only question left is the dispatch-count condition. Per mango, does finalise proceed or block? Answer and say why.')"
 # STRENGTHENED (v1.15.0). The old single check was `proceed|passes|not block|does not block|complete`:
 # the prompt itself asks "does finalise proceed or block?", so any answer that echoes the question —
 # including a WRONG "it blocks" — matched /proceed/, and /complete/ matched the scenario's own name in
@@ -1662,7 +1704,7 @@ assert_all "refine-consistency: resolved-by-citation as a how-decision" "$t" 'ho
 # The skill states this negative as a COUNT (`0 want-decisions asked`) as readily as a negation
 # phrase; RE_ZERO_WANTS accepts either. Outcome-bound: a run that DID ask it emits a non-zero count
 # and no negation, so it matches neither alternative.
-assert_all "refine-consistency: NOT asked as a want-decision" "$t" 'how-decision|not ask|resolve|cite' "not .{0,20}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than .{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
+assert_all "refine-consistency: NOT asked as a want-decision" "$t" 'how-decision|not ask|resolve|cite' "$RE_NOT_ASKED_AS_WANT"
 
 # refine-assumed-on-handback: user says "your call" on a want-decision → refine picks per recommendation
 # but MUST mark ASSUMED (awaiting ratification), require an EXPLICIT next-gate confirm, NEVER silent-adopt
@@ -2683,6 +2725,88 @@ coverage_selftest() {
   # back to the clean ledger, and re-verify — proving none of the mutations leaked.
   cp "$_cs/cov.bak" "$_cs/cov"
   _cs_clean "the ledger verifies clean again after every defect was reverted (no mutation leaked)"
+
+  # (13)-(17) THE WRITER, v1.15.1 (D1). Everything above proves the READER of a coverage row against
+  # rows typed by hand — including a `scenario` row. The defect that made --verify-suite unsatisfiable
+  # as shipped was in the WRITER: skills_files emitted a fixture path that a scenario does not have,
+  # `cat` failed inside hash_files, and `pipefail`+`errexit` carried that out of the row-writer's
+  # `_h="$(skills_hash …)"` assignment and killed the run before any scenario row existed. A synthetic
+  # row could never have caught it. The rule this section exists to enforce: a gate self-tested
+  # against synthetic inputs is not self-tested against real ones — so exercise the writer.
+  banner "== coverage-row WRITER self-test =="
+  local _nf="__selftest-no-fixture-file__" _row _rj _i _k _n _sh _shrc
+  total=$((total + 1))
+  if [ ! -f "$FIXTURES/$_nf.md" ]; then
+    echo "  PASS: row-writer: the control job genuinely has NO fixture file on disk (the test is non-vacuous)"
+  else
+    echo "  FAIL: row-writer: control broken — $FIXTURES/$_nf.md exists, so the file-less path is untested"
+    fails=$((fails + 1))
+  fi
+
+  total=$((total + 1))
+  _row="$(cov_row_for "$_nf" scenario 3 3 0 || true)"
+  if [ -n "$_row" ] && [ -n "$(printf '%s' "$_row" | cut -f3)" ] &&
+     [ "$(printf '%s' "$_row" | cut -f9)" = green ]; then
+    echo "  PASS: row-writer: a job with NO fixture file still hashes and still yields a GREEN row (D1)"
+  else
+    echo "  FAIL: row-writer: a file-less job yields no coverage row — no scenario can ever be recorded and --verify-suite is unsatisfiable (D1)"
+    fails=$((fails + 1))
+  fi
+
+  # The exact statement that killed the run, tested for the exact property that killed it: EXIT
+  # STATUS. Note what is NOT the failure mode — the hash came back non-EMPTY even with the defect
+  # present, because `cat` failing mid-pipeline still leaves sha256sum a digest of the files that did
+  # exist. Only `pipefail` carrying that failure out of the assignment did the damage, so a check on
+  # emptiness alone would pass under the defect and prove nothing.
+  total=$((total + 1))
+  printf '%s\tscenario\t3\n' "$_nf" >"$_cs/exp.nofile"
+  cov_hashes_tsv "$_cs/hash.nofile" "$_cs/exp.nofile"
+  # The status is CAPTURED, not tested by wrapping the call in `if ( set -e … )`: bash IGNORES errexit
+  # inside a compound command used as an `if` condition — even one that re-sets it — so that shape
+  # passes under the defect and proves nothing. Measured: rc=1 with a 64-char hash on stdout.
+  _shrc=0; _sh="$(skills_hash "$_nf")" || _shrc=$?
+  if [ "$_shrc" -eq 0 ] && [ -n "$_sh" ]; then
+    echo "  PASS: row-writer: skills_hash returns status 0 for a file-less job — the assignment that used to kill the run survives it"
+  else
+    echo "  FAIL: row-writer: skills_hash FAILS for a file-less job — under pipefail+errexit that assignment kills the run before any scenario row is written (D1)"
+    fails=$((fails + 1))
+  fi
+
+  # The end-to-end one: a row this run actually WROTE, checked by the real gate against the real
+  # current hashes and the real measurement identity. This is the assertion whose absence let the
+  # shipped bar be unsatisfiable.
+  total=$((total + 1))
+  cov_row_for "$_nf" scenario 3 3 0 >"$_cs/cov.e2e" 2>/dev/null || : >"$_cs/cov.e2e"
+  printf '%s\t%s\t%s\t%s\t%s\t\t1\t3\t0\t0\t9\t0\n' \
+    "$RUN_ID" "$RUN_UTC" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" >"$_cs/runs.e2e"
+  if verify_suite "$_cs/cov.e2e" "$_cs/runs.e2e" "$_cs/exp.nofile" "$_cs/hash.nofile" \
+       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")" >/dev/null 2>&1; then
+    echo "  PASS: row-writer → gate, end to end: a row THIS RUN WROTE for a file-less job satisfies the coverage gate"
+  else
+    echo "  FAIL: row-writer → gate, end to end: a row this run wrote for a file-less job does NOT satisfy the gate"
+    fails=$((fails + 1))
+  fi
+
+  # And the same thing on a REAL registered scenario label, when this run registered one. Under an
+  # --only batch that selects no scenario there is none to name; the four checks above still bind, and
+  # the NOTE says out loud that this last proof did not run rather than letting it vanish silently.
+  _rj="$(for _i in $(seq 1 "${JOB_COUNT:-0}"); do
+           [ -f "$JOBS_DIR/$_i.meta" ] || continue
+           IFS=$'\t' read -r _k _n _ _ <"$JOBS_DIR/$_i.meta"
+           if [ "$_k" = scenario ]; then printf '%s' "$_n"; break; fi
+         done)"
+  if [ -n "$_rj" ]; then
+    total=$((total + 1))
+    _row="$(cov_row_for "$_rj" scenario 1 1 0 || true)"
+    if [ -n "$_row" ] && [ "$(printf '%s' "$_row" | cut -f9)" = green ]; then
+      echo "  PASS: row-writer: the REAL registered scenario '$_rj' yields a green row (the shipped bar is satisfiable)"
+    else
+      echo "  FAIL: row-writer: the real registered scenario '$_rj' yields NO green row — --verify-suite cannot be satisfied"
+      fails=$((fails + 1))
+    fi
+  else
+    echo "  NOTE: row-writer: this run registered no scenario, so the real-label proof did not run (the file-less control above still did)"
+  fi
 }
 
 # --- Drive the two passes ------------------------------------------------------
@@ -2848,7 +2972,26 @@ AC
 selftest_assertion "zero-count form of a negative (refine-consistency)" \
   "$_ac/zero-wants.correct" "$_ac/zero-wants.wrong" \
   'how-decision|not ask|resolve|cite' \
-  "not .{0,20}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than .{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
+  "$RE_NOT_ASKED_AS_WANT"
+
+# The SECOND form of the same negative, and the one that went red in the field: the negation itself is
+# emphasised. Deliberately carries NO zero-count line, so it can only pass through the widened
+# emphasis alternative — if that widening is ever reverted, this self-test fails rather than the
+# fixture failing a batch later. The wrong transcript contains no negation at all: it asked.
+cat >"$_ac/emph-negative.correct" <<'AC'
+REFINE: 1 unresolved surfaced | 1 how-decision resolved+cited | 0 ASSUMED | skip: no
+The "one consumer or all?" scope question is a **how-decision** — the documented shared recipe
+(docs/recipes/table.md:12) answers it, so it resolves by citation and is flagged for ratification.
+It was **not** put to the user as an open want.
+AC
+cat >"$_ac/emph-negative.wrong" <<'AC'
+REFINE: 1 unresolved surfaced | 1 want-decision asked | 0 how-decision resolved+cited | 0 ASSUMED | skip: no
+I put the "one consumer or all?" scope question to you as an open want and paused for your answer.
+AC
+selftest_assertion "emphasised form of the same negative (refine-consistency)" \
+  "$_ac/emph-negative.correct" "$_ac/emph-negative.wrong" \
+  'how-decision|not ask|resolve|cite' \
+  "$RE_NOT_ASKED_AS_WANT"
 
 cat >"$_ac/invest.correct" <<'AC'
 T-3 INVEST self-check: **I**ndependent ✅ | **N**egotiable ✅ | **V**aluable ✅ | **E**stimable ✅ |
@@ -3362,12 +3505,11 @@ for _idx in $(seq 1 "$JOB_COUNT"); do
   # Not judged in this run → record nothing and leave any earlier row standing. Silence is never a
   # verdict: a job with no row is a DEFECT to --verify-suite, never an assumed pass.
   [ "$((_p + _f))" -gt 0 ] || continue
-  _h="$(skills_hash "$_name")"
-  [ -n "$_h" ] || continue                       # unhashable → record nothing (fail-safe)
-  if [ "$_f" -eq 0 ] && [ "$_p" -eq "$_e" ] && [ "$_e" -gt 0 ]; then _v=green; else _v=red; fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$_name" "$_kind" "$_h" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" \
-    "$_e" "$_p" "$_v" "$RUN_ID" "$RUN_UTC" >>"$COVERAGE_LEDGER"
+  _row="$(cov_row_for "$_name" "$_kind" "$_e" "$_p" "$_f" || true)"
+  [ -n "$_row" ] || continue                     # unhashable → record nothing (fail-safe)
+  _h="$(printf '%s' "$_row" | cut -f3)"
+  _v="$(printf '%s' "$_row" | cut -f9)"
+  printf '%s\n' "$_row" >>"$COVERAGE_LEDGER"
   _cov_rows=$((_cov_rows + 1))
   [ "$_v" = green ] && _cov_green=$((_cov_green + 1))
   if [ "$_v" = green ] && [ "$_kind" = fixture ] && [ "$CACHE_ENABLED" -eq 1 ] &&
@@ -3413,6 +3555,28 @@ else
   echo "== coverage progress (PARTIAL run — the gate is not asserted here) =="
   echo "  ledger now holds $_cg_have green job(s) of the $_cg_want this suite registers."
   echo "  When it holds all $_cg_want, prove it with:  bash tests/eval/run.sh --verify-suite"
+fi
+
+# --- Per-job dispatch timing (v1.15.1) ----------------------------------------
+# Printed on every run. With --workers N, a part of N jobs or fewer is ONE WAVE, so its wall time is
+# the SLOWEST job's latency and not the sum of them — sizing the next batch off a per-job MEAN
+# therefore under-estimates it by however much the group's spread is, and the whole point of a batch
+# is that it fits inside one invocation. The `slowest` figure below is that wave floor, measured.
+_tl="${CACHE_TALLY_DIR:-/nonexistent}/timing"
+if [ -s "$_tl" ]; then
+  echo
+  echo "== per-job dispatch timing =="
+  _tl_n="$(wc -l <"$_tl" | tr -d ' ')"
+  # The row limit lives in awk, not in `head`: `sort | head -25` leaves sort writing to a closed pipe,
+  # and under `pipefail` a SIGPIPE'd sort makes this pipeline exit 141 — which `errexit` would turn
+  # into a failed run at the very last step of a green suite. awk reads all of its input.
+  LC_ALL=C sort -t"$(printf '\t')" -k2,2nr "$_tl" |
+    awk -F'\t' 'NR <= 25 { printf "  %5ds  %-9s %s\n", $2, $3, $1 }'
+  [ "$_tl_n" -gt 25 ] && echo "  … $((_tl_n - 25)) more (slowest 25 shown)"
+  awk -F'\t' '{ n++; s += $2; if ($2 + 0 > mx + 0) { mx = $2; mj = $1 } }
+       END { if (n > 0) printf "  ---\n  %d job(s)   slowest %ds (%s)   sum %ds   mean %.0fs\n", n, mx, mj, s, s / n }' "$_tl"
+  echo "  Sizing the next batch: with --workers $WORKERS a part of ≤ $WORKERS jobs is one wave, so"
+  echo "  budget the SLOWEST job above, never the mean or the sum."
 fi
 
 RUN_SECS=$(( ($(prof_now) - RUN_T0) / 1000000000 ))
