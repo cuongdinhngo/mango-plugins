@@ -103,10 +103,10 @@ correct ruler is the cheaper mistake.
 
 | Metric | Value |
 |---|---|
-| **Machinery fingerprint** | `4fed82315266` — names the ledger (49 functions, everything above `suite()`) |
-| Runner fingerprint | `d7105fd5795a` — forensic only, no longer compared by the gate |
+| **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
+| Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **0 of 126** — the two-tier change moved the machinery, so batches 1-2 re-run once |
+| Jobs recorded | **13 of 126** (batch 1, re-run under the two-tier ruler) |
 | Rows not green | — (fresh ledger). R5's red row stands in the superseded ledger `1489839c4721` as the evidence it was found under. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
@@ -230,7 +230,50 @@ that "was this harness change harmless?" is not answered by whoever made the cha
 re-run — and the green transcript cache was wiped by the same fingerprint move, so those are real
 dispatches, not free re-judges. Last time that bill is paid.
 
-### Batches run — proof pass, superseded ruler `1489839c4721`
+### The isolation guard had two defects, and a topic branch found both
+
+Running batch 1 from `eval/cycle-2-proof-pass` failed the guard that exists to prove no fixture
+leaked into the live checkout — 7/7 jobs green, one self-test red, and because a failing self-test
+taints its run, all 7 rows were worthless. The checkout was pristine.
+
+1. **It hardcoded `main`.** Off main it printed `LIVE CHECKOUT MUTATED — a fixture leaked` plus
+   recovery commands, every time. The property it should assert is *the eval left the checkout where
+   it found it*, so the expected branch is captured at startup and passed in. On main the two are
+   identical — nothing loosened. Making it a parameter could have turned the HEAD check into a no-op,
+   so both directions are now asserted: clean-on-a-topic-branch passes against its own branch, and
+   still fails against a different one.
+2. **`for-each-ref 'refs/heads/*PROJ-*'` never matched a nested branch.** That pattern is fnmatch
+   with `FNM_PATHNAME`, so its `*` does not cross a `/`. Measured against `PROJ-777`,
+   `feat/PROJ-999-leak` and `fix/PROJ-1-x`: the old pattern found **one**. `feat/PROJ-*` is the shape
+   mango's fixtures create — and the shape the guard's own injection test uses. Branches are now
+   listed and filtered in `grep`.
+
+**Why it survived nine batches** is the part worth keeping. The injection test built a repo with three
+leaks at once — HEAD off main, a stray branch, a work doc — so the guard failed on the other two and
+the stray-branch rule was never once proven alone. Every rule now has an isolated non-vacuity test:
+correct HEAD, no work doc, only the named artifact. Four new checks.
+
+### Batches run — proof pass, live machinery `5c877b488793`
+
+| Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
+|---|---|---|---|---|---|---|
+| 1 | `analysis` | 2 | 13 | **231 / 231** | 331s + 335s | ✅ **13 green / 0 red** |
+
+Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
+per part; no job assertion was added.
+
+**The two-tier split was demonstrated live before it was relied on.** A self-test edit — below the
+`suite()` boundary — moved the runner fp from `d7105fd5795a` to `ffc12be6ec1c` while the machinery fp
+held at `4fed82315266`, so the ledger name and every row survived a file change. Under the old rule
+that edit would have voided the suite.
+
+**And the cross-check that had to hold did:** rows written by a *partial* `--only` run satisfy the
+full gate's per-job fingerprint. `--verify-suite` reports 113 `has NO row` defects — 126 − 13 exactly
+— and **zero** fingerprint mismatches among the 13 recorded. Had `job_fp` differed between a batched
+run and the full registration walk, every batch would have been unbankable and the whole change
+worthless.
+
+### Batches run — superseded ruler `1489839c4721`
 
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
