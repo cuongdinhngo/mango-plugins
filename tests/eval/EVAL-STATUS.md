@@ -128,7 +128,7 @@ before dispatching anything: 119 map keys, 119 `fixtures/*.md` on disk, the two 
 
 | Batch | Group | Jobs | Parts | Note |
 |---|---|---|---|---|
-| 1 | `analysis` | 13 | 3 | Gate 1 |
+| 1 | `analysis` | 13 | 2 | Gate 1 — selectors verified 2026-09-03, 7/6, `matches 7 of 126` and `6 of 126`, nothing absent, nothing over-matched. 2 parts not 3: the discovery pass ran this exact group at this exact size in 2 parts / 693s, so the slowest single job is ~350s and a 7-job wave clears the ceiling with margin. |
 | 2 | `refine` | 22 | 4 | phase 0, the largest group; carries **R1** |
 | 3 | `design` | 18 | 3 | Gate 2 |
 | 4 | `review` | 14 | 3 | Gate 3 |
