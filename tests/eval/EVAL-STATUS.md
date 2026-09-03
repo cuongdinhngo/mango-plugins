@@ -195,7 +195,50 @@ sight rather than re-derived.
 
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
-| 1 | `analysis` | 2 | 13 | — | — | pending re-run |
+| 1 | `analysis` | 2 | 13 | 198 / 199 | 275s + 414s | 🟡 **12 green / 1 red** — R4 |
+
+Part 00 96/97 (`greenfield-recall-handles-none-match` red, slowest `analysis-section-coverage` 275s);
+part 01 **102/102** — which includes `vague-requirement`, so the R3 widen is confirmed in a live run and
+not only offline. Ledger holds 13 rows: 12 green, 1 red. The red **is recorded as a row**, so
+`--verify-suite` will keep refusing until it is green — the ledger does not quietly drop it.
+
+#### R4, and the thing batch 1 actually discovered
+
+`no-match: the handle-carrying sections are NOT applicable here` failed on a transcript whose verdict was
+*"Are §4.2 and §7.3 applicable?* **No — neither source makes them so**", closing with *"a ratified section
+blocks only when it is applicable, and neither is."* Correct outcome; `neither` again.
+
+Two things rule out the obvious shortcut. The counted line `RULE SECTIONS: … 0 by recalled handle` is
+already asserted **one line above** in `run.sh`, and it passed — so re-anchoring this assertion on the
+counted artifact would delete the prose check rather than strengthen it. And the fix cannot be judged
+against the discovery pass's transcripts, because **`run.sh` clears `.transcripts/` at the start of every
+run**: only the last part's 7 files exist at any time. There is no corpus.
+
+Fix designed and proved offline before being applied (adds `applicab[^.]{0,30}\b(neither|nor)\b` and the
+reverse order), on five checks rather than four — the fifth being a *dodge* transcript where the model
+declines to judge applicability at all, which the widened token must still reject:
+
+| Check | Result |
+|---|---|
+| new token vs the real transcript | match |
+| **old** token vs the real transcript | miss — load-bearing |
+| new token vs a wrong outcome (*"both are applicable… 2 by recalled handle"*) | no match |
+| new token vs a **dodge** (*"I could not determine this"*) | no match |
+| the added alternatives alone vs the wrong outcome | no match |
+
+**But the finding that matters is not R4.** Part 00 was **97/97 on attempt 1 and 96/97 on attempt 2**, with
+a *different* single assertion failing each time, both in the same negation-vocabulary class. That falsifies
+the assumption this pass was built on — *"Nothing was left to discover"*. The discovery pass dispatched each
+job exactly **once**, so it sampled one phrasing per assertion; an assertion that enumerates spellings of a
+negation can only be proven by more than one sample. These are not flaky assertions in the usual sense: the
+token is simply narrower than the space of correct answers, and each run draws from that space afresh.
+
+Batch 1 holds 47 transcript assertions and produced one red on each of two passes — ~2%. The discovery
+pass's own rate was ~0.4% (2 reds across 511). Both samples are small; the honest range is **2–11 reds per
+full 126-job pass**. What decides the strategy is only that it is **not zero**: under *fix-as-found*, every
+fix moves `RUNNER_FP`, voids every row already bought, and re-rolls every other assertion — so the pass
+converges only if a whole 126-job run comes back with zero reds, which at any of those rates is unlikely.
+
 
 ### Batches run — discovery pass (superseded ruler `82580ae5a827`)
 
