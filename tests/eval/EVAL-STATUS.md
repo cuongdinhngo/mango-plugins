@@ -105,10 +105,11 @@ correct ruler is the cheaper mistake.
 |---|---|
 | Runner fingerprint | `1489839c4721` |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | 0 of 126 |
+| Jobs recorded | **13 of 126** (batch 1) |
 | Rows not green | 0 |
 | Stale greens | 0 |
-| Distinct rulers among rows | 0 (must be 1 once rows exist) |
+| Distinct rulers among rows | 1 |
+| `--verify-suite` | 21/22 — the sole failure is 113 `has NO row` defects, = 126 − 13 exactly, and **no other defect class** |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -191,6 +192,34 @@ is the cheaper mistake. The class is recorded in EVAL-FINDINGS so the next insta
 sight rather than re-derived.
 
 **Cost of the move:** the 12 rows above are void and batch 1 re-runs in full under `3be2609b8f88`.
+
+### Batches run — proof pass, live ruler `1489839c4721`
+
+| Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
+|---|---|---|---|---|---|---|
+| 1 | `analysis` | 2 | 13 | **199 / 199** | 562s + 249s | ✅ **13 green / 0 red** |
+
+Part 00 (7 jobs) 97/97, slowest `freeform` **562s** — 38s inside the 600s tool ceiling, the narrowest
+margin any part has run at. Part 01 (6 jobs) 102/102, slowest `vague-requirement` 249s. Both parts
+foreground with `timeout 600`, per EVAL-FINDINGS rule 6. Selectors re-verified dispatch-free against all
+126 registered job names immediately before each dispatch: `matches 7 of 126` and `6 of 126`,
+named-but-absent 0.
+
+**The two widens held on fresh transcripts.** R3's assertion is in `vague-requirement` and R4's in
+`greenfield-recall-handles-none-match`; both fixtures are in this batch, both passed. That is the first
+evidence either widen survives a phrasing it was not written against — the offline four/five-direction
+proofs showed the token *could* match the archived transcript, not that it matches the next one.
+
+**The archive is now verified, not just declared.** Part 00 wrote 7 transcripts plus `IDENTITY.tsv`
+into `.archive/20260903T134714Z-850139/`, part 01 six more — 13 files under two run directories, with
+the identity stamp carrying the same `runner_fp`/`plugin_tree_fp`/CLI as the ledger rows. Nothing was
+read back from it as a verdict.
+
+**Batch 1 recorded zero reds, and that does not settle the sampling question.** Two prior passes over
+these same 13 jobs each produced exactly one red, a different assertion each time, so the honest read
+is that the per-pass red rate on this batch is low but non-zero and this pass sampled the quiet side of
+it. The sampling pass continues as planned: reds are recorded, not fixed, and the remaining 113 jobs
+are where the estimate comes from.
 
 ### Batches run — batch 1, attempt 2 (superseded ruler `3be2609b8f88`)
 
@@ -411,31 +440,37 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — run the ten batches
+### Next — batches 2 to 10
 
-Gates re-run after the batch-1 fix, on 2026-09-03, under ruler `3be2609b8f88`:
+Gates on 2026-09-03, under the live ruler `1489839c4721`, with batch 1 recorded:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 21/22; the one failure is the empty ledger, by design
-                                          (suite still 126 jobs · 511 assertions — R3 widened a
-                                           token, it did not add or remove an assertion)
+bash tests/eval/run.sh --verify-suite  → 21/22; the one failure is 113 `has NO row` defects, which is
+                                          126 − 13 exactly. No identity disagreement, no stale green,
+                                          no other defect class — the ledger is short, not wrong.
 ```
 
-That last line is the state to expect until batch 10 lands: the 21 harness checks pass, and the gate
-refuses because no job has a row yet. It is the first time this cycle the gate has been *able* to pass.
+That is the state to expect until batch 10 lands: the 21 harness checks pass, and the gate refuses on
+row count alone, with the shortfall shrinking by each batch's job count. `run.sh` is **frozen** from
+here to the last batch — any edit renames the ledger and voids all rows recorded so far, which is how
+batch 1 came to be run three times.
 
 Then, per batch: pin the CLI, confirm `claude --version`, build the part selectors and verify them
 dispatch-free, run, record the row in the table above, commit. **Reds are recorded, not fixed** — see
 *The sampling pass* above; fix-as-found was tried in batch 1 and does not converge.
 
-Batch 1 has now exercised that rule once (R3), at the cheapest possible point in the pass. Two operational
-notes it produced:
+Batch 1 has now been run three times: attempt 1 found R3, attempt 2 found R4, and the third — the only
+one whose rows survive — was clean at 199/199. Three operational notes it produced:
 
 - **Run each part in the foreground.** Both background attempts at part 01 were reaped within ~10s of the
   dispatch line — no error, no residue, just `[killed]` — while part 00 had survived 401s in background.
   Foreground with a 600s ceiling is the reliable shape, and it fits every part except possibly batch 7's.
+- **Budget the slowest job, never the mean.** With `--workers 8` a part of ≤ 8 jobs is one wave, so a
+  7-job part costs its slowest job's latency. Part 00's `freeform` came in at 562s against the 600s
+  ceiling — sum 2313s, mean 330s, both irrelevant. Batch 7's `autorun` group is the one still expected
+  to test that ceiling.
 - **A killed run writes nothing and damages nothing.** Both kills left the ledger at exactly its prior row
   count, the checkout clean, no stray branch, no live process, and no worker clone on disk — checked, not
   assumed, before re-dispatching.
