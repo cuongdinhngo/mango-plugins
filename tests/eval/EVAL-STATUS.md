@@ -63,11 +63,11 @@ correct ruler is the cheaper mistake.
 |---|---|
 | Runner fingerprint | `82580ae5a827` |
 | Plugin-tree fingerprint | `136caac19f92` |
-| Fixtures green | 75 of 119 on disk (+0 scenario rows) |
+| Fixtures green | 92 of 119 on disk (+0 scenario rows) |
 | Rows not green | 1 |
 | Stale greens | 0 |
-| Distinct rulers among rows | 1 (must be 1) |
-| Fixtures with no green row | 44 |
+| Distinct rulers among rows | 2 (must be 1) |
+| Fixtures with no green row | 27 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`.
 
@@ -81,6 +81,7 @@ Regenerate with `bash tests/eval/coverage-report.sh --md`.
 | 4 ↻ | `design` (Gate 2) | 2 | 17 | 205 / 205 | 645s | ✅ green |
 | 5 ↻ | `execute` (phase 3) | 1 | 4 | 82 / 82 | 218s | ✅ green |
 | 6 ↻ | `review` (Gate 3) | 2 | 11 | 177 / 177 | 283s | ✅ green |
+| 7 ↻ | `finalise` (+`codify`) | 3 | 17 | 289 / 289 | 445s | ✅ green ⚠️ CLI split |
 
 Assertion counts include the 71 dispatch-free self-tests once per part, so they do not sum to 511.
 
@@ -106,6 +107,11 @@ Notes worth carrying:
 - **Batch 6 ran 1.7× faster than the cycle predicted** — 283s of dispatch for 11 jobs
   (≈26s/job) against the ≈1.55× slowdown seen in batches 1–5. Two parts were more than the
   ceiling required; splitting cost nothing, so the margin stays.
+- **The CLI moved mid-batch — 2.1.258 → 2.1.259 — between batch 7 part A's dispatch and the
+  batch before it.** The ledger now carries two rulers (76 rows at .258, 17 at .259) and
+  `coverage-report.sh` says so: `distinct rulers among rows 2 (NOT uniform — --verify-suite
+  will refuse)`. This is the machinery working, not failing: the ruler that was invisible to
+  every hash before v1.15.0 is now the thing that shouts. See [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md).
 - **Timing:** this cycle runs ≈**1.55×** slower than cycle 1, so any batch whose predecessor took over
   ~380s must be split to stay under the 600s tool ceiling. Splitting is free.
 
@@ -120,23 +126,29 @@ and a `bad` one that actually asked the question, so the widened token still mis
 
 ### Next
 
-Batches 7–10 remain, under this same fingerprint. What is left, derived from `FIXTURE_SKILLS`
-minus the green rows — **44 fixtures + 7 scenarios = 51 jobs**:
+Batches 8–10 remain, under this same runner fingerprint. What is left, derived from
+`FIXTURE_SKILLS` minus the green rows — **27 fixtures + 7 scenarios = 34 jobs**:
 
 | Group | Left | Note |
 |---|---|---|
-| `finalise` (+`codify`) | 17 | largest remaining; needs 2–3 parts |
-| `autorun` | 7 | has a recorded selector |
+| `autorun` | 7 | |
 | `breakdown` | 4 | |
-| `budget` | 3 | includes `budget-rtk-wire-guidance`, whose green was wiped by the v1.15.0 FP change |
-| `promote` | 3 | |
 | `solve` / `solve finalise` | 4 | |
 | `quick`, `init doctor`, `codify` | 5 | |
+| `budget` | 3 | includes `budget-rtk-wire-guidance`, whose green was wiped by the v1.15.0 FP change |
+| `promote` | 3 | |
 | `refine` | 1 | R1 — stays red by design this pass |
 | scenarios | 7 | **foreground, split** — the background attempt was stopped host-side |
 
 Derive every remaining selector the batch-6 way — from `FIXTURE_SKILLS` re-parsed with `grep -oE`,
 intersected with `coverage-report.sh --remaining` — never by copying a recorded one.
+
+**Pin the CLI before the proof pass.** The install is native
+(`~/.local/bin/claude` → `~/.local/share/claude/versions/<v>`), `autoUpdates` is already `false` in
+`~/.claude.json`, and the version moved anyway — `autoUpdatesProtectedForNative: true` is in the same
+file. 2.1.258 is still on disk. A proof pass is one full run of ~30 minutes; a bump landing inside it
+splits the ruler and wastes the whole run, so put the chosen version's directory first on `PATH` for
+that invocation and record which version it was.
 
 Then: one edit fixing the register, then a full pass, then `bash tests/eval/run.sh --verify-suite`.
 

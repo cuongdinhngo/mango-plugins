@@ -205,6 +205,40 @@ unrun and the batch would have reported green.
 
 ---
 
+## The CLI updated itself mid-cycle, and the ledger was the only thing that noticed
+
+Found 2026-09-03, in batch 7 part A's identity line: `CLI 2.1.259 (Claude Code)` where every row
+before it read `2.1.258`. Nothing announced the upgrade. The ledger now splits **76 rows at .258, 17
+at .259**, and `coverage-report.sh` reports `distinct rulers among rows 2 (NOT uniform)`.
+
+This is the *exact* scenario the invisible-ruler finding described as possible but unobserved: "the
+model and the `claude` CLI version could all have changed across the ~21 hours the ten batches spanned
+with no hash noticing. Nothing did change." This cycle, it did. The difference is that v1.15.0 had
+already made the CLI version part of every row, so the split is a **counted fact** rather than a thing
+nobody could have known.
+
+Two consequences, separated because they are not the same claim:
+
+- **The discovery pass is unharmed.** Its rows were never proof — `EVAL-STATUS.md` says so in its own
+  blockquote — and the proof pass is a single full run under one CLI by construction.
+- **The cache does not key on the CLI.** The wipe at `run.sh:631` triggers on `RUNNER_FP` (the
+  `run.sh` hash) alone, so a transcript produced by .258 stays a cache hit under .259. That is safe
+  here only because the proof-pass edit fixes R1 *inside* `run.sh`, which moves `RUNNER_FP` and wipes
+  every entry. Read, not assumed — the block is nine lines and does exactly that.
+
+The upgrade route is worth naming, because the obvious guard was already set and did not hold: the
+install is native (`~/.local/bin/claude` is a symlink into `~/.local/share/claude/versions/`),
+`~/.claude.json` has `"autoUpdates": false`, and it also has `"autoUpdatesProtectedForNative": true`.
+Both 2.1.258 and 2.1.259 remain on disk, so pinning is available.
+
+### Rule
+> **A run long enough to matter is long enough for its tooling to change under it.** The proof pass is
+> one uninterrupted full run; pin the CLI for its duration by putting the chosen
+> `~/.local/share/claude/versions/<v>` first on `PATH`, and record the version. Turning off
+> auto-update in config is not sufficient evidence that it is off — the version on disk is.
+
+---
+
 ## Rules that keep a cycle valid
 
 These are process rules, learned the hard way, and they cost nothing to follow.
