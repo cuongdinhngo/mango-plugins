@@ -105,11 +105,11 @@ correct ruler is the cheaper mistake.
 |---|---|
 | Runner fingerprint | `1489839c4721` |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **13 of 126** (batch 1) |
-| Rows not green | 0 |
+| Jobs recorded | **34 of 126** (batches 1-2) |
+| Rows not green | **1** — `refine-want-unattended-stops`, verdict `red`, run `20260903T151409Z-913165`. A red job still writes a row; the gate counts only green ones, so it reads as unproven, not as absent. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 21/22 — the sole failure is 113 `has NO row` defects, = 126 − 13 exactly, and **no other defect class** |
+| `--verify-suite` | 21/22 — the sole failure is `has NO row` defects, and **no other defect class**; at 13 rows it was exactly 113 = 126 − 13 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -198,6 +198,7 @@ sight rather than re-derived.
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
 | 1 | `analysis` | 2 | 13 | **199 / 199** | 562s + 249s | ✅ **13 green / 0 red** |
+| 2 | `refine` | 4 | 22 | 395 / 396 | 333s + 331s + 330s + 371s | 🟡 **21 green / 1 red** — R5, recorded not fixed |
 
 Part 00 (7 jobs) 97/97, slowest `freeform` **562s** — 38s inside the 600s tool ceiling, the narrowest
 margin any part has run at. Part 01 (6 jobs) 102/102, slowest `vague-requirement` 249s. Both parts
@@ -220,6 +221,44 @@ these same 13 jobs each produced exactly one red, a different assertion each tim
 is that the per-pass red rate on this batch is low but non-zero and this pass sampled the quiet side of
 it. The sampling pass continues as planned: reds are recorded, not fixed, and the remaining 113 jobs
 are where the estimate comes from.
+
+#### Batch 2 — R5, the third red of the same class
+
+The 22-member `refine` group was split 6/6/5/5 by an **exact partition check**, not by eye: the four
+selectors' union was diffed against the group derived from `FIXTURE_SKILLS` and had to be the identical
+set — nothing dropped, nothing in two parts. All four verified `matches N of 126`, named-but-absent 0.
+The two likely-heaviest jobs (`greenfield-full-run`, `epic-scaffold-committed`) were deliberately put in
+the *same* part so their latencies overlap in one wave instead of serialising across two.
+
+Timings were flat and comfortable — slowest job per part 333s / 331s / 330s / 371s, all ~230s inside the
+600s ceiling. This group has no `freeform`-class outlier.
+
+**R5 — `refine-want-unattended-stops`, assertion "want-j: it is NOT recorded as a silent ASSUMED that
+ships a PR".** Token:
+
+```
+not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent
+```
+
+Measured against the archived red transcript
+(`.archive/20260903T151409Z-913165/refine-want-unattended-stops.red.log`): **0 matches**. The transcript
+answers the question correctly and in the negative — *"No — `ASSUMED` is not the fallback for silence"*,
+*"Silence is not a hand-back"*, *"the ASSUMED block in the working doc is deliberately empty"* — and
+prints `0 ASSUMED` twice in its counted REFINE line. What defeated the token is `[ *_]{1,4}`: it allows
+at most four spaces/asterisks/underscores between `not` and `silent`, and the real phrasing puts
+*"the fallback for"* (17 characters) between them. `does not` does not appear at all.
+
+Same class as R3 and R4 — **a negation token that enumerates adjacencies of `not` and cannot see the
+words the model actually put in between.** Third instance, third distinct spelling of the same blind
+spot. All five sibling assertions on this fixture passed, including `the run STOPS at Gate 0` and
+`no product decision is invented at 3am`, so the mechanism fired and only the wording check missed.
+
+**Not fixed.** Per *The sampling pass*, the widen is deferred to the single offline edit after batch 10,
+where it will be swept across the whole archive rather than proved against one transcript. Two candidate
+anchors already visible and to be judged then: the counted `0 ASSUMED` (a counted artifact, which binds
+harder than prose) and a distance-tolerant negation form. Whether the counted form *replaces* the prose
+check or joins it is exactly the R4 question — there, re-anchoring would have deleted a check that a
+sibling already covered, so it was refused.
 
 ### Batches run — batch 1, attempt 2 (superseded ruler `3be2609b8f88`)
 
@@ -376,16 +415,17 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — all four FIXED (R1/R2/D1 in v1.15.1; R3 during batch 1)
+### Register — R1/R2/D1/R3/R4 fixed; **R5 open, recorded not fixed**
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
 | R1 | `refine-consistency-is-how` | `refine-consistency: NOT asked as a want-decision` | wording / emphasis window | Behaviour **correct**: H1 filed, resolved "apply to ALL consumers sharing the recipe", cited, flagged for ratification. Transcript says *"It was **not** put to the user as an open want"*. Regex is `not .{0,20}(ask\|want-decision\|open want)`; `open want` lands at offset **25** because the `**` emphasis eats 2. |
 | R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
 | R3 | `vague-requirement` | `vague-requirement: flags AC-1 as not falsifiable` | wording / emphasis window | Found in batch 1, not the discovery pass, because the discovery pass's `analysis` batch happened to draw a transcript phrased with `not`. Behaviour **correct**: AC-1 split into two clauses, both flagged, both barred from a matrix `✅`. The verdict was worded *"neither falsifiable nor excluded"*, which the `not …`-only token could not see. Fixed by adding `(neither\|nor) falsifiable`; proved load-bearing and still discriminating in both directions before the ruler moved. See *Batch 1, attempt 1*. |
+| R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | wording / adjacency window — **OPEN** | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Deferred to the post-batch-10 edit by design — see *Batch 2* above. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
-**All three are fixed**, in one edit as planned. What shipped, and what proves each:
+**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5 is open. What shipped for the first three, and what proves each:
 
 | # | Fix | Proof it is not vacuous |
 |---|---|---|

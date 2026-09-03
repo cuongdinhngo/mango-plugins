@@ -384,7 +384,7 @@ of ruler and belongs to its own cycle with its own full pass.
 
 ---
 
-## A negation token written `not X` cannot see `neither X nor Y`
+## A negation token written `not X` cannot see how the model actually spells the negation
 
 Batch 1 of the proof pass went 101/102 on one assertion:
 
@@ -427,6 +427,38 @@ carry a literal `not <word>`, but which of them a model will phrase with `neithe
 without a transcript, and pre-emptively widening 40 negation tokens against a hypothesis is precisely
 how a suite stops discriminating. A second ruler move later is the cheaper mistake than a suite that
 passes everything.
+
+### Three instances, three spellings — the class is the pattern, not the regex
+
+By the end of batch 2 the same class had produced three reds in three passes, each defeating a
+*differently shaped* token:
+
+| # | Job | What the token could not see | Why it missed |
+|---|---|---|---|
+| R3 | `vague-requirement` | `neither falsifiable nor excluded` | the token enumerated synonyms of `not <word>` and `neither` was not among them |
+| R4 | `greenfield-recall-handles-none-match` | `No — neither source makes them so` | same, in the other word order |
+| R5 | `refine-want-unattended-stops` | `ASSUMED is not the fallback for silence` | the token's `not[ *_]{1,4}silent` allows ≤ 4 characters between the two words; the model put 17 there |
+
+R5 is the useful one, because it is **not** a `neither` case. The first heading of this finding named
+the symptom (`neither X nor Y`) and it turned out to be one dialect of a wider defect: **a negation
+written as an adjacency — `not` within *n* characters of a keyword — is a bet on how many words the
+model will put in between, and that number is not knowable in advance.** Widening the character window
+does not fix it either; it only moves the bet, and a window wide enough to catch "not the fallback for
+silence" is wide enough to leap into a neighbouring clause and match an affirmative.
+
+What the three have in common is diagnostic, and it is what makes the wording verdict defensible each
+time: **a sibling assertion on the same transcript passed**, so the mechanism provably ran, and **the
+failing token was a synonym or adjacency list rather than a condition**. Both signals must be present.
+Neither one alone licenses a widen.
+
+The standing conclusion — which R5 does not change, and reinforces — is that these are found only by
+running, one real transcript at a time, and that a speculative sweep over the ~40 similarly-shaped
+tokens cannot be proved in the four directions above because there is no failing transcript to prove it
+against. What R5 *does* change is the preferred fix: where a **counted artifact** states the same fact
+(R5's transcript prints `0 ASSUMED` twice), anchoring on the count is stronger than any prose window,
+because a count cannot be paraphrased. That is only available when a sibling assertion is not already
+covering that count — the trap R4 walked up to, where re-anchoring would have deleted a check instead
+of strengthening one.
 
 ### One dispatch per assertion samples one phrasing
 
