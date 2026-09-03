@@ -36,12 +36,13 @@ have been ~100 at batch 8. Everything below the *Register* describes the discove
 as evidence of what was found — **no row from it may be cited.**
 
 ```
-Runner fingerprint  : 3be2609b8f887d12…   (the batch-1 fix — the ruler now in force)
+Runner fingerprint  : 1489839c47215913…   (R4 + the transcript archive — the ruler now in force)
 Plugin-tree fp      : 9b199a8b5b77c989…   (UNCHANGED — the batch-1 fix is harness-only, no plugin bump)
 Model / CLI         : cli-default / 2.1.259 (Claude Code) — PINNED, see below
 Suite               : 126 jobs · 511 transcript assertions · dispatch-free self-tests +6 on v1.15.0
-Ledger              : empty — 0 of 126 jobs recorded (batch 1 re-runs from scratch)
-Superseded rulers   : ecf9e4c6bfb0 (v1.15.1) — 12 rows from batch 1 attempt 1, none usable
+Ledger              : empty — 0 of 126 jobs recorded
+Superseded rulers   : 3be2609b8f88 — 13 rows from batch 1 attempt 2 (12 green, 1 red), none usable
+                      ecf9e4c6bfb0 (v1.15.1) — 12 rows from batch 1 attempt 1, none usable
                       82580ae5a827 (v1.15.0, CLI 2.1.258→.259) — 118 rows, none usable
 ```
 
@@ -85,7 +86,7 @@ at batch 8 and lose 100. So this cycle is deliberately two passes:
    not fixed**; `run.sh` was not touched, so no batch was paid for twice. All 126 jobs were dispatched
    and judged: 118 rows written, 6 scenarios green but unrecordable, 2 behavioural reds, 1 blocking
    harness defect. Nothing was left to discover.
-2. **Proof — running now,** under runner `3be2609b8f88`. The permitted `run.sh` edits have landed
+2. **Proof — superseded by a sampling pass, see below.** Under runner `3be2609b8f88` the permitted `run.sh` edits had landed
    (see *Register*). Every job re-runs, batch by batch, under a pinned CLI; then `--verify-suite`,
    which for the first time this cycle is a gate that **can** pass.
 
@@ -102,7 +103,7 @@ correct ruler is the cheaper mistake.
 
 | Metric | Value |
 |---|---|
-| Runner fingerprint | `3be2609b8f88` |
+| Runner fingerprint | `1489839c4721` |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
 | Jobs recorded | 0 of 126 |
 | Rows not green | 0 |
@@ -191,7 +192,7 @@ sight rather than re-derived.
 
 **Cost of the move:** the 12 rows above are void and batch 1 re-runs in full under `3be2609b8f88`.
 
-### Batches run — proof pass (ruler `3be2609b8f88`)
+### Batches run — batch 1, attempt 2 (superseded ruler `3be2609b8f88`)
 
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
@@ -376,6 +377,40 @@ re-interpret all 511 assertions at once — a ruler change, not a batch fix.
 (Named D1, not H1: R1's own evidence quotes a mango *want-hypothesis* labelled H1, and two different
 H1s in one table is exactly the kind of collision this file exists to avoid.)
 
+### The sampling pass — chosen 2026-09-03, replaces fix-as-found
+
+Batch 1 established that a single dispatch per assertion samples **one phrasing**, so the reds left in
+this suite cannot all be found by one pass and cannot be fixed one at a time: every fix moves
+`RUNNER_FP` and voids every row already bought. Four steps, in order:
+
+| # | Step | Dispatch | Yields |
+|---|---|---|---|
+| 1 | Apply R4, add the transcript archive | none — **done**, ruler `1489839c4721` | a ruler that keeps its evidence |
+| 2 | **Sample:** run all 126 jobs, record reds, **fix nothing** | 126 jobs | the red list **and** 126 archived transcripts |
+| 3 | One edit: fix every red, each widened token swept offline against all 126 archived transcripts | none | the class closed, not the instance |
+| 4 | **Prove:** run all 126 jobs, then `--verify-suite` | 126 jobs | the proof, if step 3 was right |
+
+Step 2 is a discovery pass under a *new* ruler, which is why batch 1 re-runs with the rest. Its rows are
+never citable as proof — only step 4's are. `run.sh` must not be touched between step 1 and the end of
+step 2, exactly as in the first discovery pass.
+
+**What the archive changes.** `.transcripts/` is wiped at the start of every run, so until now a token
+could only be re-judged against the last part that ran — which is why batch 1 fixed one negation token
+per pass instead of the class. `.archive/<RUN_ID>/<job>.<verdict>.log` now keeps every judged
+transcript, **reds included**, with an `IDENTITY.tsv` recording the runner, plugin-tree, model and CLI
+that produced them. A red transcript is the only record of a phrasing an assertion failed to match; the
+greens are what show a widened token has not gone toothless elsewhere. Nothing is ever read back from
+the archive as a verdict — it is evidence for offline work, never an input to judging — so it cannot
+become a false green. It is git-ignored, like `.transcripts/` and `.cache/`.
+
+The archive is **unverified until step 2's first part**: the fingerprint change wiped the cache, so
+there is no cache-hit path to exercise it dispatch-free. Confirm files land before trusting it.
+
+Step 3 is the step this whole plan exists for, and it has a bar: a widened token must be checked
+against **every** archived transcript, not just the one that failed — matching where the outcome is
+right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
+class", and it is free.
+
 ### Next — run the ten batches
 
 Gates re-run after the batch-1 fix, on 2026-09-03, under ruler `3be2609b8f88`:
@@ -392,8 +427,8 @@ That last line is the state to expect until batch 10 lands: the 21 harness check
 refuses because no job has a row yet. It is the first time this cycle the gate has been *able* to pass.
 
 Then, per batch: pin the CLI, confirm `claude --version`, build the part selectors and verify them
-dispatch-free, run, record the row in the table above, commit. Reds this time are **fixed as found** —
-the discovery pass is over, and there is nothing left to keep a ruler intact for.
+dispatch-free, run, record the row in the table above, commit. **Reds are recorded, not fixed** — see
+*The sampling pass* above; fix-as-found was tried in batch 1 and does not converge.
 
 Batch 1 has now exercised that rule once (R3), at the cheapest possible point in the pass. Two operational
 notes it produced:

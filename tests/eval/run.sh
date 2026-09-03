@@ -290,6 +290,15 @@ REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
 # each PASS/FAIL line points at the transcript file it judged. Wiped fresh each run.
 TDIR="$HERE/.transcripts"
 rm -rf "$TDIR"; mkdir -p "$TDIR"
+# The ARCHIVE is the one directory this script never wipes. `.transcripts/` above is cleared on every
+# run, which means a narrow assertion can only ever be re-judged against the LAST part that ran — and
+# that is exactly how batch 1 of the proof pass came to fix one negation token per pass instead of the
+# class. Every judged transcript is copied here, red ones included: a red transcript is the only
+# record of the phrasing an assertion failed to match, and the greens are what show a widened token
+# has not gone toothless elsewhere. Nothing is ever read back from here as a verdict — it is evidence
+# for offline token work, never an input to judging — so it cannot become a false green.
+ARCHIVE_DIR="$HERE/.archive"
+mkdir -p "$ARCHIVE_DIR" 2>/dev/null || true
 fails=0
 total=0
 skipped=0        # assertions not judged because --only filtered their dispatch out
@@ -2427,7 +2436,14 @@ assert_contains "no-match: the RECALL line is emitted" "$t" 'RECALL:'
 assert_all "no-match: zero claims surfaced by handle" "$t" 'by handle' '0|zero|none'
 assert_contains "no-match: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
 assert_all "no-match: the handle-matched source adds zero sections" "$t" 'by recalled handle|by handle' '0|zero|none|add(s|ed)? no'
-assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)'
+# R4 (proof pass, batch 1): the second red of the SAME class as R3 — a negation token that enumerates
+# spellings of `not` and cannot see `neither`. The transcript answered "Are §4.2 and §7.3 applicable?
+# No — neither source makes them so" and closed "blocks only when it is applicable, and neither is".
+# Both orders are now accepted. Deliberately NOT re-anchored on the counted `0 by recalled handle`:
+# that is already asserted one line above, so it would delete this prose check rather than strengthen
+# it. Proved on five checks including a `dodge` transcript ("I could not determine this"), which the
+# widened token must still REJECT — widening may buy a synonym, never a non-answer.
+assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)|applicab[^.]{0,30}\b(neither|nor)\b|\b(neither|nor)\b[^.]{0,40}(applicab|surfac|match)'
 assert_all "no-match: no extra trace, row, question or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'trace|row|gate|question|work'
 
 # G5 greenfield-autorun-clean: the unattended lane on a project that has learned nothing and merged
@@ -3516,12 +3532,25 @@ for _idx in $(seq 1 "$JOB_COUNT"); do
   printf '%s\n' "$_row" >>"$COVERAGE_LEDGER"
   _cov_rows=$((_cov_rows + 1))
   [ "$_v" = green ] && _cov_green=$((_cov_green + 1))
+  if [ -s "$(transcript_path "$_name")" ]; then
+    mkdir -p "$ARCHIVE_DIR/$RUN_ID" 2>/dev/null || true
+    cp "$(transcript_path "$_name")" "$ARCHIVE_DIR/$RUN_ID/$_name.$_v.log" 2>/dev/null || true
+  fi
   if [ "$_v" = green ] && [ "$_kind" = fixture ] && [ "$CACHE_ENABLED" -eq 1 ] &&
      [ "$SELFTEST_FAILS" -eq 0 ] && [ -s "$(transcript_path "$_name")" ]; then
     cp "$(transcript_path "$_name")" "$CACHE_DIR/$_name.$_h.green" 2>/dev/null &&
       _minted=$((_minted + 1)) || true
   fi
 done
+
+# Stamp the archived run with the ruler that produced it. Without this the archive is a pile of
+# transcripts with no way to tell which run.sh, plugin tree or CLI wrote them — and a transcript
+# judged under a different ruler is not evidence about this suite.
+if [ -d "$ARCHIVE_DIR/$RUN_ID" ]; then
+  printf 'run\t%s\nutc\t%s\nrunner_fp\t%s\nplugin_tree_fp\t%s\nmodel\t%s\ncli\t%s\nonly\t%s\n' \
+    "$RUN_ID" "$RUN_UTC" "$RUNNER_FP" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
+    >"$ARCHIVE_DIR/$RUN_ID/IDENTITY.tsv" 2>/dev/null || true
+fi
 
 # The run row. --verify-suite reads fields 11-12 (self-tests run / self-tests failed) to decide
 # whether the harness that took these measurements had been proven sound; the tallies here are as at

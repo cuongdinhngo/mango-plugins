@@ -428,6 +428,43 @@ without a transcript, and pre-emptively widening 40 negation tokens against a hy
 how a suite stops discriminating. A second ruler move later is the cheaper mistake than a suite that
 passes everything.
 
+### One dispatch per assertion samples one phrasing
+
+Batch 1 of the proof pass ran the same 7-fixture part twice. Attempt 1: **97/97**. Attempt 2:
+**96/97** — a *different* assertion, on a different fixture, both in the negation-vocabulary class
+above. Nothing had changed but the dispatch.
+
+These are not flaky assertions in the usual sense. Nothing is racing and nothing is timing out. The
+token is simply narrower than the space of correct answers, and each run draws from that space afresh:
+one run says "not applicable", the next says "neither is". A pass therefore does not measure the suite,
+it *samples* it — and the first discovery pass, which dispatched every job exactly once, recorded
+"nothing left to discover" when what it had was one sample per assertion.
+
+The consequence is structural, not cosmetic. Proof requires all 126 job rows green under **one** ruler;
+fixing any assertion moves `RUNNER_FP` and voids every row already bought. So fix-as-found converges
+only if some full pass happens to come back with zero reds. Batch 1's 47 transcript assertions produced
+one red on each of two passes (~2%); the discovery pass's own rate was ~0.4% (2 of 511). Both samples
+are small, but both are non-zero, and at either rate a clean 511-assertion pass is not something to
+plan around.
+
+The second cost was self-inflicted and is now fixed: `run.sh` wiped `.transcripts/` at the start of
+every run, so a token could only ever be re-judged against the last part that ran. Two reds of the same
+class therefore cost two passes to find and would have cost two more to fix, when a stored corpus would
+have closed both at once for free.
+
+### Rule
+
+**Never conclude a suite is clean from one dispatch per assertion, and keep every transcript.** A pass
+that finds no reds has established that the assertions matched *one* sample each — for a synonym-list
+token that is weak evidence. So: archive every judged transcript, reds included, outside the directory
+the runner wipes; when a red is fixed, sweep the widened token across the whole archive rather than the
+one file that failed, checking that it matches where the outcome is right and still misses where it is
+wrong. And when reds are still being discovered, **sample before proving**: one pass that records reds
+without fixing them, one edit that closes every class it found, then one pass that proves. Fixing as
+found is correct only once the discovery rate is actually zero. The archive must never be read back as
+a verdict — evidence for writing assertions, never an input to judging — or it becomes the cache a
+false green hides in.
+
 ### Rule
 
 **Widen a negation token only against a transcript that actually failed on it, and prove the old token
