@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **13 of 126** (batch 1, re-run under the two-tier ruler) |
-| Rows not green | — (fresh ledger). R5's red row stands in the superseded ledger `1489839c4721` as the evidence it was found under. |
+| Jobs recorded | **35 of 126** (batches 1-2 under the two-tier ruler) — but see the vacuity note: **34 of those 35 are proven, 1 is credited on a pass that discriminates nothing** |
+| Rows not green | 0. R5's red row stands in the superseded ledger `1489839c4721` as the evidence it was found under; under this ruler the same job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 21/22 — the sole failure is `has NO row` defects, and **no other defect class**; at 13 rows it was exactly 113 = 126 − 13 |
+| `--verify-suite` | 33/34 — the sole failure is `has NO row` defects, and **no other defect class**; at 35 rows it is exactly 91 = 126 − 35, with 0 fingerprint mismatches and 0 rows predating per-job identity |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -258,6 +258,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
 | 1 | `analysis` | 2 | 13 | **231 / 231** | 331s + 335s | ✅ **13 green / 0 red** |
+| 2 | `refine` | 4 | 22 | **460 / 460** | 451s + 296s + 355s + 361s | ✅ **22 green / 0 red** — but one green is vacuous, below |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -272,6 +273,72 @@ full gate's per-job fingerprint. `--verify-suite` reports 113 `has NO row` defec
 — and **zero** fingerprint mismatches among the 13 recorded. Had `job_fp` differed between a batched
 run and the full registration walk, every batch would have been unbankable and the whole change
 worthless.
+
+### R5 came back green, and the green proves nothing
+
+R5 was expected to reappear in batch 2 part 03. It did not: `refine-want-unattended-stops` went
+**green**, with its token unchanged — R5 was recorded, not fixed, so nothing about the assertion moved
+between the red and the green.
+
+A red that stops reproducing against an unchanged assertion is not a fixed red. It was checked offline
+against both archived transcripts, and the result is worse than a flake. The token is
+`ASSUMED` **and** `not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent`:
+
+| Branch | Red transcript (44 lines) | Green transcript (55 lines) |
+|---|---|---|
+| `not[ *_]{1,4}(silent\|adopt)` | 0 | **0** |
+| `never[ *_]{1,4}(silent\|assum)` | 0 | **0** |
+| `no[ *_]{1,4}silent` | 0 | **0** |
+| `does not` | 0 | **4** |
+
+Every branch that actually tests the claim missed the green transcript too. The pass was carried
+entirely by `does not`, and the lines it fired on are these:
+
+- `merge-strategy: squash-or-rebase (first-parent topology; narrows, does not remove, the judgement)`
+- `… so reading the verdict is mine: Gate 0 does not close.`
+- `… a guess mango made about intent it does not own …`
+- `… PROJ-903: j = 0, and the self-skip does not change it.`
+
+A configuration line about merge strategy satisfied an assertion about whether mango silently records
+an `ASSUMED`. `judged_body` strips only `^== fixture: ` / `^== scenario: `, so all four lines are inside
+the judged text. The companion pattern `ASSUMED` is no help either: the fixture's transcript prints
+that word whatever it decides.
+
+**So R5 is not a wording-window red. It is a false-green assertion, and it is the more serious class.**
+The behaviour was correct in both runs; what changed was only whether the model happened to write two
+common words. R5 stays **OPEN** and is carried into the post-batch-10 edit, where the fix is to delete
+the `does not` branch and bind the surviving ones to the claim — not to widen anything.
+
+One row in the ledger is therefore credited on a pass that discriminates nothing. It is left standing
+rather than hand-edited: removing the token's dead branch changes that job's `job_fp`, so
+`--verify-suite` will name `refine-want-unattended-stops` as stale and re-run **that job alone**. This
+is the first time the two-tier ruler has been the thing that makes an honest correction affordable.
+
+#### How wide is the class — measured, not guessed
+
+The same sweep was run over all 511 assertion call sites, splitting each regex on its top-level `|`
+and flagging any branch that is bare common English. Base rates over the 77 archived transcripts:
+
+| Branch | Transcripts matched |
+|---|---|
+| `not`, `no`, `on` | **77 / 77 (100%)** |
+| `this` | 71 / 77 (92%) |
+| `only` | 64 / 77 (83%) |
+| `would`, `can` | 58 / 77 (75%) |
+| `never` | 55 / 77 (71%) |
+| `does not` | 35 / 77 (45%) |
+
+**39 assertions across 31 jobs** carry such a branch. Two facts bound the damage:
+
+- **No `assert_absent` is affected** (35 are `assert_all`, the rest `assert_contains`), so this class
+  can only ever produce a false green, never a false red. Nothing already recorded as red is suspect.
+- **No affected argument consists only of the weak branch** — every one sits in an alternation beside
+  specific siblings, so the argument is not dead by construction, only satisfiable by prose.
+
+Of the 7 affected jobs already banked green, each was re-checked against its own archived transcript to
+see whether a discriminating branch actually fired. Six did. **One did not: R5's.** So the class is real
+and worth fixing at the source, but exactly one banked green is currently unproven, and it is the one
+already named above.
 
 ### Batches run — superseded ruler `1489839c4721`
 
@@ -497,14 +564,14 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — R1/R2/D1/R3/R4 fixed; **R5 open, recorded not fixed**
+### Register — R1/R2/D1/R3/R4 fixed; **R5 open, and reclassified as a false green**
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
 | R1 | `refine-consistency-is-how` | `refine-consistency: NOT asked as a want-decision` | wording / emphasis window | Behaviour **correct**: H1 filed, resolved "apply to ALL consumers sharing the recipe", cited, flagged for ratification. Transcript says *"It was **not** put to the user as an open want"*. Regex is `not .{0,20}(ask\|want-decision\|open want)`; `open want` lands at offset **25** because the `**` emphasis eats 2. |
 | R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
 | R3 | `vague-requirement` | `vague-requirement: flags AC-1 as not falsifiable` | wording / emphasis window | Found in batch 1, not the discovery pass, because the discovery pass's `analysis` batch happened to draw a transcript phrased with `not`. Behaviour **correct**: AC-1 split into two clauses, both flagged, both barred from a matrix `✅`. The verdict was worded *"neither falsifiable nor excluded"*, which the `not …`-only token could not see. Fixed by adding `(neither\|nor) falsifiable`; proved load-bearing and still discriminating in both directions before the ruler moved. See *Batch 1, attempt 1*. |
-| R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | wording / adjacency window — **OPEN** | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Deferred to the post-batch-10 edit by design — see *Batch 2* above. |
+| R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | **false green** (was: wording / adjacency window) — **OPEN** | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Re-run under the live ruler with the token **unchanged**, it went green — and offline measurement shows the pass came only from the free-floating `does not` branch, firing on a merge-strategy config line. All three branches that test the claim scored **0** on the green transcript too. Reclassified: not a narrow window but a false green. Deferred to the post-batch-10 edit, where the fix is to **delete** `does not` and bind the rest — see *R5 came back green* above. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
 **R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5 is open. What shipped for the first three, and what proves each:
@@ -562,14 +629,15 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — re-run batches 1-2, then batches 3 to 10
+### Next — batches 1-2 re-run and banked; batches 3 to 10 remain
 
-Gates on 2026-09-03, under the live machinery `4fed82315266`:
+Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the empty ledger, by design.
+bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger, by design
+                                          (91 `has NO row` = 126 − 35, nothing else).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 

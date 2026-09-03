@@ -384,6 +384,49 @@ of ruler and belongs to its own cycle with its own full pass.
 
 ---
 
+## A red that stops reproducing can be a false green wearing the same regex
+
+`refine-want-unattended-stops` failed one assertion in batch 2 (recorded as R5), and passed it on the
+re-run with **the assertion unchanged** — R5 was recorded, not fixed. The tempting reading is a flake
+in the model's wording. The archive says otherwise.
+
+The token requires `ASSUMED` and
+`not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent`. Run against
+both archived transcripts, every branch that tests the claim scored **0 on the green transcript as
+well as the red one**. The pass came entirely from `does not`, on four lines — one of them a
+`merge-strategy: squash-or-rebase …` configuration line, none of them about recording an `ASSUMED`.
+The companion `ASSUMED` pattern adds nothing, because the fixture prints that word whichever way it
+decides.
+
+An alternation needs one branch. So the weakest branch sets the assertion's real strength, and a
+branch of bare common English sets it to zero. Base rates over the 77 archived transcripts make the
+size of that zero concrete: `not`, `no` and `on` each appear in **77 of 77**; `this` 71; `only` 64;
+`would` and `can` 58; `never` 55; `does not` 35. A branch at 100% cannot fail. **39 assertions across
+31 jobs** carry one.
+
+Two facts bound it, and both were measured rather than assumed. No `assert_absent` is affected, so the
+class produces only false greens and nothing already recorded as red is in doubt. And of the 7
+affected jobs already banked green, six had a discriminating branch actually fire against their own
+transcript; exactly one did not, and it is R5's.
+
+The near-miss is worth naming: had the batch-2 red never happened, R5's assertion would have sat in a
+green suite forever, and the number "126 of 126" would have included one job that no wording could
+fail. A red is the only reason anyone looked.
+
+### Rule
+
+An alternation is only as strong as its weakest branch, so **a regex branch must not be satisfiable by
+prose that any careful answer would contain.** Bind every negation to what is being negated
+(`not[^.]{0,30}silent`), never leave `does not` / `not` / `no` standing alone, and when widening a
+window prefer a bounded adjacency to a new free-floating branch. Two checks make this cheap: split
+every assertion on its top-level `|` and reject bare-common-word branches, and for each green measure
+whether a *discriminating* branch fired — a green whose only firing branch is the weak one is not
+evidence.
+
+Fixing such a branch is a narrowing, not a widening, so it does not collide with the rule that this
+suite never widens over outcome. It is queued for the post-batch-10 edit: deleting the dead branch
+changes only that job's `job_fp`, so the gate names that one job stale and it alone re-runs.
+
 ## A whole-file fingerprint charges 126 dispatches for a one-line fix
 
 The coverage ledger was named `coverage.<sha256 of all of run.sh>.tsv`. Editing anything in the file
