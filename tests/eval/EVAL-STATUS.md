@@ -84,6 +84,7 @@ Regenerate with `bash tests/eval/coverage-report.sh --md`.
 | 7 ↻ | `finalise` (+`codify`) | 3 | 17 | 289 / 289 | 445s | ✅ green ⚠️ CLI split |
 | 8 ↻ | `autorun` (unattended) | 1 | 7 | 120 / 120 | 564s | ✅ green ⚠️ 27s under the ceiling |
 | 9 ↻ | the small groups (5 skills) | 1 probe + 3 | 19 | 358 / 358 | 752s | ✅ green |
+| 10 ↻ | scenarios | 1 probe + 1 | 7 | 6 of 7 judged green | 160s | 🟡 **6/7** — R2, and **0 rows recorded** |
 
 Assertion counts include the 71 dispatch-free self-tests once per part, so they do not sum to 511.
 
@@ -111,6 +112,26 @@ Notes worth carrying:
   divided a part's wall-clock by its job count. With `--workers 8` a part of ≤8 jobs is a single
   **wave**, so its wall time is the *slowest job's* latency and nothing about it is per-job — part A
   was 6 jobs in 185s, meaning one job took ~185s. The wrong reading is what mis-sized batch 8.)
+- **Batch 10 hit a blocking harness defect: a scenario can never be recorded in the ledger.**
+  `skills_files` ends by emitting `$FIXTURES/<name>.md`, and a scenario has no fixture file, so
+  `cat` fails, `pipefail` promotes it, and `errexit` kills the run one statement past
+  `_h="$(skills_hash …)"` — after the assignment succeeded, before any row is written. Both
+  probe runs died that way: every assertion judged and printed, then exit 1 with no summary and
+  no rows. **`--verify-suite` as shipped can therefore never pass**, because 7 of its 126 jobs
+  are scenarios. Nine fixture batches went through the same code untouched. Fix and its
+  self-test are queued for the proof-pass edit; see [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md).
+- **The scenario labels came from `run_prompt`, not `run_scenario`** — the function I had
+  recorded as needing rework does not exist, which is why the old grep returned 0. The naive
+  `grep -oE 'run_prompt [A-Za-z0-9_-]+'` then returned **9** labels: the 7 real ones plus
+  `REGISTERS` and `resolves`, lifted out of comment prose at `run.sh:24` and `:29`. Anchoring on
+  the executable form `$(run_prompt <label>` gives exactly 7, agreeing with the list
+  `--verify-suite` derives for itself. Fourth text-pipeline miscount of this cycle.
+- **Scenarios are the fastest group in the suite**, not the slowest as this file predicted:
+  16s / 17s / 20s / 25s / 62s individually, two parts at 43s and 117s. They carry no ticket, so
+  they answer one question instead of driving a lifecycle.
+- **Two empty `mktemp` directories survive a run** (`/tmp/tmp.*`, both stamped with the run's
+  own minute). The worker-isolation guard passed because it looks for worker *trees* with
+  content. Harmless, left in place, noted rather than swept.
 - **Batch 9's probe falsified my own guess, for 95 seconds.** I expected `solve` to be
   `autorun`-scale because it drives a whole ticket; the 2-job probe came back in **95s**. The
   slowest part of the batch turned out to be the mixed small groups at 364s, a group I had no
@@ -161,22 +182,32 @@ Notes worth carrying:
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
 | R1 | `refine-consistency-is-how` | `refine-consistency: NOT asked as a want-decision` | wording / emphasis window | Behaviour **correct**: H1 filed, resolved "apply to ALL consumers sharing the recipe", cited, flagged for ratification. Transcript says *"It was **not** put to the user as an open want"*. Regex is `not .{0,20}(ask\|want-decision\|open want)`; `open want` lands at offset **25** because the `**` emphasis eats 2. |
+| R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
+| D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
-Each fix ships with its paired `selftest_assertion` — a `good` transcript carrying the observed wording
-and a `bad` one that actually asked the question, so the widened token still misses wrong behaviour.
+R1 ships with a paired `selftest_assertion` — a `good` transcript carrying the observed wording and a
+`bad` one that actually asked the question, so the widened token still misses wrong behaviour.
+
+**R2 is not a widening.** Its class is *outcome*, and this repo does not widen over outcome, so the
+repair is to the scenario's **premise**: state that every row carries a token value, leaving the
+dispatch-count gate as the only thing under test and `ledger-content-gate-marker` as the sibling that
+tests content. Widening the assertion to accept "not enough information" would erase the distinction
+the gate exists to draw.
+
+**D1 is a harness fix, not a behavioural one**, and it is the reason batch 10 has no rows. It must land
+in the same edit — every other item here is moot while the gate cannot be satisfied at all. (Named D1, not H1: R1's own evidence quotes a mango *want-hypothesis* labelled H1, and two different H1s in one table is exactly the kind of collision this file exists to avoid.)
 
 ### Next
 
-**Every fixture is now green except R1.** What is left is **7 scenarios + R1 = 8 jobs**:
+**The discovery pass is complete.** All 126 jobs have been dispatched and judged under this runner
+fingerprint. Two behavioural reds and one blocking harness defect are in the register above; nothing
+is left to discover.
 
-| Group | Left | Note |
+| State | Jobs | Note |
 |---|---|---|
-| scenarios | 7 | **foreground, split** — the background attempt was stopped host-side; latency unmeasured, and a scenario spans several phases, so expect `autorun`-scale or worse |
-| `refine` | 1 | R1 — stays red by design this pass |
-
-The scenario selector must be built from the `run_scenario` call sites, not from `FIXTURE_SKILLS`
-(scenarios are not in that map). An earlier `grep -oE 'run_scenario [a-zA-Z0-9_-]+'` returned 0 and
-needs reworking against the actual call syntax before batch 10.
+| green, recorded | 118 | fixtures; **75** under CLI 2.1.258, **43** under 2.1.259 — the 76 `--verify-suite` reports counts the red R1 row, which is also at .258 |
+| green, **unrecordable** | 6 | scenarios — judged green, no row possible until D1 is fixed |
+| red | 2 | R1 (`refine-consistency-is-how`), R2 (`ledger-gate-complete`) |
 
 Derive every remaining selector the batch-6 way — from `FIXTURE_SKILLS` re-parsed with `grep -oE`,
 intersected with `coverage-report.sh --remaining` — never by copying a recorded one.
@@ -202,8 +233,11 @@ pinned CLI and one unchanged `run.sh`, so all 126 rows share a ruler. `CONTRIBUT
 this — a full pass in one invocation satisfies the bar but is *not* the only way to reach it. The
 route is not the proof; `--verify-suite` is.
 
-Then: one edit fixing the register, re-run every job under the new fingerprint, then
-`bash tests/eval/run.sh --verify-suite`.
+Then: **one edit** carrying D1 (with its real-scenario-row self-test), R1's widened token with its
+paired self-test, and R2's completed premise — plus the per-job timing above. That edit moves
+`RUNNER_FP`, wipes all 118 cache entries, and every job re-runs under one pinned CLI. Finally
+`bash tests/eval/run.sh --verify-suite`, which for the first time this cycle will be a gate that
+*can* pass.
 
 ### Closing entry — fill after the proof pass
 

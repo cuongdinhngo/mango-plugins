@@ -239,6 +239,90 @@ Both 2.1.258 and 2.1.259 remain on disk, so pinning is available.
 
 ---
 
+## `--verify-suite` could never have passed: no scenario can be recorded at all
+
+Found 2026-09-03, dispatching batch 10 — the first batch this cycle made only of scenarios. Both
+probed scenarios passed every assertion, and then the run **died silently**: no dispatch summary, no
+identity line, no assertion tally, exit 1, and **zero rows written**. No `FAIL` was printed anywhere.
+
+`bash -x` put the death one statement past `_h="$(skills_hash "$_name")"` in the coverage-row loop
+(`run.sh:3363`) — with `_h` correctly assigned. The mechanism is `set -euo pipefail` (`run.sh:264`)
+meeting a pipeline whose first stage fails:
+
+```
+hash_files() { [ "$#" -gt 0 ] || return 1; cat "$@" 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'; }
+```
+
+`skills_files` ends with `echo "$FIXTURES/$name.md"`, and **a scenario has no fixture file** —
+scenarios are `run_prompt` labels, not tickets on disk (verified: `stuck-detector.md` and
+`artifact-delta-emission.md` do not exist; `challenger-unmet.md` does). So `cat` exits non-zero,
+`pipefail` promotes that to the pipeline's status, the command substitution inherits it, and `errexit`
+kills the script *after* the assignment succeeded. Five lines reproduce it:
+
+```
+set -euo pipefail
+hash_files() { [ "$#" -gt 0 ] || return 1; cat "$@" 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'; }
+h="$(hash_files /etc/hostname /nonexistent-file-xyz)"
+echo "never reached"     # exit 1 here
+```
+
+**The consequence is that the shipped Finish bar is unreachable.** `--verify-suite` refuses unless
+every one of the 126 jobs has a green row; 7 of them are scenarios; no scenario can ever get a row.
+Every fixture batch this cycle passed straight through this code — `cat` succeeded for them — which
+is why 118 rows exist and the defect stayed invisible for nine batches.
+
+Why no test caught it: the coverage-gate self-tests build **synthetic** ledgers and do include a
+`j2 scenario` row (`run.sh:2622`), so the gate's *reading* of a scenario row is proven. What was never
+exercised is the *writing* of one. And `skills_hash` is called on a scenario name for the first time
+in v1.15.0 — before it, scenarios only ever went down the dispatch path, which never hashes
+(`run.sh:1161`: "scenarios have no cache path and always dispatch fresh").
+
+### Rule
+> **A gate self-tested against synthetic inputs is not self-tested against real ones.** Every writer
+> the gate depends on needs a real-input test, not just the reader. The `--verify-suite` self-tests
+> proved the gate could *judge* a scenario row and never that the suite could *produce* one — and a
+> gate that cannot be satisfied is as false as a gate that cannot fail.
+
+### Fix, queued for the proof-pass edit
+Make the fixture path conditional in `skills_files`, keeping the function's exit status 0:
+
+```
+if [ -f "$FIXTURES/$name.md" ]; then echo "$FIXTURES/$name.md"; fi
+```
+
+A fixture's hash is unchanged (its file exists, so the same path is emitted); a scenario stops feeding
+`cat` a path that is not there. Ship it with a self-test that writes and verifies a **real** scenario
+row end to end.
+
+---
+
+## The vacuity fix did what it was supposed to: `ledger-gate-complete` went red
+
+Found 2026-09-03, batch 10. This is the job recorded above as fully vacuous — every assertion on it
+matched the harness header or its own name, so nothing it returned could have failed it. Made
+decision-level in v1.15.0, it now fails, and the failure is real information rather than a regex miss.
+
+The prompt states "a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch
+return)" and asks whether finalise proceeds or blocks. The model answered **"Not enough information —
+row count alone doesn't clear it"**, then split the answer: all four token cells carrying a value or an
+explicit `unmeasured (…)` marker → proceeds; any cell blank → blocks. It cited
+`skills/finalise/SKILL.md:230-241` for the two-condition gate.
+
+That is better behaviour than the assertion expects. The prompt fixes the row *count* and says nothing
+about row *content*, and mango's gate has both conditions — the skill text is what made the model
+careful. So the defect is in the scenario's premise, not the plugin, and **not in the assertion's
+outcome**: widening it to accept "not enough information" would erase the distinction the gate exists
+to draw.
+
+### Rule
+> **When a fixture and the model disagree at the outcome level, suspect the prompt before the
+> assertion.** The repair is to complete the premise — state that every row carries a token value — so
+> the scenario tests the dispatch-count gate it claims to test, while its sibling
+> `ledger-content-gate-marker` keeps testing the content gate. Widening the assertion instead would be
+> a loosened gate, which this repo does not do.
+
+---
+
 ## Rules that keep a cycle valid
 
 These are process rules, learned the hard way, and they cost nothing to follow.
