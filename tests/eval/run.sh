@@ -266,6 +266,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES="$HERE/fixtures"
 REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
+# The branch this run STARTED on, captured before anything can move it. The isolation guard asserts
+# the checkout is left on this, not on the literal `main`: the property being checked is "the eval
+# left the checkout where it found it", and the eval work of this cycle happens on a topic branch.
+# Hardcoding `main` made the guard fail 100% of the time off main — a false red, not a check — while
+# telling the operator a fixture had leaked. Not a loosening: on main the two are identical, and the
+# stray-`*PROJ-*`-branch and work-doc rules are untouched.
+EVAL_START_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
 #   v1.10.0 onward — per-version coverage is catalogued INLINE, at the `# ---- v1.10.0:` /
 #                     `# ---- v1.10.1:` / `# ---- v1.11.0` section banners in `suite()` below, beside the
 #                     fixtures they describe. That is the one place a fixture and its description cannot
@@ -1352,23 +1359,32 @@ RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{
 # ever broke the `cd "$SANDBOX"` discipline (or a fixture ran `execute` in the wrong
 # cwd), a leak into the live checkout could otherwise pass silently.
 #
-# assert_checkout_clean <repo-dir> — echoes each leak it finds and returns non-zero
-# on any; returns 0 iff <repo-dir> is pristine: HEAD on main, no stray *PROJ-*
-# branch, no docs/tickets/*.work.md, no docs/EVAL_RULES.md. Parameterized on the dir
-# so it is self-tested below on a THROWAWAY dirty repo — the guard's teeth are proven
-# without ever risking the live checkout.
+# assert_checkout_clean <repo-dir> [expected-branch] — echoes each leak it finds and returns non-zero
+# on any; returns 0 iff <repo-dir> is pristine: HEAD on <expected-branch> (default: the branch this
+# run started on), no stray *PROJ-* branch, no docs/tickets/*.work.md, no docs/EVAL_RULES.md.
+# Parameterized on BOTH the dir and the branch so it is self-tested below on throwaway repos — a
+# dirty one that must be caught, and a clean one on a non-main branch that must pass — proving the
+# guard's teeth without ever risking the live checkout.
 assert_checkout_clean() {
-  local dir="$1" bad=0 head stray docs
+  local dir="$1" want="${2:-${EVAL_START_BRANCH:-main}}" bad=0 head stray docs
   head="$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
-  [ "$head" = "main" ] || { echo "    LEAK: HEAD is on '$head', not main"; bad=1; }
-  stray="$(git -C "$dir" for-each-ref --format='%(refname:short)' 'refs/heads/*PROJ-*' 2>/dev/null || true)"
+  [ "$head" = "$want" ] || { echo "    LEAK: HEAD is on '$head', not '$want' (the branch this run started on)"; bad=1; }
+  # v1.16.0: list every branch and filter in grep, rather than passing 'refs/heads/*PROJ-*' to
+  # for-each-ref. That pattern is fnmatch with FNM_PATHNAME, so its `*` does NOT cross a `/` — it
+  # matched a top-level `PROJ-777` and MISSED `feat/PROJ-999-leak`, which is the shape mango's own
+  # fixtures create and the shape this guard's own injection test uses. The miss was invisible
+  # because that test's repo also had HEAD off main and a stray work doc, so the guard failed for
+  # other reasons and the stray-branch rule was never once proven on its own. Each rule now has an
+  # isolated non-vacuity test below.
+  stray="$(git -C "$dir" for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null |
+             grep -E 'PROJ-' || true)"
   [ -z "$stray" ] || { echo "    LEAK: stray fixture branch(es): $(echo $stray)"; bad=1; }
   docs="$(git -C "$dir" ls-files 'docs/tickets/*.work.md' 'docs/EVAL_RULES.md' 2>/dev/null || true)"
   docs="$docs $( (cd "$dir" && ls docs/tickets/*.work.md docs/EVAL_RULES.md) 2>/dev/null || true)"
   docs="$(echo "$docs" | tr ' ' '\n' | sort -u | grep -v '^$' || true)"
   [ -z "$docs" ] || { echo "    LEAK: eval artifact(s) in live checkout: $(echo $docs)"; bad=1; }
   if [ "$bad" -ne 0 ]; then
-    echo "    RECOVERY: git switch main && git branch -D <stray> && rm -f docs/EVAL_RULES.md docs/tickets/*.work.md"
+    echo "    RECOVERY: git switch $want && git branch -D <stray> && rm -f docs/EVAL_RULES.md docs/tickets/*.work.md"
     echo "    (if a real commit stranded on the stray branch, cherry-pick it onto main FIRST)"
     return 1
   fi
@@ -3673,11 +3689,55 @@ mkdir -p "$LEAKREPO/docs/tickets"
 : >"$LEAKREPO/docs/tickets/PROJ-999.work.md"
 git -C "$LEAKREPO" checkout -q -b feat/PROJ-999-leak
 total=$((total + 1))
-if assert_checkout_clean "$LEAKREPO" >/dev/null 2>&1; then
+if assert_checkout_clean "$LEAKREPO" main >/dev/null 2>&1; then
   echo "  FAIL: eval-isolation-guard: guard is VACUOUS — missed an injected leak"
   fails=$((fails + 1))
 else
   echo "  PASS: eval-isolation-guard: catches an injected leak (non-vacuous)"
+fi
+
+# (1b)-(1c) The PAIRED proof for the branch rule (v1.16.0). Making the expected branch a parameter
+# could have quietly turned the HEAD check into a no-op, so both directions are asserted on a repo
+# that is pristine but NOT on main: it must PASS when checked against its own branch, and must still
+# FAIL when checked against a different one. Without the second half the first is indistinguishable
+# from having deleted the rule.
+git -C "$LEAKREPO" checkout -q main
+git -C "$LEAKREPO" branch -q -D feat/PROJ-999-leak
+rm -rf "$LEAKREPO/docs" 2>/dev/null || true
+git -C "$LEAKREPO" checkout -q -b wip/topic
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" wip/topic >/dev/null 2>&1; then
+  echo "  PASS: eval-isolation-guard: a clean checkout on a NON-main branch passes against its own branch (no false red off main)"
+else
+  echo "  FAIL: eval-isolation-guard: a clean non-main checkout was reported as leaked — the guard is a false red off main"
+  fails=$((fails + 1))
+fi
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" main >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: the HEAD rule is VACUOUS — a checkout on the wrong branch passed"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: the HEAD rule still bites — wrong branch is caught (non-vacuous)"
+fi
+# (1d)-(1e) Each rule proven ALONE, so no rule can hide behind another failing at the same time —
+# the vacuity that let the stray-branch pattern be wrong through nine batches. HEAD is correct and no
+# work doc exists in either case; only the named artifact is present.
+git -C "$LEAKREPO" branch -q feat/PROJ-555-nested
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" wip/topic >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: a stray NESTED fixture branch (feat/PROJ-*) is missed — the shape every fixture creates"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: a stray NESTED fixture branch is caught on its own (non-vacuous)"
+fi
+git -C "$LEAKREPO" branch -q -D feat/PROJ-555-nested
+mkdir -p "$LEAKREPO/docs/tickets"; : >"$LEAKREPO/docs/tickets/PROJ-555.work.md"
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" wip/topic >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: a leaked work doc is missed when HEAD and branches are clean"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: a leaked work doc is caught on its own (non-vacuous)"
 fi
 rm -rf "$LEAKROOT" 2>/dev/null || true
 
@@ -3685,7 +3745,7 @@ rm -rf "$LEAKROOT" 2>/dev/null || true
 # recovery commands and FAILS loudly, so a leak can never pass silently.
 total=$((total + 1))
 if assert_checkout_clean "$REPO_ROOT"; then
-  echo "  PASS: eval-isolation-guard: live checkout untouched after full eval (HEAD on main, no stray *PROJ-* branch, no work doc)"
+  echo "  PASS: eval-isolation-guard: live checkout untouched after full eval (HEAD on $EVAL_START_BRANCH, no stray *PROJ-* branch, no work doc)"
 else
   echo "  FAIL: eval-isolation-guard: LIVE CHECKOUT MUTATED — a fixture leaked (recovery printed above)"
   fails=$((fails + 1))
