@@ -401,16 +401,88 @@ tally_list()  { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && tr '\n' ' ' <"$C
 #
 # One row per job per run, append-only, LAST ROW WINS (a later measurement of the same job under
 # the same ruler supersedes an earlier one — that is what a re-run of a red batch means):
-#   job  kind  skills_hash  plugin_fp  model  cli  asserts_expected  asserts_passed  verdict  run_id  utc
-# The filename carries the runner fingerprint, so editing run.sh cannot silently carry rows
-# forward — the same fail-safe the transcript cache already has.
+#   job  kind  skills_hash  plugin_fp  model  cli  asserts_expected  asserts_passed  verdict  run_id  utc  job_fp  runner_fp
+#
+# IDENTITY IS TWO-TIER (v1.16.0). It used to be one tier: the ledger filename carried a hash of the
+# WHOLE of run.sh, so any edit — a comment, a timing line, one widened token in one fixture — renamed
+# the ledger and voided all 126 rows at once. That is far stronger than the property actually needed,
+# and the strength was paid for in dispatches: fixing a single assertion cost a full re-run of the
+# suite, which is why batch 1 of this cycle ran three times.
+#
+# The property needed is: **a row must have been produced by the same question and the same judging
+# this job is subject to NOW.** That is per job, so it is now fingerprinted per job:
+#   * job_fp (field 12) — the job's prompt, its harness test-command, and every (kind, regex-set) that
+#     judges it, sorted. Editing one fixture's token changes ONE job_fp and strands ONE row. Renaming
+#     an assertion's LABEL changes nothing, deliberately: a label is not a measurement.
+#   * MACHINERY_FP (the filename) — the judging and dispatch code itself, everything defined above
+#     `suite()`. Change grep semantics, the dispatcher or the row writer and every row is voided, as
+#     before, because the ruler really did move.
+# Whole-file equality implies both, so this is strictly finer, never weaker: nothing that used to
+# invalidate a row on evidence stops doing so. runner_fp (field 13) is kept as forensic metadata only
+# — never compared by the gate — so a row can always be traced to the exact file that wrote it.
 COV_DIR=""   # set once TMPROOT exists (below)
 cov_job()    { local b="${1##*/}"; printf '%s' "${b%.log}"; }
 # The collect pass records the EXPECTED assertion count per job, from the same call sites that
 # judge it in the assert pass. So "how many assertions does this job have" is derived, never
 # hardcoded — an assertion added to a fixture raises the bar the ledger must clear, automatically.
-cov_expect() { [ -n "$COV_DIR" ] || return 0; printf '%s\n' "$(cov_job "$1")" >>"$COV_DIR/expected"; }
+# cov_expect <transcript-file> <kind> <regex...> — called from the COLLECT pass, i.e. with no
+# dispatch and no transcript, which is what lets --verify-suite recompute every job's job_fp for
+# free. It records two things: that the job has one more assertion (the count), and WHAT that
+# assertion judges by — the assertion kind plus its resolved regexes.
+#   * the KIND is in the hash because `assert_contains` and `assert_absent` with the same regex are
+#     opposite tests: swapping them inverts the check without changing one character of pattern.
+#   * the regexes are recorded RESOLVED, after parameter expansion, so hoisting a token into a shared
+#     variable (RE_NOT_ASKED_AS_WANT) and editing it correctly strands every job that uses it.
+#   * the LABEL is deliberately absent. Re-wording a label changes no measurement, and charging a
+#     dispatch for a typo fix is how an operator learns to leave labels wrong.
+cov_expect() {
+  [ -n "$COV_DIR" ] || return 0
+  local j; j="$(cov_job "$1")"; shift
+  printf '%s\n' "$j" >>"$COV_DIR/expected"
+  local IFS=$'\x1f'      # joins "$*" below; \x1f cannot occur in a regex written in this file
+  printf '%s\t%s\n' "$j" "$*" >>"$COV_DIR/patterns"
+}
 cov_assert() { [ -n "$COV_DIR" ] || return 0; printf '%s\t%s\n' "$(cov_job "$1")" "$2" >>"$COV_DIR/judged"; }
+
+# job_meta_idx <name> — the registration index of a job, or empty. Linear, and called once per job
+# by a dispatch-free path only, so its cost is a second of CPU against 126 dispatches saved.
+job_meta_idx() {
+  local idx kind name
+  for idx in $(seq 1 "${JOB_COUNT:-0}"); do
+    [ -f "$JOBS_DIR/$idx.meta" ] || continue
+    IFS=$'\t' read -r kind name _ _ <"$JOBS_DIR/$idx.meta"
+    [ "$name" = "$1" ] || continue
+    printf '%s' "$idx"; return 0
+  done
+  return 1
+}
+
+# job_fp <name> — the per-job MEASUREMENT INPUT fingerprint: everything that decides what this job is
+# asked and how its answer is judged. Three parts, and each one closes a hole:
+#   * the sorted (kind, regex-set) list — the assertions. Sorted, not in call order, so REORDERING
+#     assertions costs nothing: no assertion in this suite reads another's result, so the multiset is
+#     the measurement.
+#   * the PROMPT. A fixture's prompt derives from its ticket file, which skills_hash already covers,
+#     but a SCENARIO's prompt is written inline in this file and was covered by nothing per-job — the
+#     whole-file hash was carrying it. Dropping to per-job without this would have let a scenario's
+#     question be rewritten while its green row stood: a false green, and the exact kind this ledger
+#     exists to prevent.
+#   * the harness TEST-COMMAND in force at the call site, which is part of what the model is told.
+# An UNREGISTERED job (the coverage self-test's file-less control) hashes a literal marker rather
+# than silently hashing emptiness, so two different unregistered jobs cannot collide.
+job_fp() {
+  local name="$1" idx pat prompt tc
+  pat="$(awk -F'\t' -v j="$name" '$1==j {print $2}' "$COV_DIR/patterns" 2>/dev/null | LC_ALL=C sort)"
+  idx="$(job_meta_idx "$name" || true)"
+  if [ -n "$idx" ]; then
+    prompt="$(cat "$JOBS_DIR/$idx.prompt" 2>/dev/null || true)"
+    tc="$(cut -f3 <"$JOBS_DIR/$idx.meta" 2>/dev/null || true)"
+  else
+    prompt="<unregistered:$name>"; tc="<unregistered:$name>"
+  fi
+  printf '%s\n--prompt--\n%s\n--testcmd--\n%s\n' "$pat" "$prompt" "$tc" |
+    sha256sum 2>/dev/null | awk '{print $1}'
+}
 cov_count()  { awk -F'\t' -v j="$2" -v v="$3" '$1==j && (v=="" || $2==v) {n++} END {print n+0}' "$1" 2>/dev/null || echo 0; }
 
 # cov_expected_tsv <out> — job<TAB>kind<TAB>assert-count for every job the collect pass REGISTERED.
@@ -427,7 +499,15 @@ cov_expected_tsv() {
   done
   awk -F'\t' 'NR==FNR {k[$1]=$2; next} {c[$1]++}
        END {for (j in c) if (j in k) printf "%s\t%s\t%s\n", j, k[j], c[j]}' \
-    "$out.kinds" "$COV_DIR/expected" 2>/dev/null | LC_ALL=C sort >"$out"
+    "$out.kinds" "$COV_DIR/expected" 2>/dev/null | LC_ALL=C sort >"$out.jobs"
+  # Fourth column: the job_fp the suite would judge this job by RIGHT NOW. Computed from the collect
+  # pass, so the whole comparison the gate makes is dispatch-free.
+  : >"$out"
+  local jn jk jc
+  while IFS=$'\t' read -r jn jk jc; do
+    [ -n "${jn:-}" ] || continue
+    printf '%s\t%s\t%s\t%s\n' "$jn" "$jk" "$jc" "$(job_fp "$jn")" >>"$out"
+  done <"$out.jobs"
 }
 
 # cov_hashes_tsv <out> <expected-tsv> — job<TAB>skills-hash recomputed from the files AS THEY ARE NOW.
@@ -451,9 +531,9 @@ cov_row_for() {
   h="$(skills_hash "$job")" || return 1     # never let an unhashable job kill the run: no row, loudly
   [ -n "$h" ] || return 1
   if [ "$fail" -eq 0 ] && [ "$pass" -eq "$exp" ] && [ "$exp" -gt 0 ]; then v=green; else v=red; fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
     "$job" "$kind" "$h" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" \
-    "$exp" "$pass" "$v" "$RUN_ID" "$RUN_UTC"
+    "$exp" "$pass" "$v" "$RUN_ID" "$RUN_UTC" "$(job_fp "$job")" "$RUNNER_FP"
 }
 
 # verify_suite <coverage.tsv> <runs.tsv> <expected.tsv> <hashes.tsv> <plugin_fp><TAB><model><TAB><cli>
@@ -462,7 +542,7 @@ cov_row_for() {
 # below against synthetic ledgers carrying each defect, exactly like the isolation guards.
 verify_suite() {
   local cov="$1" runs="$2" expected="$3" hashes="$4" identity="$5"
-  local bad=0 job kind exp row cur latest owners
+  local bad=0 job kind exp want_jfp row cur latest owners r_jfp
   local want_pfp want_model want_cli
   local r_kind r_hash r_pfp r_model r_cli r_exp r_pass r_verdict r_run
   IFS=$'\t' read -r want_pfp want_model want_cli <<<"$identity"
@@ -474,7 +554,7 @@ verify_suite() {
   latest="$(mktemp)"; owners="$(mktemp)"
   awk -F'\t' 'NF>=11 {r[$1]=$0} END {for (k in r) print r[k]}' "$cov" | LC_ALL=C sort >"$latest"
 
-  while IFS=$'\t' read -r job kind exp; do
+  while IFS=$'\t' read -r job kind exp want_jfp; do
     [ -n "${job:-}" ] || continue
     row="$(awk -F'\t' -v j="$job" '$1==j {print; exit}' "$latest")"
     if [ -z "$row" ]; then
@@ -501,6 +581,18 @@ verify_suite() {
       || { echo "    DEFECT: $kind '$job' was proven against $r_exp assertion(s) but the suite now holds $exp — the bar moved, re-run it"; bad=1; }
     [ "$r_pass" = "$exp" ] \
       || { echo "    DEFECT: $kind '$job' passed $r_pass of $exp assertion(s)"; bad=1; }
+    # The per-job half of the ruler (v1.16.0). An EMPTY want_jfp is itself a defect and never a
+    # skip: a check that silently does nothing when its input is missing is a false green with
+    # extra steps. An empty row field is the same defect seen from the other side — a row written
+    # before this field existed cannot vouch for assertions nobody recorded.
+    r_jfp="$(printf '%s' "$row" | cut -f12)"
+    if [ -z "$want_jfp" ]; then
+      echo "    DEFECT: $kind '$job' has no current job fingerprint to compare its green against"; bad=1
+    elif [ -z "$r_jfp" ]; then
+      echo "    DEFECT: $kind '$job' has a row with NO job fingerprint — it predates per-job identity and cannot be credited, re-run it"; bad=1
+    elif [ "$r_jfp" != "$want_jfp" ]; then
+      echo "    DEFECT: $kind '$job' was proven against assertion-set/prompt ${r_jfp:0:12} but the suite now judges it by ${want_jfp:0:12} — re-run THIS job (--only '^$job\$'), the rest of the ledger stands"; bad=1
+    fi
   done <"$expected"
 
   # Every run that OWNS a surviving row must itself have proven the HARNESS sound: its dispatch-free
@@ -654,17 +746,14 @@ cache_get() {
 # run everything fresh. So a version that edits the runner (like this one) re-runs
 # every fixture; the per-skill selectivity only bites on a skills-only version.
 mkdir -p "$CACHE_DIR"
-# RUNNER_FP is computed UNCONDITIONALLY (v1.15.0): it is no longer only a cache key, it is the
-# first component of the run's MEASUREMENT IDENTITY and names the coverage ledger, both of which
-# a --no-cache run must also carry.
+# RUNNER_FP hashes the WHOLE of this file. As of v1.16.0 it no longer names the ledger and the gate
+# no longer compares it: it is recorded on every row and in every archived run as FORENSIC metadata,
+# so a row can be traced to the exact file that wrote it. What the gate compares is the two-tier
+# identity — MACHINERY_FP (below, at the `suite()` boundary) and the per-job job_fp.
 RUNNER_FP="$(hash_files "${BASH_SOURCE[0]}")"
-if [ "$CACHE_ENABLED" -eq 1 ]; then
-  FP_FILE="$CACHE_DIR/.runner.fp"
-  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$RUNNER_FP" ]; then
-    rm -f "$CACHE_DIR"/*.green 2>/dev/null || true
-    printf '%s' "$RUNNER_FP" >"$FP_FILE"
-  fi
-fi
+# The transcript-cache wipe and the ledger names both key on MACHINERY_FP, which cannot be computed
+# until every function is defined. They are set at the machinery boundary further down; nothing
+# between here and there reads a ledger or the cache.
 
 # --- Measurement identity (v1.15.0) -------------------------------------------
 # A green is a MEASUREMENT, and two measurements only add up if they were taken with the same
@@ -692,8 +781,7 @@ PLUGIN_TREE_FP="$(plugin_tree_fp)"; [ -n "$PLUGIN_TREE_FP" ] || PLUGIN_TREE_FP="
 MODEL_SETTING="${ANTHROPIC_MODEL:-}"; [ -n "$MODEL_SETTING" ] || MODEL_SETTING="cli-default"
 CLI_VERSION="$(claude --version 2>/dev/null | head -1 | tr -d '\t\n' || true)"
 [ -n "$CLI_VERSION" ] || CLI_VERSION="unknown"
-COVERAGE_LEDGER="$CACHE_DIR/coverage.$RUNNER_FP.tsv"
-RUN_LEDGER="$CACHE_DIR/runs.$RUNNER_FP.tsv"
+# COVERAGE_LEDGER / RUN_LEDGER are named at the machinery boundary (see `suite()` below).
 RUN_ID="${MANGO_EVAL_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RUN_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -1115,7 +1203,7 @@ assert_judgeable() {
 assert_contains() {
   local label="$1" file="$2" regex="$3"
   local rel="${file#$REPO_ROOT/}"
-  if [ "$PHASE" != assert ]; then cov_expect "$file"; return 0; fi
+  if [ "$PHASE" != assert ]; then cov_expect "$file" contains "$regex"; return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
   if judged_body "$file" | grep -qiE -- "$regex"; then
@@ -1137,7 +1225,7 @@ assert_contains() {
 assert_all() {
   local label="$1" file="$2"; shift 2
   local rel="${file#$REPO_ROOT/}" missing="" re body
-  if [ "$PHASE" != assert ]; then cov_expect "$file"; return 0; fi
+  if [ "$PHASE" != assert ]; then cov_expect "$file" all "$@"; return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
   # One strip, N regexes: the body is materialised ONCE so a multi-token assertion cannot pay the
@@ -1164,7 +1252,7 @@ assert_all() {
 assert_absent() {
   local label="$1" file="$2" regex="$3"
   local rel="${file#$REPO_ROOT/}"
-  if [ "$PHASE" != assert ]; then cov_expect "$file"; return 0; fi
+  if [ "$PHASE" != assert ]; then cov_expect "$file" absent "$regex"; return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
   if judged_body "$file" | grep -qiE -- "$regex"; then
@@ -1286,6 +1374,61 @@ assert_checkout_clean() {
   fi
   return 0
 }
+
+# --- The MACHINERY boundary (v1.16.0) ----------------------------------------
+# Everything defined ABOVE this line is machinery: it decides what gets dispatched, what the model is
+# asked, and how the answer is judged. Everything inside `suite()` BELOW it is content: the fixtures,
+# their prompts and their assertion tokens, which are fingerprinted per job instead.
+#
+# The split is STRUCTURAL, not a hand-kept allowlist, and that is the point — an allowlist drifts the
+# first time someone adds a helper and forgets to register it, and the drift is silent and in the
+# unsafe direction. Here the boundary is enforced by where a function is defined: at this exact point
+# in the file `declare -F` knows every machinery function and does not yet know `suite`.
+#
+# Two details that matter:
+#   * the list is INTERSECTED with the functions this file actually defines, so an exported function
+#     inherited from the operator's shell cannot leak into the fingerprint and make the ledger name
+#     machine-dependent;
+#   * `declare -f` is used rather than a text slice of the file, because it prints bash's own parsed
+#     form: COMMENTS ARE GONE and formatting is normalised. So editing a comment, re-indenting, or
+#     rewording a note voids nothing — which removes the single largest source of accidental
+#     invalidation in this harness, and is why this is a saving rather than a book-keeping change.
+#
+# Not covered here, deliberately: `coverage_selftest`, `selftest_assertion` and `re_all_match` are
+# defined after `suite()` and are the harness testing ITSELF. Their soundness is already enforced per
+# run — every row's owning run must have recorded self-tests with zero failures, which --verify-suite
+# checks — so they do not also need to invalidate rows.
+MACHINERY_FN_LIST="$(
+  { declare -F | awk '{print $3}' | LC_ALL=C sort >"$TMPROOT/fn.defined"
+    grep -oE '^[a-z_][a-z0-9_]*\(\)' "${BASH_SOURCE[0]}" | tr -d '()' | LC_ALL=C sort -u >"$TMPROOT/fn.infile"
+    LC_ALL=C comm -12 "$TMPROOT/fn.defined" "$TMPROOT/fn.infile"; } 2>/dev/null
+)"
+machinery_fp() {
+  local f
+  { for f in $MACHINERY_FN_LIST; do
+      printf '== %s ==\n' "$f"
+      declare -f "$f" 2>/dev/null || printf 'ABSENT\n'
+    done; } | sha256sum 2>/dev/null | awk '{print $1}'
+}
+MACHINERY_FP="$(machinery_fp)"; [ -n "$MACHINERY_FP" ] || MACHINERY_FP="unhashable"
+MACHINERY_FN_COUNT="$(printf '%s\n' "$MACHINERY_FN_LIST" | grep -c . || echo 0)"
+
+COVERAGE_LEDGER="$CACHE_DIR/coverage.$MACHINERY_FP.tsv"
+RUN_LEDGER="$CACHE_DIR/runs.$MACHINERY_FP.tsv"
+
+# The transcript cache is wiped when the MACHINERY moves, not when the file changes. A cached
+# transcript is a record of what the model answered; it is re-judged from scratch on every reuse, so
+# an edited assertion does not invalidate it — it re-reads it. That is what makes fixing a token in a
+# GREEN job free: its row goes stale, the job is re-judged against the cached transcript, and no
+# `claude -p` runs at all. A RED job has no cache entry (only greens are minted), so it costs one
+# real dispatch — which is the whole bill for a fix round.
+if [ "$CACHE_ENABLED" -eq 1 ]; then
+  FP_FILE="$CACHE_DIR/.machinery.fp"
+  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$MACHINERY_FP" ]; then
+    rm -f "$CACHE_DIR"/*.green 2>/dev/null || true
+    printf '%s' "$MACHINERY_FP" >"$FP_FILE"
+  fi
+fi
 
 # --- The suite ----------------------------------------------------------------
 # Everything below runs TWICE: once with PHASE=collect (registering dispatches) and once with
@@ -2678,10 +2821,10 @@ coverage_selftest() {
 
   # (5)-(12) verify_suite, against a two-job ledger that is complete and uniform, then against one
   # copy per defect. Each defect must be REPORTED, or the gate is vacuous for that defect.
-  printf 'j1\tfixture\t2\nj2\tscenario\t1\n' >"$_cs/expected"
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
   printf 'j1\tH1\nj2\tH2\n' >"$_cs/hashes"
-  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\n' >"$_cs/cov"
-  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\n' >>"$_cs/cov"
+  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\tJFP1\tRFP\n' >"$_cs/cov"
+  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\tJFP2\tRFP\n' >>"$_cs/cov"
   printf 'R1\tT1\tPFP\tMODEL\tCLI\t\t1\t2\t0\t0\t9\t0\n' >"$_cs/runs"
   printf 'R2\tT2\tPFP\tMODEL\tCLI\tj2\t1\t1\t0\t0\t9\t0\n' >>"$_cs/runs"
 
@@ -2727,9 +2870,9 @@ coverage_selftest() {
   _cs_defect "a recorded RED verdict is caught"
 
   # (10) the bar moved: the suite now holds more assertions than the row was proven against.
-  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t3\nj2\tscenario\t1\n' >"$_cs/expected"
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t3\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
   _cs_defect "a green proven against FEWER assertions than the suite now holds is caught"
-  printf 'j1\tfixture\t2\nj2\tscenario\t1\n' >"$_cs/expected"
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
 
   # (11) the owning run's harness was not sound.
   cp "$_cs/cov.bak" "$_cs/cov"
@@ -2741,6 +2884,37 @@ coverage_selftest() {
   cp "$_cs/runs" "$_cs/runs.bak"; grep -v '^R2' "$_cs/runs.bak" >"$_cs/runs"
   _cs_defect "an owning run missing from the run ledger is caught (harness never vouched for)"
   cp "$_cs/runs.bak" "$_cs/runs"
+
+  # (12b)-(12e) PER-JOB IDENTITY (v1.16.0). These are the checks that let one job's assertions be
+  # fixed without voiding the other 125 rows, so they are also the checks that would let a stale row
+  # be credited if they were vacuous. Each is proved to bite.
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t2\tJFP1-CHANGED\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+  _cs_defect "a row whose job fingerprint no longer matches is caught (its assertions or prompt changed)"
+
+  # The SCOPING claim itself, and the reason this whole change is worth making: with j1's assertions
+  # edited, j1 must be reported and j2 must NOT. A gate that reported both would be the old
+  # whole-file behaviour wearing a new field, and would save nothing.
+  total=$((total + 1))
+  _cs_out="$(verify_suite "$_cs/cov" "$_cs/runs" "$_cs/expected" "$_cs/hashes" "$_ident" 2>&1 || true)"
+  if printf '%s' "$_cs_out" | grep -q "'j1'" && ! printf '%s' "$_cs_out" | grep -q "'j2'"; then
+    echo "  PASS: coverage-gate: editing ONE job's assertions strands ONLY that job's row (j1 reported, j2 stands)"
+  else
+    echo "  FAIL: coverage-gate: per-job scoping is wrong — j1-only edit reported: $(printf '%s' "$_cs_out" | grep -c DEFECT) defect(s)"
+    fails=$((fails + 1))
+  fi
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+
+  # A row written before this field existed. It must be REFUSED, not credited: nobody recorded which
+  # assertions it was proven against, so it cannot vouch for the ones in force now.
+  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\n' >"$_cs/cov"
+  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\tJFP2\tRFP\n' >>"$_cs/cov"
+  _cs_defect "an 11-field row with NO job fingerprint is caught (a pre-v1.16.0 row cannot be credited)"
+
+  # And the mirror image: the gate could not compute a current fingerprint. Silence there would be a
+  # skipped check, which is a false green with extra steps.
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t2\t\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+  _cs_defect "an EMPTY current job fingerprint is caught (an uncomputable check must fail, not skip)"
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
 
   # back to the clean ledger, and re-verify — proving none of the mutations leaked.
   cp "$_cs/cov.bak" "$_cs/cov"
@@ -2779,7 +2953,9 @@ coverage_selftest() {
   # exist. Only `pipefail` carrying that failure out of the assignment did the damage, so a check on
   # emptiness alone would pass under the defect and prove nothing.
   total=$((total + 1))
-  printf '%s\tscenario\t3\n' "$_nf" >"$_cs/exp.nofile"
+  # The 4th column is the job_fp the gate will now demand. Taken from job_fp itself, not typed in:
+  # a hand-written value here would test the reader against a constant and stop testing the writer.
+  printf '%s\tscenario\t3\t%s\n' "$_nf" "$(job_fp "$_nf")" >"$_cs/exp.nofile"
   cov_hashes_tsv "$_cs/hash.nofile" "$_cs/exp.nofile"
   # The status is CAPTURED, not tested by wrapping the call in `if ( set -e … )`: bash IGNORES errexit
   # inside a compound command used as an `if` condition — even one that re-sets it — so that shape
@@ -2827,6 +3003,104 @@ coverage_selftest() {
   else
     echo "  NOTE: row-writer: this run registered no scenario, so the real-label proof did not run (the file-less control above still did)"
   fi
+
+  # (18)-(23) THE TWO-TIER RULER ITSELF (v1.16.0). Everything above tests the gate that READS a
+  # fingerprint. These test the two functions that PRODUCE one, because the saving this change buys
+  # is only real if job_fp moves on exactly the right things — too eager and it costs the dispatches
+  # it was meant to save, too lax and a stale row is credited.
+  banner "== two-tier ruler self-test =="
+  local _jd="$_cs/jf" _fa _fb _fc _fd _fe _leak _c1 _c2
+  mkdir -p "$_jd"
+  # Exercised through assert_contains/assert_absent in the COLLECT phase — the real call path, not
+  # cov_expect directly, so the label really is dropped by the code that ships.
+  _jf_fp() {  # <kind> <label> <regex> — the job_fp a single such assertion produces for job x1
+    : >"$_jd/expected"; : >"$_jd/patterns"
+    ( PHASE=collect; COV_DIR="$_jd"; "assert_$1" "$2" "/t/x1.log" "$3" ) >/dev/null 2>&1 || true
+    ( COV_DIR="$_jd"; job_fp x1 )
+  }
+  _fa="$(_jf_fp contains "the original label" 'not silent')"
+  _fb="$(_jf_fp contains "a COMPLETELY different label" 'not silent')"
+  _fc="$(_jf_fp contains "the original label" 'not[ *_]{1,4}silent')"
+  _fd="$(_jf_fp absent   "the original label" 'not silent')"
+
+  total=$((total + 1))
+  if [ -n "$_fa" ] && [ ${#_fa} -eq 64 ]; then
+    echo "  PASS: two-tier ruler: job_fp yields a real sha256 for a registered assertion (non-vacuous)"
+  else
+    echo "  FAIL: two-tier ruler: job_fp produced '$_fa' — an empty or short fingerprint would make every row compare equal"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  if [ "$_fa" = "$_fb" ]; then
+    echo "  PASS: two-tier ruler: re-WORDING an assertion label does not move job_fp (a label is not a measurement)"
+  else
+    echo "  FAIL: two-tier ruler: a label edit moved job_fp — every typo fix would now cost a dispatch"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  if [ "$_fa" != "$_fc" ]; then
+    echo "  PASS: two-tier ruler: editing the REGEX moves job_fp (the R3/R4/R5 fix strands its own row)"
+  else
+    echo "  FAIL: two-tier ruler: a widened regex did NOT move job_fp — a row proven by the OLD token would be credited to the new one"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  if [ "$_fa" != "$_fd" ]; then
+    echo "  PASS: two-tier ruler: contains→absent moves job_fp even with the SAME regex (inverting a test is not free)"
+  else
+    echo "  FAIL: two-tier ruler: swapping assert_contains for assert_absent left job_fp unchanged — a test can be inverted while its green stands"
+    fails=$((fails + 1))
+  fi
+  # The prompt half. A scenario's prompt lives in this file and nothing else per-job covers it.
+  : >"$_jd/expected"; : >"$_jd/patterns"
+  ( PHASE=collect; COV_DIR="$_jd"; assert_contains "l" "/t/x1.log" 'not silent' ) >/dev/null 2>&1 || true
+  _fe="$( COV_DIR="$_jd"; job_fp x1 )"
+  total=$((total + 1))
+  if [ "$_fe" = "$_fa" ] && [ "$( COV_DIR="$_jd"; job_fp x2 )" != "$_fa" ]; then
+    echo "  PASS: two-tier ruler: an UNREGISTERED job hashes a per-name marker, so two of them cannot collide"
+  else
+    echo "  FAIL: two-tier ruler: unregistered jobs collide or drift — job_fp is not a function of the job"
+    fails=$((fails + 1))
+  fi
+
+  # The machinery tier. Its whole safety argument is that nothing which decides a verdict is defined
+  # below the boundary, where an edit would void no row. Enforce it instead of asserting it.
+  total=$((total + 1))
+  if [ "$MACHINERY_FP" != unhashable ] && [ "${MACHINERY_FN_COUNT:-0}" -ge 30 ]; then
+    echo "  PASS: two-tier ruler: the machinery fingerprint covers $MACHINERY_FN_COUNT function(s) (an empty list would hash a constant)"
+  else
+    echo "  FAIL: two-tier ruler: machinery fp is '$MACHINERY_FP' over ${MACHINERY_FN_COUNT:-0} function(s) — the ledger name would not track the harness"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  declare -F | awk '{print $3}' | LC_ALL=C sort >"$_cs/fn.now"
+  printf '%s\n' $MACHINERY_FN_LIST | LC_ALL=C sort >"$_cs/fn.covered"
+  _leak="$(LC_ALL=C comm -23 "$_cs/fn.now" "$_cs/fn.covered" |
+    grep -E '^(assert_|cov_|dispatch|judge|transcript|skills_|cache_|hash_|job_|run_fixture|run_prompt|claude_run|verify_suite|worker|provision_|reset_|write_harness|plugin_tree)' || true)"
+  if [ -z "$_leak" ]; then
+    echo "  PASS: two-tier ruler: no judging or dispatch function is defined below the boundary (none escapes the fingerprint)"
+  else
+    echo "  FAIL: two-tier ruler: $(echo $_leak) defined AFTER the machinery boundary — editing it would void no row. Move it above suite()."
+    fails=$((fails + 1))
+  fi
+  # The claim that makes comment edits free, tested rather than trusted: bash's own parsed form of a
+  # function drops comments, so machinery_fp cannot see them.
+  total=$((total + 1))
+  _mb_c1() { local x="$1"; echo "$x"; }
+  _c1="$(declare -f _mb_c1 | tail -n +2)"
+  unset -f _mb_c1
+  _mb_c1() {
+    # a comment that must not be able to void 126 rows
+    local x="$1"; echo "$x"
+  }
+  _c2="$(declare -f _mb_c1 | tail -n +2)"
+  unset -f _mb_c1
+  if [ "$_c1" = "$_c2" ]; then
+    echo "  PASS: two-tier ruler: declare -f is comment- and layout-insensitive (a comment edit voids nothing)"
+  else
+    echo "  FAIL: two-tier ruler: declare -f differs on comments alone — every comment edit still costs a full re-run"
+    fails=$((fails + 1))
+  fi
 }
 
 # --- Drive the two passes ------------------------------------------------------
@@ -2843,7 +3117,8 @@ JOB_COUNT="$(cat "$JOBS_DIR/.count" 2>/dev/null || echo 0)"; JOB_COUNT="${JOB_CO
 # operator's recollection and becomes a re-checkable artifact.
 if [ "$VERIFY_SUITE" -eq 1 ]; then
   echo "== eval coverage verification (no dispatch, no cost) =="
-  echo "  runner fingerprint : $RUNNER_FP"
+  echo "  machinery fp       : $MACHINERY_FP  ($MACHINERY_FN_COUNT function(s))"
+  echo "  runner fp (forensic): $RUNNER_FP"
   echo "  plugin-tree fp     : $PLUGIN_TREE_FP"
   echo "  model / CLI        : $MODEL_SETTING / $CLI_VERSION"
   echo "  jobs registered    : $JOB_COUNT"
@@ -2872,7 +3147,7 @@ if [ "$VERIFY_SUITE" -eq 1 ]; then
   fi
   echo "EVAL VERIFY: $total/$total check(s) pass."
   echo "EVAL VERIFY: the suite IS proven green — $_vs_jobs/$_vs_jobs job(s), $_vs_asserts assertion(s),"
-  echo "             every green measured under runner ${RUNNER_FP:0:12}, plugin-tree ${PLUGIN_TREE_FP:0:12},"
+  echo "             every green measured under machinery ${MACHINERY_FP:0:12}, plugin-tree ${PLUGIN_TREE_FP:0:12},"
   echo "             model $MODEL_SETTING, CLI $CLI_VERSION. Equivalent to one full pass."
   exit 0
 fi
@@ -3547,8 +3822,8 @@ done
 # transcripts with no way to tell which run.sh, plugin tree or CLI wrote them — and a transcript
 # judged under a different ruler is not evidence about this suite.
 if [ -d "$ARCHIVE_DIR/$RUN_ID" ]; then
-  printf 'run\t%s\nutc\t%s\nrunner_fp\t%s\nplugin_tree_fp\t%s\nmodel\t%s\ncli\t%s\nonly\t%s\n' \
-    "$RUN_ID" "$RUN_UTC" "$RUNNER_FP" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
+  printf 'run\t%s\nutc\t%s\nmachinery_fp\t%s\nrunner_fp\t%s\nplugin_tree_fp\t%s\nmodel\t%s\ncli\t%s\nonly\t%s\n' \
+    "$RUN_ID" "$RUN_UTC" "$MACHINERY_FP" "$RUNNER_FP" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
     >"$ARCHIVE_DIR/$RUN_ID/IDENTITY.tsv" 2>/dev/null || true
 fi
 
@@ -3621,7 +3896,7 @@ else
   echo "EVAL cache: disabled (--no-cache) — all $FRESH_RUNS fixture(s) ran fresh"
 fi
 echo "EVAL coverage: $_cov_green/$_cov_rows job(s) judged green this run, $_minted cache entry(ies) minted  [ledger ${COVERAGE_LEDGER##*/}]"
-echo "EVAL identity: runner ${RUNNER_FP:0:12}  plugin-tree ${PLUGIN_TREE_FP:0:12}  model $MODEL_SETTING  CLI $CLI_VERSION  run $RUN_ID"
+echo "EVAL identity: machinery ${MACHINERY_FP:0:12}  plugin-tree ${PLUGIN_TREE_FP:0:12}  model $MODEL_SETTING  CLI $CLI_VERSION  run $RUN_ID  (runner ${RUNNER_FP:0:12})"
 if [ -n "$ONLY" ]; then
   echo "EVAL: PARTIAL RUN (--only '$ONLY') — $skipped assertion(s) skipped. It records coverage but does"
   echo "      not itself prove the suite; --verify-suite is what turns a set of batches into that proof."

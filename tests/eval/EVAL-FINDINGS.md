@@ -384,6 +384,76 @@ of ruler and belongs to its own cycle with its own full pass.
 
 ---
 
+## A whole-file fingerprint charges 126 dispatches for a one-line fix
+
+The coverage ledger was named `coverage.<sha256 of all of run.sh>.tsv`. Editing anything in the file
+renamed it, so every recorded row was voided at once. Under that rule the cycle's arithmetic was:
+
+```
+sampling pass  126 dispatches  → k reds
+one fix edit                   → ruler moves, 0 rows
+proving pass   126 dispatches  → if any new red, start again
+```
+
+At the measured per-pass red rate (1.7%–7.7%, so 2–10 reds in 126 jobs) the proving pass is unlikely
+to be clean first time, and each retry is another 126. The plan had no termination condition — it
+was a bet that a pass would come up empty.
+
+**The property actually required is per job:** a row may be credited only if it was produced by the
+same question, and the same judging, that this job is subject to now. Whole-file equality *implies*
+that, which is why it was never wrong — only enormously over-broad. A comment, a timing line, a
+widened token in one unrelated fixture all cost the same 126 dispatches as rewriting the dispatcher.
+
+The fix (v1.16.0) splits identity in two:
+
+| Tier | Covers | An edit voids |
+|---|---|---|
+| `MACHINERY_FP` — names the ledger | every function defined **above `suite()`**: dispatch, prompt assembly, judging, hashing, the row writer, the gate | all rows |
+| `job_fp` — row field 12 | that job's prompt, its harness test-command, and every `(assertion-kind, resolved regex-set)` that judges it, sorted | that job's row only |
+
+Three decisions inside it are the ones worth carrying to any similar ledger:
+
+- **The boundary is structural, not an allowlist.** `MACHINERY_FP` is taken at the exact point in the
+  file where `declare -F` knows every machinery function and does not yet know `suite`. An allowlist
+  drifts the first time someone adds a helper and forgets to register it, and it drifts silently in
+  the unsafe direction. A self-test still enforces the boundary: any function matching the
+  judging/dispatch name shape that is defined *below* it fails the run by name.
+- **`declare -f`, not a text slice.** Bash's parsed form drops comments and normalises layout, so
+  re-wording a comment or re-indenting voids nothing. That removed the largest single source of
+  accidental invalidation, and it is *tested* rather than trusted — a self-test builds two functions
+  differing only in comments and asserts their `declare -f` output is identical.
+- **What must NOT move the fingerprint is as load-bearing as what must.** An assertion's *label* is
+  excluded by construction: charging a dispatch to fix a typo in a label teaches an operator to leave
+  labels wrong. Assertion *order* is excluded too (the set is sorted), because no assertion in this
+  suite reads another's result. Both exclusions have their own self-test, as do the inclusions —
+  editing a regex moves it, and swapping `assert_contains` for `assert_absent` with the *same* regex
+  moves it, since that inverts the test without changing a character of pattern.
+
+**The hole this closed on the way past.** A fixture's prompt derives from its ticket file, which the
+row's `skills_hash` already covered — but a **scenario's** prompt is written inline in `run.sh` and
+was covered by nothing per-job; the whole-file hash had been carrying it. Dropping to per-job identity
+without folding the prompt in would have let a scenario's question be rewritten while its green row
+stood. Going finer forces you to enumerate what the coarse hash was silently doing, and that is where
+the real risk in a change like this lives — not in the tier you design, but in the one you forget.
+
+### The migration that was refused
+
+35 rows existed under the old ruler, and no assertion or prompt had changed — only machinery. They
+could have been credited by appending a computed `job_fp` to each, saving 34 re-dispatches, on the
+argument that the machinery edit was "bookkeeping, not judging".
+
+That argument was declined. `MACHINERY_FP` exists precisely so that whether a harness change affects
+a verdict is not decided by the person who made the change. Crediting rows across a machinery move
+because the author judged it harmless is the failure mode the fingerprint was built to refuse, and
+the precedent is worth more than 34 dispatches — the next such judgement is always made with less
+care than the first. The rows were re-measured.
+
+The forward cost is what changed, and that was the point: **126 + k**, where k is the number of jobs
+whose assertions a fix touches, instead of 126 per fix round with no bound. And k is usually cheaper
+still: a *green* job whose token is edited is re-judged against its cached transcript with **no
+dispatch at all**, because the cache now survives an assertion edit. Only a red job — which has no
+cache entry, since only greens are minted — costs a real dispatch.
+
 ## A negation token written `not X` cannot see how the model actually spells the negation
 
 Batch 1 of the proof pass went 101/102 on one assertion:

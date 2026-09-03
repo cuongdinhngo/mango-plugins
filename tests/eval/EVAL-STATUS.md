@@ -103,10 +103,11 @@ correct ruler is the cheaper mistake.
 
 | Metric | Value |
 |---|---|
-| Runner fingerprint | `1489839c4721` |
+| **Machinery fingerprint** | `4fed82315266` — names the ledger (49 functions, everything above `suite()`) |
+| Runner fingerprint | `d7105fd5795a` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **34 of 126** (batches 1-2) |
-| Rows not green | **1** — `refine-want-unattended-stops`, verdict `red`, run `20260903T151409Z-913165`. A red job still writes a row; the gate counts only green ones, so it reads as unproven, not as absent. |
+| Jobs recorded | **0 of 126** — the two-tier change moved the machinery, so batches 1-2 re-run once |
+| Rows not green | — (fresh ledger). R5's red row stands in the superseded ledger `1489839c4721` as the evidence it was found under. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
 | `--verify-suite` | 21/22 — the sole failure is `has NO row` defects, and **no other defect class**; at 13 rows it was exactly 113 = 126 − 13 |
@@ -193,7 +194,43 @@ sight rather than re-derived.
 
 **Cost of the move:** the 12 rows above are void and batch 1 re-runs in full under `3be2609b8f88`.
 
-### Batches run — proof pass, live ruler `1489839c4721`
+### v1.16.0 — identity split in two, so a token fix stops costing 126 dispatches
+
+Chosen 2026-09-03, **before batch 3**, because the cost of making this change grows with every batch
+recorded: 34 rows now, ~70 after batch 5, all 126 after batch 10.
+
+The ledger was named by a hash of the whole of `run.sh`, so any edit voided every row. That made the
+plan *sampling pass → one fix → proving pass* cost ≥ 252 dispatches with no termination condition —
+at the measured red rate (1.7–7.7% per pass) the proving pass is unlikely to be clean first time, and
+each retry is another 126. Identity is now two tiers:
+
+| Tier | Covers | An edit voids |
+|---|---|---|
+| `MACHINERY_FP` (names the ledger) | every function above `suite()` — dispatch, prompt assembly, judging, hashing, row writer, gate | all rows |
+| `job_fp` (row field 12) | that job's prompt, test-command, and every `(kind, resolved regex-set)` judging it, sorted | that job's row |
+
+Forward cost becomes **126 + k**, and `--verify-suite` now *names* the stale jobs so k is re-run with
+`--only`. A **green** job whose token is edited is re-judged from its cached transcript with no
+dispatch at all — the cache survives an assertion edit now — so in practice only red jobs cost.
+
+**12 new dispatch-free self-tests** (21 → 33), each proved to bite: the fingerprint mismatch is caught;
+an 11-field pre-v1.16.0 row is refused rather than credited; an *uncomputable* fingerprint fails
+instead of skipping; editing one job's assertions strands **only** that job (j1 reported, j2 stands —
+the scoping claim itself, tested); a label re-wording moves nothing; a regex edit does; `contains` →
+`absent` with the same regex does; no judging function is defined below the boundary; and `declare -f`
+is comment-insensitive so a comment edit voids nothing. Rationale and the two design decisions behind
+it are in [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md).
+
+**The hole it closed in passing:** a scenario's prompt is written inline in `run.sh` and was covered by
+nothing per-job — the whole-file hash had been carrying it. It is now inside `job_fp`.
+
+**The migration that was refused.** The 35 existing rows could have been credited by computing their
+`job_fp` and appending it, since no assertion or prompt had changed. Declined: `MACHINERY_FP` exists so
+that "was this harness change harmless?" is not answered by whoever made the change. Batches 1-2
+re-run — and the green transcript cache was wiped by the same fingerprint move, so those are real
+dispatches, not free re-judges. Last time that bill is paid.
+
+### Batches run — proof pass, superseded ruler `1489839c4721`
 
 | Batch | Group | Parts | Jobs | Assertions | Dispatch | Result |
 |---|---|---|---|---|---|---|
@@ -216,7 +253,9 @@ into `.archive/20260903T134714Z-850139/`, part 01 six more — 13 files under tw
 the identity stamp carrying the same `runner_fp`/`plugin_tree_fp`/CLI as the ledger rows. Nothing was
 read back from it as a verdict.
 
-**Batch 1 recorded zero reds, and that does not settle the sampling question.** Two prior passes over
+**Batch 1 recorded zero reds, and that does not settle the sampling question.** (Batches 1-2 below are
+recorded under ruler `1489839c4721`; their rows were voided by the v1.16.0 machinery split above and
+both batches re-run. The reds they found — R5 in particular — stand as findings.) Two prior passes over
 these same 13 jobs each produced exactly one red, a different assertion each time, so the honest read
 is that the per-pass red rate on this batch is low but non-zero and this pass sampled the quiet side of
 it. The sampling pass continues as planned: reds are recorded, not fixed, and the remaining 113 jobs
@@ -480,22 +519,22 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 2 to 10
+### Next — re-run batches 1-2, then batches 3 to 10
 
-Gates on 2026-09-03, under the live ruler `1489839c4721`, with batch 1 recorded:
+Gates on 2026-09-03, under the live machinery `4fed82315266`:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 21/22; the one failure is 113 `has NO row` defects, which is
-                                          126 − 13 exactly. No identity disagreement, no stale green,
-                                          no other defect class — the ledger is short, not wrong.
+bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the empty ledger, by design.
+                                          33 dispatch-free self-tests now, up from 21.
 ```
 
 That is the state to expect until batch 10 lands: the 21 harness checks pass, and the gate refuses on
-row count alone, with the shortfall shrinking by each batch's job count. `run.sh` is **frozen** from
-here to the last batch — any edit renames the ledger and voids all rows recorded so far, which is how
-batch 1 came to be run three times.
+row count alone, with the shortfall shrinking by each batch's job count. The freeze is now narrower and
+enforced rather than remembered: **do not touch anything above `suite()`** between the first batch and
+the last, because that is what renames the ledger. Editing a token inside `suite()` costs exactly the
+jobs that token judges, and `--verify-suite` names them.
 
 Then, per batch: pin the CLI, confirm `claude --version`, build the part selectors and verify them
 dispatch-free, run, record the row in the table above, commit. **Reds are recorded, not fixed** — see
