@@ -34,7 +34,12 @@
 #   bash tests/eval/run.sh                   # default workers (safe), cache on
 #   bash tests/eval/run.sh --workers 8       # milestone speed
 #   bash tests/eval/run.sh --workers 1       # sequential — debugging
-#   bash tests/eval/run.sh --only refine-    # dev loop: affected fixtures only (PARTIAL, never a milestone run)
+#   bash tests/eval/run.sh --only refine-    # one batch: affected fixtures only (PARTIAL, but it RECORDS
+#                                            # what it proved and mints those fixtures' cache entries)
+#   bash tests/eval/run.sh --verify-suite    # the milestone bar: prove every job green under one ruler.
+#                                            # No dispatch, no cost — it reads the coverage ledger the
+#                                            # runs above wrote. This is what makes N batches add up to
+#                                            # one full pass instead of a claim that they did.
 #
 # PER-WORKER ISOLATION IS MANDATORY, for two reasons that are structural, not
 # stylistic: (a) fixtures that let `execute` branch and commit would race inside
@@ -261,6 +266,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES="$HERE/fixtures"
 REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
+# The branch this run STARTED on, captured before anything can move it. The isolation guard asserts
+# the checkout is left on this, not on the literal `main`: the property being checked is "the eval
+# left the checkout where it found it", and the eval work of this cycle happens on a topic branch.
+# Hardcoding `main` made the guard fail 100% of the time off main — a false red, not a check — while
+# telling the operator a fixture had leaked. Not a loosening: on main the two are identical, and the
+# stray-`*PROJ-*`-branch and work-doc rules are untouched.
+EVAL_START_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
 #   v1.10.0 onward — per-version coverage is catalogued INLINE, at the `# ---- v1.10.0:` /
 #                     `# ---- v1.10.1:` / `# ---- v1.11.0` section banners in `suite()` below, beside the
 #                     fixtures they describe. That is the one place a fixture and its description cannot
@@ -285,6 +297,15 @@ REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
 # each PASS/FAIL line points at the transcript file it judged. Wiped fresh each run.
 TDIR="$HERE/.transcripts"
 rm -rf "$TDIR"; mkdir -p "$TDIR"
+# The ARCHIVE is the one directory this script never wipes. `.transcripts/` above is cleared on every
+# run, which means a narrow assertion can only ever be re-judged against the LAST part that ran — and
+# that is exactly how batch 1 of the proof pass came to fix one negation token per pass instead of the
+# class. Every judged transcript is copied here, red ones included: a red transcript is the only
+# record of the phrasing an assertion failed to match, and the greens are what show a widened token
+# has not gone toothless elsewhere. Nothing is ever read back from here as a verdict — it is evidence
+# for offline token work, never an input to judging — so it cannot become a false green.
+ARCHIVE_DIR="$HERE/.archive"
+mkdir -p "$ARCHIVE_DIR" 2>/dev/null || true
 fails=0
 total=0
 skipped=0        # assertions not judged because --only filtered their dispatch out
@@ -297,9 +318,19 @@ skipped=0        # assertions not judged because --only filtered their dispatch 
 #                and judge only those. A DEV-LOOP filter: it makes the run PARTIAL
 #                (loudly reported, cache writes suppressed) and can never stand in
 #                for a milestone run. CI passes no arguments, so CI is always full.
-#   --no-cache   full fresh run (the milestone/release bar) — see the cache block.
+#   --no-cache   full fresh run: every fixture dispatches, nothing is reused.
+#   --verify-suite
+#                NO dispatch and NO cost. Runs the collect pass to learn the suite's
+#                authoritative job list and per-job assertion count, then VERIFIES the
+#                coverage ledger against it: every job green, every green measured under
+#                the skills-hash the files hash to NOW, and one uniform ruler (runner
+#                fingerprint + plugin-tree fingerprint + model + CLI version) across
+#                every row. This is what makes a run that was SPLIT INTO BATCHES add up
+#                to the same claim as one full pass — the sum is a counted artifact, not
+#                an operator's recollection. Cannot be combined with --only.
 WORKERS="${MANGO_EVAL_WORKERS:-4}"
 ONLY=""
+VERIFY_SUITE=0
 _args=("$@")
 _i=0
 while [ "$_i" -lt "${#_args[@]}" ]; do
@@ -309,12 +340,20 @@ while [ "$_i" -lt "${#_args[@]}" ]; do
     --only) _i=$((_i + 1)); ONLY="${_args[$_i]:-}" ;;
     --only=*) ONLY="${_args[$_i]#*=}" ;;
     --no-cache) : ;;   # handled in the cache block below
-    *) echo "FAIL: unknown argument '${_args[$_i]}' (expected --workers N | --only REGEX | --no-cache)" >&2; exit 1 ;;
+    --verify-suite) VERIFY_SUITE=1 ;;
+    *) echo "FAIL: unknown argument '${_args[$_i]}' (expected --workers N | --only REGEX | --no-cache | --verify-suite)" >&2; exit 1 ;;
   esac
   _i=$((_i + 1))
 done
 case "$WORKERS" in ''|*[!0-9]*) echo "FAIL: --workers must be a positive integer" >&2; exit 1 ;; esac
 [ "$WORKERS" -ge 1 ] || { echo "FAIL: --workers must be >= 1" >&2; exit 1; }
+# --verify-suite verifies the WHOLE suite against the ledger, so it must see the whole
+# suite's job list. Under --only the collect pass registers a SUBSET, which would let a
+# partial list masquerade as complete coverage — refuse the combination outright.
+if [ "$VERIFY_SUITE" -eq 1 ] && [ -n "$ONLY" ]; then
+  echo "FAIL: --verify-suite cannot be combined with --only (it must see the whole suite's job list)" >&2
+  exit 1
+fi
 
 # --- Measurement instrumentation (opt-in: MANGO_EVAL_PROFILE=<path-prefix>) ---
 # Records per-dispatch wall-time and per-assertion attribution into
@@ -357,6 +396,237 @@ tally_add() {  # <ledger-name> <line> — append one record; survives command-su
 }
 tally_count() { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && wc -l <"$CACHE_TALLY_DIR/$1" | tr -d ' ' || echo 0; }
 tally_list()  { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && tr '\n' ' ' <"$CACHE_TALLY_DIR/$1" || true; }
+
+# --- Coverage ledger (v1.15.0) -------------------------------------------------
+# WHY THIS EXISTS. A ~$70 suite is often run in BATCHES (--only per skill group). Verdicts
+# themselves compose: the cache stores a TRANSCRIPT, never a verdict, so every assertion is
+# re-judged from text on every run, and no assertion reads across two transcripts. So ten green
+# batches really are 126 green jobs. What ten green batches were NOT is a COUNTED ARTIFACT: the
+# sum lived in an operator's notes, where nothing could re-check that no job was missed, that no
+# green had gone stale, and that every batch used the same ruler. This ledger is that artifact,
+# and --verify-suite is the check that reads it.
+#
+# One row per job per run, append-only, LAST ROW WINS (a later measurement of the same job under
+# the same ruler supersedes an earlier one — that is what a re-run of a red batch means):
+#   job  kind  skills_hash  plugin_fp  model  cli  asserts_expected  asserts_passed  verdict  run_id  utc  job_fp  runner_fp
+#
+# IDENTITY IS TWO-TIER (v1.16.0). It used to be one tier: the ledger filename carried a hash of the
+# WHOLE of run.sh, so any edit — a comment, a timing line, one widened token in one fixture — renamed
+# the ledger and voided all 126 rows at once. That is far stronger than the property actually needed,
+# and the strength was paid for in dispatches: fixing a single assertion cost a full re-run of the
+# suite, which is why batch 1 of this cycle ran three times.
+#
+# The property needed is: **a row must have been produced by the same question and the same judging
+# this job is subject to NOW.** That is per job, so it is now fingerprinted per job:
+#   * job_fp (field 12) — the job's prompt, its harness test-command, and every (kind, regex-set) that
+#     judges it, sorted. Editing one fixture's token changes ONE job_fp and strands ONE row. Renaming
+#     an assertion's LABEL changes nothing, deliberately: a label is not a measurement.
+#   * MACHINERY_FP (the filename) — the judging and dispatch code itself, everything defined above
+#     `suite()`. Change grep semantics, the dispatcher or the row writer and every row is voided, as
+#     before, because the ruler really did move.
+# Whole-file equality implies both, so this is strictly finer, never weaker: nothing that used to
+# invalidate a row on evidence stops doing so. runner_fp (field 13) is kept as forensic metadata only
+# — never compared by the gate — so a row can always be traced to the exact file that wrote it.
+COV_DIR=""   # set once TMPROOT exists (below)
+cov_job()    { local b="${1##*/}"; printf '%s' "${b%.log}"; }
+# The collect pass records the EXPECTED assertion count per job, from the same call sites that
+# judge it in the assert pass. So "how many assertions does this job have" is derived, never
+# hardcoded — an assertion added to a fixture raises the bar the ledger must clear, automatically.
+# cov_expect <transcript-file> <kind> <regex...> — called from the COLLECT pass, i.e. with no
+# dispatch and no transcript, which is what lets --verify-suite recompute every job's job_fp for
+# free. It records two things: that the job has one more assertion (the count), and WHAT that
+# assertion judges by — the assertion kind plus its resolved regexes.
+#   * the KIND is in the hash because `assert_contains` and `assert_absent` with the same regex are
+#     opposite tests: swapping them inverts the check without changing one character of pattern.
+#   * the regexes are recorded RESOLVED, after parameter expansion, so hoisting a token into a shared
+#     variable (RE_NOT_ASKED_AS_WANT) and editing it correctly strands every job that uses it.
+#   * the LABEL is deliberately absent. Re-wording a label changes no measurement, and charging a
+#     dispatch for a typo fix is how an operator learns to leave labels wrong.
+cov_expect() {
+  [ -n "$COV_DIR" ] || return 0
+  local j; j="$(cov_job "$1")"; shift
+  printf '%s\n' "$j" >>"$COV_DIR/expected"
+  local IFS=$'\x1f'      # joins "$*" below; \x1f cannot occur in a regex written in this file
+  printf '%s\t%s\n' "$j" "$*" >>"$COV_DIR/patterns"
+}
+cov_assert() { [ -n "$COV_DIR" ] || return 0; printf '%s\t%s\n' "$(cov_job "$1")" "$2" >>"$COV_DIR/judged"; }
+
+# job_meta_idx <name> — the registration index of a job, or empty. Linear, and called once per job
+# by a dispatch-free path only, so its cost is a second of CPU against 126 dispatches saved.
+job_meta_idx() {
+  local idx kind name
+  for idx in $(seq 1 "${JOB_COUNT:-0}"); do
+    [ -f "$JOBS_DIR/$idx.meta" ] || continue
+    IFS=$'\t' read -r kind name _ _ <"$JOBS_DIR/$idx.meta"
+    [ "$name" = "$1" ] || continue
+    printf '%s' "$idx"; return 0
+  done
+  return 1
+}
+
+# job_fp <name> — the per-job MEASUREMENT INPUT fingerprint: everything that decides what this job is
+# asked and how its answer is judged. Three parts, and each one closes a hole:
+#   * the sorted (kind, regex-set) list — the assertions. Sorted, not in call order, so REORDERING
+#     assertions costs nothing: no assertion in this suite reads another's result, so the multiset is
+#     the measurement.
+#   * the PROMPT. A fixture's prompt derives from its ticket file, which skills_hash already covers,
+#     but a SCENARIO's prompt is written inline in this file and was covered by nothing per-job — the
+#     whole-file hash was carrying it. Dropping to per-job without this would have let a scenario's
+#     question be rewritten while its green row stood: a false green, and the exact kind this ledger
+#     exists to prevent.
+#   * the harness TEST-COMMAND in force at the call site, which is part of what the model is told.
+# An UNREGISTERED job (the coverage self-test's file-less control) hashes a literal marker rather
+# than silently hashing emptiness, so two different unregistered jobs cannot collide.
+job_fp() {
+  local name="$1" idx pat prompt tc
+  pat="$(awk -F'\t' -v j="$name" '$1==j {print $2}' "$COV_DIR/patterns" 2>/dev/null | LC_ALL=C sort)"
+  idx="$(job_meta_idx "$name" || true)"
+  if [ -n "$idx" ]; then
+    prompt="$(cat "$JOBS_DIR/$idx.prompt" 2>/dev/null || true)"
+    tc="$(cut -f3 <"$JOBS_DIR/$idx.meta" 2>/dev/null || true)"
+  else
+    prompt="<unregistered:$name>"; tc="<unregistered:$name>"
+  fi
+  printf '%s\n--prompt--\n%s\n--testcmd--\n%s\n' "$pat" "$prompt" "$tc" |
+    sha256sum 2>/dev/null | awk '{print $1}'
+}
+cov_count()  { awk -F'\t' -v j="$2" -v v="$3" '$1==j && (v=="" || $2==v) {n++} END {print n+0}' "$1" 2>/dev/null || echo 0; }
+
+# cov_expected_tsv <out> — job<TAB>kind<TAB>assert-count for every job the collect pass REGISTERED.
+# Registration is the authority on what the suite is (not a grep of the source, not a constant):
+# a job that is asserted but never registered has no row here and no transcript, and the existing
+# assert_judgeable already fails that loudly.
+cov_expected_tsv() {
+  local out="$1" idx kind name
+  : >"$out.kinds"
+  for idx in $(seq 1 "${JOB_COUNT:-0}"); do
+    [ -f "$JOBS_DIR/$idx.meta" ] || continue
+    IFS=$'\t' read -r kind name _ _ <"$JOBS_DIR/$idx.meta"
+    printf '%s\t%s\n' "$name" "$kind" >>"$out.kinds"
+  done
+  awk -F'\t' 'NR==FNR {k[$1]=$2; next} {c[$1]++}
+       END {for (j in c) if (j in k) printf "%s\t%s\t%s\n", j, k[j], c[j]}' \
+    "$out.kinds" "$COV_DIR/expected" 2>/dev/null | LC_ALL=C sort >"$out.jobs"
+  # Fourth column: the job_fp the suite would judge this job by RIGHT NOW. Computed from the collect
+  # pass, so the whole comparison the gate makes is dispatch-free.
+  : >"$out"
+  local jn jk jc
+  while IFS=$'\t' read -r jn jk jc; do
+    [ -n "${jn:-}" ] || continue
+    printf '%s\t%s\t%s\t%s\n' "$jn" "$jk" "$jc" "$(job_fp "$jn")" >>"$out"
+  done <"$out.jobs"
+}
+
+# cov_hashes_tsv <out> <expected-tsv> — job<TAB>skills-hash recomputed from the files AS THEY ARE NOW.
+# This is what turns a stale green into a loud failure instead of a silent one.
+cov_hashes_tsv() {
+  local out="$1" exp="$2" job
+  : >"$out"
+  while IFS=$'\t' read -r job _ _; do
+    [ -n "${job:-}" ] || continue
+    printf '%s\t%s\n' "$job" "$(skills_hash "$job")" >>"$out"
+  done <"$exp"
+}
+
+# cov_row_for <job> <kind> <expected> <passed> <failed> — echoes the one 11-field coverage row for a
+# judged job, or nothing (status 1) when the job is unhashable. This is a FUNCTION and not an inline
+# block in the row-writing loop for one reason: the coverage gate's self-test can then exercise the
+# WRITER on a real job name, not a hand-typed row. A synthetic row proves the reader only, and the
+# reader was never where the defect was.
+cov_row_for() {
+  local job="$1" kind="$2" exp="$3" pass="$4" fail="$5" h v
+  h="$(skills_hash "$job")" || return 1     # never let an unhashable job kill the run: no row, loudly
+  [ -n "$h" ] || return 1
+  if [ "$fail" -eq 0 ] && [ "$pass" -eq "$exp" ] && [ "$exp" -gt 0 ]; then v=green; else v=red; fi
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+    "$job" "$kind" "$h" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" \
+    "$exp" "$pass" "$v" "$RUN_ID" "$RUN_UTC" "$(job_fp "$job")" "$RUNNER_FP"
+}
+
+# verify_suite <coverage.tsv> <runs.tsv> <expected.tsv> <hashes.tsv> <plugin_fp><TAB><model><TAB><cli>
+# Echoes one DEFECT line per problem and returns 0 only when the ledger proves the whole suite green
+# under one ruler. Fully PARAMETERIZED — every input is an argument — so the guard's teeth are proven
+# below against synthetic ledgers carrying each defect, exactly like the isolation guards.
+verify_suite() {
+  local cov="$1" runs="$2" expected="$3" hashes="$4" identity="$5"
+  local bad=0 job kind exp want_jfp row cur latest owners r_jfp
+  local want_pfp want_model want_cli
+  local r_kind r_hash r_pfp r_model r_cli r_exp r_pass r_verdict r_run
+  IFS=$'\t' read -r want_pfp want_model want_cli <<<"$identity"
+
+  [ -s "$expected" ] || { echo "    DEFECT: the collect pass registered NO jobs — there is nothing to verify"; return 1; }
+  [ -s "$cov" ]      || { echo "    DEFECT: no coverage ledger for this runner fingerprint (${cov##*/}) — no job has ever been recorded green"; return 1; }
+  [ -s "$runs" ]     || { echo "    DEFECT: no run ledger for this runner fingerprint (${runs##*/})"; return 1; }
+
+  latest="$(mktemp)"; owners="$(mktemp)"
+  awk -F'\t' 'NF>=11 {r[$1]=$0} END {for (k in r) print r[k]}' "$cov" | LC_ALL=C sort >"$latest"
+
+  while IFS=$'\t' read -r job kind exp want_jfp; do
+    [ -n "${job:-}" ] || continue
+    row="$(awk -F'\t' -v j="$job" '$1==j {print; exit}' "$latest")"
+    if [ -z "$row" ]; then
+      echo "    DEFECT: $kind '$job' has NO row in the coverage ledger — it has never been proven green under this ruler"
+      bad=1; continue
+    fi
+    IFS=$'\t' read -r _ r_kind r_hash r_pfp r_model r_cli r_exp r_pass r_verdict r_run _ <<<"$row"
+    printf '%s\n' "$r_run" >>"$owners"
+    [ "$r_verdict" = green ] \
+      || { echo "    DEFECT: $kind '$job' verdict is '$r_verdict', not green (run $r_run)"; bad=1; }
+    cur="$(awk -F'\t' -v j="$job" '$1==j {print $2; exit}' "$hashes")"
+    if [ -z "$cur" ]; then
+      echo "    DEFECT: $kind '$job' has no current skills-hash to compare its green against"; bad=1
+    elif [ "$r_hash" != "$cur" ]; then
+      echo "    DEFECT: $kind '$job' was proven under skills-hash ${r_hash:0:12} but its files now hash ${cur:0:12} — that green is STALE, re-run it"; bad=1
+    fi
+    [ "$r_pfp" = "$want_pfp" ] \
+      || { echo "    DEFECT: $kind '$job' was proven under plugin-tree ${r_pfp:0:12}, not the current ${want_pfp:0:12} — a different ruler"; bad=1; }
+    [ "$r_model" = "$want_model" ] \
+      || { echo "    DEFECT: $kind '$job' was proven under model '$r_model', not the current '$want_model' — a different ruler"; bad=1; }
+    [ "$r_cli" = "$want_cli" ] \
+      || { echo "    DEFECT: $kind '$job' was proven under CLI '$r_cli', not the current '$want_cli' — a different ruler"; bad=1; }
+    [ "$r_exp" = "$exp" ] \
+      || { echo "    DEFECT: $kind '$job' was proven against $r_exp assertion(s) but the suite now holds $exp — the bar moved, re-run it"; bad=1; }
+    [ "$r_pass" = "$exp" ] \
+      || { echo "    DEFECT: $kind '$job' passed $r_pass of $exp assertion(s)"; bad=1; }
+    # The per-job half of the ruler (v1.16.0). An EMPTY want_jfp is itself a defect and never a
+    # skip: a check that silently does nothing when its input is missing is a false green with
+    # extra steps. An empty row field is the same defect seen from the other side — a row written
+    # before this field existed cannot vouch for assertions nobody recorded.
+    r_jfp="$(printf '%s' "$row" | cut -f12)"
+    if [ -z "$want_jfp" ]; then
+      echo "    DEFECT: $kind '$job' has no current job fingerprint to compare its green against"; bad=1
+    elif [ -z "$r_jfp" ]; then
+      echo "    DEFECT: $kind '$job' has a row with NO job fingerprint — it predates per-job identity and cannot be credited, re-run it"; bad=1
+    elif [ "$r_jfp" != "$want_jfp" ]; then
+      echo "    DEFECT: $kind '$job' was proven against assertion-set/prompt ${r_jfp:0:12} but the suite now judges it by ${want_jfp:0:12} — re-run THIS job (--only '^$job\$'), the rest of the ledger stands"; bad=1
+    fi
+  done <"$expected"
+
+  # Every run that OWNS a surviving row must itself have proven the HARNESS sound: its dispatch-free
+  # self-tests ran and all passed. A sibling job failing elsewhere in that run does not taint this
+  # job's green (no assertion reads across transcripts) — but a broken harness would taint all of them.
+  local rid rrow n_owners=0
+  while read -r rid; do
+    [ -n "${rid:-}" ] || continue
+    n_owners=$((n_owners + 1))
+    rrow="$(awk -F'\t' -v r="$rid" '$1==r {row=$0} END {print row}' "$runs")"
+    if [ -z "$rrow" ]; then
+      echo "    DEFECT: run '$rid' owns coverage rows but is absent from the run ledger — its harness was never vouched for"; bad=1; continue
+    fi
+    local x_selftests x_selffails
+    x_selftests="$(printf '%s' "$rrow" | cut -f11)"; x_selffails="$(printf '%s' "$rrow" | cut -f12)"
+    case "${x_selftests:-x}" in ''|*[!0-9]*) x_selftests=0 ;; esac
+    case "${x_selffails:-x}" in ''|*[!0-9]*) x_selffails=1 ;; esac
+    [ "$x_selftests" -gt 0 ] \
+      || { echo "    DEFECT: run '$rid' recorded no dispatch-free self-test — the harness was unproven in it"; bad=1; }
+    [ "$x_selffails" -eq 0 ] \
+      || { echo "    DEFECT: run '$rid' had $x_selffails failing self-test(s) — its greens were measured by a harness that was not sound"; bad=1; }
+  done < <(LC_ALL=C sort -u "$owners")
+  [ "$n_owners" -gt 0 ] || { echo "    DEFECT: no run owns any coverage row"; bad=1; }
+
+  rm -f "$latest" "$owners" 2>/dev/null || true
+  [ "$bad" -eq 0 ]
+}
 
 # The fixture→skill map keys the per-fixture skills-hash: a fixture whose mapped
 # SKILL.md file(s) are unchanged can cache-hit. An UNMAPPED fixture hashes over ALL
@@ -452,7 +722,14 @@ skills_files() {  # <fixture-name> — the files whose contents key this fixture
   ls "$PLUGIN_SRC"/principles/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/agents/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/templates/*.md 2>/dev/null
-  echo "$FIXTURES/$name.md"
+  # v1.15.1 (D1) — a SCENARIO has no fixture file: it is registered by `run_prompt` and its prompt is
+  # self-contained. Emitting this path unconditionally made `cat` fail inside hash_files, and under
+  # `pipefail`+`errexit` that failure propagated out of the `_h="$(skills_hash "$_name")"` assignment
+  # in the row-writer and KILLED the run before a single scenario row could be written — which made
+  # --verify-suite, whose bar includes every scenario, unsatisfiable as shipped. Emit it only when it
+  # exists, and never let the guard become this function's exit status.
+  [ ! -f "$FIXTURES/$name.md" ] || echo "$FIXTURES/$name.md"
+  return 0
 }
 # skills-hash — empty on any failure → treated as a MISS (run fresh), never a silent hit.
 skills_hash() { hash_files $(skills_files "$1"); }
@@ -475,15 +752,45 @@ cache_get() {
 # blocks, assertions, dispatch wiring), invalidate the WHOLE cache — fail-safe to
 # run everything fresh. So a version that edits the runner (like this one) re-runs
 # every fixture; the per-skill selectivity only bites on a skills-only version.
-if [ "$CACHE_ENABLED" -eq 1 ]; then
-  mkdir -p "$CACHE_DIR"
-  RUNNER_FP="$(hash_files "${BASH_SOURCE[0]}")"
-  FP_FILE="$CACHE_DIR/.runner.fp"
-  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$RUNNER_FP" ]; then
-    rm -f "$CACHE_DIR"/*.green 2>/dev/null || true
-    printf '%s' "$RUNNER_FP" >"$FP_FILE"
-  fi
-fi
+mkdir -p "$CACHE_DIR"
+# RUNNER_FP hashes the WHOLE of this file. As of v1.16.0 it no longer names the ledger and the gate
+# no longer compares it: it is recorded on every row and in every archived run as FORENSIC metadata,
+# so a row can be traced to the exact file that wrote it. What the gate compares is the two-tier
+# identity — MACHINERY_FP (below, at the `suite()` boundary) and the per-job job_fp.
+RUNNER_FP="$(hash_files "${BASH_SOURCE[0]}")"
+# The transcript-cache wipe and the ledger names both key on MACHINERY_FP, which cannot be computed
+# until every function is defined. They are set at the machinery boundary further down; nothing
+# between here and there reads a ledger or the cache.
+
+# --- Measurement identity (v1.15.0) -------------------------------------------
+# A green is a MEASUREMENT, and two measurements only add up if they were taken with the same
+# ruler. The per-fixture skills-hash already keys everything a fixture READS from the skill
+# corpus — but it deliberately keys nothing else, so three things could change between two
+# partial runs without any hash noticing:
+#   * plugins/mango/scripts/*.py and .claude-plugin/plugin.json — executed / loaded at runtime,
+#     outside skills_files() by construction;
+#   * the MODEL behind `claude -p`;
+#   * the `claude` CLI itself.
+# All three are recorded on every coverage row and asserted UNIFORM by --verify-suite. Docs that
+# are never read at runtime (RATIONALE.md, CHANGELOG.md, README.md, config/harness.example.json)
+# are excluded on the same "read at runtime" criterion skills_files() uses — RATIONALE.md's
+# exclusion from the cache key would otherwise be undone here.
+plugin_tree_fp() {
+  ( cd "$PLUGIN_SRC" 2>/dev/null &&
+      find .claude-plugin scripts -type f \( -name '*.py' -o -name '*.json' \) -print0 2>/dev/null |
+      LC_ALL=C sort -z | xargs -0 -r sha256sum 2>/dev/null
+  ) | sha256sum 2>/dev/null | awk '{print $1}'
+}
+PLUGIN_TREE_FP="$(plugin_tree_fp)"; [ -n "$PLUGIN_TREE_FP" ] || PLUGIN_TREE_FP="unhashable"
+# The model is a SETTING, not something the runner can observe per dispatch without paying for a
+# JSON round-trip. When it is explicit we record it; when it is the CLI default we record that
+# fact, and the CLI version — which pins that default — is recorded alongside and asserted uniform.
+MODEL_SETTING="${ANTHROPIC_MODEL:-}"; [ -n "$MODEL_SETTING" ] || MODEL_SETTING="cli-default"
+CLI_VERSION="$(claude --version 2>/dev/null | head -1 | tr -d '\t\n' || true)"
+[ -n "$CLI_VERSION" ] || CLI_VERSION="unknown"
+# COVERAGE_LEDGER / RUN_LEDGER are named at the machinery boundary (see `suite()` below).
+RUN_ID="${MANGO_EVAL_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
+RUN_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if ! command -v claude >/dev/null 2>&1; then
   echo "FAIL: 'claude' CLI not found on PATH" >&2
@@ -523,6 +830,8 @@ cleanup() { rm -rf "$TMPROOT" 2>/dev/null || true; }
 trap cleanup EXIT
 # The cache tally ledgers (see tally_add above) — outside the sandbox, gone with TMPROOT on exit.
 CACHE_TALLY_DIR="$TMPROOT/tally"; mkdir -p "$CACHE_TALLY_DIR"
+# The coverage tallies (see cov_expect / cov_assert above) — same lifetime, same reason.
+COV_DIR="$TMPROOT/coverage"; mkdir -p "$COV_DIR"; : >"$COV_DIR/expected"; : >"$COV_DIR/judged"
 
 # A minimal throwaway rule book + harness config so the skills run end-to-end
 # without the operator having to supply one. Both live inside the sandbox.
@@ -685,7 +994,12 @@ PLUGIN_DIR="$SANDBOX/plugins/mango"
 # guarantees a fixture can never touch the live checkout.
 claude_run() {  # <repo-dir> <prompt...>
   local repo="$1"; shift
-  ( cd "$repo" && claude -p --plugin-dir "$repo/plugins/mango" "$@" )
+  # </dev/null (v1.15.0): the worker loop reads the job schedule on ITS OWN stdin
+  # (`while read -r idx; do … done <"$JOBS_DIR/schedule"`). Without this redirection every
+  # dispatched `claude -p` inherits that descriptor and may CONSUME schedule lines, silently
+  # dropping jobs from the run — a coverage hole no assertion can see, because the dropped job
+  # is never asserted either. The prompt travels in argv; a dispatch needs no stdin at all.
+  ( cd "$repo" && claude -p --plugin-dir "$repo/plugins/mango" "$@" </dev/null )
 }
 
 # --- Job registry + parallel dispatcher ---------------------------------------
@@ -747,6 +1061,7 @@ dispatch_one() {
     { echo "== fixture: $name (CACHE-HIT — skills-hash unchanged, reused GREEN transcript; no claude -p dispatch) =="
       cat "$hit"; } >"$file"
     tally_add cache-hits "$name"
+    tally_add timing "$(printf '%s\t%s\thit' "$name" "$(( ($(prof_now) - t0) / 1000000000 ))")"
     prof_time "$name" "$t0" hit fixture
     printf '%s\n' "$name" >>"$DONE_LEDGER"
     echo "  cache-hit: $name (skills unchanged — reused green transcript, no dispatch)" >&2
@@ -766,6 +1081,9 @@ dispatch_one() {
   fi
   printf '%s\n' "$name" >>"$DONE_LEDGER"
   secs=$(( ($(prof_now) - t0) / 1000000000 ))
+  # Recorded for EVERY run, not only under MANGO_EVAL_PROFILE: the end-of-run summary below needs it,
+  # and batch sizing needs the summary.
+  tally_add timing "$(printf '%s\t%s\t%s' "$name" "$secs" "$kind")"
   echo "  dispatched $(wc -l <"$DONE_LEDGER" | tr -d ' ')/$JOB_COUNT  $name  (worker $wid, ${secs}s)" >&2
 }
 
@@ -827,20 +1145,62 @@ assert_worker_trees_disposed() {  # <ledger-file>
   [ "$bad" -eq 0 ]
 }
 
+# judged_body <transcript-file> — the transcript AS JUDGED. The harness writes its OWN provenance
+# header into the file (`== fixture: <name> ==`), and that header carries the fixture NAME: for a
+# fixture called `budget-rtk-wire-guidance`, an assertion looking for /wire/ or /budget/ matched the
+# HARNESS's text, not the model's, and passed no matter what the model said. Every regex is judged
+# against the body with those header lines removed, so an assertion can only ever pass on output the
+# model actually produced. (v1.15.0 — one fully-unfalsifiable assertion and ~54 partial ones had this
+# escape hatch at their root; no assertion could have found it, because the vacuity was in the
+# harness rather than in any single check.)
+judged_body() { grep -v -e '^== fixture: ' -e '^== scenario: ' -- "$1" 2>/dev/null || true; }
+
+# transcript_unusable <transcript-file> — echoes a REASON and returns 0 when this file is not a
+# judgeable record of a mango run. It exists because a `claude -p` that dies on `API Error: 529
+# Overloaded` still writes a file, and a file that never ran is the perfect false-green: three
+# assertions in this suite once PASSED on 529 transcripts. A no-run must never be scored — not as a
+# pass, and not as a skip. The markers are the CLI's own error shape, anchored, so a transcript that
+# merely DISCUSSES error handling cannot trip it.
+transcript_unusable() {
+  local file="$1" body marker
+  body="$(judged_body "$file")"
+  case "$body" in
+    *[![:space:]]*) ;;
+    *) echo "the dispatch produced an EMPTY transcript body"; return 0 ;;
+  esac
+  marker="$(printf '%s\n' "$body" | grep -m1 -E '^[[:space:]]*(API Error|Execution error)[: ]|API Error: [0-9]{3}' || true)"
+  if [ -n "$marker" ]; then
+    echo "the dispatch failed with a CLI/API error, so the fixture NEVER RAN: $(printf '%s' "$marker" | cut -c1-90)"
+    return 0
+  fi
+  return 1
+}
+
 # assert_judgeable <label> <transcript-file> — is there a transcript to judge? Returns 0 when yes.
-# Under --only, a filtered-out job has no transcript: its assertions are SKIPPED and counted as
-# skipped (never silently passed, and the run is reported PARTIAL). With no --only there is no
-# legitimate way for a transcript to be missing — that means a job was asserted but never
-# registered, so it FAILS loudly rather than being mistaken for coverage.
+# Three outcomes, and only the first is coverage:
+#   * a usable transcript                      → judge it.
+#   * a transcript that records a FAILED DISPATCH (API error, or an empty body) → FAIL loudly,
+#     always, --only or not. The fixture did not run, so nothing about it has been proven, and the
+#     one thing that must never happen is scoring it.
+#   * no transcript at all → under --only the job was filtered out: SKIPPED and counted skipped
+#     (never silently passed, and the run reports PARTIAL). With no --only there is no legitimate
+#     way for a transcript to be missing — a job was asserted but never registered — so it FAILS.
 assert_judgeable() {
-  local label="$1" file="$2"
-  [ -s "$file" ] && return 0
+  local label="$1" file="$2" why
+  if [ -s "$file" ]; then
+    why="$(transcript_unusable "$file")" || return 0
+    total=$((total + 1)); fails=$((fails + 1))
+    echo "  FAIL: $label (NOT JUDGEABLE — $why)  [${file#$REPO_ROOT/}]"
+    cov_assert "$file" FAIL
+    return 1
+  fi
   if [ -n "$ONLY" ]; then
     skipped=$((skipped + 1))
     return 1
   fi
   total=$((total + 1)); fails=$((fails + 1))
   echo "  FAIL: $label (NO TRANSCRIPT — this assertion's dispatch was never registered)  [${file#$REPO_ROOT/}]"
+  cov_assert "$file" FAIL
   return 1
 }
 
@@ -850,16 +1210,18 @@ assert_judgeable() {
 assert_contains() {
   local label="$1" file="$2" regex="$3"
   local rel="${file#$REPO_ROOT/}"
-  [ "$PHASE" = assert ] || return 0
+  if [ "$PHASE" != assert ]; then cov_expect "$file" contains "$regex"; return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
-  if grep -qiE -- "$regex" "$file"; then
+  if judged_body "$file" | grep -qiE -- "$regex"; then
     echo "  PASS: $label  [$rel]"
     prof_assert "$(basename "$file" .log)" PASS
+    cov_assert "$file" PASS
   else
     echo "  FAIL: $label (missing /$regex/)  [$rel]"
     fails=$((fails + 1))
     prof_assert "$(basename "$file" .log)" FAIL
+    cov_assert "$file" FAIL
   fi
 }
 
@@ -869,20 +1231,25 @@ assert_contains() {
 # still fails.
 assert_all() {
   local label="$1" file="$2"; shift 2
-  local rel="${file#$REPO_ROOT/}" missing="" re
-  [ "$PHASE" = assert ] || return 0
+  local rel="${file#$REPO_ROOT/}" missing="" re body
+  if [ "$PHASE" != assert ]; then cov_expect "$file" all "$@"; return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
+  # One strip, N regexes: the body is materialised ONCE so a multi-token assertion cannot pay the
+  # strip N times, and so every token is judged against exactly the same text.
+  body="$(judged_body "$file")"
   for re in "$@"; do
-    grep -qiE -- "$re" "$file" || missing="$missing /$re/"
+    printf '%s\n' "$body" | grep -qiE -- "$re" || missing="$missing /$re/"
   done
   if [ -z "$missing" ]; then
     echo "  PASS: $label  [$rel]"
     prof_assert "$(basename "$file" .log)" PASS
+    cov_assert "$file" PASS
   else
     echo "  FAIL: $label (missing$missing)  [$rel]"
     fails=$((fails + 1))
     prof_assert "$(basename "$file" .log)" FAIL
+    cov_assert "$file" FAIL
   fi
 }
 
@@ -892,16 +1259,18 @@ assert_all() {
 assert_absent() {
   local label="$1" file="$2" regex="$3"
   local rel="${file#$REPO_ROOT/}"
-  [ "$PHASE" = assert ] || return 0
+  if [ "$PHASE" != assert ]; then cov_expect "$file" absent "$regex"; return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
-  if grep -qiE -- "$regex" "$file"; then
+  if judged_body "$file" | grep -qiE -- "$regex"; then
     echo "  FAIL: $label (present, must be absent: /$regex/)  [$rel]"
     fails=$((fails + 1))
     prof_assert "$(basename "$file" .log)" FAIL
+    cov_assert "$file" FAIL
   else
     echo "  PASS: $label  [$rel]"
     prof_assert "$(basename "$file" .log)" PASS
+    cov_assert "$file" PASS
   fi
 }
 
@@ -951,6 +1320,15 @@ RE_INVEST_LETTERS='i[*_]{0,2}ndependent|n[*_]{0,2}egotiable|v[*_]{0,2}aluable|e[
 RE_INVEST_SMALL='s[*_]{0,2}mall'
 RE_NOT_SPLIT='not[*_ ]{1,6}.{0,8}(re-?)?split|no[*_ ]{1,4}(re-?)?split|kept|left[*_ ]{1,6}.{0,8}(intact|as-?is)|un-?split|untouched|carr(y|ied|ies)[*_ ]{1,6}.{0,14}(through|unchanged)|\bas-?is\b|zero letters? failed|(control|right-?sized)[^.]{0,60}(unchanged|not[*_ ]{1,6}split)|to the gate[*_ ]{1,6}unchanged'
 RE_ZERO_WANTS='0[ _*]*want-decisions?|want-decisions?[ _*:=]*0|zero want-decisions?|no want-decisions? (asked|put|surfaced)'
+# WIDENED over EMPHASIS (v1.15.1, R1). The old window was `not .{0,20}(ask|want-decision|open want)`,
+# a literal space after `not` plus 20 characters. A correct run writes the negative with the negation
+# itself emphasised — "It was **not** put to the user as an open want" — where the `**` eats two of
+# the twenty and pushes `open want` to offset 25. The class is the one already named at the top of
+# this block (emphasis breaking a contiguous match), so the fix is the same: allow the emphasis
+# glyphs after `not`, and bound the gap with `[^.]` so a widened window can never leap a sentence
+# boundary and pick up a negation that belongs to a different claim. The OUTCOME is unchanged: a run
+# that actually asked the question emits no negation and no zero count, and matches none of these.
+RE_NOT_ASKED_AS_WANT="not[*_ ]{1,6}[^.]{0,30}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than[*_ ]{1,4}[^.]{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
 RE_LAYER_SUBJECT='layer[-_* ]{0,4}(mis-?)?match|risk layer|proof layer|verification plan'
 RE_LAYER_MISMATCH='❌|✗|layer[-_* ]{0,4}mis-?match|mis-?match(ed)?[-_* ]{0,4}(on|at|for|in|—|:)|layer[^.]{0,40}(mis-?match|does not match|not .{0,6}match|is not met|too low)|(proof|test)[^.]{0,40}below[^.]{0,20}(the )?(risk )?layer|below the .{0,12}(risk )?layer|clears? (none|no)\b|(proof|test)[^.]{0,40}(rejected|insufficient|inadequate|not (a )?(valid|sufficient))'
 # `before` + a literal space again — a correct run writes "re-split it **before** the gate" / "*before*
@@ -967,7 +1345,62 @@ RE_BEFORE_CHILD='before[*_ ]{1,4}.{0,24}(child|branch)|before any child|prior to
 RE_ROUTES_TO_REVIEW='refus|rout(e|es|ed|ing)|re-?run review|re-?review|blocked|fresh[*_ ]{1,4}.{0,10}review|back to[*_ ]{1,6}.{0,8}review'
 # The refusal is written in the CONTINUOUS ("Refusing to finalise", "Routing back to review"), where a
 # regex demanding the infinitive (`refuse` / `route`) matches neither.
-RE_DOES_NOT_ESTABLISH='does not|not[*_ ]{1,4}(establish|a measurement)|no evidence|says nothing|false.?green'
+# R5 (v1.16.1). The old token was
+#   not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent
+# and it was wrong in BOTH directions, measured against the archive:
+#   * The free-floating `does not` alternative made it a **false green**. It fires on any unrelated
+#     sentence — in the archived green transcript, on a merge-strategy line ("narrows, does not
+#     remove, the judgement"). A negative control in which mango records `2 ASSUMED` and continues
+#     anyway also PASSES the old token. A branch that a wrong answer satisfies is not a check.
+#   * It MISSED the correct wording. Mango writes "No — `ASSUMED` is not the fallback for silence",
+#     and the old window allows at most four spaces/asterisks between `not` and `silent`, where the
+#     real phrasing puts "the fallback for" between them.
+# Deleting `does not` alone leaves both correct transcripts red, so the fix is delete AND widen:
+# allow the claim's own subject inside the window, bounded by `[^.]` so it can never leap a sentence
+# boundary, and admit the COUNTED artifact — `0 ASSUMED` inside the `REFINE:` line — which is the
+# load-bearing evidence that nothing was recorded. The `[^0-9]` before the zero keeps `10 ASSUMED`
+# out. OUTCOME unchanged: a run that did record a silent ASSUMED prints a non-zero count and none of
+# these alternatives matches it.
+# R6 (v1.16.1). Both of these replace a bare adjective that made its assertion unable to fail.
+# `exclusion-expiry-required` scored 3 of 4 on a THREE-LINE reply that answered none of the fixture's
+# four questions — it pointed at the work doc instead — and the two passes were carried by exactly one
+# word each, measured: A1's `missing` matched mango's description of the file's contents ("the
+# exclusion record with the missing field named"), and A3's `checkable` matched mango handing the
+# choice back ("deferred with a checkable expiry is your decision"). Every other alternative in both
+# tokens scored 0 on that reply. An adjective floating free of its claim is not a check.
+# Both tokens now bind the claim's predicate to its object within one line — `assert_all` matches each
+# regex anywhere in the body, so binding inside the alternative is the only place it can be done
+# without changing the harness. NOTHING is loosened: the correct answer states "Counts as recorded:
+# no … it does not count as a recorded coverage-gap exclusion" and "add a checkable `expiry:`", both
+# of which still match, while the affirmative sibling form ("Counts as recorded: yes … and a checkable
+# `expiry:`") correctly matches neither.
+RE_NOT_COUNTED_AS_RECORDED='counts? as recorded[ *_:?—-]{0,4}no\b|not[ *_]{0,4}count[^.]{0,50}recorded|does not count|not[ *_]{1,4}recorded|fails? to count'
+# The first tightening of this one was itself a FALSE RED, caught by re-running the job rather than
+# by reasoning: it demanded `checkable` next to `expiry` next to an action verb, all on one line.
+# Mango's correct answer adds the field with a CONDITION as its value — `expiry: when
+# config.real_corpus_path is configured` — and asserts the property in the skill's own words on the
+# next sentence: "is **checkable by a non-author**". So the property is admitted where mango states
+# it, bound to `expiry` on the line, and the ticket-key idiom is kept as its own alternative. Every
+# alternative here is exercised by a paired self-test; the unmatched reverse-order variant that a
+# first draft carried was dropped rather than shipped unproven.
+# NOTE for the next cycle: `[^\n]` was tried as "any character on this line" and is WRONG in POSIX
+# ERE — inside a bracket expression it means "not backslash and not the letter n", so it silently
+# failed on `config.real_corpus_path`. `grep` is line-bounded already, so plain `.` is the right
+# thing.
+RE_FIX_IS_CHECKABLE_EXPIRY='expiry.{0,70}checkable by|(add|added|adding|carry|suppl|set).{0,40}checkable.{0,20}expiry|expiry[ *_:`]{0,4}(PROJ-|a ticket key)'
+RE_NOT_SILENT_ASSUMED='not[ *_]{0,4}[^.]{0,30}(silen|fallback|hand.?back)|never[ *_]{1,4}(silent|assum)|no[ *_]{1,4}silent|REFINE:[^.]{0,120}[^0-9]0[ *_]{0,4}ASSUMED'
+# R7 (v1.16.1). `does not` is dropped here for the same reason it was dropped from
+# RE_NOT_SILENT_ASSUMED: free-floating, it is satisfied by any unrelated sentence. Nothing
+# legitimate is lost — the correct phrasing "does not establish" still matches through the
+# `not[*_ ]{1,4}establish` alternative, and no green row in the ledger was resting on it (this token
+# judges exactly one job, and that job is red). What IS added is the shape the batch-4 transcript
+# actually used and no alternative could read: the negative asked as a QUESTION and answered "No" on
+# the same line — `## 3. Does "84 passed" establish AC1 and AC2? No — for two independent reasons.`
+# The verb there is affirmative and the negation sits after the question mark, so no `not … establish`
+# window can reach it. Bounded by `[^.?]` up to the question mark and three glyphs after it, and
+# `grep`'s line-bounding does the rest: a transcript that asks the same question and answers "Yes"
+# matches none of these.
+RE_DOES_NOT_ESTABLISH='not[*_ ]{1,4}(establish|a measurement)|no evidence|says nothing|false.?green|establish[^.?]{0,40}\?[ *_]{0,3}no[ ,.—-]'
 # The negative is as often a QUESTION answered ("Does 84 passed establish AC1 and AC2? No — three
 # reasons"), a re-description ("not a measurement of that tree") or the verdict word ("false-green").
 RE_PROMOTE_BEFORE_RETIRE='writ[^.]{0,24}first|(rule|it)[^.]{0,30}recallable first|must exist[^.]{0,34}first|before[^.]{0,30}(retir|the claims are retired)|only (then|after)[^.]{0,34}retir|(never|not) be reordered|retire[^.]{0,20}(second|last|after)'
@@ -981,28 +1414,92 @@ RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{
 # ever broke the `cd "$SANDBOX"` discipline (or a fixture ran `execute` in the wrong
 # cwd), a leak into the live checkout could otherwise pass silently.
 #
-# assert_checkout_clean <repo-dir> — echoes each leak it finds and returns non-zero
-# on any; returns 0 iff <repo-dir> is pristine: HEAD on main, no stray *PROJ-*
-# branch, no docs/tickets/*.work.md, no docs/EVAL_RULES.md. Parameterized on the dir
-# so it is self-tested below on a THROWAWAY dirty repo — the guard's teeth are proven
-# without ever risking the live checkout.
+# assert_checkout_clean <repo-dir> [expected-branch] — echoes each leak it finds and returns non-zero
+# on any; returns 0 iff <repo-dir> is pristine: HEAD on <expected-branch> (default: the branch this
+# run started on), no stray *PROJ-* branch, no docs/tickets/*.work.md, no docs/EVAL_RULES.md.
+# Parameterized on BOTH the dir and the branch so it is self-tested below on throwaway repos — a
+# dirty one that must be caught, and a clean one on a non-main branch that must pass — proving the
+# guard's teeth without ever risking the live checkout.
 assert_checkout_clean() {
-  local dir="$1" bad=0 head stray docs
+  local dir="$1" want="${2:-${EVAL_START_BRANCH:-main}}" bad=0 head stray docs
   head="$(git -C "$dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
-  [ "$head" = "main" ] || { echo "    LEAK: HEAD is on '$head', not main"; bad=1; }
-  stray="$(git -C "$dir" for-each-ref --format='%(refname:short)' 'refs/heads/*PROJ-*' 2>/dev/null || true)"
+  [ "$head" = "$want" ] || { echo "    LEAK: HEAD is on '$head', not '$want' (the branch this run started on)"; bad=1; }
+  # v1.16.0: list every branch and filter in grep, rather than passing 'refs/heads/*PROJ-*' to
+  # for-each-ref. That pattern is fnmatch with FNM_PATHNAME, so its `*` does NOT cross a `/` — it
+  # matched a top-level `PROJ-777` and MISSED `feat/PROJ-999-leak`, which is the shape mango's own
+  # fixtures create and the shape this guard's own injection test uses. The miss was invisible
+  # because that test's repo also had HEAD off main and a stray work doc, so the guard failed for
+  # other reasons and the stray-branch rule was never once proven on its own. Each rule now has an
+  # isolated non-vacuity test below.
+  stray="$(git -C "$dir" for-each-ref --format='%(refname:short)' refs/heads 2>/dev/null |
+             grep -E 'PROJ-' || true)"
   [ -z "$stray" ] || { echo "    LEAK: stray fixture branch(es): $(echo $stray)"; bad=1; }
   docs="$(git -C "$dir" ls-files 'docs/tickets/*.work.md' 'docs/EVAL_RULES.md' 2>/dev/null || true)"
   docs="$docs $( (cd "$dir" && ls docs/tickets/*.work.md docs/EVAL_RULES.md) 2>/dev/null || true)"
   docs="$(echo "$docs" | tr ' ' '\n' | sort -u | grep -v '^$' || true)"
   [ -z "$docs" ] || { echo "    LEAK: eval artifact(s) in live checkout: $(echo $docs)"; bad=1; }
   if [ "$bad" -ne 0 ]; then
-    echo "    RECOVERY: git switch main && git branch -D <stray> && rm -f docs/EVAL_RULES.md docs/tickets/*.work.md"
+    echo "    RECOVERY: git switch $want && git branch -D <stray> && rm -f docs/EVAL_RULES.md docs/tickets/*.work.md"
     echo "    (if a real commit stranded on the stray branch, cherry-pick it onto main FIRST)"
     return 1
   fi
   return 0
 }
+
+# --- The MACHINERY boundary (v1.16.0) ----------------------------------------
+# Everything defined ABOVE this line is machinery: it decides what gets dispatched, what the model is
+# asked, and how the answer is judged. Everything inside `suite()` BELOW it is content: the fixtures,
+# their prompts and their assertion tokens, which are fingerprinted per job instead.
+#
+# The split is STRUCTURAL, not a hand-kept allowlist, and that is the point — an allowlist drifts the
+# first time someone adds a helper and forgets to register it, and the drift is silent and in the
+# unsafe direction. Here the boundary is enforced by where a function is defined: at this exact point
+# in the file `declare -F` knows every machinery function and does not yet know `suite`.
+#
+# Two details that matter:
+#   * the list is INTERSECTED with the functions this file actually defines, so an exported function
+#     inherited from the operator's shell cannot leak into the fingerprint and make the ledger name
+#     machine-dependent;
+#   * `declare -f` is used rather than a text slice of the file, because it prints bash's own parsed
+#     form: COMMENTS ARE GONE and formatting is normalised. So editing a comment, re-indenting, or
+#     rewording a note voids nothing — which removes the single largest source of accidental
+#     invalidation in this harness, and is why this is a saving rather than a book-keeping change.
+#
+# Not covered here, deliberately: `coverage_selftest`, `selftest_assertion` and `re_all_match` are
+# defined after `suite()` and are the harness testing ITSELF. Their soundness is already enforced per
+# run — every row's owning run must have recorded self-tests with zero failures, which --verify-suite
+# checks — so they do not also need to invalidate rows.
+MACHINERY_FN_LIST="$(
+  { declare -F | awk '{print $3}' | LC_ALL=C sort >"$TMPROOT/fn.defined"
+    grep -oE '^[a-z_][a-z0-9_]*\(\)' "${BASH_SOURCE[0]}" | tr -d '()' | LC_ALL=C sort -u >"$TMPROOT/fn.infile"
+    LC_ALL=C comm -12 "$TMPROOT/fn.defined" "$TMPROOT/fn.infile"; } 2>/dev/null
+)"
+machinery_fp() {
+  local f
+  { for f in $MACHINERY_FN_LIST; do
+      printf '== %s ==\n' "$f"
+      declare -f "$f" 2>/dev/null || printf 'ABSENT\n'
+    done; } | sha256sum 2>/dev/null | awk '{print $1}'
+}
+MACHINERY_FP="$(machinery_fp)"; [ -n "$MACHINERY_FP" ] || MACHINERY_FP="unhashable"
+MACHINERY_FN_COUNT="$(printf '%s\n' "$MACHINERY_FN_LIST" | grep -c . || echo 0)"
+
+COVERAGE_LEDGER="$CACHE_DIR/coverage.$MACHINERY_FP.tsv"
+RUN_LEDGER="$CACHE_DIR/runs.$MACHINERY_FP.tsv"
+
+# The transcript cache is wiped when the MACHINERY moves, not when the file changes. A cached
+# transcript is a record of what the model answered; it is re-judged from scratch on every reuse, so
+# an edited assertion does not invalidate it — it re-reads it. That is what makes fixing a token in a
+# GREEN job free: its row goes stale, the job is re-judged against the cached transcript, and no
+# `claude -p` runs at all. A RED job has no cache entry (only greens are minted), so it costs one
+# real dispatch — which is the whole bill for a fix round.
+if [ "$CACHE_ENABLED" -eq 1 ]; then
+  FP_FILE="$CACHE_DIR/.machinery.fp"
+  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$MACHINERY_FP" ]; then
+    rm -f "$CACHE_DIR"/*.green 2>/dev/null || true
+    printf '%s' "$MACHINERY_FP" >"$FP_FILE"
+  fi
+fi
 
 # --- The suite ----------------------------------------------------------------
 # Everything below runs TWICE: once with PHASE=collect (registering dispatches) and once with
@@ -1155,7 +1652,11 @@ assert_contains "behavioural-drift: surfaces it to review / not clean"    "$t" '
 # responsive") must be pinned to a measurable or logged as a manual-check exclusion, and may not carry
 # a bare ✅.
 t="$(run_fixture vague-requirement 'Run the mango analysis skill on this ticket. Apply the Gate-1 falsifiability check in the AC-validation step to each acceptance value. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not falsifiable|not measurable|unmeasurable|vague|manual-check'
+# proof pass, batch 1: "neither falsifiable nor excluded" is the SAME verdict as "not falsifiable" — a real run
+# phrased the negation with neither/nor and the token missed it, while the sibling ✅-guard assertion
+# passed on that very transcript. Widened over WORDING only: `(neither|nor) falsifiable` cannot match
+# an affirmative verdict ("AC-1 is falsifiable"), so the assertion still fails the wrong outcome.
+assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not falsifiable|(neither|nor) falsifiable|not measurable|unmeasurable|vague|manual-check'
 # Decision-level: it is pinned to a measurable OR logged as a manual-check exclusion (outcome), and it
 # may not carry a bare ✅ (the guard) — so a silent ✅ drops a token and fails.
 assert_all "vague-requirement: cannot carry a bare ✅"             "$t" 'falsifiable|measurable|manual-check' 'may not|cannot|not carry|flag|pin|Gate[ -]?1 question|exclusion'
@@ -1286,8 +1787,23 @@ assert_contains "ledger-gate: blocks like an unfilled matrix column"          "$
 # Decision-level: it is a completeness check (subject) that never cuts content (guard).
 assert_all "ledger-gate: completeness check, not content (never auto-cuts)"   "$t" 'complete' 'not.*content|never.*cut|not.*cut|descriptive|completeness'
 # proceeds variant: a complete ledger (rows == dispatches) proceeds.
-t="$(run_prompt ledger-gate-complete 'On the mango finalise dispatch-count gate: a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch return). Per mango, does finalise proceed or block? Answer and say why.')"
-assert_contains "ledger-gate-complete: complete ledger proceeds" "$t" 'proceed|passes|not block|does not block|complete'
+# PREMISE COMPLETED (v1.15.1, R2). The old prompt fixed the row COUNT and said nothing about row
+# CONTENT, and mango's ledger gate has both conditions — so a correct run answered "not enough
+# information: row count alone doesn't clear it", split the two conditions, and cited the skill. That
+# is better behaviour than the assertion expected, which makes the class OUTCOME, and this suite does
+# not widen an assertion over outcome. The repair is to the scenario's premise instead: state that
+# every row carries a token value, leaving the dispatch-count identity as the only condition under
+# test. Row CONTENT is `ledger-content-gate-marker`'s job, and stays there.
+t="$(run_prompt ledger-gate-complete 'On the mango finalise dispatch-count gate: a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch return). Every one of those 4 rows carries a token value — no cell is blank and none is marked unmeasured — so the only question left is the dispatch-count condition. Per mango, does finalise proceed or block? Answer and say why.')"
+# STRENGTHENED (v1.15.0). The old single check was `proceed|passes|not block|does not block|complete`:
+# the prompt itself asks "does finalise proceed or block?", so any answer that echoes the question —
+# including a WRONG "it blocks" — matched /proceed/, and /complete/ matched the scenario's own name in
+# the harness header. Nothing this scenario could return would have failed it. It is now decision-level:
+# the OUTCOME token must say it goes through, AND the REASONING token must name the count identity that
+# makes it go through. A "blocks" answer matches neither.
+assert_all "ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches" "$t" \
+  'proceeds( |,|\.|$)|does not block|is not blocked|no block|passes the gate|gate passes|clears the gate' \
+  '4[^0-9]{0,16}(=|==|of 4|/ ?4|rows?|dispatch)|rows?[^.]{0,28}(match|equal|same|==?)|dispatch(es)?[^.]{0,28}(match|equal|same)|ledger is complete|complete ledger'
 
 # verify-only-main-loop (v1.5 Fix 2): the conditional-LGTM verify-only round is MAIN-LOOP-BY-DEFAULT. An
 # in-scope round verifies in the main loop dispatching NO subagent (cost does not swing on operator choice);
@@ -1415,7 +1931,7 @@ assert_all "refine-consistency: resolved-by-citation as a how-decision" "$t" 'ho
 # The skill states this negative as a COUNT (`0 want-decisions asked`) as readily as a negation
 # phrase; RE_ZERO_WANTS accepts either. Outcome-bound: a run that DID ask it emits a non-zero count
 # and no negation, so it matches neither alternative.
-assert_all "refine-consistency: NOT asked as a want-decision" "$t" 'how-decision|not ask|resolve|cite' "not .{0,20}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than .{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
+assert_all "refine-consistency: NOT asked as a want-decision" "$t" 'how-decision|not ask|resolve|cite' "$RE_NOT_ASKED_AS_WANT"
 
 # refine-assumed-on-handback: user says "your call" on a want-decision → refine picks per recommendation
 # but MUST mark ASSUMED (awaiting ratification), require an EXPLICIT next-gate confirm, NEVER silent-adopt
@@ -2134,7 +2650,14 @@ assert_contains "no-match: the RECALL line is emitted" "$t" 'RECALL:'
 assert_all "no-match: zero claims surfaced by handle" "$t" 'by handle' '0|zero|none'
 assert_contains "no-match: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
 assert_all "no-match: the handle-matched source adds zero sections" "$t" 'by recalled handle|by handle' '0|zero|none|add(s|ed)? no'
-assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)'
+# R4 (proof pass, batch 1): the second red of the SAME class as R3 — a negation token that enumerates
+# spellings of `not` and cannot see `neither`. The transcript answered "Are §4.2 and §7.3 applicable?
+# No — neither source makes them so" and closed "blocks only when it is applicable, and neither is".
+# Both orders are now accepted. Deliberately NOT re-anchored on the counted `0 by recalled handle`:
+# that is already asserted one line above, so it would delete this prose check rather than strengthen
+# it. Proved on five checks including a `dodge` transcript ("I could not determine this"), which the
+# widened token must still REJECT — widening may buy a synonym, never a non-answer.
+assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)|applicab[^.]{0,30}\b(neither|nor)\b|\b(neither|nor)\b[^.]{0,40}(applicab|surfac|match)'
 assert_all "no-match: no extra trace, row, question or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'trace|row|gate|question|work'
 
 # G5 greenfield-autorun-clean: the unattended lane on a project that has learned nothing and merged
@@ -2159,9 +2682,9 @@ assert_absent "greenfield-autorun: no per-call number is invented for an empty l
 # T1 exclusion-expiry-required: an exclusion with NO expiry does not count as recorded, so the
 # layer-match failure it covered blocks Gate 2 — exactly as it would unexcluded.
 t="$(run_fixture exclusion-expiry-required 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "expiry-required: the no-expiry exclusion does not count as recorded" "$t" 'expiry' 'not count|does not count|not[ *_]{1,4}recorded|incomplete|missing'
+assert_all "expiry-required: the no-expiry exclusion does not count as recorded" "$t" 'expiry' "$RE_NOT_COUNTED_AS_RECORDED"
 assert_all "expiry-required: the AC1(b) layer-match blocks Gate 2" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|stays (open|shut)|fails'
-assert_all "expiry-required: the fix is to add a checkable expiry" "$t" 'expiry' 'add|carry|checkable|ticket key|date|condition'
+assert_all "expiry-required: the fix is to add a checkable expiry" "$t" 'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
 assert_contains "expiry-required: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
 
 # T2/T3 exclusion-expiry-checkable: a ticket-key expiry is checkable and accepted (Gate 2 closes);
@@ -2186,7 +2709,7 @@ assert_absent "recurrence: mango does not auto-discharge the overdue class" "$t"
 t="$(run_fixture refine-want-unattended-stops 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
 assert_all "want-j: the unresolved want-decision counts toward j" "$t" 'want-decision' 'counts? toward|into[ *_]{1,4}j|j[ *_=:]{0,4}1|toward the (j|clarification)|clarification'
 assert_all "want-j: the run STOPS at Gate 0 rather than guessing" "$t" 'stop|halt|does not (continue|proceed)|not[ *_]{1,4}(continue|proceed)' 'j[ *_=:]{0,4}1|Gate 0|human'
-assert_all "want-j: it is NOT recorded as a silent ASSUMED that ships a PR" "$t" 'ASSUMED' 'not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent'
+assert_all "want-j: it is NOT recorded as a silent ASSUMED that ships a PR" "$t" 'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
 assert_all "want-j: the open question reaches the operator verbatim" "$t" 'recommend|likely to want|activity|editorial' 'question|state|report|surfac|morning|verbatim'
 assert_all "want-j: the fully-locked ticket self-skips and leaves j untouched" "$t" 'PROJ-903|self-skip|locked' 'j[ *_=:]{0,4}0|untouched|unaffected|no want|zero|correct'
 assert_absent "want-j: no product decision is invented at 3am" "$t" '(I|we) (chose|picked|selected) (recent activity|similar users|editorial|option [abc])'
@@ -2309,12 +2832,397 @@ assert_all "seat-split: both waived is recorded, not refused" "$t" 'both' 'recor
 
 }   # end suite()
 
+# --- coverage-ledger + no-run self-test (v1.15.0) ------------------------------
+# Twelve counted assertions, no dispatch. Every new guard added in this version is proven to have
+# TEETH against a synthetic input carrying the exact defect it exists to catch — the same shape the
+# isolation guards already use. Without this the ledger would be a bookkeeping claim about
+# bookkeeping, which is the one thing a false-green-averse suite must not ship.
+coverage_selftest() {
+  local _cs="$TMPROOT/coverage-selftest" _ident _b
+  mkdir -p "$_cs"
+  _ident=$'PFP\tMODEL\tCLI'
+
+  banner "== no-run / header-vacuity self-test =="
+
+  # (1) judged_body strips the harness header — AND the strip is load-bearing. The second half is
+  # the non-vacuity control: the raw file DOES match the fixture name, so an assertion greping the
+  # raw file would have passed on the harness's own text.
+  printf '== fixture: zebra-quux-guidance ==\nthe model replied with something else entirely\n' >"$_cs/hdr.log"
+  total=$((total + 1))
+  if judged_body "$_cs/hdr.log" | grep -qiE -- 'zebra-quux'; then
+    echo "  FAIL: header-vacuity: judged_body still exposes the harness header (the fixture NAME is greppable)"
+    fails=$((fails + 1))
+  else
+    echo "  PASS: header-vacuity: judged_body strips the harness header, so the fixture name is not greppable"
+  fi
+  total=$((total + 1))
+  if grep -qiE -- 'zebra-quux' "$_cs/hdr.log"; then
+    echo "  PASS: header-vacuity: the RAW file does match the fixture name (the strip is non-vacuous)"
+  else
+    echo "  FAIL: header-vacuity: control broken — the raw file should match, so the strip is unproven"
+    fails=$((fails + 1))
+  fi
+
+  # (2)(3)(4) transcript_unusable: catches a failed dispatch and an empty body, and does NOT fire on
+  # a real transcript. The last one is the false-RED control: a guard that flagged everything would
+  # be useless in the opposite direction.
+  printf '== fixture: f ==\nAPI Error: 529 Overloaded\n' >"$_cs/err.log"
+  total=$((total + 1))
+  if transcript_unusable "$_cs/err.log" >/dev/null; then
+    echo "  PASS: no-run guard: an 'API Error: 529' transcript is NOT judgeable (a no-run can never score)"
+  else
+    echo "  FAIL: no-run guard: a 529 transcript was accepted as judgeable — this is the false-green that once passed 3 assertions"
+    fails=$((fails + 1))
+  fi
+  printf '== fixture: f ==\n\n   \n' >"$_cs/empty.log"
+  total=$((total + 1))
+  if transcript_unusable "$_cs/empty.log" >/dev/null; then
+    echo "  PASS: no-run guard: an empty transcript body is NOT judgeable"
+  else
+    echo "  FAIL: no-run guard: an empty body was accepted as judgeable"; fails=$((fails + 1))
+  fi
+  printf '== fixture: f ==\nGate 1 STOP. SECTIONS: 4. Proceeding as instructed.\n' >"$_cs/ok.log"
+  total=$((total + 1))
+  if transcript_unusable "$_cs/ok.log" >/dev/null; then
+    echo "  FAIL: no-run guard: a REAL transcript was rejected — the guard is over-broad (false red)"
+    fails=$((fails + 1))
+  else
+    echo "  PASS: no-run guard: a real transcript is judgeable (no false red)"
+  fi
+
+  # (5)-(12) verify_suite, against a two-job ledger that is complete and uniform, then against one
+  # copy per defect. Each defect must be REPORTED, or the gate is vacuous for that defect.
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+  printf 'j1\tH1\nj2\tH2\n' >"$_cs/hashes"
+  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\tJFP1\tRFP\n' >"$_cs/cov"
+  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\tJFP2\tRFP\n' >>"$_cs/cov"
+  printf 'R1\tT1\tPFP\tMODEL\tCLI\t\t1\t2\t0\t0\t9\t0\n' >"$_cs/runs"
+  printf 'R2\tT2\tPFP\tMODEL\tCLI\tj2\t1\t1\t0\t0\t9\t0\n' >>"$_cs/runs"
+
+  _cs_verify() { verify_suite "$_cs/cov" "$_cs/runs" "$_cs/expected" "$_cs/hashes" "$_ident" >/dev/null 2>&1; }
+  _cs_clean() {  # <label>
+    total=$((total + 1))
+    if _cs_verify; then echo "  PASS: coverage-gate: $1"
+    else echo "  FAIL: coverage-gate: $1 — a complete, uniform, all-green ledger must verify"; fails=$((fails + 1)); fi
+  }
+  _cs_defect() {  # <label>
+    total=$((total + 1))
+    if _cs_verify; then
+      echo "  FAIL: coverage-gate: $1 — VACUOUS: the gate passed a ledger carrying this defect"
+      fails=$((fails + 1))
+    else
+      echo "  PASS: coverage-gate: $1 (non-vacuous)"
+    fi
+  }
+
+  # (5) the clean case — two jobs proven by TWO DIFFERENT RUNS, which is the whole point.
+  _cs_clean "two jobs proven by two separate runs verify as one green suite (batches add up)"
+
+  # (6) a job the suite registers but the ledger has never recorded.
+  cp "$_cs/cov" "$_cs/cov.bak"
+  grep -v '^j2' "$_cs/cov.bak" >"$_cs/cov"
+  _cs_defect "an unrecorded job is caught (never-proven job cannot hide in a green total)"
+
+  # (7) a green measured under a skills-hash the files no longer produce.
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tH1-CHANGED\nj2\tH2\n' >"$_cs/hashes"
+  _cs_defect "a STALE green is caught (its skills changed after it was proven)"
+  printf 'j1\tH1\nj2\tH2\n' >"$_cs/hashes"
+
+  # (8) two batches measured with different rulers — the failure mode a multi-batch green risks.
+  sed 's/\tCLI\t1\t1\tgreen/\tCLI-OTHER\t1\t1\tgreen/' "$_cs/cov.bak" >"$_cs/cov"
+  _cs_defect "a row measured under a DIFFERENT CLI version is caught (non-uniform ruler)"
+  sed 's/\tMODEL\tCLI\t1\t1/\tMODEL-OTHER\tCLI\t1\t1/' "$_cs/cov.bak" >"$_cs/cov"
+  _cs_defect "a row measured under a DIFFERENT model is caught (non-uniform ruler)"
+  sed 's/\tPFP\tMODEL\tCLI\t1\t1/\tPFP-OTHER\tMODEL\tCLI\t1\t1/' "$_cs/cov.bak" >"$_cs/cov"
+  _cs_defect "a row measured under a DIFFERENT plugin tree is caught (scripts/ or plugin.json moved)"
+
+  # (9) a recorded red verdict.
+  sed 's/\t1\t1\tgreen/\t1\t1\tred/' "$_cs/cov.bak" >"$_cs/cov"
+  _cs_defect "a recorded RED verdict is caught"
+
+  # (10) the bar moved: the suite now holds more assertions than the row was proven against.
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t3\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+  _cs_defect "a green proven against FEWER assertions than the suite now holds is caught"
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+
+  # (11) the owning run's harness was not sound.
+  cp "$_cs/cov.bak" "$_cs/cov"
+  sed 's/^R2\(.*\)\t9\t0$/R2\1\t9\t2/' "$_cs/runs" >"$_cs/runs.tmp"; mv "$_cs/runs.tmp" "$_cs/runs"
+  _cs_defect "an owning run with FAILING self-tests is caught (unsound harness taints its greens)"
+  sed 's/^R2\(.*\)\t9\t2$/R2\1\t9\t0/' "$_cs/runs" >"$_cs/runs.tmp"; mv "$_cs/runs.tmp" "$_cs/runs"
+
+  # (12) an owning run that never vouched for the harness at all.
+  cp "$_cs/runs" "$_cs/runs.bak"; grep -v '^R2' "$_cs/runs.bak" >"$_cs/runs"
+  _cs_defect "an owning run missing from the run ledger is caught (harness never vouched for)"
+  cp "$_cs/runs.bak" "$_cs/runs"
+
+  # (12b)-(12e) PER-JOB IDENTITY (v1.16.0). These are the checks that let one job's assertions be
+  # fixed without voiding the other 125 rows, so they are also the checks that would let a stale row
+  # be credited if they were vacuous. Each is proved to bite.
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t2\tJFP1-CHANGED\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+  _cs_defect "a row whose job fingerprint no longer matches is caught (its assertions or prompt changed)"
+
+  # The SCOPING claim itself, and the reason this whole change is worth making: with j1's assertions
+  # edited, j1 must be reported and j2 must NOT. A gate that reported both would be the old
+  # whole-file behaviour wearing a new field, and would save nothing.
+  total=$((total + 1))
+  _cs_out="$(verify_suite "$_cs/cov" "$_cs/runs" "$_cs/expected" "$_cs/hashes" "$_ident" 2>&1 || true)"
+  if printf '%s' "$_cs_out" | grep -q "'j1'" && ! printf '%s' "$_cs_out" | grep -q "'j2'"; then
+    echo "  PASS: coverage-gate: editing ONE job's assertions strands ONLY that job's row (j1 reported, j2 stands)"
+  else
+    echo "  FAIL: coverage-gate: per-job scoping is wrong — j1-only edit reported: $(printf '%s' "$_cs_out" | grep -c DEFECT) defect(s)"
+    fails=$((fails + 1))
+  fi
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+
+  # A row written before this field existed. It must be REFUSED, not credited: nobody recorded which
+  # assertions it was proven against, so it cannot vouch for the ones in force now.
+  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\n' >"$_cs/cov"
+  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\tJFP2\tRFP\n' >>"$_cs/cov"
+  _cs_defect "an 11-field row with NO job fingerprint is caught (a pre-v1.16.0 row cannot be credited)"
+
+  # And the mirror image: the gate could not compute a current fingerprint. Silence there would be a
+  # skipped check, which is a false green with extra steps.
+  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t2\t\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+  _cs_defect "an EMPTY current job fingerprint is caught (an uncomputable check must fail, not skip)"
+  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
+
+  # back to the clean ledger, and re-verify — proving none of the mutations leaked.
+  cp "$_cs/cov.bak" "$_cs/cov"
+  _cs_clean "the ledger verifies clean again after every defect was reverted (no mutation leaked)"
+
+  # (13)-(17) THE WRITER, v1.15.1 (D1). Everything above proves the READER of a coverage row against
+  # rows typed by hand — including a `scenario` row. The defect that made --verify-suite unsatisfiable
+  # as shipped was in the WRITER: skills_files emitted a fixture path that a scenario does not have,
+  # `cat` failed inside hash_files, and `pipefail`+`errexit` carried that out of the row-writer's
+  # `_h="$(skills_hash …)"` assignment and killed the run before any scenario row existed. A synthetic
+  # row could never have caught it. The rule this section exists to enforce: a gate self-tested
+  # against synthetic inputs is not self-tested against real ones — so exercise the writer.
+  banner "== coverage-row WRITER self-test =="
+  local _nf="__selftest-no-fixture-file__" _row _rj _i _k _n _sh _shrc
+  total=$((total + 1))
+  if [ ! -f "$FIXTURES/$_nf.md" ]; then
+    echo "  PASS: row-writer: the control job genuinely has NO fixture file on disk (the test is non-vacuous)"
+  else
+    echo "  FAIL: row-writer: control broken — $FIXTURES/$_nf.md exists, so the file-less path is untested"
+    fails=$((fails + 1))
+  fi
+
+  total=$((total + 1))
+  _row="$(cov_row_for "$_nf" scenario 3 3 0 || true)"
+  if [ -n "$_row" ] && [ -n "$(printf '%s' "$_row" | cut -f3)" ] &&
+     [ "$(printf '%s' "$_row" | cut -f9)" = green ]; then
+    echo "  PASS: row-writer: a job with NO fixture file still hashes and still yields a GREEN row (D1)"
+  else
+    echo "  FAIL: row-writer: a file-less job yields no coverage row — no scenario can ever be recorded and --verify-suite is unsatisfiable (D1)"
+    fails=$((fails + 1))
+  fi
+
+  # The exact statement that killed the run, tested for the exact property that killed it: EXIT
+  # STATUS. Note what is NOT the failure mode — the hash came back non-EMPTY even with the defect
+  # present, because `cat` failing mid-pipeline still leaves sha256sum a digest of the files that did
+  # exist. Only `pipefail` carrying that failure out of the assignment did the damage, so a check on
+  # emptiness alone would pass under the defect and prove nothing.
+  total=$((total + 1))
+  # The 4th column is the job_fp the gate will now demand. Taken from job_fp itself, not typed in:
+  # a hand-written value here would test the reader against a constant and stop testing the writer.
+  printf '%s\tscenario\t3\t%s\n' "$_nf" "$(job_fp "$_nf")" >"$_cs/exp.nofile"
+  cov_hashes_tsv "$_cs/hash.nofile" "$_cs/exp.nofile"
+  # The status is CAPTURED, not tested by wrapping the call in `if ( set -e … )`: bash IGNORES errexit
+  # inside a compound command used as an `if` condition — even one that re-sets it — so that shape
+  # passes under the defect and proves nothing. Measured: rc=1 with a 64-char hash on stdout.
+  _shrc=0; _sh="$(skills_hash "$_nf")" || _shrc=$?
+  if [ "$_shrc" -eq 0 ] && [ -n "$_sh" ]; then
+    echo "  PASS: row-writer: skills_hash returns status 0 for a file-less job — the assignment that used to kill the run survives it"
+  else
+    echo "  FAIL: row-writer: skills_hash FAILS for a file-less job — under pipefail+errexit that assignment kills the run before any scenario row is written (D1)"
+    fails=$((fails + 1))
+  fi
+
+  # The end-to-end one: a row this run actually WROTE, checked by the real gate against the real
+  # current hashes and the real measurement identity. This is the assertion whose absence let the
+  # shipped bar be unsatisfiable.
+  total=$((total + 1))
+  cov_row_for "$_nf" scenario 3 3 0 >"$_cs/cov.e2e" 2>/dev/null || : >"$_cs/cov.e2e"
+  printf '%s\t%s\t%s\t%s\t%s\t\t1\t3\t0\t0\t9\t0\n' \
+    "$RUN_ID" "$RUN_UTC" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" >"$_cs/runs.e2e"
+  if verify_suite "$_cs/cov.e2e" "$_cs/runs.e2e" "$_cs/exp.nofile" "$_cs/hash.nofile" \
+       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")" >/dev/null 2>&1; then
+    echo "  PASS: row-writer → gate, end to end: a row THIS RUN WROTE for a file-less job satisfies the coverage gate"
+  else
+    echo "  FAIL: row-writer → gate, end to end: a row this run wrote for a file-less job does NOT satisfy the gate"
+    fails=$((fails + 1))
+  fi
+
+  # And the same thing on a REAL registered scenario label, when this run registered one. Under an
+  # --only batch that selects no scenario there is none to name; the four checks above still bind, and
+  # the NOTE says out loud that this last proof did not run rather than letting it vanish silently.
+  _rj="$(for _i in $(seq 1 "${JOB_COUNT:-0}"); do
+           [ -f "$JOBS_DIR/$_i.meta" ] || continue
+           IFS=$'\t' read -r _k _n _ _ <"$JOBS_DIR/$_i.meta"
+           if [ "$_k" = scenario ]; then printf '%s' "$_n"; break; fi
+         done)"
+  if [ -n "$_rj" ]; then
+    total=$((total + 1))
+    _row="$(cov_row_for "$_rj" scenario 1 1 0 || true)"
+    if [ -n "$_row" ] && [ "$(printf '%s' "$_row" | cut -f9)" = green ]; then
+      echo "  PASS: row-writer: the REAL registered scenario '$_rj' yields a green row (the shipped bar is satisfiable)"
+    else
+      echo "  FAIL: row-writer: the real registered scenario '$_rj' yields NO green row — --verify-suite cannot be satisfied"
+      fails=$((fails + 1))
+    fi
+  else
+    echo "  NOTE: row-writer: this run registered no scenario, so the real-label proof did not run (the file-less control above still did)"
+  fi
+
+  # (18)-(23) THE TWO-TIER RULER ITSELF (v1.16.0). Everything above tests the gate that READS a
+  # fingerprint. These test the two functions that PRODUCE one, because the saving this change buys
+  # is only real if job_fp moves on exactly the right things — too eager and it costs the dispatches
+  # it was meant to save, too lax and a stale row is credited.
+  banner "== two-tier ruler self-test =="
+  local _jd="$_cs/jf" _fa _fb _fc _fd _fe _leak _c1 _c2
+  mkdir -p "$_jd"
+  # Exercised through assert_contains/assert_absent in the COLLECT phase — the real call path, not
+  # cov_expect directly, so the label really is dropped by the code that ships.
+  _jf_fp() {  # <kind> <label> <regex> — the job_fp a single such assertion produces for job x1
+    : >"$_jd/expected"; : >"$_jd/patterns"
+    ( PHASE=collect; COV_DIR="$_jd"; "assert_$1" "$2" "/t/x1.log" "$3" ) >/dev/null 2>&1 || true
+    ( COV_DIR="$_jd"; job_fp x1 )
+  }
+  _fa="$(_jf_fp contains "the original label" 'not silent')"
+  _fb="$(_jf_fp contains "a COMPLETELY different label" 'not silent')"
+  _fc="$(_jf_fp contains "the original label" 'not[ *_]{1,4}silent')"
+  _fd="$(_jf_fp absent   "the original label" 'not silent')"
+
+  total=$((total + 1))
+  if [ -n "$_fa" ] && [ ${#_fa} -eq 64 ]; then
+    echo "  PASS: two-tier ruler: job_fp yields a real sha256 for a registered assertion (non-vacuous)"
+  else
+    echo "  FAIL: two-tier ruler: job_fp produced '$_fa' — an empty or short fingerprint would make every row compare equal"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  if [ "$_fa" = "$_fb" ]; then
+    echo "  PASS: two-tier ruler: re-WORDING an assertion label does not move job_fp (a label is not a measurement)"
+  else
+    echo "  FAIL: two-tier ruler: a label edit moved job_fp — every typo fix would now cost a dispatch"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  if [ "$_fa" != "$_fc" ]; then
+    echo "  PASS: two-tier ruler: editing the REGEX moves job_fp (the R3/R4/R5 fix strands its own row)"
+  else
+    echo "  FAIL: two-tier ruler: a widened regex did NOT move job_fp — a row proven by the OLD token would be credited to the new one"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  if [ "$_fa" != "$_fd" ]; then
+    echo "  PASS: two-tier ruler: contains→absent moves job_fp even with the SAME regex (inverting a test is not free)"
+  else
+    echo "  FAIL: two-tier ruler: swapping assert_contains for assert_absent left job_fp unchanged — a test can be inverted while its green stands"
+    fails=$((fails + 1))
+  fi
+  # The prompt half. A scenario's prompt lives in this file and nothing else per-job covers it.
+  : >"$_jd/expected"; : >"$_jd/patterns"
+  ( PHASE=collect; COV_DIR="$_jd"; assert_contains "l" "/t/x1.log" 'not silent' ) >/dev/null 2>&1 || true
+  _fe="$( COV_DIR="$_jd"; job_fp x1 )"
+  total=$((total + 1))
+  if [ "$_fe" = "$_fa" ] && [ "$( COV_DIR="$_jd"; job_fp x2 )" != "$_fa" ]; then
+    echo "  PASS: two-tier ruler: an UNREGISTERED job hashes a per-name marker, so two of them cannot collide"
+  else
+    echo "  FAIL: two-tier ruler: unregistered jobs collide or drift — job_fp is not a function of the job"
+    fails=$((fails + 1))
+  fi
+
+  # The machinery tier. Its whole safety argument is that nothing which decides a verdict is defined
+  # below the boundary, where an edit would void no row. Enforce it instead of asserting it.
+  total=$((total + 1))
+  if [ "$MACHINERY_FP" != unhashable ] && [ "${MACHINERY_FN_COUNT:-0}" -ge 30 ]; then
+    echo "  PASS: two-tier ruler: the machinery fingerprint covers $MACHINERY_FN_COUNT function(s) (an empty list would hash a constant)"
+  else
+    echo "  FAIL: two-tier ruler: machinery fp is '$MACHINERY_FP' over ${MACHINERY_FN_COUNT:-0} function(s) — the ledger name would not track the harness"
+    fails=$((fails + 1))
+  fi
+  total=$((total + 1))
+  declare -F | awk '{print $3}' | LC_ALL=C sort >"$_cs/fn.now"
+  printf '%s\n' $MACHINERY_FN_LIST | LC_ALL=C sort >"$_cs/fn.covered"
+  _leak="$(LC_ALL=C comm -23 "$_cs/fn.now" "$_cs/fn.covered" |
+    grep -E '^(assert_|cov_|dispatch|judge|transcript|skills_|cache_|hash_|job_|run_fixture|run_prompt|claude_run|verify_suite|worker|provision_|reset_|write_harness|plugin_tree)' || true)"
+  if [ -z "$_leak" ]; then
+    echo "  PASS: two-tier ruler: no judging or dispatch function is defined below the boundary (none escapes the fingerprint)"
+  else
+    echo "  FAIL: two-tier ruler: $(echo $_leak) defined AFTER the machinery boundary — editing it would void no row. Move it above suite()."
+    fails=$((fails + 1))
+  fi
+  # The claim that makes comment edits free, tested rather than trusted: bash's own parsed form of a
+  # function drops comments, so machinery_fp cannot see them.
+  total=$((total + 1))
+  _mb_c1() { local x="$1"; echo "$x"; }
+  _c1="$(declare -f _mb_c1 | tail -n +2)"
+  unset -f _mb_c1
+  _mb_c1() {
+    # a comment that must not be able to void 126 rows
+    local x="$1"; echo "$x"
+  }
+  _c2="$(declare -f _mb_c1 | tail -n +2)"
+  unset -f _mb_c1
+  if [ "$_c1" = "$_c2" ]; then
+    echo "  PASS: two-tier ruler: declare -f is comment- and layout-insensitive (a comment edit voids nothing)"
+  else
+    echo "  FAIL: two-tier ruler: declare -f differs on comments alone — every comment edit still costs a full re-run"
+    fails=$((fails + 1))
+  fi
+}
+
 # --- Drive the two passes ------------------------------------------------------
 # collect (silent, no dispatch) → dispatch in parallel → assert (sequential output).
 RUN_T0="$(prof_now)"
 PHASE=collect; suite
 # Read the registered job count back out of its counter file (registration happens in subshells).
 JOB_COUNT="$(cat "$JOBS_DIR/.count" 2>/dev/null || echo 0)"; JOB_COUNT="${JOB_COUNT:-0}"
+
+# --- --verify-suite: no dispatch, no cost -------------------------------------
+# The collect pass has just told us, from the assertion call sites themselves, exactly what the suite
+# is: every job, its kind, and how many assertions it must clear. Check the coverage ledger against
+# that and stop. This is the step that makes N batches equal one full pass: the sum stops being an
+# operator's recollection and becomes a re-checkable artifact.
+if [ "$VERIFY_SUITE" -eq 1 ]; then
+  echo "== eval coverage verification (no dispatch, no cost) =="
+  echo "  machinery fp       : $MACHINERY_FP  ($MACHINERY_FN_COUNT function(s))"
+  echo "  runner fp (forensic): $RUNNER_FP"
+  echo "  plugin-tree fp     : $PLUGIN_TREE_FP"
+  echo "  model / CLI        : $MODEL_SETTING / $CLI_VERSION"
+  echo "  jobs registered    : $JOB_COUNT"
+  coverage_selftest
+  _vs_exp="$TMPROOT/verify.expected"; _vs_hash="$TMPROOT/verify.hashes"
+  cov_expected_tsv "$_vs_exp"
+  cov_hashes_tsv "$_vs_hash" "$_vs_exp"
+  _vs_jobs="$(wc -l <"$_vs_exp" | tr -d ' ')"
+  _vs_asserts="$(awk -F'\t' '{n += $3} END {print n+0}' "$_vs_exp")"
+  echo
+  echo "== coverage ledger vs the suite =="
+  echo "  suite            : $_vs_jobs job(s), $_vs_asserts transcript assertion(s)"
+  echo "  ledger           : ${COVERAGE_LEDGER##*/}"
+  total=$((total + 1))
+  if verify_suite "$COVERAGE_LEDGER" "$RUN_LEDGER" "$_vs_exp" "$_vs_hash" \
+       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")"; then
+    echo "  PASS: coverage: all $_vs_jobs job(s) green under one uniform ruler, $_vs_asserts assertion(s) accounted for"
+  else
+    echo "  FAIL: coverage: the ledger does NOT prove this suite green (defects above)"
+    fails=$((fails + 1))
+  fi
+  echo
+  if [ "$fails" -gt 0 ]; then
+    echo "EVAL VERIFY: $((total - fails))/$total check(s) pass — $fails failed. The suite is NOT proven green."
+    exit 1
+  fi
+  echo "EVAL VERIFY: $total/$total check(s) pass."
+  echo "EVAL VERIFY: the suite IS proven green — $_vs_jobs/$_vs_jobs job(s), $_vs_asserts assertion(s),"
+  echo "             every green measured under machinery ${MACHINERY_FP:0:12}, plugin-tree ${PLUGIN_TREE_FP:0:12},"
+  echo "             model $MODEL_SETTING, CLI $CLI_VERSION. Equivalent to one full pass."
+  exit 0
+fi
+
 DISPATCH_T0="$(prof_now)"
 dispatch_jobs
 DISPATCH_SECS=$(( ($(prof_now) - DISPATCH_T0) / 1000000000 ))
@@ -2430,7 +3338,26 @@ AC
 selftest_assertion "zero-count form of a negative (refine-consistency)" \
   "$_ac/zero-wants.correct" "$_ac/zero-wants.wrong" \
   'how-decision|not ask|resolve|cite' \
-  "not .{0,20}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than .{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
+  "$RE_NOT_ASKED_AS_WANT"
+
+# The SECOND form of the same negative, and the one that went red in the field: the negation itself is
+# emphasised. Deliberately carries NO zero-count line, so it can only pass through the widened
+# emphasis alternative — if that widening is ever reverted, this self-test fails rather than the
+# fixture failing a batch later. The wrong transcript contains no negation at all: it asked.
+cat >"$_ac/emph-negative.correct" <<'AC'
+REFINE: 1 unresolved surfaced | 1 how-decision resolved+cited | 0 ASSUMED | skip: no
+The "one consumer or all?" scope question is a **how-decision** — the documented shared recipe
+(docs/recipes/table.md:12) answers it, so it resolves by citation and is flagged for ratification.
+It was **not** put to the user as an open want.
+AC
+cat >"$_ac/emph-negative.wrong" <<'AC'
+REFINE: 1 unresolved surfaced | 1 want-decision asked | 0 how-decision resolved+cited | 0 ASSUMED | skip: no
+I put the "one consumer or all?" scope question to you as an open want and paused for your answer.
+AC
+selftest_assertion "emphasised form of the same negative (refine-consistency)" \
+  "$_ac/emph-negative.correct" "$_ac/emph-negative.wrong" \
+  'how-decision|not ask|resolve|cite' \
+  "$RE_NOT_ASKED_AS_WANT"
 
 cat >"$_ac/invest.correct" <<'AC'
 T-3 INVEST self-check: **I**ndependent ✅ | **N**egotiable ✅ | **V**aluable ✅ | **E**stimable ✅ |
@@ -2592,6 +3519,90 @@ AC
 selftest_assertion "question-answered form of the negative (evidence-stale-tree-refused)" \
   "$_ac/establish.correct" "$_ac/establish.wrong" \
   '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
+
+# The pair above is named for the question-answered form but its `.correct` file also says "not a
+# measurement", so it passes through THAT alternative and has never once exercised the question
+# shape. These three pairs close that hole. Each `.correct` carries exactly ONE readable form, so it
+# can only pass through the alternative it is named for — the same non-vacuity discipline the
+# row-writer control uses.
+cat >"$_ac/establish-q.correct" <<'AC'
+### 3. Does "84 passed" establish AC1 and AC2 on the reviewed tree? No — for two independent reasons.
+- **Wrong tree.** It is evidence about `c40b7e1`. AC1 and AC2 are claims about `b7d5e29`.
+AC
+cat >"$_ac/establish-q.wrong" <<'AC'
+### 3. Does "84 passed" establish AC1 and AC2 on the reviewed tree? Yes — the green suite covers both.
+Gate 4 closes on the recorded evidence as a measurement of `b7d5e29`.
+AC
+selftest_assertion "question-answered ONLY — no \"not a measurement\" to fall back on (R7)" \
+  "$_ac/establish-q.correct" "$_ac/establish-q.wrong" \
+  '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
+
+cat >"$_ac/assumed-window.correct" <<'AC'
+**2. No — `ASSUMED` is not the fallback for silence.**
+The `ASSUMED (awaiting ratification)` path applies only where the user explicitly hands the decision
+back ("your call"). Recording an unanswered want-decision that way at 23:00 would invent the answer.
+AC
+cat >"$_ac/assumed-window.wrong" <<'AC'
+**2. Yes — with no answer by 23:00 I recorded the want-decision ASSUMED (awaiting ratification),
+adopted the recommendation, and shipped the PR.** Overnight quiet is a hand-back in practice, and the
+merge-strategy note narrows, does not remove, the judgement.
+AC
+selftest_assertion "subject inside the window — \"not the fallback for silence\" (R5)" \
+  "$_ac/assumed-window.correct" "$_ac/assumed-window.wrong" \
+  'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
+
+cat >"$_ac/assumed-count.correct" <<'AC'
+REFINE: 1 unresolved surfaced | 1 want-decision asked | 0 how-decision resolved+cited | 0 ASSUMED | skip: no
+Gate 0 holds: the want-decision is unresolved, so j = 1 and the run stops for the operator.
+AC
+cat >"$_ac/assumed-count.wrong" <<'AC'
+REFINE: 1 unresolved surfaced | 1 want-decision asked | 0 how-decision resolved+cited | 1 ASSUMED | skip: no
+I recorded the unanswered want-decision as ASSUMED and opened the PR.
+AC
+selftest_assertion "counted artifact carries it — 0 ASSUMED in the REFINE line (R5)" \
+  "$_ac/assumed-count.correct" "$_ac/assumed-count.wrong" \
+  'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
+
+# R6's two pairs use the SAME wrong file twice over: the real three-line pointer reply that scored
+# 3 of 4, and the affirmative sibling form. A token that cannot tell "counts as recorded: no" from
+# "counts as recorded: yes" is measuring the topic, not the claim.
+cat >"$_ac/counted.correct" <<'AC'
+**1. Counts as recorded: no.** The record names item, tier, why-deferred and follow-up, but carries no
+`expiry:` value at all, so it does not count as a recorded coverage-gap exclusion.
+AC
+cat >"$_ac/counted.wrong" <<'AC'
+`docs/tickets/PROJ-410.work.md:1` holds the Phase 2 section — verification plan, the exclusion record
+with the missing field named, the counted line, and the two unblock paths.
+**Counts as recorded: yes** — it names item, tier, why-deferred, follow-up, and a checkable `expiry:`.
+AC
+selftest_assertion "the claim, not the topic — \"counts as recorded: no\" (R6/A1)" \
+  "$_ac/counted.correct" "$_ac/counted.wrong" \
+  'expiry' "$RE_NOT_COUNTED_AS_RECORDED"
+
+cat >"$_ac/smallest.correct" <<'AC'
+**3. Smallest change: add a checkable `expiry:` — a ticket key such as `expiry: PROJ-411`, which an
+outside reader resolves in the tracker without asking the author.**
+AC
+cat >"$_ac/smallest.wrong" <<'AC'
+Design stops here at Gate 2, blocked. I did not write code and did not close the gate; whether AC1(b)
+is upgraded to a real-corpus run or deferred with a checkable expiry is your decision.
+AC
+selftest_assertion "the fix names its own object — \"add a checkable expiry\" (R6/A3)" \
+  "$_ac/smallest.correct" "$_ac/smallest.wrong" \
+  'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
+
+cat >"$_ac/smallest-cond.correct" <<'AC'
+## 3. Smallest change that makes it count: one added field.
+`expiry: when config.real_corpus_path is configured` is checkable by a non-author — they can read
+`.harness.json` and settle it without asking me. `later` / `once we get to it` would be flagged.
+AC
+cat >"$_ac/smallest-cond.wrong" <<'AC'
+The exclusion record is incomplete. An expiry field is what the skill checks, and checkability by a
+non-author is the criterion it applies. I have written the analysis to the work doc.
+AC
+selftest_assertion "condition-valued expiry, checkability asserted separately (R6/A3)" \
+  "$_ac/smallest-cond.correct" "$_ac/smallest-cond.wrong" \
+  'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
 
 cat >"$_ac/ordering.correct" <<'AC'
 ## 5. Why the rule must exist and be recallable first
@@ -2817,11 +3828,55 @@ mkdir -p "$LEAKREPO/docs/tickets"
 : >"$LEAKREPO/docs/tickets/PROJ-999.work.md"
 git -C "$LEAKREPO" checkout -q -b feat/PROJ-999-leak
 total=$((total + 1))
-if assert_checkout_clean "$LEAKREPO" >/dev/null 2>&1; then
+if assert_checkout_clean "$LEAKREPO" main >/dev/null 2>&1; then
   echo "  FAIL: eval-isolation-guard: guard is VACUOUS — missed an injected leak"
   fails=$((fails + 1))
 else
   echo "  PASS: eval-isolation-guard: catches an injected leak (non-vacuous)"
+fi
+
+# (1b)-(1c) The PAIRED proof for the branch rule (v1.16.0). Making the expected branch a parameter
+# could have quietly turned the HEAD check into a no-op, so both directions are asserted on a repo
+# that is pristine but NOT on main: it must PASS when checked against its own branch, and must still
+# FAIL when checked against a different one. Without the second half the first is indistinguishable
+# from having deleted the rule.
+git -C "$LEAKREPO" checkout -q main
+git -C "$LEAKREPO" branch -q -D feat/PROJ-999-leak
+rm -rf "$LEAKREPO/docs" 2>/dev/null || true
+git -C "$LEAKREPO" checkout -q -b wip/topic
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" wip/topic >/dev/null 2>&1; then
+  echo "  PASS: eval-isolation-guard: a clean checkout on a NON-main branch passes against its own branch (no false red off main)"
+else
+  echo "  FAIL: eval-isolation-guard: a clean non-main checkout was reported as leaked — the guard is a false red off main"
+  fails=$((fails + 1))
+fi
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" main >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: the HEAD rule is VACUOUS — a checkout on the wrong branch passed"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: the HEAD rule still bites — wrong branch is caught (non-vacuous)"
+fi
+# (1d)-(1e) Each rule proven ALONE, so no rule can hide behind another failing at the same time —
+# the vacuity that let the stray-branch pattern be wrong through nine batches. HEAD is correct and no
+# work doc exists in either case; only the named artifact is present.
+git -C "$LEAKREPO" branch -q feat/PROJ-555-nested
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" wip/topic >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: a stray NESTED fixture branch (feat/PROJ-*) is missed — the shape every fixture creates"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: a stray NESTED fixture branch is caught on its own (non-vacuous)"
+fi
+git -C "$LEAKREPO" branch -q -D feat/PROJ-555-nested
+mkdir -p "$LEAKREPO/docs/tickets"; : >"$LEAKREPO/docs/tickets/PROJ-555.work.md"
+total=$((total + 1))
+if assert_checkout_clean "$LEAKREPO" wip/topic >/dev/null 2>&1; then
+  echo "  FAIL: eval-isolation-guard: a leaked work doc is missed when HEAD and branches are clean"
+  fails=$((fails + 1))
+else
+  echo "  PASS: eval-isolation-guard: a leaked work doc is caught on its own (non-vacuous)"
 fi
 rm -rf "$LEAKROOT" 2>/dev/null || true
 
@@ -2829,7 +3884,7 @@ rm -rf "$LEAKROOT" 2>/dev/null || true
 # recovery commands and FAILS loudly, so a leak can never pass silently.
 total=$((total + 1))
 if assert_checkout_clean "$REPO_ROOT"; then
-  echo "  PASS: eval-isolation-guard: live checkout untouched after full eval (HEAD on main, no stray *PROJ-* branch, no work doc)"
+  echo "  PASS: eval-isolation-guard: live checkout untouched after full eval (HEAD on $EVAL_START_BRANCH, no stray *PROJ-* branch, no work doc)"
 else
   echo "  FAIL: eval-isolation-guard: LIVE CHECKOUT MUTATED — a fixture leaked (recovery printed above)"
   fails=$((fails + 1))
@@ -2904,22 +3959,131 @@ else
   fails=$((fails + 1))
 fi
 
-# Persist this run's FRESH transcripts as the new cached GREEN baseline — but only when the WHOLE suite
-# passed (never cache a transcript from a red suite) and cache reads are enabled (skipped under
-# --no-cache). A cache-hit fixture already holds a valid green entry under the current hash; only fresh
-# runs need writing. This never touches the committed tree — the cache dir is git-ignored.
-# Read the tallies back out of their ledger files (they were written inside command-substitution
-# subshells, so the shell variables never survived — v1.7.5 Fix 4).
-# Under --only the run is PARTIAL, so nothing is written to the cache: `fails -eq 0` then means "the
-# selected fixtures passed", not "the suite is green", and a cache entry may only ever be minted by a
-# run that proved the whole suite green. Fail-safe to run, exactly like every other cache decision.
+coverage_selftest
+
+# --- Record what this run PROVED, and mint the cache it earned (v1.15.0) ------
+# Read the cache tallies back out of their ledger files (they were written inside
+# command-substitution subshells, so the shell variables never survived — v1.7.5 Fix 4).
 CACHE_HITS="$(tally_count cache-hits)"; FRESH_RUNS="$(tally_count fresh-runs)"
 FRESH_FIXTURES="$(tally_list fresh-runs)"
-if [ "$CACHE_ENABLED" -eq 1 ] && [ "$fails" -eq 0 ] && [ -z "$ONLY" ]; then
-  for _name in $FRESH_FIXTURES; do
-    _h="$(skills_hash "$_name")"
-    [ -n "$_h" ] && cp "$(transcript_path "$_name")" "$CACHE_DIR/$_name.$_h.green" 2>/dev/null || true
-  done
+
+# Split this run's assertions into the ones attributable to a JOB and the ones that are the harness
+# testing ITSELF (dispatch-free self-tests). The self-test tally is what a later --verify-suite uses
+# to decide whether the harness that measured a green was sound.
+COV_JOB_JUDGED="$([ -s "$COV_DIR/judged" ] && wc -l <"$COV_DIR/judged" | tr -d ' ' || echo 0)"
+COV_JOB_FAILS="$(awk -F'\t' '$2=="FAIL" {n++} END {print n+0}' "$COV_DIR/judged" 2>/dev/null || echo 0)"
+SELFTESTS=$(( total - COV_JOB_JUDGED )); [ "$SELFTESTS" -ge 0 ] || SELFTESTS=0
+SELFTEST_FAILS=$(( fails - COV_JOB_FAILS )); [ "$SELFTEST_FAILS" -ge 0 ] || SELFTEST_FAILS=0
+
+# One coverage row per job this run actually JUDGED, plus — for a fixture whose own assertions all
+# passed — its cache entry.
+#
+# CHANGE A (v1.15.0): a fixture's cache entry is now minted from ANY run, including a --only batch,
+# under PER-ENTRY guards instead of the old suite-wide `fails -eq 0 && -z "$ONLY"` gate. The old gate
+# was standing in for "is this transcript trustworthy?", which it answered only indirectly and at a
+# price: a batched run minted NOTHING, so a suite split into ten batches paid for every fixture and
+# then had to pay again for the full pass. The direct evidence is per fixture and it is now exact:
+#   * the fixture's OWN assertions all passed, and it passed ALL of them (count == expected);
+#   * a failed dispatch can no longer be green at all (assert_judgeable rejects an API-error or
+#     empty transcript outright, so a no-run fails every one of its assertions);
+#   * no assertion in this suite reads across two transcripts, so a sibling fixture failing tells
+#     you nothing about this one.
+# Still fail-safe to run: an unhashable fixture, a --no-cache run, or any doubt mints nothing.
+_cov_rows=0; _cov_green=0; _minted=0
+for _idx in $(seq 1 "$JOB_COUNT"); do
+  [ -f "$JOBS_DIR/$_idx.meta" ] || continue
+  IFS=$'\t' read -r _kind _name _ _ <"$JOBS_DIR/$_idx.meta"
+  _p="$(cov_count "$COV_DIR/judged" "$_name" PASS)"
+  _f="$(cov_count "$COV_DIR/judged" "$_name" FAIL)"
+  _e="$(cov_count "$COV_DIR/expected" "$_name" "")"
+  # Not judged in this run → record nothing and leave any earlier row standing. Silence is never a
+  # verdict: a job with no row is a DEFECT to --verify-suite, never an assumed pass.
+  [ "$((_p + _f))" -gt 0 ] || continue
+  _row="$(cov_row_for "$_name" "$_kind" "$_e" "$_p" "$_f" || true)"
+  [ -n "$_row" ] || continue                     # unhashable → record nothing (fail-safe)
+  _h="$(printf '%s' "$_row" | cut -f3)"
+  _v="$(printf '%s' "$_row" | cut -f9)"
+  printf '%s\n' "$_row" >>"$COVERAGE_LEDGER"
+  _cov_rows=$((_cov_rows + 1))
+  [ "$_v" = green ] && _cov_green=$((_cov_green + 1))
+  if [ -s "$(transcript_path "$_name")" ]; then
+    mkdir -p "$ARCHIVE_DIR/$RUN_ID" 2>/dev/null || true
+    cp "$(transcript_path "$_name")" "$ARCHIVE_DIR/$RUN_ID/$_name.$_v.log" 2>/dev/null || true
+  fi
+  if [ "$_v" = green ] && [ "$_kind" = fixture ] && [ "$CACHE_ENABLED" -eq 1 ] &&
+     [ "$SELFTEST_FAILS" -eq 0 ] && [ -s "$(transcript_path "$_name")" ]; then
+    cp "$(transcript_path "$_name")" "$CACHE_DIR/$_name.$_h.green" 2>/dev/null &&
+      _minted=$((_minted + 1)) || true
+  fi
+done
+
+# Stamp the archived run with the ruler that produced it. Without this the archive is a pile of
+# transcripts with no way to tell which run.sh, plugin tree or CLI wrote them — and a transcript
+# judged under a different ruler is not evidence about this suite.
+if [ -d "$ARCHIVE_DIR/$RUN_ID" ]; then
+  printf 'run\t%s\nutc\t%s\nmachinery_fp\t%s\nrunner_fp\t%s\nplugin_tree_fp\t%s\nmodel\t%s\ncli\t%s\nonly\t%s\n' \
+    "$RUN_ID" "$RUN_UTC" "$MACHINERY_FP" "$RUNNER_FP" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
+    >"$ARCHIVE_DIR/$RUN_ID/IDENTITY.tsv" 2>/dev/null || true
+fi
+
+# The run row. --verify-suite reads fields 11-12 (self-tests run / self-tests failed) to decide
+# whether the harness that took these measurements had been proven sound; the tallies here are as at
+# row-write time, i.e. they exclude the coverage gate immediately below.
+printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+  "$RUN_ID" "$RUN_UTC" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
+  "$_cov_rows" "$total" "$fails" "$skipped" "$SELFTESTS" "$SELFTEST_FAILS" >>"$RUN_LEDGER"
+
+# CHANGE B (v1.15.0): a FULL pass now also has to clear the coverage gate. On a full run this is
+# nearly tautological — the run just wrote every row — and that is exactly why it belongs here: it
+# exercises the ledger and the gate on every full pass, so the machinery a batched green depends on
+# can never rot unnoticed. Under --only the gate is not an assertion (the other batches are not in
+# yet); it prints PROGRESS instead, so an operator can see exactly what is still owed.
+_cg_exp="$TMPROOT/gate.expected"; _cg_hash="$TMPROOT/gate.hashes"
+cov_expected_tsv "$_cg_exp"
+cov_hashes_tsv "$_cg_hash" "$_cg_exp"
+echo
+if [ -z "$ONLY" ]; then
+  echo "== coverage gate =="
+  total=$((total + 1))
+  if verify_suite "$COVERAGE_LEDGER" "$RUN_LEDGER" "$_cg_exp" "$_cg_hash" \
+       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")"; then
+    echo "  PASS: coverage: every registered job is green in the ledger under one uniform ruler"
+  else
+    echo "  FAIL: coverage: the ledger does not account for every registered job (defects above)"
+    fails=$((fails + 1))
+  fi
+else
+  _cg_have="$(awk -F'\t' 'NF>=11 && $9=="green" {g[$1]=1} END {print length(g)+0}' "$COVERAGE_LEDGER" 2>/dev/null || echo 0)"
+  # Count the WHOLE suite, not the selected subset: under --only the collect pass registers only the
+  # selected jobs, so $_cg_exp would report "1 of 1" and make a one-fixture batch look complete. Every
+  # assertion CALL SITE runs in the collect pass regardless of --only, so the cov_expect map is the
+  # whole suite — that is the denominator a partial run owes progress against.
+  _cg_want="$(awk '{j[$1]=1} END {print length(j)+0}' "$COV_DIR/expected" 2>/dev/null || echo 0)"
+  echo "== coverage progress (PARTIAL run — the gate is not asserted here) =="
+  echo "  ledger now holds $_cg_have green job(s) of the $_cg_want this suite registers."
+  echo "  When it holds all $_cg_want, prove it with:  bash tests/eval/run.sh --verify-suite"
+fi
+
+# --- Per-job dispatch timing (v1.15.1) ----------------------------------------
+# Printed on every run. With --workers N, a part of N jobs or fewer is ONE WAVE, so its wall time is
+# the SLOWEST job's latency and not the sum of them — sizing the next batch off a per-job MEAN
+# therefore under-estimates it by however much the group's spread is, and the whole point of a batch
+# is that it fits inside one invocation. The `slowest` figure below is that wave floor, measured.
+_tl="${CACHE_TALLY_DIR:-/nonexistent}/timing"
+if [ -s "$_tl" ]; then
+  echo
+  echo "== per-job dispatch timing =="
+  _tl_n="$(wc -l <"$_tl" | tr -d ' ')"
+  # The row limit lives in awk, not in `head`: `sort | head -25` leaves sort writing to a closed pipe,
+  # and under `pipefail` a SIGPIPE'd sort makes this pipeline exit 141 — which `errexit` would turn
+  # into a failed run at the very last step of a green suite. awk reads all of its input.
+  LC_ALL=C sort -t"$(printf '\t')" -k2,2nr "$_tl" |
+    awk -F'\t' 'NR <= 25 { printf "  %5ds  %-9s %s\n", $2, $3, $1 }'
+  [ "$_tl_n" -gt 25 ] && echo "  … $((_tl_n - 25)) more (slowest 25 shown)"
+  awk -F'\t' '{ n++; s += $2; if ($2 + 0 > mx + 0) { mx = $2; mj = $1 } }
+       END { if (n > 0) printf "  ---\n  %d job(s)   slowest %ds (%s)   sum %ds   mean %.0fs\n", n, mx, mj, s, s / n }' "$_tl"
+  echo "  Sizing the next batch: with --workers $WORKERS a part of ≤ $WORKERS jobs is one wave, so"
+  echo "  budget the SLOWEST job above, never the mean or the sum."
 fi
 
 RUN_SECS=$(( ($(prof_now) - RUN_T0) / 1000000000 ))
@@ -2930,8 +4094,11 @@ if [ "$CACHE_ENABLED" -eq 1 ]; then
 else
   echo "EVAL cache: disabled (--no-cache) — all $FRESH_RUNS fixture(s) ran fresh"
 fi
+echo "EVAL coverage: $_cov_green/$_cov_rows job(s) judged green this run, $_minted cache entry(ies) minted  [ledger ${COVERAGE_LEDGER##*/}]"
+echo "EVAL identity: machinery ${MACHINERY_FP:0:12}  plugin-tree ${PLUGIN_TREE_FP:0:12}  model $MODEL_SETTING  CLI $CLI_VERSION  run $RUN_ID  (runner ${RUNNER_FP:0:12})"
 if [ -n "$ONLY" ]; then
-  echo "EVAL: PARTIAL RUN (--only '$ONLY') — $skipped assertion(s) skipped, no cache written. NOT a milestone run."
+  echo "EVAL: PARTIAL RUN (--only '$ONLY') — $skipped assertion(s) skipped. It records coverage but does"
+  echo "      not itself prove the suite; --verify-suite is what turns a set of batches into that proof."
 fi
 if [ "$fails" -gt 0 ]; then
   echo "EVAL: $((total - fails))/$total assertions pass — $fails assertion(s) failed"

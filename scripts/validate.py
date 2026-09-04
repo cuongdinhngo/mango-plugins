@@ -410,7 +410,15 @@ def validate_verify_incremental():
     """The verify-incremental build discipline (v1.6.1 Fix 3) must be documented where an eval author
     will see it: run only the AFFECTED fixture(s) mid-build, the FULL SUITE ONCE at the end, and keep
     each new fixture 3x fresh. Guards that the cost-saving discipline cannot silently vanish, and that
-    it never weakens the Finish bar (coverage unchanged)."""
+    it never weakens the Finish bar (coverage unchanged).
+
+    v1.15.0 ADDS three checks and drops none of the three above, because the bar became more specific
+    rather than looser. A ~$70 suite gets run in batches, and a set of green batches is only a green
+    suite if the sum is a COUNTED ARTIFACT: every job accounted for, no green gone stale, and every
+    green measured under the SAME ruler (runner fingerprint + plugin-tree fingerprint + model + CLI
+    version). `--verify-suite` is that check, and the docs must name it, state that the bar is EVERY
+    job rather than a subset, and state the ruler/staleness requirement — so the standard cannot drift
+    back to "someone ran it all at some point"."""
     for rel in ("tests/eval/README.md", "CONTRIBUTING.md"):
         path = ROOT / rel
         if not check(path.exists(), f"verify-incremental: {rel} is missing"):
@@ -426,6 +434,14 @@ def validate_verify_incremental():
               f"verify-incremental: {rel} must state the full suite runs once at the end before push")
         check(re.search(r"3.{0,3}fresh|three .{0,12}fresh", body, re.IGNORECASE) is not None,
               f"verify-incremental: {rel} must state each new fixture stays 3x fresh (coverage unchanged)")
+        check(re.search(r"--verify-suite", body) is not None,
+              f"verify-incremental: {rel} must name --verify-suite as the check that proves the bar")
+        check(re.search(r"every job (in the suite )?green", body, re.IGNORECASE) is not None,
+              f"verify-incremental: {rel} must state the bar is EVERY job in the suite green, not a subset")
+        check(re.search(r"(one|same|uniform) ruler", body, re.IGNORECASE) is not None
+              and re.search(r"stale", body, re.IGNORECASE) is not None,
+              f"verify-incremental: {rel} must state every green is measured under the SAME ruler "
+              f"and that a stale green is refused")
 
 
 def validate_changelog_shipped():
