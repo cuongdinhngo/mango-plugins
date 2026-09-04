@@ -34,31 +34,6 @@ checkout; everything is torn down on exit.
 > which is a real ticket's default — so the check is still exercised both ways: it fires and halts on a
 > missing named identifier, and stays silent on a to-be-created path.
 
-## Where a run's results live
-
-Four files, one job each. Nothing is appended to a file whose job is to be current.
-
-| File | Job | Update pattern |
-|---|---|---|
-| [`EVAL-STATUS.md`](./EVAL-STATUS.md) | the **current** cycle — what is green, what is red, what runs next | rewritten in place |
-| [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md) | permanent findings and the rules they produced | appended, rarely |
-| [`EVAL-ARCHIVE.md`](./EVAL-ARCHIVE.md) | superseded cycles, verbatim | appended once per cycle close |
-| [`EVAL-PROFILE.md`](./EVAL-PROFILE.md) | per-fixture cost/latency profile | appended |
-
-The **authority** is none of them: it is `.cache/coverage.<runner-fp>.tsv`, one machine-readable row per
-job per run carrying the job's skills-hash and all four ruler components. A markdown file cannot be
-asked whether a job was missed, which is why status is **read** rather than typed:
-
-```
-bash tests/eval/coverage-report.sh              # dashboard: green / red / stale / ruler uniformity
-bash tests/eval/coverage-report.sh --remaining  # bare list of fixtures with no green row
-bash tests/eval/coverage-report.sh --md         # a markdown table to paste into EVAL-STATUS.md
-```
-
-`coverage-report.sh` dispatches nothing, writes nothing, and **is not the gate** — it says so in its own
-output. The gate is `run.sh --verify-suite`, which holds the ledger against the suite's own registered
-job list and re-checks every hash. Only its output may be cited as evidence the suite passes.
-
 ## Parallel dispatch (where the wall-time went)
 
 A full instrumented run measured the suite at **100% `claude -p` latency**: harness overhead (clone,
@@ -178,20 +153,10 @@ redundant mid-build re-runs are removed.
 
 The v1.0 green bar is intact and non-negotiable at Finish:
 
-- **every job in the suite green, measured under one ruler**, proven by `bash tests/eval/run.sh
-  --verify-suite` — which refuses a missing job, a **stale** green, and any two greens measured under
-  different rulers (see [the milestone bar](#the-milestonerelease-bar---verify-suite) below); and
+- **full suite once** at the end, green; and
 - **each new fixture 3× fresh** (three independent runs, green at the decision level — see rule 3 above).
 
-A **full suite once** at the end still reaches that bar in a single invocation — a full pass now clears
-the same coverage gate before it prints its result. What changed is that reaching it a **batch at a
-time** is now equally provable, because the sum is a recorded artifact instead of a recollection: each
-`--only` batch records one coverage row per job it judged, carrying the runner fingerprint, plugin-tree
-fingerprint, model and CLI version it was measured under, and mints its green fixtures' cache entries so
-a batched suite is paid for once rather than twice.
-
-So: affected-fixture-only during the build, then **every job green under one ruler** — as one **full
-suite once** or as a set of batches — and 3-fresh for anything new.
+So: affected-fixture-only during the build, **full suite once** at the end, 3-fresh for anything new.
 
 ## Transcript cache (dev-loop speed — never drops coverage)
 
@@ -208,52 +173,12 @@ invalidate a cache.
 
 ```
 bash tests/eval/run.sh              # dev loop: cache-hits for unchanged fixtures
-bash tests/eval/run.sh --no-cache   # every fixture dispatches fresh, nothing reused
-bash tests/eval/run.sh --verify-suite   # milestone/release: prove the whole suite green (no dispatch, no cost)
+bash tests/eval/run.sh --no-cache   # milestone/release: every fixture dispatches fresh
 ```
 
-**`--no-cache` forces a full fresh run** — every fixture dispatches, nothing is reused. The final line
-reports `cache-hit(s)` vs `fresh run(s)`.
-
-### The milestone/release bar: `--verify-suite`
-
-The bar is **every job in the suite green, measured under one ruler** — and the proof of it is a
-**counted artifact**, not an operator's recollection. `--verify-suite` is that proof. It dispatches
-nothing and costs nothing: it runs the collect pass to learn from the assertion **call sites** exactly
-what the suite is (every job, its kind, its assertion count — derived, never hardcoded), then checks the
-**coverage ledger** against it.
-
-It is what lets a milestone run be **split into batches**. A ~$70 suite is often run a skill-group at a
-time, and the batches genuinely do compose: the cache stores a **transcript**, never a verdict, so every
-assertion is re-judged from text on every run, and no assertion in this suite reads across two
-transcripts. What a set of batches was missing was never the arithmetic — it was that nothing could
-re-check the sum. `--verify-suite` re-checks it, and refuses on any of:
-
-| Defect | Why it matters |
-|---|---|
-| a registered job has **no row** | a job nobody ran cannot hide inside a green total |
-| a row is **not green** | a recorded red is a red |
-| the row's **skills-hash ≠ what the files hash now** | that green is **stale** — re-run it |
-| a row's **plugin-tree fingerprint** differs | `scripts/*.py` or `plugin.json` changed between batches: a different ruler |
-| a row's **model** or **CLI version** differs | the same, for the two inputs no file hash covers |
-| a row was proven against **fewer assertions** than the suite now holds | the bar moved after that green |
-| the run that **owns** a row failed, or never ran, its **self-tests** | a green measured by an unsound harness is not a green |
-
-Every one of those seven refusals is proven **non-vacuous** by a self-test against a synthetic ledger
-carrying that exact defect — the suite will not ship a bookkeeping gate on the strength of an assurance
-that it works.
-
-Two things it deliberately does **not** require. It does not require one single invocation, because
-that was never what made a measurement trustworthy. And it does not require an all-fresh run: a
-cache-hit reuses a transcript whose skills-hash still matches, and the ledger asserts that match
-independently, so a reused transcript and a fresh one are the same measurement. What it *does* require —
-and what a bare full pass never checked — is that the runner, plugin tree, model and CLI behind **every**
-green were identical.
-
-The ledger lives in the git-ignored cache (`coverage.<runner-fp>.tsv`, `runs.<runner-fp>.tsv`), keyed by
-runner fingerprint, so editing `run.sh` cannot carry rows forward — the same fail-safe the transcript
-cache has. It is a local proof of local measurements: delete the cache and the batches must be re-run.
-CI passes no arguments and therefore always runs the whole suite in one go. The cache lives outside the committed tree (`tests/eval/.cache/`, git-ignored) and is
+**`--no-cache` forces a full fresh run** — this is the milestone/release bar. The cache accelerates the
+dev loop; it does **not** replace a true full suite at a milestone. The final line reports `cache-hit(s)`
+vs `fresh run(s)`. The cache lives outside the committed tree (`tests/eval/.cache/`, git-ignored) and is
 never committed. A runner **self-test** (no `claude -p`) asserts the three guarantees each run: hash-match
 → skip, hash-change → run, `--no-cache` → all run.
 

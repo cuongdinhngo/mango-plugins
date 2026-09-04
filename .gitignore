@@ -22,10 +22,6 @@ __pycache__/
 # Eval transcripts (teed by tests/eval/run.sh for inspection; regenerated each run)
 tests/eval/.transcripts/
 
-# Eval transcript ARCHIVE (every judged transcript, red ones included, kept across runs as evidence
-# for offline assertion work; never read back as a verdict, never committed)
-tests/eval/.archive/
-
 # Eval transcript-cache (last GREEN transcript per fixture+skills-hash; dev-loop only,
 # --no-cache bypasses it; never committed — lives outside the tracked tree)
 tests/eval/.cache/

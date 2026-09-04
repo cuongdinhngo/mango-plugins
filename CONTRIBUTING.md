@@ -93,21 +93,10 @@ Assertions are still judged in script order, so the output reads like a sequenti
 [`tests/eval/README.md`](./tests/eval/README.md) for the two-pass structure and the isolation guards.
 
 **Verify-incremental (build discipline).** The suite is expensive, so while building a fix run only the
-**affected fixture(s)** — `bash tests/eval/run.sh --only <regex>`, which reports the run as `PARTIAL`.
-Coverage is unchanged — only redundant mid-build re-runs are removed.
-
-The Finish bar is **every job in the suite green under one ruler, proven by
-`bash tests/eval/run.sh --verify-suite`**, and each **new fixture 3× fresh** at the decision level. A
-`--only` batch now **records** what it proved (one coverage row per job, carrying the runner fingerprint,
-plugin-tree fingerprint, model and CLI version it was measured under) and **mints that fixture's cache
-entry** on its own green, so a suite run a batch at a time is paid for once rather than twice.
-`--verify-suite` dispatches nothing and costs nothing; it refuses if any job has no row, any row is not
-green, any green has gone stale against the current hashes, any two rows disagree on the ruler, or the
-run that produced a row had a failing self-test. See
-[`tests/eval/README.md`](./tests/eval/README.md#the-milestonerelease-bar---verify-suite) for the full
-list and the non-vacuity proofs behind it. A **full suite once** at the end still satisfies the bar in a
-single invocation — a full pass now clears the same coverage gate before it prints its result — it is
-simply no longer the only way to reach it.
+**affected fixture(s)** — `bash tests/eval/run.sh --only <regex>`, which reports the run as `PARTIAL`
+and writes nothing to the cache; run the **full suite once** at the end before push. Coverage is
+unchanged — only redundant mid-build re-runs are removed. The Finish bar is unchanged: **full suite
+once** green, and each **new fixture 3× fresh** at the decision level.
 
 The eval also runs a post-run **safety guard**: because every fixture executes inside a throwaway clone,
 the guard asserts the **live checkout** is untouched afterwards (HEAD on `main`, no stray `PROJ-*` branch,
