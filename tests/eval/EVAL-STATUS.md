@@ -1009,7 +1009,19 @@ Two of the three reds this fixture produced were instrument error.
    is "not backslash, not the letter n", and it silently failed on `config.real_corpus_path`. `grep`
    is line-bounded, so plain `.` is correct.
 
+**`v1.16.0` and `v1.16.1` are forward references — neither is released, and that is deliberate.**
+`plugin.json` stays at **1.15.1** and the CHANGELOG's newest entry is 1.15.1. The two-tier identity
+split and these token fixes are labelled `v1.16.0` / `v1.16.1` in `run.sh` and in this file for the
+release that will carry them, but the bump cannot happen on this branch: `plugin_tree_fp` hashes
+`plugins/mango/.claude-plugin/*.json`, so editing `plugin.json` moves it off `9b199a8b5b77` — the exact
+fingerprint the proven-green sentence above names — and splits the ledger into two rulers. That is the
+second door of the trap this document already warned about under *Pin the CLI for the whole pass*. The
+bump therefore ships at the head of cycle 3, where the ledger is being voided anyway and it costs
+nothing. All of this cycle's work is harness-only: nothing inside `plugins/mango/` changed, which is
+why `plugin_tree_fp` held across all ten batches.
+
 **Deferred to cycle 3, deliberately, because each is machinery and costs 0 at a cycle boundary and 126
 dispatches here:** the `assert_all` claim-binding above; the cache key's missing identity tuple
-(`$name.$h.green` — a transcript cached under one CLI is silently reusable under another); and
-preserving the work doc so a counted-artifact assertion can be judged where mango actually wrote it.
+(`$name.$h.green` — a transcript cached under one CLI is silently reusable under another); preserving
+the work doc so a counted-artifact assertion can be judged where mango actually wrote it; and the
+**1.16.0 version bump** with its CHANGELOG entry, per the paragraph above.
