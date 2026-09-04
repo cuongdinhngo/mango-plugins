@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **126 of 126** (batches 1-10) — 124 green (117 fixture + 7 scenario) + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 124 greens, **123 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note. `has NO row` is **0** for the first time |
-| Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
+| Jobs recorded | **126 of 126** — 125 green (118 fixture + 7 scenario) + **1 red** (R6 `exclusion-expiry-required`). R5's vacuous green is gone: it is now proven on a counted artifact. `has NO row` is **0** |
+| Rows not green | 1 — `exclusion-expiry-required` (R6, 3 of 4). |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the one failing check is coverage, and **the two recorded reds are now its only defects**: 0 `has NO row`, 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 126 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the one failing check is coverage, and **R6 is now its only defect**: 0 `has NO row`, 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 126 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -400,6 +400,59 @@ of magnitude. Three things it settles that no earlier run could:
 refusal is now exactly the two open reds (R6, R7) and nothing else: no missing row, no fingerprint
 mismatch, no pre-identity row, no different-ruler row, no stale green. One ruler across all 126 rows,
 13 fields on each.
+
+### The R5/R7 edit — what it fixed, and what it did not
+
+Landed after batch 10 as the first half of the single edit. Both tokens live **inside** the `job_fp`
+tier: `MACHINERY_FP` hashes `declare -f` over the 49 functions above `suite()`, and a regex *variable*
+is not a function, so the ledger was never renamed. `--verify-suite` then stranded exactly the two
+edited jobs and left the other 124 rows standing — the two-tier split doing precisely what
+[`321d32e`](#) was written for.
+
+**R5 — fixed, and the old token was wrong in both directions.** Measured against the archive, not
+argued: the free-floating `does not` alternative made it a **demonstrated** false green, not a
+suspected one. A negative control in which mango records `2 ASSUMED` and ships the PR **passes** the
+old token, on the same unrelated merge-strategy phrasing (`narrows, does not remove, the judgement`)
+that carried the archived green. The same token **missed** the correct wording, because mango writes
+"No — `ASSUMED` is not the fallback for silence" and the old window allowed four glyphs between `not`
+and `silent`. Deleting `does not` alone leaves *both* correct transcripts red — checked. So the fix
+deletes it **and** widens over the claim's own subject bounded by `[^.]`, **and** admits the counted
+artifact `0 ASSUMED` inside the `REFINE:` line, with `[^0-9]` before the zero so `10 ASSUMED` cannot
+match. Hoisted to `RE_NOT_SILENT_ASSUMED` with two paired self-tests, each `.correct` carrying exactly
+one readable form so it can only pass through the alternative it is named for.
+
+The re-judge cost **zero dispatches** — `run.sh:1435-1440`, a token fix on a green job re-reads its
+cached transcript — and it passed through the **counted-artifact** branch, with the widened window
+scoring 0 on that transcript. That is the branch that replaced the vacuous pass, so the edit is
+load-bearing and the job is now proven rather than credited.
+
+**R7 — the token is stronger; the green is not the edit's doing.** State this plainly. The token now
+drops free-floating `does not` for the same reason R5 did, and gains the shape the batch-4 transcript
+actually used — a negative asked as a question and answered on the same line, `## 3. Does "84 passed"
+establish AC1 and AC2? No — for two independent reasons.` — which no `not … establish` window can
+reach. A new self-test proves that branch reads the correct form and still misses a transcript asking
+the identical question and answering "Yes"; `grep`'s line-bounding does that work.
+
+But the re-run's fresh transcript passed via **`false.?green`**, a branch the *old* token already
+carried, and the new question-answered branch scored **0** on it. So the old token would have passed
+this sample too: **R7's red was a sampling artifact, and the re-dispatch is what cleared it, not the
+fix.** The fix's value is that the archived phrasing is now readable at all, and that one false-green
+path is gone. This is the third job in this cycle to change verdict with nothing but a new dispatch.
+
+**Two things found while doing it, both recorded rather than fixed:**
+
+- **`--verify-suite` does not run the assertion-convention or row-writer self-tests.** It stops at
+  `run.sh:3162`, after `coverage_selftest` and the gate. Its "33/34" is those checks plus the gate —
+  *not* the 33 dispatch-free self-tests the gate block in *Next* implies. Those run only in a
+  dispatching run. The gate block's wording is corrected below.
+- **R6's three passing assertions are largely vacuous, and that is worse than its red.** Its
+  transcript is 3 lines: mango pointed at `docs/tickets/PROJ-410.work.md` instead of answering the
+  four questions. A1 passes on `expiry` — from mango *deferring* the question — plus `missing`, from
+  its description of the file's contents; A3 passes on `expiry` + `checkable` out of that same clause.
+  Only A2 (`Gate 2` + `blocked`) is sound. `assert_all` requires each regex to match *somewhere in the
+  body*, not within one claim, so a reply that answers nothing scores 3 of 4. This is the
+  harness-header vacuity class again, one level up, and the fix is `assert_all` semantics — machinery,
+  so cycle 3.
 
 ### The CLI pin was written down and never actually applied
 
@@ -828,10 +881,12 @@ class", and it is free.
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 33/34; the one failing check is coverage, and its only
-                                          defects are the two recorded reds. 0 `has NO row`,
-                                          0 fingerprint mismatches, 0 pre-identity rows,
-                                          0 different-ruler rows, 0 stale greens.
+bash tests/eval/run.sh --verify-suite  → 33/34; the one failing check is coverage, and R6 is its
+                                          only defect. 0 `has NO row`, 0 fingerprint mismatches,
+                                          0 pre-identity rows, 0 different-ruler rows, 0 stale
+                                          greens. NOTE: these 34 are coverage_selftest plus the
+                                          gate — verify stops at run.sh:3162 and never reaches the
+                                          assertion-convention or row-writer self-tests.
 ```
 
 The freeze held for all ten batches: nothing above `suite()` was touched, so the ledger was never
