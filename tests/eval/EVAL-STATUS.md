@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **119 of 126** (batches 1-9) — 117 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 117 greens, **116 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note. **Every one of the 119 fixtures now has a row**; the 7 missing jobs are exactly the 7 scenarios |
+| Jobs recorded | **126 of 126** (batches 1-10) — 124 green (117 fixture + 7 scenario) + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 124 greens, **123 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note. `has NO row` is **0** for the first time |
 | Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the failures are 7 `has NO row` (exactly 126 − 119, all of them scenarios) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 119 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the one failing check is coverage, and **the two recorded reds are now its only defects**: 0 `has NO row`, 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 126 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -143,7 +143,7 @@ before dispatching anything: 119 map keys, 119 `fixtures/*.md` on disk, the two 
 | 7 | `autorun` | 9 | 3 | ⚠️ **the ceiling risk** — see below |
 | 8 | `promote` + `solve` | 9 | 2 | |
 | 9 | `budget` + `quick` + `init` | 7 | 2 | |
-| 10 | scenarios | 7 | 2 | carries **R2**; the first pass that can record a scenario row at all |
+| 10 | scenarios | 7 | 2 | ✅ done 2026-09-04 — 7 green. R2 was fixed before it ran and passed live; the first scenario rows ever recorded |
 
 Sums to 126. Each part's selector is built and **verified dispatch-free** immediately before its run —
 every name present on disk, every match named, nothing extra — because `--only` matching is unanchored
@@ -267,6 +267,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | 7 | `autorun` | 3 (part 00 as 3 singles) | 9 | **522 / 522** | 152s + 234s + 533s, then 221s + 92s | ✅ **9 green / 0 red** — **the ceiling kill happened**, and the singles falsified the wave model |
 | 8 | `promote` + `solve` | 3 | 9 | **318 / 318** | 40s + 116s + 141s | ✅ **9 green / 0 red** — the fastest batch of the pass; and `greenfield-` turns out not to predict weight |
 | 9 | `budget` + `quick` + `init` | 2 | 7 | **216 / 216** | 94s + 229s | ✅ **7 green / 0 red** — **all 119 fixtures are now recorded**; only the 7 scenarios remain |
+| 10 | scenarios | 2 | 7 | **196 / 196** | 38s + 22s | ✅ **7 green / 0 red** — **the first scenario rows this repo has ever held**; R2 passed live |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -375,6 +376,30 @@ fix is exercised every run by the row-writer self-tests, but always against a *s
 control. The `NOTE: row-writer: this run registered no scenario, so the real-label proof did not run`
 line has appeared in every part of every batch so far. Batch 10 is the first time that proof runs
 against a real registered scenario label. It also carries **R2**.
+
+**Batch 10 — the scenarios are recorded, and the bar is satisfiable.** Two parts of 4/3, 7 jobs,
+196/196 assertions, all green, dispatched in 38s and 22s — the cheapest batch in the suite by an order
+of magnitude. Three things it settles that no earlier run could:
+
+1. **D1's fix works on a real label, not just a synthetic control.** Every part of every batch before
+   this one printed `NOTE: row-writer: this run registered no scenario, so the real-label proof did not
+   run`. Batch 10 replaced it with `PASS: row-writer: the REAL registered scenario 'design-invalidated'
+   yields a green row (the shipped bar is satisfiable)` in part 00 and the same for `per-clause-both` in
+   part 01. The seven rows carry `scenario` in field 2 and satisfy the gate.
+2. **R2 passed on live output.** `PASS: ledger-gate-complete: proceeds, BECAUSE the rows equal the
+   dispatches`. R2 was an *outcome* red caused by an underspecified prompt, and the fix completed the
+   scenario's premise rather than widening the assertion — this is the first evidence that fix holds
+   against a fresh transcript, and the assertion is still the one that was failing.
+3. **Scenarios mint no cache entries.** Both parts reported `0 cache-hit(s), 0 fresh run(s)` and
+   `0 cache entry(ies) minted` while judging 7 jobs green. The transcript cache is keyed on a fixture's
+   skills hash, and a scenario has no fixture, so scenarios re-dispatch on every run. At 16-37s each
+   that is not worth changing, and it means the CLI-version gap in the cache key (below) cannot affect
+   them.
+
+**`has NO row` is now 0 — the first time in this repo's history.** The gate still refuses, and its
+refusal is now exactly the two open reds (R6, R7) and nothing else: no missing row, no fingerprint
+mismatch, no pre-identity row, no different-ruler row, no stale green. One ruler across all 126 rows,
+13 fields on each.
 
 ### The CLI pin was written down and never actually applied
 
@@ -795,34 +820,52 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-9 banked; batch 10 (the scenarios) remains
+### Next — all ten batches banked; the single edit remains
 
-Gates on 2026-09-04, under the live machinery `5c877b488793`:
+**The dispatch phase of the proof pass is complete.** All 126 jobs carry a row under machinery
+`5c877b488793`, one ruler, CLI 2.1.259: 124 green and 2 red. Gates on 2026-09-04:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus the two
-                                          recorded reds (7 `has NO row` = 126 − 119, all scenarios).
-                                          33 dispatch-free self-tests now, up from 21.
+bash tests/eval/run.sh --verify-suite  → 33/34; the one failing check is coverage, and its only
+                                          defects are the two recorded reds. 0 `has NO row`,
+                                          0 fingerprint mismatches, 0 pre-identity rows,
+                                          0 different-ruler rows, 0 stale greens.
 ```
 
-That is the state to expect until batch 10 lands: the 21 harness checks pass, and the gate refuses on
-row count alone, with the shortfall shrinking by each batch's job count. The freeze is now narrower and
-enforced rather than remembered: **do not touch anything above `suite()`** between the first batch and
-the last, because that is what renames the ledger. Editing a token inside `suite()` costs exactly the
-jobs that token judges, and `--verify-suite` names them.
+The freeze held for all ten batches: nothing above `suite()` was touched, so the ledger was never
+renamed and no batch was paid for twice. It stays in force until the edit below, because that is what
+renames the ledger — whereas editing a token *inside* `suite()` costs exactly the jobs that token
+judges, and `--verify-suite` names them.
 
-Then, per batch: pin the CLI, confirm `claude --version`, build the part selectors and verify them
-dispatch-free, run, record the row in the table above, commit. **Reds are recorded, not fixed** — see
-*The sampling pass* above; fix-as-found was tried in batch 1 and does not converge.
+**What remains is one offline edit, then a bounded re-run.** Per *The sampling pass*: reds were
+recorded, not fixed, and all three open ones plus the cache-key gap are fixed together —
 
-Batch 1 has now been run three times: attempt 1 found R3, attempt 2 found R4, and the third — the only
-one whose rows survive — was clean at 199/199. Three operational notes it produced:
+- **R5** — delete the free-floating `does not` branch and bind the survivors. It is a false green: the
+  branch that made it pass fires on a merge-strategy config line, and all three branches that actually
+  test the claim score 0 on the green transcript.
+- **R6** — structural, not a widen. Either require the counted line in the reply, or preserve the work
+  doc and judge that. Widening `EXCLUSIONS:` would accept prose about a count, which defeats the point
+  of a counted-artifact assertion.
+- **R7** — needs a shape that can read a question answered "No". No synonym list or window inside a
+  `not … establish` shape can match a heading whose verb is affirmative and whose negation follows the
+  question mark.
+- **The cache key** — `$CACHE_DIR/$name.$h.green` carries no CLI version, which is what let batch 3
+  nearly stamp 2.1.260 transcripts as 2.1.259. Add the identity tuple. This one lives above `suite()`,
+  so it is why the edit is deferred rather than done now.
+
+Sweep every widened or narrowed token offline across the archive first, then re-run **only** the jobs
+`--verify-suite` names stale — the two-tier ruler means a token edit strands its own jobs and nothing
+else — then paste the passing gate output into the *Closing entry* block. Note that the 7 scenarios
+re-dispatch regardless: they mint no cache entries, at 16-37s each.
+
+Operational notes from the ten batches, worth keeping for the next cycle:
 
 - **Run each part in the foreground.** Both background attempts at part 01 were reaped within ~10s of the
   dispatch line — no error, no residue, just `[killed]` — while part 00 had survived 401s in background.
-  Foreground with a 600s ceiling is the reliable shape, and it fits every part except possibly batch 7's.
+  Foreground with a 600s ceiling is the reliable shape. Every part of all ten batches ran foreground;
+  the only ceiling casualty was batch 7 part 00, and re-running it as singles cleared it.
 - **Budget the slowest job and leave headroom — a wave costs more than its slowest member.** The mean
   and the sum are still irrelevant (batch 1 part 00: `freeform` 562s, sum 2313s, mean 330s). But
   batch 7 falsified the stronger claim that a part costs *only* its slowest job: a 3-job wave whose
@@ -830,11 +873,20 @@ one whose rows survive — was clean at 199/199. Three operational notes it prod
   included, a ≥3.9× inflation. The surcharge is not constant (3-job waves the same hour finished at
   221s and 92s), and its cause is unmeasured. Operationally: **a job over ~450s solo is dispatched
   alone.** The known one is `greenfield-autorun-clean` (533s).
-- **A killed run writes nothing and damages nothing.** Both kills left the ledger at exactly its prior row
-  count, the checkout clean, no stray branch, no live process, and no worker clone on disk — checked, not
-  assumed, before re-dispatching.
-
-Finally `bash tests/eval/run.sh --verify-suite` with all 126 rows in, and paste its output below.
+- **A killed run writes nothing and damages nothing.** All three kills — two background reaps in
+  batch 1, one ceiling kill in batch 7 — left the ledger at exactly its prior row count, the checkout
+  clean, no stray branch, no live process, no worker clone on disk, and in batch 7's case no `/tmp`
+  residue newer than the kill. Checked, not assumed, before each re-dispatch.
+- **Check for eval residue with a self-excluding pattern.** `pgrep -f 'tests/eval/run.sh'` and
+  `pgrep -f 'claude '` both match the *checking* script's own command line and will report a live run
+  and stray dispatches that do not exist. Use `eval/[r]un.sh`.
+- **A name prefix predicts nothing about latency.** `greenfield-autorun-clean` takes 533s and
+  `greenfield-promote-zeros` 40s. Only a measured solo time justifies a solo dispatch.
+- **Anchor every selector, and re-derive every group.** Batch 5's `ledger-gate` and
+  `ledger-content-gate` are proper prefixes of two *scenario* labels; unanchored, they would have
+  dispatched a scenario inside a fixture part and reported success. And the `finalise`+`codify` group
+  derives to 19 where discovery ran 17 under the same label, with no fixture added since — the
+  grouping moved, not the fixture set.
 
 ### Closing entry — fill after the proof pass
 
