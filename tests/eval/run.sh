@@ -1361,6 +1361,33 @@ RE_ROUTES_TO_REVIEW='refus|rout(e|es|ed|ing)|re-?run review|re-?review|blocked|f
 # load-bearing evidence that nothing was recorded. The `[^0-9]` before the zero keeps `10 ASSUMED`
 # out. OUTCOME unchanged: a run that did record a silent ASSUMED prints a non-zero count and none of
 # these alternatives matches it.
+# R6 (v1.16.1). Both of these replace a bare adjective that made its assertion unable to fail.
+# `exclusion-expiry-required` scored 3 of 4 on a THREE-LINE reply that answered none of the fixture's
+# four questions — it pointed at the work doc instead — and the two passes were carried by exactly one
+# word each, measured: A1's `missing` matched mango's description of the file's contents ("the
+# exclusion record with the missing field named"), and A3's `checkable` matched mango handing the
+# choice back ("deferred with a checkable expiry is your decision"). Every other alternative in both
+# tokens scored 0 on that reply. An adjective floating free of its claim is not a check.
+# Both tokens now bind the claim's predicate to its object within one line — `assert_all` matches each
+# regex anywhere in the body, so binding inside the alternative is the only place it can be done
+# without changing the harness. NOTHING is loosened: the correct answer states "Counts as recorded:
+# no … it does not count as a recorded coverage-gap exclusion" and "add a checkable `expiry:`", both
+# of which still match, while the affirmative sibling form ("Counts as recorded: yes … and a checkable
+# `expiry:`") correctly matches neither.
+RE_NOT_COUNTED_AS_RECORDED='counts? as recorded[ *_:?—-]{0,4}no\b|not[ *_]{0,4}count[^.]{0,50}recorded|does not count|not[ *_]{1,4}recorded|fails? to count'
+# The first tightening of this one was itself a FALSE RED, caught by re-running the job rather than
+# by reasoning: it demanded `checkable` next to `expiry` next to an action verb, all on one line.
+# Mango's correct answer adds the field with a CONDITION as its value — `expiry: when
+# config.real_corpus_path is configured` — and asserts the property in the skill's own words on the
+# next sentence: "is **checkable by a non-author**". So the property is admitted where mango states
+# it, bound to `expiry` on the line, and the ticket-key idiom is kept as its own alternative. Every
+# alternative here is exercised by a paired self-test; the unmatched reverse-order variant that a
+# first draft carried was dropped rather than shipped unproven.
+# NOTE for the next cycle: `[^\n]` was tried as "any character on this line" and is WRONG in POSIX
+# ERE — inside a bracket expression it means "not backslash and not the letter n", so it silently
+# failed on `config.real_corpus_path`. `grep` is line-bounded already, so plain `.` is the right
+# thing.
+RE_FIX_IS_CHECKABLE_EXPIRY='expiry.{0,70}checkable by|(add|added|adding|carry|suppl|set).{0,40}checkable.{0,20}expiry|expiry[ *_:`]{0,4}(PROJ-|a ticket key)'
 RE_NOT_SILENT_ASSUMED='not[ *_]{0,4}[^.]{0,30}(silen|fallback|hand.?back)|never[ *_]{1,4}(silent|assum)|no[ *_]{1,4}silent|REFINE:[^.]{0,120}[^0-9]0[ *_]{0,4}ASSUMED'
 # R7 (v1.16.1). `does not` is dropped here for the same reason it was dropped from
 # RE_NOT_SILENT_ASSUMED: free-floating, it is satisfied by any unrelated sentence. Nothing
@@ -2655,9 +2682,9 @@ assert_absent "greenfield-autorun: no per-call number is invented for an empty l
 # T1 exclusion-expiry-required: an exclusion with NO expiry does not count as recorded, so the
 # layer-match failure it covered blocks Gate 2 — exactly as it would unexcluded.
 t="$(run_fixture exclusion-expiry-required 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "expiry-required: the no-expiry exclusion does not count as recorded" "$t" 'expiry' 'not count|does not count|not[ *_]{1,4}recorded|incomplete|missing'
+assert_all "expiry-required: the no-expiry exclusion does not count as recorded" "$t" 'expiry' "$RE_NOT_COUNTED_AS_RECORDED"
 assert_all "expiry-required: the AC1(b) layer-match blocks Gate 2" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|stays (open|shut)|fails'
-assert_all "expiry-required: the fix is to add a checkable expiry" "$t" 'expiry' 'add|carry|checkable|ticket key|date|condition'
+assert_all "expiry-required: the fix is to add a checkable expiry" "$t" 'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
 assert_contains "expiry-required: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
 
 # T2/T3 exclusion-expiry-checkable: a ticket-key expiry is checkable and accepted (Gate 2 closes);
@@ -3535,6 +3562,47 @@ AC
 selftest_assertion "counted artifact carries it — 0 ASSUMED in the REFINE line (R5)" \
   "$_ac/assumed-count.correct" "$_ac/assumed-count.wrong" \
   'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
+
+# R6's two pairs use the SAME wrong file twice over: the real three-line pointer reply that scored
+# 3 of 4, and the affirmative sibling form. A token that cannot tell "counts as recorded: no" from
+# "counts as recorded: yes" is measuring the topic, not the claim.
+cat >"$_ac/counted.correct" <<'AC'
+**1. Counts as recorded: no.** The record names item, tier, why-deferred and follow-up, but carries no
+`expiry:` value at all, so it does not count as a recorded coverage-gap exclusion.
+AC
+cat >"$_ac/counted.wrong" <<'AC'
+`docs/tickets/PROJ-410.work.md:1` holds the Phase 2 section — verification plan, the exclusion record
+with the missing field named, the counted line, and the two unblock paths.
+**Counts as recorded: yes** — it names item, tier, why-deferred, follow-up, and a checkable `expiry:`.
+AC
+selftest_assertion "the claim, not the topic — \"counts as recorded: no\" (R6/A1)" \
+  "$_ac/counted.correct" "$_ac/counted.wrong" \
+  'expiry' "$RE_NOT_COUNTED_AS_RECORDED"
+
+cat >"$_ac/smallest.correct" <<'AC'
+**3. Smallest change: add a checkable `expiry:` — a ticket key such as `expiry: PROJ-411`, which an
+outside reader resolves in the tracker without asking the author.**
+AC
+cat >"$_ac/smallest.wrong" <<'AC'
+Design stops here at Gate 2, blocked. I did not write code and did not close the gate; whether AC1(b)
+is upgraded to a real-corpus run or deferred with a checkable expiry is your decision.
+AC
+selftest_assertion "the fix names its own object — \"add a checkable expiry\" (R6/A3)" \
+  "$_ac/smallest.correct" "$_ac/smallest.wrong" \
+  'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
+
+cat >"$_ac/smallest-cond.correct" <<'AC'
+## 3. Smallest change that makes it count: one added field.
+`expiry: when config.real_corpus_path is configured` is checkable by a non-author — they can read
+`.harness.json` and settle it without asking me. `later` / `once we get to it` would be flagged.
+AC
+cat >"$_ac/smallest-cond.wrong" <<'AC'
+The exclusion record is incomplete. An expiry field is what the skill checks, and checkability by a
+non-author is the criterion it applies. I have written the analysis to the work doc.
+AC
+selftest_assertion "condition-valued expiry, checkability asserted separately (R6/A3)" \
+  "$_ac/smallest-cond.correct" "$_ac/smallest-cond.wrong" \
+  'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
 
 cat >"$_ac/ordering.correct" <<'AC'
 ## 5. Why the rule must exist and be recallable first

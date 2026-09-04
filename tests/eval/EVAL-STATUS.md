@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **126 of 126** — 125 green (118 fixture + 7 scenario) + **1 red** (R6 `exclusion-expiry-required`). R5's vacuous green is gone: it is now proven on a counted artifact. `has NO row` is **0** |
-| Rows not green | 1 — `exclusion-expiry-required` (R6, 3 of 4). |
+| Jobs recorded | **126 of 126 — all green**, under one uniform ruler. No vacuous credit: R5's pass is now carried by a counted artifact and R6's by claims bound to their objects |
+| Rows not green | 0 |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the one failing check is coverage, and **R6 is now its only defect**: 0 `has NO row`, 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 126 rows sit at CLI 2.1.259 |
+| `--verify-suite` | **34/34 — the suite IS proven green.** 126/126 jobs, 511 assertions, every green under machinery `5c877b488793`, plugin-tree `9b199a8b5b77`, model `cli-default`, CLI 2.1.259. See *Closing entry* |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -806,19 +806,19 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — R1/R2/D1/R3/R4 fixed; **R5, R6 and R7 open**
+### Register — **all eight fixed**; R5/R6/R7 closed 2026-09-04, see *Closing entry*
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
 | R1 | `refine-consistency-is-how` | `refine-consistency: NOT asked as a want-decision` | wording / emphasis window | Behaviour **correct**: H1 filed, resolved "apply to ALL consumers sharing the recipe", cited, flagged for ratification. Transcript says *"It was **not** put to the user as an open want"*. Regex is `not .{0,20}(ask\|want-decision\|open want)`; `open want` lands at offset **25** because the `**` emphasis eats 2. |
 | R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
 | R3 | `vague-requirement` | `vague-requirement: flags AC-1 as not falsifiable` | wording / emphasis window | Found in batch 1, not the discovery pass, because the discovery pass's `analysis` batch happened to draw a transcript phrased with `not`. Behaviour **correct**: AC-1 split into two clauses, both flagged, both barred from a matrix `✅`. The verdict was worded *"neither falsifiable nor excluded"*, which the `not …`-only token could not see. Fixed by adding `(neither\|nor) falsifiable`; proved load-bearing and still discriminating in both directions before the ruler moved. See *Batch 1, attempt 1*. |
-| R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | **false green** (was: wording / adjacency window) — **OPEN** | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Re-run under the live ruler with the token **unchanged**, it went green — and offline measurement shows the pass came only from the free-floating `does not` branch, firing on a merge-strategy config line. All three branches that test the claim scored **0** on the green transcript too. Reclassified: not a narrow window but a false green. Deferred to the post-batch-10 edit, where the fix is to **delete** `does not` and bind the rest — see *R5 came back green* above. |
-| R6 | `exclusion-expiry-required` | `expiry-required: the EXCLUSIONS counted line is emitted` | **visibility — OPEN** | Found in batch 3. Behaviour **correct**: the three sibling assertions all pass (no-expiry exclusion not counted as recorded, Gate 2 blocked, checkable expiry named). The 4-line transcript says the work doc `docs/tickets/PROJ-410.work.md` holds *"the counted line"* — mango wrote the artifact to the file and referenced it rather than echoing it, and this suite judges the transcript only. Not a wording red, so the widening rule does not reach it; widening `EXCLUSIONS:` would accept prose about a count, which is the opposite of what a counted-artifact assertion is for. The harness keeps no copy of the work doc, so the claim cannot now be confirmed. |
-| R7 | `evidence-stale-tree-refused` | `evidence-stale: 84 passed does not establish the ACs on b7d5e29` | wording — the negation is a **question answered "No"** — **OPEN** | Found in batch 4. Behaviour **correct and unusually thorough**: 90 lines, the other four assertions pass, and section 3 answers this assertion's exact question twice — wrong tree, and wrong instrument with the linter contradicting it. The heading reads `## 3. Does "84 passed" establish AC1 and AC2? No — for two independent reasons.`, so the only line carrying both claim and denial spells the verb **affirmatively** and puts the negation after the question mark. All five alternatives of `RE_DOES_NOT_ESTABLISH` score **0**. No synonym list or window widening inside a `not … establish` shape can read that. |
+| R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | **false green** (was: wording / adjacency window) — **FIXED** (v1.16.1) | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Re-run under the live ruler with the token **unchanged**, it went green — and offline measurement shows the pass came only from the free-floating `does not` branch, firing on a merge-strategy config line. All three branches that test the claim scored **0** on the green transcript too. Reclassified: not a narrow window but a false green. Deferred to the post-batch-10 edit, where the fix is to **delete** `does not` and bind the rest — see *R5 came back green* above. |
+| R6 | `exclusion-expiry-required` | `expiry-required: the EXCLUSIONS counted line is emitted` | visibility → **FIXED** (v1.16.1) by binding each claim to its object | Found in batch 3. Behaviour **correct**: the three sibling assertions all pass (no-expiry exclusion not counted as recorded, Gate 2 blocked, checkable expiry named). The 4-line transcript says the work doc `docs/tickets/PROJ-410.work.md` holds *"the counted line"* — mango wrote the artifact to the file and referenced it rather than echoing it, and this suite judges the transcript only. Not a wording red, so the widening rule does not reach it; widening `EXCLUSIONS:` would accept prose about a count, which is the opposite of what a counted-artifact assertion is for. The harness keeps no copy of the work doc, so the claim cannot now be confirmed. |
+| R7 | `evidence-stale-tree-refused` | `evidence-stale: 84 passed does not establish the ACs on b7d5e29` | wording — the negation is a **question answered "No"** — **FIXED** (v1.16.1) | Found in batch 4. Behaviour **correct and unusually thorough**: 90 lines, the other four assertions pass, and section 3 answers this assertion's exact question twice — wrong tree, and wrong instrument with the linter contradicting it. The heading reads `## 3. Does "84 passed" establish AC1 and AC2? No — for two independent reasons.`, so the only line carrying both claim and denial spells the verb **affirmatively** and puts the negation after the question mark. All five alternatives of `RE_DOES_NOT_ESTABLISH` score **0**. No synonym list or window widening inside a `not … establish` shape can read that. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
-**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5, R6 and R7 are open. What shipped for the first three, and what proves each:
+**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; **R5, R6 and R7 in the post-batch-10 edit** — R5 on a counted artifact at zero dispatch cost, R7's token strengthened though its green came from a fresh sample, R6 after two instrument errors of my own. Details in *Closing entry*. What shipped for the first three, and what proves each:
 
 | # | Fix | Proof it is not vacuous |
 |---|---|---|
@@ -873,20 +873,19 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — all ten batches banked; the single edit remains
+### Next — cycle 2 is closed; cycle 3 opens with the machinery group
 
-**The dispatch phase of the proof pass is complete.** All 126 jobs carry a row under machinery
-`5c877b488793`, one ruler, CLI 2.1.259: 124 green and 2 red. Gates on 2026-09-04:
+**Cycle 2 is closed: the suite is proven green, 126/126.** See *Closing entry* for the gate output
+and for what that sentence may and may not claim. Gates on 2026-09-04:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 33/34; the one failing check is coverage, and R6 is its
-                                          only defect. 0 `has NO row`, 0 fingerprint mismatches,
-                                          0 pre-identity rows, 0 different-ruler rows, 0 stale
-                                          greens. NOTE: these 34 are coverage_selftest plus the
-                                          gate — verify stops at run.sh:3162 and never reaches the
-                                          assertion-convention or row-writer self-tests.
+bash tests/eval/run.sh --verify-suite  → 34/34, the suite IS proven green: 126/126 jobs, 511
+                                          assertions, one uniform ruler. NOTE: these 34 are
+                                          coverage_selftest plus the gate — verify stops at
+                                          run.sh:3162 and never reaches the assertion-convention
+                                          or row-writer pairs, which run only in a dispatching run.
 ```
 
 The freeze held for all ten batches: nothing above `suite()` was touched, so the ledger was never
@@ -943,14 +942,74 @@ Operational notes from the ten batches, worth keeping for the next cycle:
   derives to 19 where discovery ran 17 under the same label, with no fixture added since — the
   grouping moved, not the fixture set.
 
-### Closing entry — fill after the proof pass
+### Closing entry — cycle 2 proof pass, closed 2026-09-04
 
 ```
-Suite proven green at SHA :
-Date                      :
---verify-suite output     :        ← paste it; it is the only admissible evidence
-Total jobs                : 126
-Batches needed            :
-Reds fixed from register  :
-New findings              :        ← and move them to EVAL-FINDINGS.md
+Suite proven green at SHA : see the commit carrying this entry (branch eval/cycle-2-proof-pass)
+Date                      : 2026-09-04
+Total jobs                : 126   (119 fixtures + 7 scenarios)
+Batches needed            : 10, plus 4 single-job re-runs for the token edits
+Reds fixed from register  : R5, R6, R7  (R1/R2/R3/R4/D1 were fixed earlier in the cycle)
+New findings              : the wave surcharge (batch 7), `assert_all` claim-binding (R6),
+                            --verify-suite's check set, `[^\n]` in POSIX ERE — all below,
+                            and the durable ones move to EVAL-FINDINGS.md
+
+--verify-suite output, verbatim:
+
+== eval coverage verification (no dispatch, no cost) ==
+  machinery fp       : 5c877b488793c4af711a7b476d44b71c39a1f0ec813fbde14ccf4ad860fe4428  (49 function(s))
+  runner fp (forensic): 17a32e08e97f2e725d5dac92a18c2278002b8c3446c787662dfc13acc18a32d7
+  plugin-tree fp     : 9b199a8b5b77c9898b3db2975545d02973fd1b94cbbccf63617820c4a91970ec
+  model / CLI        : cli-default / 2.1.259 (Claude Code)
+  jobs registered    : 126
+  [18 dispatch-free self-tests — header-vacuity, no-run guard, row-writer, two-tier ruler — all PASS]
+
+== coverage ledger vs the suite ==
+  suite            : 126 job(s), 511 transcript assertion(s)
+  ledger           : coverage.5c877b488793c4af711a7b476d44b71c39a1f0ec813fbde14ccf4ad860fe4428.tsv
+  PASS: coverage: all 126 job(s) green under one uniform ruler, 511 assertion(s) accounted for
+
+EVAL VERIFY: 34/34 check(s) pass.
+EVAL VERIFY: the suite IS proven green — 126/126 job(s), 511 assertion(s),
+             every green measured under machinery 5c877b488793, plugin-tree 9b199a8b5b77,
+             model cli-default, CLI 2.1.259 (Claude Code). Equivalent to one full pass.
 ```
+
+**What this sentence may and may not claim.** It may claim: every one of the 126 jobs was dispatched
+against a real transcript and judged green under a single measurement identity, and that fact is
+re-checkable from the ledger by anyone who runs the gate. It may **not** claim that each job would go
+green on the next dispatch — three jobs changed verdict in this cycle with nothing but a new sample
+(R7 and R6 twice), and the measured per-pass red rate of 0.4-2% predicts 2-11 reds in any fresh full
+pass. A green suite here means *the ruler is sound and every job has cleared it once*, not that the
+suite is deterministic.
+
+**The R6 close, in order, because the sequence is the finding.** Its red was `EXCLUSIONS:` missing
+from a 3-line reply that pointed at the work doc. Tightening A1 and A3 to bind each claim to its
+object, then re-running, produced a **different** red: A3 failed. That failure was **mine, not
+mango's** — mango had added the field with a *condition* as its value (`expiry: when
+config.real_corpus_path is configured`) and asserted the property in the skill's own words one
+sentence later ("is checkable by a non-author"), while my first token demanded `checkable` adjacent to
+`expiry` adjacent to an action verb on one line. Corrected, re-run, 4 of 4. So the job went
+red → red-for-a-new-reason → green across three dispatches, and only the last red was worth anything.
+Two of the three reds this fixture produced were instrument error.
+
+**Four findings, recorded here and carried to EVAL-FINDINGS.md:**
+
+1. **A wave costs more than its slowest member** (batch 7). A 3-job wave whose worst member takes 533s
+   solo was killed at 600s with all three unfinished — the 152s member included. Cause unmeasured;
+   operationally, a job over ~450s solo is dispatched alone.
+2. **`assert_all` binds nothing.** Each regex must match somewhere in the body, not within one claim,
+   so a reply that answers nothing can score 3 of 4 on bare adjectives — `missing` and `checkable`
+   carried R6's two vacuous passes, and every other alternative scored 0. Binding inside the
+   alternative is the only fix available without changing the harness. The harness fix is cycle 3.
+3. **`--verify-suite` runs 34 checks, not the suite's self-tests.** It stops at `run.sh:3162`, so
+   assertion-convention and row-writer pairs run only in a dispatching run. Both were needed to prove
+   these token edits, and neither would have been exercised by the gate alone.
+4. **`[^\n]` does not mean "any character on this line" in POSIX ERE.** Inside a bracket expression it
+   is "not backslash, not the letter n", and it silently failed on `config.real_corpus_path`. `grep`
+   is line-bounded, so plain `.` is correct.
+
+**Deferred to cycle 3, deliberately, because each is machinery and costs 0 at a cycle boundary and 126
+dispatches here:** the `assert_all` claim-binding above; the cache key's missing identity tuple
+(`$name.$h.green` — a transcript cached under one CLI is silently reusable under another); and
+preserving the work doc so a counted-artifact assertion can be judged where mango actually wrote it.
