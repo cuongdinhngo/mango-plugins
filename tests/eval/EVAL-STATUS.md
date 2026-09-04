@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **94 of 126** (batches 1-6) — 92 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 92 greens, **91 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
+| Jobs recorded | **103 of 126** (batches 1-7) — 101 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 101 greens, **100 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
 | Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the failures are 32 `has NO row` (exactly 126 − 94) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 94 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the failures are 23 `has NO row` (exactly 126 − 103) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 103 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -149,11 +149,12 @@ Sums to 126. Each part's selector is built and **verified dispatch-free** immedi
 every name present on disk, every match named, nothing extra — because `--only` matching is unanchored
 (`grep -qE "$ONLY"`), so every selector must be `^(a|b|c)$`.
 
-**Batch 7 is the one to watch.** In the discovery pass the `autorun` part of 7 jobs took **564s**, and
-with `--workers 8` a part of ≤ 8 jobs is one wave — so that 564s is a *single job's* latency, 27s
-inside the 600s tool ceiling. Splitting the group does not make that job faster; it only means a
-ceiling kill loses 3 jobs instead of 9, and a killed run writes no rows at all. If a part of batch 7 is
-killed, re-run it as single jobs. The new per-job timing output names the slow one on the first part.
+**Batch 7 was the one to watch, and it did get killed — resolved 2026-09-04.** The prediction was that
+discovery's 564s `autorun` part was a *single job's* latency, 27s inside the ceiling, so splitting
+would only cap the loss at 3 jobs and a kill would write no rows. Both halves held: part 00 was killed
+at 600s having written nothing, and the three jobs re-run singly all went green. What did **not** hold
+is the premise that a part costs only its slowest job — see *Batch 7* below. The live worst case is
+`greenfield-autorun-clean` at **533s solo**, and it must be dispatched alone.
 
 ### Batch 1, attempt 1 — voided by its own fix (ruler `ecf9e4c6bfb0`)
 
@@ -263,6 +264,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | 4 | `review` | 3 | 14 | **326 / 327** | 90s + 111s + 78s | **13 green / 1 red** — R7. The fastest batch by far: no part exceeded 111s |
 | 5 | `finalise` + `codify` | 4 | 19 | **450 / 450** | 231s + 155s + 256s + 79s | ✅ **19 green / 0 red** — the anchoring rule earned its keep, below |
 | 6 | `execute` + `breakdown` | 2 | 8 | **208 / 208** | 256s + 443s | ✅ **8 green / 0 red** — the isolation batch; and `breakdown` is not the light group it was taken for |
+| 7 | `autorun` | 3 (part 00 as 3 singles) | 9 | **522 / 522** | 152s + 234s + 533s, then 221s + 92s | ✅ **9 green / 0 red** — **the ceiling kill happened**, and the singles falsified the wave model |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -314,6 +316,35 @@ discovery pass `breakdown` was folded into batch 9's small groups, whose 752s to
 hid it. So batch 7's `autorun` is not the only ceiling risk left, and the rule stands unchanged —
 budget the slowest job, never the mean, and re-measure rather than inherit an assumption about which
 group is light.
+
+**Batch 7 — the predicted ceiling kill arrived, and the fallback worked exactly as written.** Part 00
+held both `greenfield-*` jobs, deliberately placed together so their latencies would overlap in one
+wave. Dispatched as a wave of 3 it hit the 600s ceiling: `rc=124`, and — as documented — the ledger
+stayed at exactly its prior 100 rows, the tree clean, HEAD unmoved, no stray `PROJ-` branch, no worker
+clone, no `/tmp` residue newer than the kill. Re-run as **single jobs** per the plan, all three went
+green: 152s, 234s and 533s.
+
+**That falsifies the sizing model this document has used since batch 1.** The rule was "with
+`--workers 8` a part of ≤ 8 jobs is one wave, so the part costs its *slowest job*" — 533s, comfortably
+inside 600s. What actually happened is that **every job in the wave was inflated**, not just the
+slowest: `autorun-budget-degrades` alone takes 152s and had still not finished at ~591s in the wave,
+a ≥3.9× inflation, and neither of the two transcripts the kill left behind had completed (both end
+mid-sentence). So a wave costs *more* than its slowest job, and the surcharge is large enough to turn a
+67s margin into a kill.
+
+It is also not a constant. The same hour, part 01 (3 jobs) came in at 221s and part 02 (3 jobs) at 92s
+with no sign of inflation, and batches 5-6 ran 4- and 5-job waves at up to 443s without trouble. What
+distinguished the killed wave is that it contained a job already near the ceiling. **The cause is not
+established** — host CPU, API-side concurrency limits and per-job token volume are all candidates and
+none was measured — so the rule is stated as the observation, not the theory: *budget the slowest job
+and leave real headroom; a job that takes over ~450s alone must be dispatched alone.*
+`greenfield-autorun-clean` at **533s solo — 67s of margin** — is that job, and it is now the known
+worst case in the suite, ahead of batch 1's `freeform` at 562s in a 7-job wave.
+
+One incidental correction, worth recording because it nearly caused a false alarm: the post-kill check
+for surviving processes used `pgrep -f 'tests/eval/run.sh'` and `pgrep -f 'claude '`, both of which
+**matched the checking script's own command line** and reported a live run plus two stray dispatches.
+There were none. Use a self-excluding pattern (`eval/[r]un.sh`) when checking for eval residue.
 
 ### The CLI pin was written down and never actually applied
 
@@ -734,7 +765,7 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-6 banked; batches 7 to 10 remain
+### Next — batches 1-7 banked; batches 8 to 10 remain
 
 Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
@@ -742,7 +773,7 @@ Gates on 2026-09-04, under the live machinery `5c877b488793`:
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
 bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus the two
-                                          recorded reds (32 `has NO row` = 126 − 94, nothing else).
+                                          recorded reds (23 `has NO row` = 126 − 103, nothing else).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 
@@ -762,10 +793,13 @@ one whose rows survive — was clean at 199/199. Three operational notes it prod
 - **Run each part in the foreground.** Both background attempts at part 01 were reaped within ~10s of the
   dispatch line — no error, no residue, just `[killed]` — while part 00 had survived 401s in background.
   Foreground with a 600s ceiling is the reliable shape, and it fits every part except possibly batch 7's.
-- **Budget the slowest job, never the mean.** With `--workers 8` a part of ≤ 8 jobs is one wave, so a
-  7-job part costs its slowest job's latency. Part 00's `freeform` came in at 562s against the 600s
-  ceiling — sum 2313s, mean 330s, both irrelevant. Batch 7's `autorun` group is the one still expected
-  to test that ceiling.
+- **Budget the slowest job and leave headroom — a wave costs more than its slowest member.** The mean
+  and the sum are still irrelevant (batch 1 part 00: `freeform` 562s, sum 2313s, mean 330s). But
+  batch 7 falsified the stronger claim that a part costs *only* its slowest job: a 3-job wave whose
+  worst member takes 533s alone was killed at 600s with **all three** jobs unfinished — the 152s member
+  included, a ≥3.9× inflation. The surcharge is not constant (3-job waves the same hour finished at
+  221s and 92s), and its cause is unmeasured. Operationally: **a job over ~450s solo is dispatched
+  alone.** The known one is `greenfield-autorun-clean` (533s).
 - **A killed run writes nothing and damages nothing.** Both kills left the ledger at exactly its prior row
   count, the checkout clean, no stray branch, no live process, and no worker clone on disk — checked, not
   assumed, before re-dispatching.

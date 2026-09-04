@@ -705,7 +705,12 @@ These are process rules, learned the hard way, and they cost nothing to follow.
    a tree that is not the one you edited.
 4. **Record the row before starting the next batch**, not at the end of the cycle.
 5. **Split a batch that would exceed the tool timeout.** Splitting is free now that each part mints its
-   own cache entries and writes its own coverage rows — no fixture is dispatched twice.
+   own cache entries and writes its own coverage rows — no fixture is dispatched twice. **Splitting to
+   one job per part is the fallback when a part is killed, and it is not merely a smaller blast
+   radius — it is faster per job.** Batch 7 part 00 was killed at 600s as a wave of 3; the same three
+   jobs run singly took 152s, 234s and 533s, and the 152s one had not finished inside the killed wave.
+   So concurrency carries a real surcharge, large enough to turn a 67s ceiling margin into a kill.
+   Any job measured over ~450s alone gets its own dispatch.
 6. **Run every part in the foreground — not just scenarios.** First seen on a scenario part stopped
    host-side 3.5s after launch having judged zero assertions, so it was written up as a scenario
    quirk. Batch 1 of the proof pass showed it is not: two background dispatches of an ordinary
