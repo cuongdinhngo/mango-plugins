@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **53 of 126** (batches 1-3) — 52 green + 1 red (`exclusion-expiry-required`, R6). Of the 52 greens, **51 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
-| Rows not green | 1 — `exclusion-expiry-required` (R6), 3 of 4 assertions. R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
+| Jobs recorded | **67 of 126** (batches 1-4) — 65 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 65 greens, **64 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
+| Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the failures are 73 `has NO row` (exactly 126 − 53) plus R6's recorded red, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 53 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the failures are 59 `has NO row` (exactly 126 − 67) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 67 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -260,6 +260,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | 1 | `analysis` | 2 | 13 | **231 / 231** | 331s + 335s | ✅ **13 green / 0 red** |
 | 2 | `refine` | 4 | 22 | **460 / 460** | 451s + 296s + 355s + 361s | ✅ **22 green / 0 red** — but one green is vacuous, below |
 | 3 | `design` | 3 | 18 | **344 / 345** | 305s + 333s + 342s | **17 green / 1 red** — R6, and part 00 was re-run after a CLI slip |
+| 4 | `review` | 3 | 14 | **326 / 327** | 90s + 111s + 78s | **13 green / 1 red** — R7. The fastest batch by far: no part exceeded 111s |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -627,7 +628,7 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — R1/R2/D1/R3/R4 fixed; **R5 and R6 open**
+### Register — R1/R2/D1/R3/R4 fixed; **R5, R6 and R7 open**
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
@@ -636,9 +637,10 @@ Notes worth carrying:
 | R3 | `vague-requirement` | `vague-requirement: flags AC-1 as not falsifiable` | wording / emphasis window | Found in batch 1, not the discovery pass, because the discovery pass's `analysis` batch happened to draw a transcript phrased with `not`. Behaviour **correct**: AC-1 split into two clauses, both flagged, both barred from a matrix `✅`. The verdict was worded *"neither falsifiable nor excluded"*, which the `not …`-only token could not see. Fixed by adding `(neither\|nor) falsifiable`; proved load-bearing and still discriminating in both directions before the ruler moved. See *Batch 1, attempt 1*. |
 | R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | **false green** (was: wording / adjacency window) — **OPEN** | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Re-run under the live ruler with the token **unchanged**, it went green — and offline measurement shows the pass came only from the free-floating `does not` branch, firing on a merge-strategy config line. All three branches that test the claim scored **0** on the green transcript too. Reclassified: not a narrow window but a false green. Deferred to the post-batch-10 edit, where the fix is to **delete** `does not` and bind the rest — see *R5 came back green* above. |
 | R6 | `exclusion-expiry-required` | `expiry-required: the EXCLUSIONS counted line is emitted` | **visibility — OPEN** | Found in batch 3. Behaviour **correct**: the three sibling assertions all pass (no-expiry exclusion not counted as recorded, Gate 2 blocked, checkable expiry named). The 4-line transcript says the work doc `docs/tickets/PROJ-410.work.md` holds *"the counted line"* — mango wrote the artifact to the file and referenced it rather than echoing it, and this suite judges the transcript only. Not a wording red, so the widening rule does not reach it; widening `EXCLUSIONS:` would accept prose about a count, which is the opposite of what a counted-artifact assertion is for. The harness keeps no copy of the work doc, so the claim cannot now be confirmed. |
+| R7 | `evidence-stale-tree-refused` | `evidence-stale: 84 passed does not establish the ACs on b7d5e29` | wording — the negation is a **question answered "No"** — **OPEN** | Found in batch 4. Behaviour **correct and unusually thorough**: 90 lines, the other four assertions pass, and section 3 answers this assertion's exact question twice — wrong tree, and wrong instrument with the linter contradicting it. The heading reads `## 3. Does "84 passed" establish AC1 and AC2? No — for two independent reasons.`, so the only line carrying both claim and denial spells the verb **affirmatively** and puts the negation after the question mark. All five alternatives of `RE_DOES_NOT_ESTABLISH` score **0**. No synonym list or window widening inside a `not … establish` shape can read that. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
-**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5 and R6 are open. What shipped for the first three, and what proves each:
+**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5, R6 and R7 are open. What shipped for the first three, and what proves each:
 
 | # | Fix | Proof it is not vacuous |
 |---|---|---|
@@ -693,15 +695,15 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-3 banked; batches 4 to 10 remain
+### Next — batches 1-4 banked; batches 5 to 10 remain
 
 Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus R6's
-                                          recorded red (73 `has NO row` = 126 − 53, nothing else).
+bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus the two
+                                          recorded reds (59 `has NO row` = 126 − 67, nothing else).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 

@@ -593,9 +593,9 @@ without a transcript, and pre-emptively widening 40 negation tokens against a hy
 how a suite stops discriminating. A second ruler move later is the cheaper mistake than a suite that
 passes everything.
 
-### Three instances, three spellings — the class is the pattern, not the regex
+### Four instances, four spellings — the class is the pattern, not the regex
 
-By the end of batch 2 the same class had produced three reds in three passes, each defeating a
+By the end of batch 4 the same class had produced four reds in four passes, each defeating a
 *differently shaped* token:
 
 | # | Job | What the token could not see | Why it missed |
@@ -603,6 +603,7 @@ By the end of batch 2 the same class had produced three reds in three passes, ea
 | R3 | `vague-requirement` | `neither falsifiable nor excluded` | the token enumerated synonyms of `not <word>` and `neither` was not among them |
 | R4 | `greenfield-recall-handles-none-match` | `No — neither source makes them so` | same, in the other word order |
 | R5 | `refine-want-unattended-stops` | `ASSUMED is not the fallback for silence` | the token's `not[ *_]{1,4}silent` allows ≤ 4 characters between the two words; the model put 17 there |
+| R7 | `evidence-stale-tree-refused` | `## 3. Does "84 passed" establish AC1 and AC2? No — for two independent reasons.` | the negation is not adjacent to the verb at all: it is a **question answered "No"**, so the only line carrying both the claim and its denial spells the verb *affirmatively* |
 
 R5 is the useful one, because it is **not** a `neither` case. The first heading of this finding named
 the symptom (`neither X nor Y`) and it turned out to be one dialect of a wider defect: **a negation
@@ -611,7 +612,22 @@ model will put in between, and that number is not knowable in advance.** Widenin
 does not fix it either; it only moves the bet, and a window wide enough to catch "not the fallback for
 silence" is wide enough to leap into a neighbouring clause and match an affirmative.
 
-What the three have in common is diagnostic, and it is what makes the wording verdict defensible each
+R7 is the sharpest of the four, because it defeats the whole shape of the fix. R3 and R4 argued for
+enumerating more synonyms; R5 argued for a wider window. R7's line contains the verb `establish` in
+the **affirmative** — `Does "84 passed" establish AC1 and AC2?` — and the denial is a separate word,
+`No`, after the question mark. No amount of synonym-listing or window-widening inside a `not …
+establish` shape can read that, because the line is not a negation of the verb; it is a question whose
+answer happens to be negative. All five alternatives of `RE_DOES_NOT_ESTABLISH` scored 0 against a
+90-line transcript whose entire section 3 is devoted to answering exactly this assertion's question,
+correctly, twice over.
+
+It also sharpens the weak-branch finding above. `RE_DOES_NOT_ESTABLISH` *contains* the free-floating
+`does not` branch that made R5 a false green — and here it did not fire, because this particular
+90-line answer never used the phrase. So the same branch is a coin toss in both directions: too weak
+to refuse a wrong transcript, too unreliable to accept a right one. It buys nothing in either
+direction, which is the strongest argument for deleting it rather than tuning it.
+
+What the four have in common is diagnostic, and it is what makes the wording verdict defensible each
 time: **a sibling assertion on the same transcript passed**, so the mechanism provably ran, and **the
 failing token was a synonym or adjacency list rather than a condition**. Both signals must be present.
 Neither one alone licenses a widen.
