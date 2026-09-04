@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **112 of 126** (batches 1-8) — 110 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 110 greens, **109 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
+| Jobs recorded | **119 of 126** (batches 1-9) — 117 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 117 greens, **116 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note. **Every one of the 119 fixtures now has a row**; the 7 missing jobs are exactly the 7 scenarios |
 | Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the failures are 14 `has NO row` (exactly 126 − 112) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 112 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the failures are 7 `has NO row` (exactly 126 − 119, all of them scenarios) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 119 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -266,6 +266,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | 6 | `execute` + `breakdown` | 2 | 8 | **208 / 208** | 256s + 443s | ✅ **8 green / 0 red** — the isolation batch; and `breakdown` is not the light group it was taken for |
 | 7 | `autorun` | 3 (part 00 as 3 singles) | 9 | **522 / 522** | 152s + 234s + 533s, then 221s + 92s | ✅ **9 green / 0 red** — **the ceiling kill happened**, and the singles falsified the wave model |
 | 8 | `promote` + `solve` | 3 | 9 | **318 / 318** | 40s + 116s + 141s | ✅ **9 green / 0 red** — the fastest batch of the pass; and `greenfield-` turns out not to predict weight |
+| 9 | `budget` + `quick` + `init` | 2 | 7 | **216 / 216** | 94s + 229s | ✅ **7 green / 0 red** — **all 119 fixtures are now recorded**; only the 7 scenarios remain |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -358,6 +359,22 @@ that: **job name prefixes do not predict latency; only a measured solo time does
 Everything else was uneventful, which is itself the point after batch 7 — parts of 4 came in at 116s
 and 141s, the whole batch dispatched in 297s across three parts, 318/318 assertions, and the slowest
 single job in the group (`workdoc-solve-autopath`, 141s) sits nowhere near the ceiling.
+
+**Batch 9 — the fixture half of the suite is complete.** Two parts of 4/3, 7 jobs, 216/216, dispatch
+94s and 229s, nothing near the ceiling. With it the ledger reaches **119 of 126** and the residual is
+exact: the 7 jobs `--verify-suite` still reports as `has NO row` are precisely the 7 scenarios
+(`artifact-delta-emission`, `carveout-nonexempt`, `design-invalidated`, `ledger-content-gate-marker`,
+`ledger-gate-complete`, `per-clause-both`, `stuck-detector`) — checked by diffing the recorded names
+against the 126 registered, not by subtraction. Every one of the 119 **fixtures** now carries a green or
+red row under machinery `5c877b488793`, one ruler, 13 fields, CLI 2.1.259 throughout.
+
+That makes batch 10 the whole of the remaining risk, and it is the batch with the least precedent:
+scenarios are the jobs that **no pass has ever recorded**. Defect D1 — a file-less job could not produce
+a coverage row at all, so `--verify-suite` was unsatisfiable as shipped — was fixed in v1.15.1 and its
+fix is exercised every run by the row-writer self-tests, but always against a *synthetic* file-less
+control. The `NOTE: row-writer: this run registered no scenario, so the real-label proof did not run`
+line has appeared in every part of every batch so far. Batch 10 is the first time that proof runs
+against a real registered scenario label. It also carries **R2**.
 
 ### The CLI pin was written down and never actually applied
 
@@ -778,7 +795,7 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-8 banked; batches 9 and 10 remain
+### Next — batches 1-9 banked; batch 10 (the scenarios) remains
 
 Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
@@ -786,7 +803,7 @@ Gates on 2026-09-04, under the live machinery `5c877b488793`:
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
 bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus the two
-                                          recorded reds (14 `has NO row` = 126 − 112, nothing else).
+                                          recorded reds (7 `has NO row` = 126 − 119, all scenarios).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 
