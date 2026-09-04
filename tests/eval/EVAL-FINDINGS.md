@@ -384,6 +384,58 @@ of ruler and belongs to its own cycle with its own full pass.
 
 ---
 
+## A version pin that lives in a document is not a pin
+
+The CLI moved 2.1.259 → 2.1.260 between two batches, and six rows were written under the new one. The
+suite's identity tuple is `plugin-tree / model / CLI`, so a mixed ledger is a refusal — and the
+document warning about exactly this, written after the same thing happened in the discovery pass, did
+not prevent it.
+
+The reason is worth separating from the symptom. The pin was real: a directory holding a symlink to
+the right version, in place and correct the whole time. What was written down was
+`export PATH="…/pin:$PATH"`, and **every dispatch runs in a fresh shell**. No run ever had the pin on
+`PATH`. The earlier batches recorded the right version because the auto-update had not fired yet.
+A pin that depends on a human remembering to re-export it each time is a note, not a control.
+
+Undoing it exposed a second gap that would have survived the cleanup. The ledger reduces with
+`awk 'NF>=11 {r[$1]=$0}'` — last row per job wins — so re-running the six supersedes the bad rows with
+no hand-editing. But the transcript cache is keyed `$name.$skills-hash.green`, **carrying no CLI
+version**. A plain re-run would have hit the cache, re-judged the 2.1.260 transcripts, and stamped the
+new rows 2.1.259: a row asserting an identity its evidence never had. The entries had to be deleted by
+name before re-dispatching.
+
+### Rule
+
+**Put the pin in the command, not in the prose** — every dispatch begins by exporting it and printing
+`claude --version`, so the log shows the version beside the run it governed instead of the document
+asserting it. And **whatever appears in the identity tuple must appear in the cache key**: a cache
+entry that outlives a change to its producer is a false green waiting for a re-run. The skills-hash
+catches skill edits and `job_fp` catches assertion edits; nothing yet notices that the thing which
+produced the transcript changed.
+
+## The suite judges the transcript, so an artifact written to a file is invisible
+
+`exclusion-expiry-required` scored 3 of 4. Its three sibling assertions passed — the exclusion is not
+counted as recorded, Gate 2 is blocked, a checkable expiry is named — and the failing one wanted the
+counted line `EXCLUSIONS:` in the reply. The four-line transcript instead says the work doc *"holds …
+the counted line"*. mango wrote the artifact to the file and referenced it.
+
+This is a third class, beside wording and outcome: the behaviour may be right and the assertion may be
+right, and the evidence still never reaches the judge. It matters most for exactly the assertions worth
+having, because counted artifacts are the ones a model is most likely to file rather than recite.
+
+Widening is the wrong instinct here. A looser pattern would accept prose *about* a count, which
+defeats the reason a counted-artifact assertion exists. The fix is structural — require the count in
+the reply, or preserve and judge the work doc.
+
+### Rule
+
+**An assertion may only require evidence the harness actually retains.** Before writing one, ask where
+the artifact will live; if the answer is a file, either the prompt must pull it into the reply or the
+harness must keep the file. And note what this incident cost: the worker clone is discarded, so the one
+document that would settle whether the behaviour was correct no longer exists. A harness that throws
+away the evidence its own assertions point at cannot adjudicate its own reds.
+
 ## A red that stops reproducing can be a false green wearing the same regex
 
 `refine-want-unattended-stops` failed one assertion in batch 2 (recorded as R5), and passed it on the

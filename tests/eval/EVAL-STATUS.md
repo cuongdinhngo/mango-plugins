@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **35 of 126** (batches 1-2 under the two-tier ruler) — but see the vacuity note: **34 of those 35 are proven, 1 is credited on a pass that discriminates nothing** |
-| Rows not green | 0. R5's red row stands in the superseded ledger `1489839c4721` as the evidence it was found under; under this ruler the same job went **green, vacuously** — see below. |
+| Jobs recorded | **53 of 126** (batches 1-3) — 52 green + 1 red (`exclusion-expiry-required`, R6). Of the 52 greens, **51 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
+| Rows not green | 1 — `exclusion-expiry-required` (R6), 3 of 4 assertions. R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the sole failure is `has NO row` defects, and **no other defect class**; at 35 rows it is exactly 91 = 126 − 35, with 0 fingerprint mismatches and 0 rows predating per-job identity |
+| `--verify-suite` | 33/34 — the failures are 73 `has NO row` (exactly 126 − 53) plus R6's recorded red, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 53 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -259,6 +259,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 |---|---|---|---|---|---|---|
 | 1 | `analysis` | 2 | 13 | **231 / 231** | 331s + 335s | ✅ **13 green / 0 red** |
 | 2 | `refine` | 4 | 22 | **460 / 460** | 451s + 296s + 355s + 361s | ✅ **22 green / 0 red** — but one green is vacuous, below |
+| 3 | `design` | 3 | 18 | **344 / 345** | 305s + 333s + 342s | **17 green / 1 red** — R6, and part 00 was re-run after a CLI slip |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -273,6 +274,68 @@ full gate's per-job fingerprint. `--verify-suite` reports 113 `has NO row` defec
 — and **zero** fingerprint mismatches among the 13 recorded. Had `job_fp` differed between a batched
 run and the full registration walk, every batch would have been unbankable and the whole change
 worthless.
+
+### The CLI pin was written down and never actually applied
+
+Batch 3 part 00 came back 6/6 green and reported **CLI 2.1.260**. Every earlier row says 2.1.259. The
+gate compares `plugin-tree / model / CLI` as one identity tuple, so a mixed ledger is a refusal
+condition — the exact failure *Pin the CLI for the whole pass* was written to prevent, recurring one
+batch after the document warning about it.
+
+The cause is not the CLI. It is that the pin is an `export PATH=…` in a document, and **every dispatch
+runs in a fresh shell**, so no run of this pass ever had the pin on `PATH`. Batches 1 and 2 recorded
+2.1.259 because the auto-update had not happened yet — luck, not process. The pin directory was
+correct and in place the whole time; nothing ever consulted it.
+
+Two things had to be undone, and the second was nearly missed:
+
+- **The six rows.** `verify_suite` reduces the ledger with `awk 'NF>=11 {r[$1]=$0}'`, so the *last*
+  row per job wins. Re-running the six under the pin supersedes them; no ledger was hand-edited.
+- **The six cached transcripts.** The cache key is `$name.$skills-hash.green` — it carries **no CLI
+  version**. A plain re-run would have hit those cache entries, re-judged the 2.1.260 transcripts, and
+  written rows stamped 2.1.259. The row would have been a lie about which CLI produced the evidence.
+  They were deleted by name first, leaving exactly the 35 entries the valid rows accounted for.
+
+After the pinned re-run: 53 rows, **all at 2.1.259**, `different-ruler` defects **0**.
+
+That cache-key gap is worth stating on its own, because it outlives this incident: **a transcript
+cached under one CLI is silently reusable under another.** The skills-hash catches skill edits and
+`job_fp` catches assertion edits, but nothing in the key notices that the thing which produced the
+transcript changed. Queued for the post-batch-10 edit — it belongs above `suite()`, so it cannot be
+touched until the ledger is complete.
+
+Every dispatch from batch 3 onward begins `export PATH="$HOME/.cache/mango-eval-cli-pin:$PATH"` and
+prints `claude --version` in the same command, so the pin is visible in the log beside the run it
+governed rather than asserted in a document.
+
+### R6 — the counted line was written to a file the assertion cannot see
+
+`exclusion-expiry-required` scored 3 of 4. The failure is
+`assert_contains "expiry-required: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'`, and
+the transcript is four lines long:
+
+> `docs/tickets/PROJ-410.work.md:1` holds the Phase 2 section — verification plan, the exclusion
+> record with the missing field named, **the counted line**, and the two unblock paths.
+>
+> Design stops here at Gate 2, blocked. I did not write code and did not close the gate; whether
+> AC1(b) is upgraded to a real-corpus run or deferred with a checkable expiry is your decision.
+
+The three sibling assertions all pass: the no-expiry exclusion does not count as recorded, Gate 2 is
+blocked, and the fix named is a checkable expiry. The behaviour under test is right. What failed is
+that mango **wrote the counted artifact into the work doc and referenced it** instead of echoing it
+into the reply, and this suite judges the transcript only.
+
+So R6 is neither a wording red nor an outcome red — it is a **visibility** red, and the widening rule
+does not reach it. Widening `EXCLUSIONS:` would be worse than useless: the point of a counted-artifact
+assertion is that the count binds, and a looser pattern would accept prose *about* a count.
+
+The honest limit on this entry: the harness keeps no copy of the fixture's work doc, and the worker
+clone is gone, so **it cannot now be confirmed that the file really carried the `EXCLUSIONS:` line**.
+The transcript claims it did. That the only evidence which would settle the question is the one thing
+the harness discards is itself part of the finding.
+
+Recorded, not fixed. The candidate fixes are structural and belong to the post-batch-10 edit: have the
+prompt require the counted line in the reply, or have the harness preserve and judge the work doc.
 
 ### R5 came back green, and the green proves nothing
 
@@ -564,7 +627,7 @@ Notes worth carrying:
 
   `autorun` is the only group that has come close to the ceiling, and it is done.
 
-### Register — R1/R2/D1/R3/R4 fixed; **R5 open, and reclassified as a false green**
+### Register — R1/R2/D1/R3/R4 fixed; **R5 and R6 open**
 
 | # | Job | Assertion | Class | Evidence |
 |---|-----|-----------|-------|----------|
@@ -572,9 +635,10 @@ Notes worth carrying:
 | R2 | `ledger-gate-complete` (scenario) | `ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches` | **outcome — underspecified prompt** | Model answered *"Not enough information — row count alone doesn't clear it"*, then split it correctly: every token cell carrying a value or an explicit `unmeasured (…)` → proceeds; any cell blank → blocks, citing `skills/finalise/SKILL.md:230-241`. The prompt fixes the row **count** and says nothing about row **content**, and mango's gate has both conditions. Better behaviour than the assertion expects. |
 | R3 | `vague-requirement` | `vague-requirement: flags AC-1 as not falsifiable` | wording / emphasis window | Found in batch 1, not the discovery pass, because the discovery pass's `analysis` batch happened to draw a transcript phrased with `not`. Behaviour **correct**: AC-1 split into two clauses, both flagged, both barred from a matrix `✅`. The verdict was worded *"neither falsifiable nor excluded"*, which the `not …`-only token could not see. Fixed by adding `(neither\|nor) falsifiable`; proved load-bearing and still discriminating in both directions before the ruler moved. See *Batch 1, attempt 1*. |
 | R5 | `refine-want-unattended-stops` | `want-j: it is NOT recorded as a silent ASSUMED that ships a PR` | **false green** (was: wording / adjacency window) — **OPEN** | Found in batch 2. Behaviour **correct**: *"No — `ASSUMED` is not the fallback for silence"*, *"Silence is not a hand-back"*, `0 ASSUMED` printed twice in the counted REFINE line, and all five sibling assertions on the fixture pass. The token's `not[ *_]{1,4}(silent\|adopt)` allows at most four spaces/asterisks between the two words, and the real phrasing puts *"the fallback for"* between them; `does not` never appears. **0 matches** against the archived transcript. Re-run under the live ruler with the token **unchanged**, it went green — and offline measurement shows the pass came only from the free-floating `does not` branch, firing on a merge-strategy config line. All three branches that test the claim scored **0** on the green transcript too. Reclassified: not a narrow window but a false green. Deferred to the post-batch-10 edit, where the fix is to **delete** `does not` and bind the rest — see *R5 came back green* above. |
+| R6 | `exclusion-expiry-required` | `expiry-required: the EXCLUSIONS counted line is emitted` | **visibility — OPEN** | Found in batch 3. Behaviour **correct**: the three sibling assertions all pass (no-expiry exclusion not counted as recorded, Gate 2 blocked, checkable expiry named). The 4-line transcript says the work doc `docs/tickets/PROJ-410.work.md` holds *"the counted line"* — mango wrote the artifact to the file and referenced it rather than echoing it, and this suite judges the transcript only. Not a wording red, so the widening rule does not reach it; widening `EXCLUSIONS:` would accept prose about a count, which is the opposite of what a counted-artifact assertion is for. The harness keeps no copy of the work doc, so the claim cannot now be confirmed. |
 | D1 | `skills_files` / `hash_files` | — (kills the run) | **harness — blocking** | A scenario has no `$FIXTURES/<name>.md`, so `cat` fails under `pipefail`+`errexit` and no scenario row can ever be written. `--verify-suite` is unsatisfiable as shipped. Fix: emit that path only `if [ -f … ]`, keeping exit status 0, plus a self-test that writes and verifies a real scenario row. |
 
-**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5 is open. What shipped for the first three, and what proves each:
+**R1, R2 and D1 were fixed** in one edit as planned; R3 and R4 during batch 1's two voided attempts; R5 and R6 are open. What shipped for the first three, and what proves each:
 
 | # | Fix | Proof it is not vacuous |
 |---|---|---|
@@ -629,15 +693,15 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-2 re-run and banked; batches 3 to 10 remain
+### Next — batches 1-3 banked; batches 4 to 10 remain
 
 Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
 ```
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
-bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger, by design
-                                          (91 `has NO row` = 126 − 35, nothing else).
+bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus R6's
+                                          recorded red (73 `has NO row` = 126 − 53, nothing else).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 
