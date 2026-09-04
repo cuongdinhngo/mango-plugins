@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **67 of 126** (batches 1-4) — 65 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 65 greens, **64 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
+| Jobs recorded | **86 of 126** (batches 1-5) — 84 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 84 greens, **83 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
 | Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the failures are 59 `has NO row` (exactly 126 − 67) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 67 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the failures are 40 `has NO row` (exactly 126 − 86) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 86 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -261,6 +261,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | 2 | `refine` | 4 | 22 | **460 / 460** | 451s + 296s + 355s + 361s | ✅ **22 green / 0 red** — but one green is vacuous, below |
 | 3 | `design` | 3 | 18 | **344 / 345** | 305s + 333s + 342s | **17 green / 1 red** — R6, and part 00 was re-run after a CLI slip |
 | 4 | `review` | 3 | 14 | **326 / 327** | 90s + 111s + 78s | **13 green / 1 red** — R7. The fastest batch by far: no part exceeded 111s |
+| 5 | `finalise` + `codify` | 4 | 19 | **450 / 450** | 231s + 155s + 256s + 79s | ✅ **19 green / 0 red** — the anchoring rule earned its keep, below |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -275,6 +276,23 @@ full gate's per-job fingerprint. `--verify-suite` reports 113 `has NO row` defec
 — and **zero** fingerprint mismatches among the 13 recorded. Had `job_fp` differed between a batched
 run and the full registration walk, every batch would have been unbankable and the whole change
 worthless.
+
+**Batch 5 — the anchoring rule paid for itself, and the group needed re-deriving.** Two of the 19
+selector names are proper prefixes of a *scenario* label: fixture `ledger-content-gate` sits under
+scenario `ledger-content-gate-marker`, and fixture `ledger-gate` under `ledger-gate-complete`. `--only`
+matches with `grep -qE` and is unanchored, so `--only 'ledger-gate'` would have dispatched a scenario
+into a fixture part and reported success. Anchored `^(a|b|c)$` matched `5 of 126`, `5`, `5` and `4`, the
+four selectors' union diffed **identical** to the group derived from `FIXTURE_SKILLS`, and
+named-but-absent was 0. The group is also 19, not the 17 the discovery pass ran under the same label,
+and **all 19 already existed then** (checked against the discovery ledger's 119 names, none absent) — so
+what moved is the grouping, not the fixture set. That is the case for re-deriving from `FIXTURE_SKILLS`
+each time rather than trusting the plan's own table.
+
+Timings were the most comfortable of any batch: slowest job per part 231s / 155s / 256s / 79s, the worst
+of them 344s inside the 600s ceiling. The archive holds 23 new files across four run directories — 19
+transcripts plus one `IDENTITY.tsv` each — and nothing was read back from it as a verdict. After the
+batch the ledger reduces to 86 jobs, one ruler throughout: 13 fields on every row, one `runner_fp`
+(`43af5e47dbd8`), one plugin tree (`9b199a8b5b77`), CLI 2.1.259 on all 86.
 
 ### The CLI pin was written down and never actually applied
 
@@ -695,7 +713,7 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-4 banked; batches 5 to 10 remain
+### Next — batches 1-5 banked; batches 6 to 10 remain
 
 Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
@@ -703,7 +721,7 @@ Gates on 2026-09-04, under the live machinery `5c877b488793`:
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
 bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus the two
-                                          recorded reds (59 `has NO row` = 126 − 67, nothing else).
+                                          recorded reds (40 `has NO row` = 126 − 86, nothing else).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 
