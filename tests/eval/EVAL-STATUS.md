@@ -106,11 +106,11 @@ correct ruler is the cheaper mistake.
 | **Machinery fingerprint** | `5c877b488793` — names the ledger (49 functions, everything above `suite()`) |
 | Runner fingerprint | `43af5e47dbd8` — forensic only, no longer compared by the gate |
 | Plugin-tree fingerprint | `9b199a8b5b77` |
-| Jobs recorded | **103 of 126** (batches 1-7) — 101 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 101 greens, **100 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
+| Jobs recorded | **112 of 126** (batches 1-8) — 110 green + 2 red (R6 `exclusion-expiry-required`, R7 `evidence-stale-tree-refused`). Of the 110 greens, **109 are proven and 1 is credited on a pass that discriminates nothing** — see the vacuity note |
 | Rows not green | 2 — `exclusion-expiry-required` (R6, 3 of 4) and `evidence-stale-tree-refused` (R7, 4 of 5). R5's red row stands in the superseded ledger `1489839c4721`; under this ruler that job went **green, vacuously** — see below. |
 | Stale greens | 0 |
 | Distinct rulers among rows | 1 |
-| `--verify-suite` | 33/34 — the failures are 23 `has NO row` (exactly 126 − 103) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 103 rows sit at CLI 2.1.259 |
+| `--verify-suite` | 33/34 — the failures are 14 `has NO row` (exactly 126 − 112) plus the two recorded reds, and **no other defect class**: 0 fingerprint mismatches, 0 rows predating per-job identity, 0 different-ruler rows, 0 stale greens. All 112 rows sit at CLI 2.1.259 |
 
 Regenerate with `bash tests/eval/coverage-report.sh --md`. The gate is
 `bash tests/eval/run.sh --verify-suite`, and only its output counts.
@@ -265,6 +265,7 @@ correct HEAD, no work doc, only the named artifact. Four new checks.
 | 5 | `finalise` + `codify` | 4 | 19 | **450 / 450** | 231s + 155s + 256s + 79s | ✅ **19 green / 0 red** — the anchoring rule earned its keep, below |
 | 6 | `execute` + `breakdown` | 2 | 8 | **208 / 208** | 256s + 443s | ✅ **8 green / 0 red** — the isolation batch; and `breakdown` is not the light group it was taken for |
 | 7 | `autorun` | 3 (part 00 as 3 singles) | 9 | **522 / 522** | 152s + 234s + 533s, then 221s + 92s | ✅ **9 green / 0 red** — **the ceiling kill happened**, and the singles falsified the wave model |
+| 8 | `promote` + `solve` | 3 | 9 | **318 / 318** | 40s + 116s + 141s | ✅ **9 green / 0 red** — the fastest batch of the pass; and `greenfield-` turns out not to predict weight |
 
 Assertion counts rose (199 → 231) purely from the 12 new dispatch-free self-tests being counted once
 per part; no job assertion was added.
@@ -345,6 +346,18 @@ One incidental correction, worth recording because it nearly caused a false alar
 for surviving processes used `pgrep -f 'tests/eval/run.sh'` and `pgrep -f 'claude '`, both of which
 **matched the checking script's own command line** and reported a live run plus two stray dispatches.
 There were none. Use a self-excluding pattern (`eval/[r]un.sh`) when checking for eval residue.
+
+**Batch 8 — the fastest batch of the pass, and a heuristic of mine that did not survive contact.**
+Three parts rather than the plan's two: `greenfield-promote-zeros` was given its own dispatch because
+it is the one greenfield-class job in the group and that class had just produced batch 7's 533s worst
+case, so under the new rule it looked like a candidate to run alone. It took **40s**. The prefix means
+*empty-repo baseline*, not *long run* — `greenfield-autorun-clean` is slow because of `autorun`, not
+because of `greenfield`. The caution cost one extra dispatch and bought a correction worth more than
+that: **job name prefixes do not predict latency; only a measured solo time does.**
+
+Everything else was uneventful, which is itself the point after batch 7 — parts of 4 came in at 116s
+and 141s, the whole batch dispatched in 297s across three parts, 318/318 assertions, and the slowest
+single job in the group (`workdoc-solve-autopath`, 141s) sits nowhere near the ceiling.
 
 ### The CLI pin was written down and never actually applied
 
@@ -765,7 +778,7 @@ against **every** archived transcript, not just the one that failed — matching
 right, and still missing where it is wrong. That is what turns "fix the instance" into "close the
 class", and it is free.
 
-### Next — batches 1-7 banked; batches 8 to 10 remain
+### Next — batches 1-8 banked; batches 9 and 10 remain
 
 Gates on 2026-09-04, under the live machinery `5c877b488793`:
 
@@ -773,7 +786,7 @@ Gates on 2026-09-04, under the live machinery `5c877b488793`:
 python3 scripts/validate.py            → 2057 checks run, 0 failed
 python3 tests/envelope/test_envelope.py → 128 tests, OK
 bash tests/eval/run.sh --verify-suite  → 33/34; the one failure is the incomplete ledger plus the two
-                                          recorded reds (23 `has NO row` = 126 − 103, nothing else).
+                                          recorded reds (14 `has NO row` = 126 − 112, nothing else).
                                           33 dispatch-free self-tests now, up from 21.
 ```
 
