@@ -185,9 +185,10 @@ reds over its whole life, of which **zero** were mango behaving wrongly: 12 were
 10 were defects in the eval harness itself, 7 were environment, 1 was a fixture. It never caught a
 cross-skill regression. Over the last 60 days it absorbed 86 commits against 25 to the behaviour
 directories. Every defect it did find was a defect in itself; every defect found in mango's behaviour
-was found by probing real data, by review, or in the field. The reasoning, the 24 harness defects it
-surfaced, and the numbers are kept in [`tests/eval/history/`](./tests/eval/history/) so the decision
-is auditable rather than repeated.
+was found by probing real data, by review, or in the field. The counts above are tabulated in the
+1.16.0 entry of [`plugins/mango/CHANGELOG.md`](./plugins/mango/CHANGELOG.md), and the cycle records and
+harness defects they were read off — every one with the method that found it — are kept in
+[`tests/eval/history/`](./tests/eval/history/), so the decision is auditable rather than repeated.
 
 The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
 CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.

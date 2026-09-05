@@ -46,6 +46,19 @@ two of its six fixtures (`lesson-claim-split`, `greenfield-promote-zeros`) exerc
 **description of a removed subsystem being corrected, not a behaviour change**: both references sit in
 non-directive clauses, and no directive, gate, condition, count or format is altered.
 
+**Two uncitable numbers corrected in the 1.16.0 entry above, and one in the root README.** Editing a
+past entry is recorded here rather than done silently, because this file is the neutral source a retro
+reads. (a) The table row *"Lines shipped 1.15.0 → 1.18.0: eval vs mango | 5,706 vs 0"* named a range
+this repository cannot measure — `eval/cycle-3-machinery` was never merged and carries no ref here — and
+the entry's own version note said those numbers were not cited. It now states the range that **is**
+measurable on `main`: `+2,322 / −5,897` across 119 files under `tests/eval/` against `+6 / −5` in 1 file
+across the behaviour directories, between `df45512` (1.15.0) and `c71594d` (1.16.0). (b) *"24 findings"*
+had no method written down, which `EVAL-FINDINGS.md`'s own standard rejects — *"a count with no method is
+an assertion, not a finding"* — and could not be reproduced from the directory it cited. Both the table
+row and the root README now point at the record instead of asserting a total. The README also attributes
+the retirement counts to the 1.16.0 CHANGELOG table, where they are actually tabulated, rather than to
+`tests/eval/history/`, which holds the underlying cycle records they were read off.
+
 **Known, deliberately not fixed here.** `PRINCIPLES.md` and six files under `principles/`
 (`authoring`, `descriptive-normative`, `frontend-track`, `git-isolation`, `refine`, `token-cost`) name
 `scripts/validate.py`, which a user does not receive. Each is a maintainer-facing statement about
@@ -69,8 +82,8 @@ no change: the eval is not part of the installed plugin package.**
 | …fixture | 1 |
 | Cross-skill regressions ever caught | 0 |
 | Commits in the last 60 days: `tests/eval/` vs the behaviour directories | 86 vs 25 |
-| Lines shipped 1.15.0 → 1.18.0: eval vs mango | 5,706 vs 0 |
-| Harness defects the suite produced about itself | 24 findings, including 3 classes of false green |
+| Lines changed 1.15.0 → 1.16.0 on `main`: `tests/eval/` vs the behaviour directories | +2,322 / −5,897 across 119 files vs +6 / −5 in 1 file |
+| Harness defects the suite produced about itself | recorded in `tests/eval/history/EVAL-FINDINGS.md`, including 3 classes of false green |
 | Lifetime dispatches (floor) | ≈525, ≈$290, 12 rulers for 126 jobs |
 
 Every defect the suite found was a defect **in the suite**. Every defect found in mango's behaviour
@@ -147,9 +160,9 @@ proven non-vacuous. The result and its date are recorded in `tests/eval/README.m
 stored **one** result between v1.7.6 and v1.16.0 and that gap is why four assertions shipped having
 never run.
 
-**Note on version numbering.** `eval/cycle-3-machinery` carries 1.17.0 and 1.18.0, both eval-only
-releases that were never merged. This version is 1.16.0 off `main`; those numbers do not appear in
-this file and the branch is not carried over.
+**Note on version numbering.** `eval/cycle-3-machinery` carried 1.17.0 and 1.18.0, both eval-only
+releases that were never merged. This version is 1.16.0 off `main`; that branch is not carried over and
+its numbers are not cited here — every count in the table above is measured on `main`.
 
 ## [1.15.1] — 2026-09-03
 
