@@ -5,6 +5,37 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.16.1] — 2026-09-05
+
+**Patch: metadata and documentation only. No skill, agent, principle, template, script or config
+changed — mango behaves exactly as it did in 1.16.0.** Prepares the plugin for submission to the
+Claude Code community marketplace.
+
+**`plugin.json`.** The `description` was 3,149 characters — a README section sitting in the field a
+plugin manager renders in a listing. It is now one 231-character sentence naming what mango does, that
+it stops for a human, and that it needs configuration before it runs. Nothing was lost: every topic the
+long text covered is already carried, at length, by the shipped `README.md`, so the prose was dropped
+rather than relocated. `homepage` and `repository` are added (both strings, per the manifest schema).
+`keywords`, `author`, `license` and `displayName` are unchanged.
+
+**The README no longer describes files a user does not receive.** The installed plugin is
+`plugins/mango/`; `scripts/validate.py` and `tests/eval/` live at the repository root and are not
+shipped. The *Contributing* section named both as if the reader had them and now points at
+`CONTRIBUTING.md` in the source repository instead. The *Skills are directive-only* paragraph cited the
+validator as the enforcement mechanism; it now states the rule itself — a `SKILL.md` may not reference
+`RATIONALE.md`, because that would put the why back on the path every ticket run pays for. The envelope
+section no longer claims a test suite (`tests/envelope/`) that ships with the repository and not with
+the plugin.
+
+**Onboarding cost is stated near the top of the README.** mango is not install-and-go: it needs a
+per-project `.harness.json`, `/mango:init`, and a read-back of every value `init` marked `UNVERIFIED`.
+A user who learns that after installing is a user who uninstalls.
+
+**Known, deliberately not fixed here.** `PRINCIPLES.md` and six files under `principles/` name
+`scripts/validate.py`, and `principles/learning-loop.md` still refers to "the behavioural eval" retired
+in 1.16.0. Every one is a shipped principle, and a principle is behaviour — editing one is not a patch.
+They are recorded here so the next minor closes them rather than rediscovering them.
+
 ## [1.16.0] — 2026-09-05
 
 **Minor: nothing inside the plugin changed — no skill, agent, principle, template, script or config.

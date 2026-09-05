@@ -122,6 +122,21 @@ For a fresh fork or a new marketplace of your own:
 3. `git push -u origin main`
 4. Users install with `/plugin marketplace add <user>/<repo>` then `/plugin install mango@<repo>`.
 
+### `main` is the release channel
+
+**`main` is the release channel.** Once mango is listed in the community marketplace, the catalog pins a
+commit SHA and CI advances that pin on every push. Anything merged to `main` reaches users without
+further review. Merge only when `main` is in a shippable state. The nightly catalog sync delays when a
+commit *appears*; it is not a second review gate.
+
+This **replaces** the bar that left with the behavioural eval suite in 1.16.0 — *"never push a version
+whose eval is not green"*. That rule worked because a suite stood between `main` and a release. With no
+suite, and with the pin advancing on every push, the shippable-state judgement moves to the merge
+itself: the deterministic gates (`python3 scripts/validate.py`, `python3 tests/envelope/test_envelope.py`,
+`claude plugin validate ./plugins/mango --strict`) must be green on the commit you merge, and the
+per-skill smoke guard must have been run for any skill the change edited. The reason the old rule
+existed — *nothing reaches a user unproven* — is unchanged; only the place it is enforced has moved.
+
 ### Release checklist
 
 Every release touches four places. Only the first two are validator-enforced, so the last two are the
@@ -131,8 +146,11 @@ ones that silently go stale — check them by hand:
 2. **`plugins/mango/CHANGELOG.md`** — add a `## [<version>]` entry. It ships *inside* the plugin,
    alongside `plugin.json` / `README.md`; `scripts/validate.py` fails if the entry is missing.
 3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
-   enforced, and it is the *only* place the version appears in that README, so nothing else
-   contradicts it when it drifts. It has silently sat two versions behind before.
+   enforced, and it is the only place the README states the *current* version, so nothing else
+   contradicts it when it drifts. (Other version numbers do appear in that README — 1.16.0 in the
+   *Maturity* section, 1.14.0 in the API-stability note — but each names the release a past change
+   shipped in and is not a current-version claim. Do not bump those.) It has silently sat two versions
+   behind before.
 4. **Root `README.md` → *Maturity*** — the "Field-proven on…" claims. Partly enforced since 1.16.0:
    `validate_readme_eval_claim` checks the guard's fixture count against `tests/eval/fixtures/` and
    that the README says plainly that mango has no behavioural regression suite. The rest carries no

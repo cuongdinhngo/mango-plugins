@@ -11,6 +11,13 @@ Trust comes from emitted, counted, gate-blocking artifacts — not prose. mango 
 descriptive and facilitates the normative, but **never authors the normative** — the rules stay your
 team's decision. No secrets ship: tokens live only in a gitignored `.env`.
 
+**mango is not install-and-go.** Installing the plugin gives you the machinery and no rules, so before
+the first ticket runs you set the project up: create a per-project `.harness.json` (run `/mango:init`,
+which detects what it can and interviews you for the rest), then read back every value it marked
+`UNVERIFIED` and confirm or correct it — `init` marks a guess as a guess rather than presenting it as
+fact. Budget a short session for that, once per repo. Until `.harness.json` exists, every skill stops
+and tells you to create one.
+
 ## Quickstart
 
 ```
@@ -193,8 +200,7 @@ re-typed into the correct form. `j > 0` stops the run: a clarification for human
 something to guess at 03:00. **Stopping is not dying** — every part that does not depend on the answer
 is finished first, and the open question is stated for the morning.
 
-Three envelope artifacts, built as scripts under `plugins/mango/scripts/` with their own test suite
-(`tests/envelope/`):
+Three envelope artifacts, built as scripts under `plugins/mango/scripts/`:
 
 | Artifact | What it is |
 |---|---|
@@ -300,8 +306,9 @@ Skill text is runtime-loaded and **is** behaviour (prose-IS-behaviour), so every
 is paid on every ticket run. A skill therefore carries **directives only** — no rationale, no "observed
 failure" war-stories, no historical justification. When a lesson motivates a rule, the **rule** goes in
 the skill and the **reason** goes in [`CHANGELOG.md`](./CHANGELOG.md), with the incident recorded in
-[`RATIONALE.md`](./RATIONALE.md) — a file **no skill loads at runtime**. Enforced by
-`scripts/validate.py`; see [`PRINCIPLES.md`](./PRINCIPLES.md) → *Skills are directive-only*.
+[`RATIONALE.md`](./RATIONALE.md) — a file **no skill loads at runtime**, and which **no `SKILL.md`
+may reference**, because a reference would put the why back on the path every ticket run pays for. See
+[`PRINCIPLES.md`](./PRINCIPLES.md) → *Skills are directive-only*.
 
 The four binding principles are in [`PRINCIPLES.md`](./PRINCIPLES.md): think before coding, simplicity
 first, surgical changes, goal-driven execution. Per-version changes are recorded in the shipped
@@ -561,9 +568,6 @@ toggle. `budget` detects and informs, never self-administers.
 
 ## Contributing
 
-`scripts/validate.py` is the cheap, always-on guard. `tests/eval/` is **not** a behavioural
-regression suite — mango has none. It is a per-skill smoke guard of six fixtures that drives
-`claude -p` over a fixture ticket inside a throwaway clone, with a post-run guard that asserts the
-live checkout is untouched. It answers "did the skill I just edited still behave?" and not "is mango
-green?"; it does not detect cross-skill regressions, and `RETIRE:` is uncovered. Both are documented
-in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+mango's own test tooling lives in the source repository, not in the installed plugin. To see how the
+skills are guarded, read `CONTRIBUTING.md` at
+[github.com/cuongdinhngo/mango-plugins](https://github.com/cuongdinhngo/mango-plugins).
