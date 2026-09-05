@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.15.1-blue)
+![version](https://img.shields.io/badge/version-1.16.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -173,21 +173,22 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 ## Maturity
 
 Field-proven on multiple real projects across several stacks, including a large-scale production
-codebase, with a behavioural eval suite — one fixture per behaviour, 119 of them — and
-fault-injection-tested escalation paths. **Every release is gated by `validate.py` and the
-dispatch-free script suites**, both run in CI on every push; the behavioural suite is a
-**milestone** gate.
+codebase, with fault-injection-tested escalation paths. **Every release is gated by `validate.py` and
+the dispatch-free script suites**, both run in CI on every push.
 
-**The last milestone, and what it found.** The 1.14.0 milestone returned **543/552**, and none of the
-nine failures was a behavioural regression: all three causes were defects in the *eval harness itself*
-— `grep` parsing an option-shaped assertion regex as an option (a silent green on the absent side, and
-four assertions unpassable since the day they shipped), a worker never resetting its clone between jobs
-(so one job's residue falsified the next job's premise), and wording tokens that missed a correct run's
-paraphrase. All three are fixed, each with a paired non-vacuity self-test, and the affected fixtures
-were re-proven on their own — including `greenfield-promote-zeros` at 6/6 while running **seventh of
-eight jobs in a single shared clone**, immediately after a job that writes the lessons file, the exact
-adjacency that produced the original failure. `validate.py` (2051 checks), the harness script suite
-(128 tests) and the dispatch-free self-tests are green at HEAD.
+**mango has no behavioural regression suite.** It has a per-skill smoke guard of 6 fixtures, run when
+a skill is edited: it reports that those fixtures passed just now, and nothing more. Two limits are
+stated rather than left to be discovered — it does **not** detect cross-skill regressions (editing
+`design` and breaking `finalise` is not caught), and the `RETIRE:` counted line is uncovered.
+
+**Why the suite was retired (1.16.0).** The 126-job behavioural suite that preceded it produced 30
+reds over its whole life, of which **zero** were mango behaving wrongly: 12 were assertion wording,
+10 were defects in the eval harness itself, 7 were environment, 1 was a fixture. It never caught a
+cross-skill regression. Over the last 60 days it absorbed 86 commits against 25 to the behaviour
+directories. Every defect it did find was a defect in itself; every defect found in mango's behaviour
+was found by probing real data, by review, or in the field. The reasoning, the 24 harness defects it
+surfaced, and the numbers are kept in [`tests/eval/history/`](./tests/eval/history/) so the decision
+is auditable rather than repeated.
 
 The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
 CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.
@@ -240,7 +241,7 @@ Per-phase maturity (Stable / Experimental) is tracked in
 
 ## Contributing
 
-Validating, running the behavioural eval, and publishing are covered in
+Validating, running the smoke guard, and publishing are covered in
 [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 One standing rule if you edit a skill: **skills are directive-only.** Skill text is runtime-loaded and

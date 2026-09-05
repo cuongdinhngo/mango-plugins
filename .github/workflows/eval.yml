@@ -1,12 +1,20 @@
-name: eval
+name: smoke-guard
 
-# Behavioural eval — the REAL behavioural check (costs tokens, calls the model).
-# Manual only; the always-on cheap guard is scripts/validate.py in validate.yml.
+# Per-skill behavioural smoke guard — six fixtures, ~6 dispatches, ~$3. It costs tokens and calls
+# the model, so it is manual only. The always-on cheap guard is scripts/validate.py in validate.yml.
+#
+# This is NOT a regression suite. It reports that these six fixtures passed just now; it does not
+# detect cross-skill regressions. See tests/eval/README.md for the two stated limits.
 on:
   workflow_dispatch:
+    inputs:
+      only:
+        description: 'Anchored fixture selector, e.g. ^(multi-clause-want)$ — empty runs all six'
+        required: false
+        default: ''
 
 jobs:
-  eval:
+  guard:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +25,9 @@ jobs:
       # Same single code path as a local run: run.sh's guard accepts EITHER an
       # ANTHROPIC_API_KEY (used here, from the secret) OR an OAuth/subscription
       # login (used locally). No CI-only branch. run.sh self-scaffolds and cleans up.
-      - name: Run behavioural eval
+      - name: Run the smoke guard
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: bash tests/eval/run.sh
+          ONLY: ${{ inputs.only }}
+        run: |
+          if [ -n "$ONLY" ]; then bash tests/eval/run.sh --only "$ONLY"; else bash tests/eval/run.sh; fi

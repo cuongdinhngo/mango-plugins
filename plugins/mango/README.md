@@ -561,7 +561,9 @@ toggle. `budget` detects and informs, never self-administers.
 
 ## Contributing
 
-`scripts/validate.py` is the cheap, always-on guard; `tests/eval/` is the behavioural eval that drives
-`claude -p` over fixture tickets — each fixture inside a throwaway clone, with a post-run guard that
-asserts the live checkout is untouched. Both are documented in
-[CONTRIBUTING.md](../../CONTRIBUTING.md).
+`scripts/validate.py` is the cheap, always-on guard. `tests/eval/` is **not** a behavioural
+regression suite — mango has none. It is a per-skill smoke guard of six fixtures that drives
+`claude -p` over a fixture ticket inside a throwaway clone, with a post-run guard that asserts the
+live checkout is untouched. It answers "did the skill I just edited still behave?" and not "is mango
+green?"; it does not detect cross-skill regressions, and `RETIRE:` is uncovered. Both are documented
+in [CONTRIBUTING.md](../../CONTRIBUTING.md).

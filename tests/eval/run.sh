@@ -1,336 +1,124 @@
 #!/usr/bin/env bash
-# Behavioural eval for the mango skills. This is the REAL behavioural check —
-# the contract checks in scripts/validate.py are the cheap, always-on guard.
+# Per-skill behavioural smoke guard for the mango skills.
 #
-# For each fixture ticket it runs `claude -p` headless against the SHIPPED mango
-# skills and asserts the transcript contains the expected load-bearing artifacts.
+# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: six
+# fixtures, run when a skill is edited, answering one question — "does the skill I just edited still
+# behave?" It does NOT answer "is mango green?", and nothing here should be read as though it did.
 #
-# Runnable by anyone, hands-free: one command, no manual scaffolding.
-#   bash tests/eval/run.sh
-# Auth is mechanism-agnostic — it works with EITHER an exported ANTHROPIC_API_KEY
-# OR an OAuth/subscription login (`claude /login`); it checks the *capability* to
-# run `claude -p`, not a specific credential. The script sets up its own throwaway
-# environment (an isolated local clone + a temp .harness.json + a minimal rulebook)
-# so the skills execute end-to-end without depending on the operator's setup, and
-# tears it all down on exit — the live checkout is never mutated.
+# The 126-job suite this replaces was retired in v1.16.0. Over its whole life it produced 30 reds,
+# of which ZERO were mango behaving wrongly (12 assertion wording, 10 harness defects, 7 environment,
+# 1 fixture), and it never once caught a cross-skill regression. The reasoning, the 24 harness
+# defects it did find, and the numbers behind the decision are in tests/eval/history/.
 #
-# This costs tokens — it is gated behind workflow_dispatch in CI, not run on push.
+# TWO STATED LIMITS, so they are not discovered later:
+#   * NO CROSS-SKILL REGRESSION DETECTION. Editing `design` and breaking `finalise` is not caught
+#     here. Accepted because it never once happened in this repo's recorded history.
+#   * `RETIRE:` IS UNCOVERED. It has no assertion here — and it had none in the 511 the old suite
+#     carried either. `promote` emits it at the ratify step; the promote fixture kept below is the
+#     zero case, which by construction never reaches a ratify.
 #
-# --- How the runner works: PARALLEL DISPATCH over a TWO-PASS suite --------------
-# The suite is 100% `claude -p` latency (harness overhead is ~0.03%), so wall-time
-# comes from dispatching concurrently — not from cutting fixtures. `suite()` below
-# therefore runs TWICE over the SAME code, so a prompt can never drift from the
-# assertions that judge it:
-#   pass 1  PHASE=collect — every run_fixture/run_prompt REGISTERS a dispatch job
-#                           (name, prompt, and the .harness.json test_command in
-#                           force at that point); every assert_* is a no-op.
-#   dispatch                — the registered jobs run CONCURRENTLY across
-#                           --workers N workers, each in its OWN throwaway clone.
-#   pass 2  PHASE=assert  — every run_fixture/run_prompt resolves the transcript
-#                           the dispatch produced; every assert_* judges it.
-# Assertion OUTPUT stays in script order (the assert pass is sequential), so a
-# parallel run reads exactly like a sequential one.
+# The always-on, dispatch-free guards are elsewhere and are unaffected: scripts/validate.py (shipped
+# contract text), plugins/mango/scripts/check_lines.py (counted lines), tests/envelope/.
 #
-#   bash tests/eval/run.sh                   # default workers (safe), cache on
-#   bash tests/eval/run.sh --workers 8       # milestone speed
-#   bash tests/eval/run.sh --workers 1       # sequential — debugging
-#   bash tests/eval/run.sh --only refine-    # one batch: affected fixtures only (PARTIAL, but it RECORDS
-#                                            # what it proved and mints those fixtures' cache entries)
-#   bash tests/eval/run.sh --verify-suite    # the milestone bar: prove every job green under one ruler.
-#                                            # No dispatch, no cost — it reads the coverage ledger the
-#                                            # runs above wrote. This is what makes N batches add up to
-#                                            # one full pass instead of a claim that they did.
+# HOW TO RUN IT. Hands-free: one command, no manual scaffolding.
+#   bash tests/eval/run.sh                       # all six  (~6 dispatches)
+#   bash tests/eval/run.sh --only '^(a|b)$'      # the fixtures mapped to the skill you edited
+#   bash tests/eval/run.sh --workers 1           # sequential — debugging one transcript
+#   bash tests/eval/run.sh --no-cache            # full fresh run: nothing is reused
 #
-# PER-WORKER ISOLATION IS MANDATORY, for two reasons that are structural, not
-# stylistic: (a) fixtures that let `execute` branch and commit would race inside
-# one shared clone, and (b) the red-baseline fixture repoints config.test_command,
-# which under concurrency would flip .harness.json under other in-flight
-# dispatches. Each worker gets its own clone AND writes its own per-JOB harness,
-# so neither can happen; the worker tree is disposed after its last job and the
-# disposal is a counted assertion, alongside the existing live-checkout guard.
-# Concurrency is a SCHEDULING change only: same fixtures, same assertions, same counts.
+# ALWAYS ANCHOR AN --only SELECTOR. `--only refine` once matched a scenario inside a fixture name and
+# reported success on a job nobody meant to run. Write `^(name-a|name-b)$`.
 #
-# Coverage:
-#   analysis        — SECTIONS count line + Gate 1 stop (full); TIER: lite (lite);
-#                     freeform synthesis + Gate 0 confirmation (freeform).
-#   design          — proof at the risk layer: an integration-layer AC with a UNIT
-#                     proving test must mark the verification-plan layer-match ❌ and
-#                     demand an integration/e2e proof (design-layer). test blast-radius: a
-#                     change that alters a string an existing assertion checks must list
-#                     that test file in the Gate-2 change list as proof collateral (blast-radius).
-#   challenger      — ticket-blind, catches an unmet AC as "not met" with path:line
-#                     (challenger-unmet).
-#   frontend track  — T2 layer-match: a frontend AC "no horizontal overflow @320 px" whose
-#                     proposed proof is a UNIT test must be layer-match ❌ and BLOCK Gate 2,
-#                     demanding an automated-UI render or a recorded exclusion (frontend-layer);
-#                     the review rubric FLAGS a hover-only / mouse-only handler (rubric-hover).
-#   surface coverage— a universal frontend AC where the sitemap shows N reachable surfaces but the
-#                     proof covers only some reads `surfaces proven: k/N` (k<N) and BLOCKS Gate 2
-#                     (surface-denominator); a frontend AC with NO runner yields a tier-2
-#                     PASS(render@<bp>), not a silent skip or auto-exclusion (no-runner-proof).
-#   per-clause      — a multi-clause M-gate (M4 = size AND spacing) whose proof asserts only the
-#                     size clause marks the spacing clause unproven and BLOCKS Gate 2; a proof
-#                     asserting BOTH clauses passes (per-clause).
-#   format-scope    — execute runs the project's formatter ONLY on the files this change authored/
-#                     edited, never a wholesale reformat of a shared/pre-existing file; whole-file
-#                     conformance is a separate concern (CI / a chore ticket) (format-scope).
-#   execute/solve   — design-invalidated escalation (STOP + re-open Gate 2) and the
-#                     stuck-detector (STOP + escalate at the threshold), as scenarios.
-#   stale-review    — the mechanical finalise stale guard (file-set, never commit-count): a
-#                     working-doc/marker-only bump must PROCEED (no dead-lock, stale-workdoc-bump);
-#                     a source file changed beyond the reviewed set must REFUSE + route back to
-#                     review and resist a bare "go" (stale-source-change).
-#   behavioural-drift — execute's design-conformance self-check (scope discipline on BOTH axes): an
-#                     approach implemented differently from the approved Gate-2 bullet must be RECORDED
-#                     as a deviation even when every touched file is in the change-list (clean file
-#                     diff), not swept clean (behavioural-drift).
-#   vague-requirement — Gate-1 falsifiability: a vaguely-worded AC must be pinned to a measurable or
-#                     logged as a manual-check exclusion, and may NOT carry a bare ✅ (vague-requirement).
-#   red-baseline    — baseline vocabulary against a GENUINELY red command (config.test_command points at
-#                     a committed pre-existing failing check for this fixture only): analysis MEASURES
-#                     baseline: red by running it (a failing-item detail present only in the command
-#                     output, never the ticket, must appear), the DoD becomes delta-green, and the
-#                     pre-existing failure is a recorded exclusion — neither blocks forever nor silently
-#                     passes (red-baseline).
-#   conditional-LGTM — a round-1 CHANGES REQUESTED with a conditional LGTM leads to a verify-only
-#                     re-review (named-fix check + regression scan), not a full re-derivation, and the
-#                     challenger is not re-run unless a fix changed scope (conditional-LGTM).
-#   budget (v1.3)   — cost ledger is descriptive: a run records a per-phase/per-subagent cost block and
-#                     finalise surfaces a summary, without auto-cutting anything (ledger-descriptive);
-#                     with rtk: expect but RTK absent the run completes identically — nothing fails or
-#                     changes a decision (rtk-degrade); with caveman enabled, critic output still carries
-#                     path:line evidence and terse critic output is forbidden (caveman-critic-guard);
-#                     enabling an optimizer lands in .harness.json token_optimizer as a recorded
-#                     provisional decision, never a silent toggle, and budget installs nothing
-#                     (optimizer-adoption-gated).
-#   ledger truth (v1.4) — the ledger is emitted MECHANICALLY: one row per dispatch return (N dispatches
-#                     → N rows), not narrated bookkeeping (ledger-auto-append); it measures subagent
-#                     dispatch ONLY and refuses to fabricate a dispatch-vs-noise split, pointing at the
-#                     optimizer's own analytics (rtk gain) for the noise side (ledger-dispatch-only-honesty);
-#                     a conditional-LGTM verify-only round REUSES round-1 facts and re-runs only the
-#                     affected proof — never a blanket suite re-run or re-derivation (verify-only-scoped);
-#                     the Tokens column is labelled plainly (no false-precision "(out)" over an unsplit
-#                     figure) (ledger-label); and with RTK present-but-unwired, budget PRINTS the wiring
-#                     command + a "you run this, not mango" note and administers nothing (budget-rtk-wire-guidance).
-#   v1.5            — the ledger's teeth: finalise runs a dispatch-count check and BLOCKS if the ledger has
-#                     fewer rows than the run's dispatch count (a completeness check, like an unfilled matrix
-#                     column), a complete ledger proceeds (ledger-gate); the conditional-LGTM verify-only round
-#                     is main-loop-by-default — an in-scope round verifies in the main loop with NO re-dispatch,
-#                     and a scope-changing fix is the only re-dispatch trigger (verify-only-main-loop); a standard
-#                     applied at a gate with NO codified rule is SURFACED as an uncodified-standard item into
-#                     codify's provisional→ratify flow, never silently enforced or ignored (uncodified-standard-nudge).
-#   v1.6            — honest ledger + 2 small fixes: finalise's ledger gate is a CONTENT-completeness check — a
-#                     ledger with all rows present but a BLANK token cell BLOCKS like an unfilled matrix column
-#                     (injected, the first non-vacuous test of the teeth), a value-or-marker in every cell proceeds
-#                     (ledger-content-gate); a dispatch retrieved by BLOCKING (no <usage> block) gets its tokens
-#                     recovered OR its cell marked the explicit `unmeasured (blocking retrieval)`, never a silent
-#                     blank or an invented number (usage-unmeasured-marker); the verify-only re-dispatch trigger has
-#                     a docs/bookkeeping CARVE-OUT reusing finalise's staleness exemption set — a fix touching only
-#                     exempt bookkeeping files (working doc / lessons_path / drift-list) stays main-loop, a non-exempt
-#                     out-of-scope fix still re-dispatches (verify-only-bookkeeping-carveout); and the durable lesson
-#                     must land on a SHARED/PUSHED ref (branch-push or a per-action "push bookkeeping"), not an
-#                     orphaned local-only branch (finalise-lesson-pushed).
-#   v1.6.1          — eval isolation + token: a post-run SAFETY guard asserts the LIVE checkout is
-#                     untouched after the whole eval (HEAD on main, no stray *PROJ-* branch, no
-#                     docs/tickets/*.work.md / docs/EVAL_RULES.md) and is proven NON-VACUOUS against an
-#                     injected leak in a throwaway repo (eval-isolation-guard); mango emits only the
-#                     CHANGED portion of an artifact into the response on a partial update ("ledger
-#                     unchanged except row N") while the full artifact stays COMPLETE on disk and the
-#                     v1.6 content-completeness gate still passes (artifact-delta-emission).
-#   refine (v1.7.0) — the new Phase-0 refine phase + epic-path breakdown: a clear, convention-covered
-#                     ticket → refine SELF-SKIPS ("0 unresolved product-decisions") and hands to analysis
-#                     without fabricating a want-decision (refine-skip-clear-ticket); a raw ticket carrying
-#                     both kinds has the how-decision (HOW) resolved-with-citation not asked and the
-#                     want-decision (WANT) asked in want-language, the self-check catching a
-#                     convention-answerable question as a how-decision (refine-classify-A-vs-B); a
-#                     handed-back want-decision ("your call") is marked ASSUMED (awaiting ratification) and
-#                     surfaced at a later gate, never silent-adopted, with the tripwire firing on a
-#                     prior-decision reversal (refine-assumed-on-handback); refine stops at the solution
-#                     DIRECTION (wrap vs rebuild) and does NOT pin a tool — that is analysis's job
-#                     (refine-direction-not-tool); an epic input is DETECTED and routed to the epic path,
-#                     breakdown emitting a counted ticket list + per-ticket INVEST self-check,
-#                     human-approved before any ticket executes (refine-epic-detect-breakdown); the
-#                     completeness-of-exposure backstop is the ticket-blind challenger as an
-#                     exposure-checker with 1 dispatch that can surface an un-exposed decision — NOT a
-#                     multi-advisor debate (refine-backstop-challenger).
-#   v1.7.2          — epic-path exposure-checker + enumerated INVEST + design blast-radius trace-to-real-
-#                     producers: on the EPIC path refine dispatches the SAME 1-dispatch ticket-blind
-#                     exposure-checker (before breakdown, not a debate) that can surface an un-exposed
-#                     decision — the epic path is not the one path that skips the backstop
-#                     (epic-exposure-checker); breakdown's per-ticket INVEST self-check is ENUMERATED
-#                     across all six letters (not a one-liner) and a ticket failing a letter (not Small)
-#                     is flagged for re-split before ratification (breakdown-invest-enumerated); design's
-#                     blast-radius traces to REAL producers/consumers — a shared-type change enumerates
-#                     every test root + type factories + typecheck and a shallow src-only grep missing a
-#                     factory root is a finding (design-blastradius-shared-type), a value threaded to a
-#                     builder enumerates every builder call site not just the owning surface
-#                     (design-blastradius-value-threading).
-#   v1.7.1          — refine classifier tie-breaker + ASSUMED enforcement + analysis section coverage
-#                     (buckets renamed to English want-decision/how-decision): an acceptance-BAR decision
-#                     (what counts as a valid source anchor / a sourcing standard) is a WANT-decision by
-#                     default even when it looks derivable — filed as want-decision/ASSUMED not a silent
-#                     cited how-decision, and an UNCITED how-decision resolution is itself a finding
-#                     (refine-acceptance-bar-is-want); a scope/consistency question answerable from a
-#                     documented shared recipe is resolved-by-citation as a how-decision, NOT asked as an
-#                     open want-decision (refine-consistency-is-how); a handed-back want-decision must
-#                     carry the mandatory ASSUMED tag and be ratified only by an EXPLICIT next-gate confirm
-#                     — settled prose is a finding (refine-assumed-on-handback, extended); and analysis's
-#                     rule-compliance step ENUMERATES the applicable rulebook sections by change type — a
-#                     migration makes the DB-conventions section mandatory (grants/soft-delete) and
-#                     omitting an applicable section is a finding (analysis-section-coverage).
-#   v1.7.3          — breakdown re-ratification + epic scaffold commit-before-child + INVEST force-re-split
-#                     + eval transcript-cache: after a ratified split, an injected ticket-addition /
-#                     ratified-decision reversal → breakdown surfaces the delta + requires explicit human
-#                     re-approve, never a silent ride-in on a child Gate 1 (breakdown-reratify); an epic
-#                     path commits the scaffold (stubs + BACKLOG) to a shared ref BEFORE any child branch,
-#                     so a child edit reads as an edit of a committed file, not net-new
-#                     (epic-scaffold-committed); an injected oversized ticket (bundles 4 deliverables →
-#                     fails Small) is FLAGGED and DRIVEN to re-split before the gate while a right-sized
-#                     control is not split (invest-force-resplit); and the runner's transcript-cache
-#                     (keyed on fixture-id + skills-hash) reuses a fixture's last GREEN transcript when its
-#                     skills are provably unchanged (cache-hit, no dispatch), runs fresh on any change or
-#                     uncertainty (fail-safe to run), and --no-cache forces a full fresh run — proven by a
-#                     cheap runner self-test (hash-match → skip; hash-change → run; --no-cache → all run).
-#   v1.7.4          — review-phase git isolation + maturity labels + work_doc_mode guidance: a review
-#                     subagent inspecting a branch uses ref-based git (git diff/show/log <base>..<branch>)
-#                     or an isolated git worktree and MUST NOT run stateful git (checkout/switch/stash) in
-#                     the SHARED working tree — the shared HEAD stays put and an injected shared-cwd
-#                     checkout is flagged, not performed (review-git-isolation; same class as the v1.6.1
-#                     eval-isolation fix, review surface). The maturity relabel (Stable/Experimental,
-#                     zero v1-learning / n=1 / n=2 in shipped text) and the committed-stub → work_doc_mode
-#                     separate guidance are locked at the validator level (scripts/validate.py).
-#   v1.7.5          — validator false-green + worktree env-parity + gathered fixes: validate.py's
-#                     zero-jargon grep is proven NON-VACUOUS by a free, dispatch-less self-test — a
-#                     banned phrase (`v1 — …` / `enough to run and learn` / `n=1` / `v1-learning`)
-#                     injected into a shipped operational file (including the repo-root README, which
-#                     v1.7.4's scan scope omitted) makes validate.py FAIL, and removing it restores
-#                     green (validator jargon-guard self-test); a review subagent that runs a suite in a
-#                     FRESH worktree with no untracked env and sees a NEAR-TOTAL failure classifies it as
-#                     an ENV-FAULT — never a finding or a regression — carries the env in (or runs in
-#                     place at the reviewed SHA), while a partial targeted failure is still a real
-#                     finding (worktree-env-fault); execute COMMITS the change-set before dispatching
-#                     review and an empty base..branch range triggers the `git diff HEAD` +
-#                     `git status --porcelain -uall` fallback instead of a false "no changes"
-#                     (execute-commit-before-review); a committed scaffold stub routes to
-#                     work_doc_mode `separate` at solve's auto-path (workdoc-solve-autopath); an epic
-#                     ends at breakdown, so BREAKDOWN writes the epic's durable lesson to lessons_path
-#                     with an `EPIC LESSON:` counting line (epic-lesson-capture); codify emits its drift
-#                     count as the prefixed `DRIFT: <n> entries | <m> tickets` line rather than prose
-#                     (codify-drift-count); and a 2-clause ratified want-decision becomes TWO matrix +
-#                     proof rows at Gate 1, the injected single-row ✅ certification being flagged
-#                     (multi-clause-want).
-#   v1.9.0          — the LEARNING LOOP, end to end. One bundled lesson splits into FOUR atomic claims,
-#                     each classified by type as a PROPOSAL the human confirms (lesson-claim-split).
-#                     Advisory recall fires on the right key and only on it: type 1 on a matching SYMBOL
-#                     and not on a non-matching one (recall-symbol-type1), type 5 by AREA while the
-#                     symbol-keyed claim stays silent on a ticket naming no symbol (recall-area-type5),
-#                     type 6 by the finding about to be re-raised, carrying its expiry and closing
-#                     nothing (recall-type6-expiry), and a `retired:` claim is SKIPPED while its
-#                     superseder surfaces, the record kept and nothing auto-retired
-#                     (recall-retired-skipped). Dedup flags a twice-seen claim and lets a measured claim
-#                     REPLACE an inferred one, retiring it without deleting it
-#                     (recurrence-supersession). The decisive gate: the MOST-repeated claim is the FALSE
-#                     one and is BLOCKED from promotion, as is a claim with no cheap check, with the
-#                     gate sitting IN FRONT of the ratification gate (falsify-blocks-promotion) — and
-#                     the same gate PASSES a recurring, still-true, cheaply-checkable claim, which is
-#                     still not in effect until the human ratifies it (falsify-true-claim-promotes, the
-#                     non-vacuous control). Promotion PROPOSES only: nothing is written before an
-#                     explicit per-claim ratify, a type-3 skill-gap is a project SIGNAL that edits no
-#                     mango skill, and a PROCESS heuristic goes to the project agent brief rather than
-#                     the code rule book (promotion-human-gated). A ratified rule lands in
-#                     rulebook_path, is never copied into CLAUDE.md, and is not done until doctor is
-#                     green on the pointer init already wrote (promotion-rulebook-wiring). Every
-#                     destination is inside the PROJECT repo, an unset key is surfaced rather than
-#                     redirected, and nothing is carried home (loop-project-local).
-#   v1.8.0          — PREMISE-FALSIFIED preflight + the runner's own parallel/assertion guards: a ticket
-#                     whose referenced-as-EXISTING sources do not resolve in the checkout makes refine
-#                     emit `PREMISE FALSIFIED` with the missing refs and STOP for the human BEFORE any
-#                     archaeology — no rename hunt, no history reconstruction (premise-falsified); the
-#                     same check must NOT fire when every named path is framed as TO BE CREATED, which
-#                     would block every net-new ticket (premise-to-be-created, the negative control);
-#                     plus two dispatch-free guards on the runner itself — the assertion-convention
-#                     self-test (each widened token must match the correct wording that used to fail AND
-#                     still miss the wrong behaviour) and the per-worker-isolation guard (every worker
-#                     clone disposed, proven non-vacuous against an undisposed tree).
-#   v1.7.6          — skills are directive-only: the rationale trim plus its permanent guard, proven
-#                     NON-VACUOUS by a free, dispatch-less self-test — a rationale marker (an
-#                     `(Observed failure: …)` / `(Field-observed: …)` war-story, an `exists because`
-#                     justification, a `Historically …` note) injected into a runtime SKILL.md makes
-#                     validate.py FAIL, a SKILL.md referencing RATIONALE.md also FAILS (the "why" may
-#                     never return to the runtime path), and removal restores green (validator
-#                     no-rationale-guard self-test). Behaviour is unchanged by the trim itself — every
-#                     gate, count line, STOP condition and output format is untouched, which is why the
-#                     existing fixtures above are the regression net and no new model fixture is needed.
+# Auth is mechanism-agnostic — EITHER an exported ANTHROPIC_API_KEY OR an OAuth/subscription login
+# (`claude /login`); it checks the *capability* to run `claude -p`, not a specific credential. The
+# script builds its own throwaway environment (an isolated local clone + a temp .harness.json + a
+# minimal rule book) so the skills execute end-to-end without depending on the operator's setup, and
+# tears it down on exit — the live checkout is never mutated.
+#
+# This costs tokens. Six fixtures is roughly $3; a typical one- or two-fixture selection is under
+# $1.50 and under a minute.
+#
+# --- How the runner works: PARALLEL DISPATCH over a TWO-PASS body ---------------
+# The run is 100% `claude -p` latency (harness overhead is ~0.03%), so wall-time comes from
+# dispatching concurrently. `suite()` below therefore runs TWICE over the SAME code, so a prompt can
+# never drift from the assertions that judge it:
+#   pass 1  PHASE=collect — every run_fixture REGISTERS a dispatch job (name, prompt, and the
+#                           .harness.json test_command in force at that point); every assert_* is
+#                           a no-op.
+#   dispatch              — the registered jobs run CONCURRENTLY across --workers N workers, each in
+#                           its OWN throwaway clone.
+#   pass 2  PHASE=assert  — every run_fixture resolves the transcript the dispatch produced; every
+#                           assert_* judges it.
+# Assertion OUTPUT stays in script order (the assert pass is sequential), so a parallel run reads
+# exactly like a sequential one.
+#
+# PER-WORKER ISOLATION IS MANDATORY, for reasons that are structural rather than stylistic: a
+# fixture that lets `execute` branch and commit would race inside one shared clone, and a fixture
+# that repoints config.test_command would flip .harness.json under another in-flight dispatch. Each
+# worker gets its own clone AND writes its own per-JOB harness; the worker tree is disposed after its
+# last job and the disposal is a counted assertion, alongside the live-checkout guard.
+#
+# --- The six, and what each one is for ------------------------------------------
+#   refine-want-unattended-stops  refine, autorun  Gate 0. The worked example of a claim bound to a
+#                     COUNTED LINE: an unresolved want-decision counts toward `j`, autorun stops, and
+#                     it is never a silent ASSUMED — asserted against the REFINE: line's own arithmetic.
+#   multi-clause-want             analysis         Gate 1. A two-clause want-decision becomes two
+#                     matrix rows and two proof rows; the injected single-row certification is flagged.
+#   provenance-authored-blocks    design           Gate 2. An AC about a grouping heuristic proven on
+#                     authored fixtures alone blocks the gate; anchors on the EXCLUSIONS: line. This
+#                     gate exists because of four real-data defects the old fixture suite never saw.
+#   execute-commit-before-review  execute, review  Gate 3-4. Commit ordering across two skills, plus
+#                     the empty-diff fallback.
+#   lesson-claim-split            finalise         Gate 4. Anchors on the CLAIMS: line, whose per-type
+#                     counts carry internal arithmetic check_lines.py can verify with no grammar
+#                     judgement. finalise emits 6 of the 20 counted grammars — more than any skill.
+#   greenfield-promote-zeros      promote          NEGATIVE CONTROL. An empty corpus emits zeros,
+#                     proposes nothing, writes nothing: `absent rules written[ *_:=]*[1-9]`.
+#
+# ASSERTION CONVENTION (tests/eval/README.md): match the DECISION, not one phrasing; tolerate
+# markdown emphasis; widen over wording, NEVER over outcome. Every widened token is proven both ways
+# by the dispatch-free assertion-convention self-test below.
+
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES="$HERE/fixtures"
 REPO_ROOT="$(git -C "$HERE" rev-parse --show-toplevel)"
 # The branch this run STARTED on, captured before anything can move it. The isolation guard asserts
-# the checkout is left on this, not on the literal `main`: the property being checked is "the eval
-# left the checkout where it found it", and the eval work of this cycle happens on a topic branch.
-# Hardcoding `main` made the guard fail 100% of the time off main — a false red, not a check — while
-# telling the operator a fixture had leaked. Not a loosening: on main the two are identical, and the
+# the checkout is left on this, not on the literal `main`: the property being checked is "the guard
+# left the checkout where it found it", and skill work happens on a topic branch. Hardcoding `main`
+# made the guard fail 100% of the time off main — a false red, not a check — while telling the
+# operator a fixture had leaked. Not a loosening: on main the two are identical, and the
 # stray-`*PROJ-*`-branch and work-doc rules are untouched.
 EVAL_START_BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo UNKNOWN)"
-#   v1.10.0 onward — per-version coverage is catalogued INLINE, at the `# ---- v1.10.0:` /
-#                     `# ---- v1.10.1:` / `# ---- v1.11.0` section banners in `suite()` below, beside the
-#                     fixtures they describe. That is the one place a fixture and its description cannot
-#                     drift apart; this header is not re-summarised per release.
-#   v1.11.0         — the UNATTENDED lane (`autorun`). Split deliberately: the MECHANICAL half of the
-#                     teeth table lives in the dispatch-free `tests/envelope/test_envelope.py` (contract
-#                     grammar + two-phase binding, a t0 `HOLDING` struck, the tree/head floor conditions
-#                     against real throwaway git repos, merge-strategy on a strategy-switched history,
-#                     budget arithmetic and its `unknown`, the forced-case positive control) — run by
-#                     this suite so it cannot rot; the JUDGEMENT half is four fixtures plus a greenfield
-#                     control: `j > 0` STOPS the run while every unaffected part still finishes
-#                     (autorun-clarification-stops); a counted line off the shipped grammar does NOT
-#                     close its gate and is reported rather than re-typed (autorun-gate-grammar-mismatch);
-#                     `--no-challenger` skips the challenger and is DISCLOSURE line one, the clean verdict
-#                     reported reviewer-only (autorun-no-challenger-disclosed); the DEFAULT invocation
-#                     runs it (autorun-challenger-default-on, the non-vacuous control); approaching the
-#                     call-count ceiling degrades per the declared ladder — main loop first, review seat
-#                     never to zero — and COMPLETES (autorun-budget-degrades); and on a freshly `init`-ed
-#                     project with no lessons, a TODO rule book and no merged PRs, every count closes with
-#                     zeros or an honest `unknown` and nothing extra is added (greenfield-autorun-clean).
-# Full model transcripts are teed here (gitignored) so a failed assertion is inspectable —
-# each PASS/FAIL line points at the transcript file it judged. Wiped fresh each run.
+# Full model transcripts are teed here (gitignored) so a failed assertion is inspectable — each
+# PASS/FAIL line points at the transcript file it judged. Wiped fresh each run.
 TDIR="$HERE/.transcripts"
 rm -rf "$TDIR"; mkdir -p "$TDIR"
 # The ARCHIVE is the one directory this script never wipes. `.transcripts/` above is cleared on every
-# run, which means a narrow assertion can only ever be re-judged against the LAST part that ran — and
-# that is exactly how batch 1 of the proof pass came to fix one negation token per pass instead of the
-# class. Every judged transcript is copied here, red ones included: a red transcript is the only
-# record of the phrasing an assertion failed to match, and the greens are what show a widened token
-# has not gone toothless elsewhere. Nothing is ever read back from here as a verdict — it is evidence
-# for offline token work, never an input to judging — so it cannot become a false green.
+# run, which means an assertion can only ever be re-judged against the last run. Every judged
+# transcript is copied here, red ones included: a red transcript is the only record of the phrasing an
+# assertion failed to match, and the greens are what show a widened token has not gone toothless
+# elsewhere. Nothing is ever read back from here as a verdict — it is evidence for offline token work,
+# never an input to judging — so it cannot become a false green.
 ARCHIVE_DIR="$HERE/.archive"
 mkdir -p "$ARCHIVE_DIR" 2>/dev/null || true
 fails=0
 total=0
 skipped=0        # assertions not judged because --only filtered their dispatch out
 
+
 # --- CLI -----------------------------------------------------------------------
 #   --workers N  concurrent dispatch workers (default 4 — a safe value that is kind
-#                to API rate limits; 8 is the measured milestone setting). N=1 is a
-#                genuinely sequential run, kept for debugging a single transcript.
-#   --only RE    dispatch only fixtures/scenarios whose name matches the regex RE,
-#                and judge only those. A DEV-LOOP filter: it makes the run PARTIAL
-#                (loudly reported, cache writes suppressed) and can never stand in
-#                for a milestone run. CI passes no arguments, so CI is always full.
+#                to API rate limits). N=1 is a genuinely sequential run, kept for
+#                debugging a single transcript.
+#   --only RE    dispatch only fixtures whose name matches the regex RE, and judge
+#                only those. This is the per-skill trigger: select the fixtures
+#                mapped to the skill you edited. ANCHOR IT — `^(a|b)$` — because an
+#                unanchored selector once matched more than it named.
 #   --no-cache   full fresh run: every fixture dispatches, nothing is reused.
-#   --verify-suite
-#                NO dispatch and NO cost. Runs the collect pass to learn the suite's
-#                authoritative job list and per-job assertion count, then VERIFIES the
-#                coverage ledger against it: every job green, every green measured under
-#                the skills-hash the files hash to NOW, and one uniform ruler (runner
-#                fingerprint + plugin-tree fingerprint + model + CLI version) across
-#                every row. This is what makes a run that was SPLIT INTO BATCHES add up
-#                to the same claim as one full pass — the sum is a counted artifact, not
-#                an operator's recollection. Cannot be combined with --only.
 WORKERS="${MANGO_EVAL_WORKERS:-4}"
 ONLY=""
-VERIFY_SUITE=0
 _args=("$@")
 _i=0
 while [ "$_i" -lt "${#_args[@]}" ]; do
@@ -340,21 +128,12 @@ while [ "$_i" -lt "${#_args[@]}" ]; do
     --only) _i=$((_i + 1)); ONLY="${_args[$_i]:-}" ;;
     --only=*) ONLY="${_args[$_i]#*=}" ;;
     --no-cache) : ;;   # handled in the cache block below
-    --verify-suite) VERIFY_SUITE=1 ;;
-    *) echo "FAIL: unknown argument '${_args[$_i]}' (expected --workers N | --only REGEX | --no-cache | --verify-suite)" >&2; exit 1 ;;
+    *) echo "FAIL: unknown argument '${_args[$_i]}' (expected --workers N | --only REGEX | --no-cache)" >&2; exit 1 ;;
   esac
   _i=$((_i + 1))
 done
 case "$WORKERS" in ''|*[!0-9]*) echo "FAIL: --workers must be a positive integer" >&2; exit 1 ;; esac
 [ "$WORKERS" -ge 1 ] || { echo "FAIL: --workers must be >= 1" >&2; exit 1; }
-# --verify-suite verifies the WHOLE suite against the ledger, so it must see the whole
-# suite's job list. Under --only the collect pass registers a SUBSET, which would let a
-# partial list masquerade as complete coverage — refuse the combination outright.
-if [ "$VERIFY_SUITE" -eq 1 ] && [ -n "$ONLY" ]; then
-  echo "FAIL: --verify-suite cannot be combined with --only (it must see the whole suite's job list)" >&2
-  exit 1
-fi
-
 # --- Measurement instrumentation (opt-in: MANGO_EVAL_PROFILE=<path-prefix>) ---
 # Records per-dispatch wall-time and per-assertion attribution into
 # $MANGO_EVAL_PROFILE.timing / .asserts so a run can be profiled. It writes
@@ -397,237 +176,15 @@ tally_add() {  # <ledger-name> <line> — append one record; survives command-su
 tally_count() { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && wc -l <"$CACHE_TALLY_DIR/$1" | tr -d ' ' || echo 0; }
 tally_list()  { [ -s "${CACHE_TALLY_DIR:-/nonexistent}/$1" ] && tr '\n' ' ' <"$CACHE_TALLY_DIR/$1" || true; }
 
-# --- Coverage ledger (v1.15.0) -------------------------------------------------
-# WHY THIS EXISTS. A ~$70 suite is often run in BATCHES (--only per skill group). Verdicts
-# themselves compose: the cache stores a TRANSCRIPT, never a verdict, so every assertion is
-# re-judged from text on every run, and no assertion reads across two transcripts. So ten green
-# batches really are 126 green jobs. What ten green batches were NOT is a COUNTED ARTIFACT: the
-# sum lived in an operator's notes, where nothing could re-check that no job was missed, that no
-# green had gone stale, and that every batch used the same ruler. This ledger is that artifact,
-# and --verify-suite is the check that reads it.
-#
-# One row per job per run, append-only, LAST ROW WINS (a later measurement of the same job under
-# the same ruler supersedes an earlier one — that is what a re-run of a red batch means):
-#   job  kind  skills_hash  plugin_fp  model  cli  asserts_expected  asserts_passed  verdict  run_id  utc  job_fp  runner_fp
-#
-# IDENTITY IS TWO-TIER (v1.16.0). It used to be one tier: the ledger filename carried a hash of the
-# WHOLE of run.sh, so any edit — a comment, a timing line, one widened token in one fixture — renamed
-# the ledger and voided all 126 rows at once. That is far stronger than the property actually needed,
-# and the strength was paid for in dispatches: fixing a single assertion cost a full re-run of the
-# suite, which is why batch 1 of this cycle ran three times.
-#
-# The property needed is: **a row must have been produced by the same question and the same judging
-# this job is subject to NOW.** That is per job, so it is now fingerprinted per job:
-#   * job_fp (field 12) — the job's prompt, its harness test-command, and every (kind, regex-set) that
-#     judges it, sorted. Editing one fixture's token changes ONE job_fp and strands ONE row. Renaming
-#     an assertion's LABEL changes nothing, deliberately: a label is not a measurement.
-#   * MACHINERY_FP (the filename) — the judging and dispatch code itself, everything defined above
-#     `suite()`. Change grep semantics, the dispatcher or the row writer and every row is voided, as
-#     before, because the ruler really did move.
-# Whole-file equality implies both, so this is strictly finer, never weaker: nothing that used to
-# invalidate a row on evidence stops doing so. runner_fp (field 13) is kept as forensic metadata only
-# — never compared by the gate — so a row can always be traced to the exact file that wrote it.
+# --- Per-job result tally ------------------------------------------------------
+# One record per judged assertion, keyed by job. Its only consumer is the cache mint at the
+# bottom: a fixture may only mint a cached transcript if it passed ALL of its own assertions.
+# It is not a ledger and it is not read across runs — the retired suite's coverage ledger,
+# --verify-suite and the two-tier job fingerprint went with the whole-suite goal.
 COV_DIR=""   # set once TMPROOT exists (below)
 cov_job()    { local b="${1##*/}"; printf '%s' "${b%.log}"; }
-# The collect pass records the EXPECTED assertion count per job, from the same call sites that
-# judge it in the assert pass. So "how many assertions does this job have" is derived, never
-# hardcoded — an assertion added to a fixture raises the bar the ledger must clear, automatically.
-# cov_expect <transcript-file> <kind> <regex...> — called from the COLLECT pass, i.e. with no
-# dispatch and no transcript, which is what lets --verify-suite recompute every job's job_fp for
-# free. It records two things: that the job has one more assertion (the count), and WHAT that
-# assertion judges by — the assertion kind plus its resolved regexes.
-#   * the KIND is in the hash because `assert_contains` and `assert_absent` with the same regex are
-#     opposite tests: swapping them inverts the check without changing one character of pattern.
-#   * the regexes are recorded RESOLVED, after parameter expansion, so hoisting a token into a shared
-#     variable (RE_NOT_ASKED_AS_WANT) and editing it correctly strands every job that uses it.
-#   * the LABEL is deliberately absent. Re-wording a label changes no measurement, and charging a
-#     dispatch for a typo fix is how an operator learns to leave labels wrong.
-cov_expect() {
-  [ -n "$COV_DIR" ] || return 0
-  local j; j="$(cov_job "$1")"; shift
-  printf '%s\n' "$j" >>"$COV_DIR/expected"
-  local IFS=$'\x1f'      # joins "$*" below; \x1f cannot occur in a regex written in this file
-  printf '%s\t%s\n' "$j" "$*" >>"$COV_DIR/patterns"
-}
 cov_assert() { [ -n "$COV_DIR" ] || return 0; printf '%s\t%s\n' "$(cov_job "$1")" "$2" >>"$COV_DIR/judged"; }
-
-# job_meta_idx <name> — the registration index of a job, or empty. Linear, and called once per job
-# by a dispatch-free path only, so its cost is a second of CPU against 126 dispatches saved.
-job_meta_idx() {
-  local idx kind name
-  for idx in $(seq 1 "${JOB_COUNT:-0}"); do
-    [ -f "$JOBS_DIR/$idx.meta" ] || continue
-    IFS=$'\t' read -r kind name _ _ <"$JOBS_DIR/$idx.meta"
-    [ "$name" = "$1" ] || continue
-    printf '%s' "$idx"; return 0
-  done
-  return 1
-}
-
-# job_fp <name> — the per-job MEASUREMENT INPUT fingerprint: everything that decides what this job is
-# asked and how its answer is judged. Three parts, and each one closes a hole:
-#   * the sorted (kind, regex-set) list — the assertions. Sorted, not in call order, so REORDERING
-#     assertions costs nothing: no assertion in this suite reads another's result, so the multiset is
-#     the measurement.
-#   * the PROMPT. A fixture's prompt derives from its ticket file, which skills_hash already covers,
-#     but a SCENARIO's prompt is written inline in this file and was covered by nothing per-job — the
-#     whole-file hash was carrying it. Dropping to per-job without this would have let a scenario's
-#     question be rewritten while its green row stood: a false green, and the exact kind this ledger
-#     exists to prevent.
-#   * the harness TEST-COMMAND in force at the call site, which is part of what the model is told.
-# An UNREGISTERED job (the coverage self-test's file-less control) hashes a literal marker rather
-# than silently hashing emptiness, so two different unregistered jobs cannot collide.
-job_fp() {
-  local name="$1" idx pat prompt tc
-  pat="$(awk -F'\t' -v j="$name" '$1==j {print $2}' "$COV_DIR/patterns" 2>/dev/null | LC_ALL=C sort)"
-  idx="$(job_meta_idx "$name" || true)"
-  if [ -n "$idx" ]; then
-    prompt="$(cat "$JOBS_DIR/$idx.prompt" 2>/dev/null || true)"
-    tc="$(cut -f3 <"$JOBS_DIR/$idx.meta" 2>/dev/null || true)"
-  else
-    prompt="<unregistered:$name>"; tc="<unregistered:$name>"
-  fi
-  printf '%s\n--prompt--\n%s\n--testcmd--\n%s\n' "$pat" "$prompt" "$tc" |
-    sha256sum 2>/dev/null | awk '{print $1}'
-}
 cov_count()  { awk -F'\t' -v j="$2" -v v="$3" '$1==j && (v=="" || $2==v) {n++} END {print n+0}' "$1" 2>/dev/null || echo 0; }
-
-# cov_expected_tsv <out> — job<TAB>kind<TAB>assert-count for every job the collect pass REGISTERED.
-# Registration is the authority on what the suite is (not a grep of the source, not a constant):
-# a job that is asserted but never registered has no row here and no transcript, and the existing
-# assert_judgeable already fails that loudly.
-cov_expected_tsv() {
-  local out="$1" idx kind name
-  : >"$out.kinds"
-  for idx in $(seq 1 "${JOB_COUNT:-0}"); do
-    [ -f "$JOBS_DIR/$idx.meta" ] || continue
-    IFS=$'\t' read -r kind name _ _ <"$JOBS_DIR/$idx.meta"
-    printf '%s\t%s\n' "$name" "$kind" >>"$out.kinds"
-  done
-  awk -F'\t' 'NR==FNR {k[$1]=$2; next} {c[$1]++}
-       END {for (j in c) if (j in k) printf "%s\t%s\t%s\n", j, k[j], c[j]}' \
-    "$out.kinds" "$COV_DIR/expected" 2>/dev/null | LC_ALL=C sort >"$out.jobs"
-  # Fourth column: the job_fp the suite would judge this job by RIGHT NOW. Computed from the collect
-  # pass, so the whole comparison the gate makes is dispatch-free.
-  : >"$out"
-  local jn jk jc
-  while IFS=$'\t' read -r jn jk jc; do
-    [ -n "${jn:-}" ] || continue
-    printf '%s\t%s\t%s\t%s\n' "$jn" "$jk" "$jc" "$(job_fp "$jn")" >>"$out"
-  done <"$out.jobs"
-}
-
-# cov_hashes_tsv <out> <expected-tsv> — job<TAB>skills-hash recomputed from the files AS THEY ARE NOW.
-# This is what turns a stale green into a loud failure instead of a silent one.
-cov_hashes_tsv() {
-  local out="$1" exp="$2" job
-  : >"$out"
-  while IFS=$'\t' read -r job _ _; do
-    [ -n "${job:-}" ] || continue
-    printf '%s\t%s\n' "$job" "$(skills_hash "$job")" >>"$out"
-  done <"$exp"
-}
-
-# cov_row_for <job> <kind> <expected> <passed> <failed> — echoes the one 11-field coverage row for a
-# judged job, or nothing (status 1) when the job is unhashable. This is a FUNCTION and not an inline
-# block in the row-writing loop for one reason: the coverage gate's self-test can then exercise the
-# WRITER on a real job name, not a hand-typed row. A synthetic row proves the reader only, and the
-# reader was never where the defect was.
-cov_row_for() {
-  local job="$1" kind="$2" exp="$3" pass="$4" fail="$5" h v
-  h="$(skills_hash "$job")" || return 1     # never let an unhashable job kill the run: no row, loudly
-  [ -n "$h" ] || return 1
-  if [ "$fail" -eq 0 ] && [ "$pass" -eq "$exp" ] && [ "$exp" -gt 0 ]; then v=green; else v=red; fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$job" "$kind" "$h" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" \
-    "$exp" "$pass" "$v" "$RUN_ID" "$RUN_UTC" "$(job_fp "$job")" "$RUNNER_FP"
-}
-
-# verify_suite <coverage.tsv> <runs.tsv> <expected.tsv> <hashes.tsv> <plugin_fp><TAB><model><TAB><cli>
-# Echoes one DEFECT line per problem and returns 0 only when the ledger proves the whole suite green
-# under one ruler. Fully PARAMETERIZED — every input is an argument — so the guard's teeth are proven
-# below against synthetic ledgers carrying each defect, exactly like the isolation guards.
-verify_suite() {
-  local cov="$1" runs="$2" expected="$3" hashes="$4" identity="$5"
-  local bad=0 job kind exp want_jfp row cur latest owners r_jfp
-  local want_pfp want_model want_cli
-  local r_kind r_hash r_pfp r_model r_cli r_exp r_pass r_verdict r_run
-  IFS=$'\t' read -r want_pfp want_model want_cli <<<"$identity"
-
-  [ -s "$expected" ] || { echo "    DEFECT: the collect pass registered NO jobs — there is nothing to verify"; return 1; }
-  [ -s "$cov" ]      || { echo "    DEFECT: no coverage ledger for this runner fingerprint (${cov##*/}) — no job has ever been recorded green"; return 1; }
-  [ -s "$runs" ]     || { echo "    DEFECT: no run ledger for this runner fingerprint (${runs##*/})"; return 1; }
-
-  latest="$(mktemp)"; owners="$(mktemp)"
-  awk -F'\t' 'NF>=11 {r[$1]=$0} END {for (k in r) print r[k]}' "$cov" | LC_ALL=C sort >"$latest"
-
-  while IFS=$'\t' read -r job kind exp want_jfp; do
-    [ -n "${job:-}" ] || continue
-    row="$(awk -F'\t' -v j="$job" '$1==j {print; exit}' "$latest")"
-    if [ -z "$row" ]; then
-      echo "    DEFECT: $kind '$job' has NO row in the coverage ledger — it has never been proven green under this ruler"
-      bad=1; continue
-    fi
-    IFS=$'\t' read -r _ r_kind r_hash r_pfp r_model r_cli r_exp r_pass r_verdict r_run _ <<<"$row"
-    printf '%s\n' "$r_run" >>"$owners"
-    [ "$r_verdict" = green ] \
-      || { echo "    DEFECT: $kind '$job' verdict is '$r_verdict', not green (run $r_run)"; bad=1; }
-    cur="$(awk -F'\t' -v j="$job" '$1==j {print $2; exit}' "$hashes")"
-    if [ -z "$cur" ]; then
-      echo "    DEFECT: $kind '$job' has no current skills-hash to compare its green against"; bad=1
-    elif [ "$r_hash" != "$cur" ]; then
-      echo "    DEFECT: $kind '$job' was proven under skills-hash ${r_hash:0:12} but its files now hash ${cur:0:12} — that green is STALE, re-run it"; bad=1
-    fi
-    [ "$r_pfp" = "$want_pfp" ] \
-      || { echo "    DEFECT: $kind '$job' was proven under plugin-tree ${r_pfp:0:12}, not the current ${want_pfp:0:12} — a different ruler"; bad=1; }
-    [ "$r_model" = "$want_model" ] \
-      || { echo "    DEFECT: $kind '$job' was proven under model '$r_model', not the current '$want_model' — a different ruler"; bad=1; }
-    [ "$r_cli" = "$want_cli" ] \
-      || { echo "    DEFECT: $kind '$job' was proven under CLI '$r_cli', not the current '$want_cli' — a different ruler"; bad=1; }
-    [ "$r_exp" = "$exp" ] \
-      || { echo "    DEFECT: $kind '$job' was proven against $r_exp assertion(s) but the suite now holds $exp — the bar moved, re-run it"; bad=1; }
-    [ "$r_pass" = "$exp" ] \
-      || { echo "    DEFECT: $kind '$job' passed $r_pass of $exp assertion(s)"; bad=1; }
-    # The per-job half of the ruler (v1.16.0). An EMPTY want_jfp is itself a defect and never a
-    # skip: a check that silently does nothing when its input is missing is a false green with
-    # extra steps. An empty row field is the same defect seen from the other side — a row written
-    # before this field existed cannot vouch for assertions nobody recorded.
-    r_jfp="$(printf '%s' "$row" | cut -f12)"
-    if [ -z "$want_jfp" ]; then
-      echo "    DEFECT: $kind '$job' has no current job fingerprint to compare its green against"; bad=1
-    elif [ -z "$r_jfp" ]; then
-      echo "    DEFECT: $kind '$job' has a row with NO job fingerprint — it predates per-job identity and cannot be credited, re-run it"; bad=1
-    elif [ "$r_jfp" != "$want_jfp" ]; then
-      echo "    DEFECT: $kind '$job' was proven against assertion-set/prompt ${r_jfp:0:12} but the suite now judges it by ${want_jfp:0:12} — re-run THIS job (--only '^$job\$'), the rest of the ledger stands"; bad=1
-    fi
-  done <"$expected"
-
-  # Every run that OWNS a surviving row must itself have proven the HARNESS sound: its dispatch-free
-  # self-tests ran and all passed. A sibling job failing elsewhere in that run does not taint this
-  # job's green (no assertion reads across transcripts) — but a broken harness would taint all of them.
-  local rid rrow n_owners=0
-  while read -r rid; do
-    [ -n "${rid:-}" ] || continue
-    n_owners=$((n_owners + 1))
-    rrow="$(awk -F'\t' -v r="$rid" '$1==r {row=$0} END {print row}' "$runs")"
-    if [ -z "$rrow" ]; then
-      echo "    DEFECT: run '$rid' owns coverage rows but is absent from the run ledger — its harness was never vouched for"; bad=1; continue
-    fi
-    local x_selftests x_selffails
-    x_selftests="$(printf '%s' "$rrow" | cut -f11)"; x_selffails="$(printf '%s' "$rrow" | cut -f12)"
-    case "${x_selftests:-x}" in ''|*[!0-9]*) x_selftests=0 ;; esac
-    case "${x_selffails:-x}" in ''|*[!0-9]*) x_selffails=1 ;; esac
-    [ "$x_selftests" -gt 0 ] \
-      || { echo "    DEFECT: run '$rid' recorded no dispatch-free self-test — the harness was unproven in it"; bad=1; }
-    [ "$x_selffails" -eq 0 ] \
-      || { echo "    DEFECT: run '$rid' had $x_selffails failing self-test(s) — its greens were measured by a harness that was not sound"; bad=1; }
-  done < <(LC_ALL=C sort -u "$owners")
-  [ "$n_owners" -gt 0 ] || { echo "    DEFECT: no run owns any coverage row"; bad=1; }
-
-  rm -f "$latest" "$owners" 2>/dev/null || true
-  [ "$bad" -eq 0 ]
-}
-
 # The fixture→skill map keys the per-fixture skills-hash: a fixture whose mapped
 # SKILL.md file(s) are unchanged can cache-hit. An UNMAPPED fixture hashes over ALL
 # skills (fail-safe: any skill change invalidates it). PRINCIPLES.md, every agent
@@ -636,73 +193,13 @@ verify_suite() {
 # RATIONALE.md is deliberately NOT in the hash: no skill loads it, so it cannot
 # change behaviour and must never invalidate a cache. Do not add it.
 declare -A FIXTURE_SKILLS=(
-  [full]="analysis" [lite]="analysis" [freeform]="analysis"
-  [analysis-section-coverage]="analysis" [vague-requirement]="analysis"
-  [red-baseline]="analysis" [uncodified-standard-nudge]="analysis"
-  [design-layer]="design" [blast-radius]="design" [frontend-layer]="design"
-  [surface-denominator]="design" [design-blastradius-shared-type]="design"
-  [design-blastradius-value-threading]="design" [per-clause]="design execute"
-  [no-runner-proof]="execute" [format-scope]="execute" [behavioural-drift]="execute"
-  [challenger-unmet]="review" [rubric-hover]="review" [conditional-LGTM]="review"
-  [review-git-isolation]="review"
-  [caveman-critic-guard]="review" [verify-only-scoped]="review"
-  [verify-only-main-loop]="review" [verify-only-bookkeeping-carveout]="review"
-  [stale-workdoc-bump]="finalise" [stale-source-change]="finalise"
-  [ledger-descriptive]="finalise" [ledger-dispatch-only-honesty]="finalise"
-  [ledger-gate]="finalise" [ledger-content-gate]="finalise"
-  [finalise-lesson-pushed]="finalise"
-  [ledger-auto-append]="solve finalise" [ledger-label]="solve finalise"
-  [usage-unmeasured-marker]="solve finalise"
-  [rtk-degrade]="budget" [optimizer-adoption-gated]="budget"
-  [budget-rtk-wire-guidance]="budget"
-  [refine-skip-clear-ticket]="refine" [refine-classify-A-vs-B]="refine"
-  [refine-acceptance-bar-is-want]="refine" [refine-consistency-is-how]="refine"
-  [refine-assumed-on-handback]="refine" [refine-direction-not-tool]="refine"
-  [refine-backstop-challenger]="refine" [epic-exposure-checker]="refine"
-  [refine-epic-detect-breakdown]="refine breakdown"
-  [epic-scaffold-committed]="refine breakdown"
-  [breakdown-invest-enumerated]="breakdown" [breakdown-reratify]="breakdown"
-  [invest-force-resplit]="breakdown"
-  [worktree-env-fault]="review" [execute-commit-before-review]="execute review"
-  [workdoc-solve-autopath]="solve" [epic-lesson-capture]="breakdown"
-  [codify-drift-count]="codify" [multi-clause-want]="analysis"
-  [premise-falsified]="refine" [premise-to-be-created]="refine"
-  [lesson-claim-split]="finalise" [recurrence-supersession]="finalise"
-  [falsify-blocks-promotion]="finalise" [falsify-true-claim-promotes]="finalise"
-  [promotion-human-gated]="finalise" [loop-project-local]="finalise"
-  [promotion-rulebook-wiring]="finalise codify"
-  [recall-symbol-type1]="refine" [recall-area-type5]="refine"
-  [recall-type6-expiry]="refine" [recall-retired-skipped]="refine"
-  [host-context-file-default]="init doctor" [host-context-file-agents]="init doctor"
-  [recall-type2-handle]="refine" [recall-zero-no-busywork]="refine"
-  [handle-unanswered-blocks]="design" [handle-does-not-apply-closes]="design"
-  [recurring-t2-leaves-lessons]="finalise" [type5-stays-in-lessons]="finalise"
-  [template-resolve-no-plugin-root]="finalise"
-  [promote-two-lessons-one-rule]="promote" [promote-single-lesson-noop]="promote"
-  [promote-idempotent]="promote"
-  [ondemand-companion-read]="design" [ondemand-read-no-plugin-root]="review"
-  [rule-section-by-handle]="analysis" [rule-section-handle-unanswered]="analysis"
-  [rule-section-handle-na-closes]="analysis" [rule-section-provisional-no-block]="analysis"
-  [quick-direct-recall]="quick" [claim-retired-promoted]="refine"
-  [promote-offers-retirement]="promote" [plugin-root-newest-version]="finalise"
-  [challenger-pr-body-refused]="review"
-  [greenfield-full-run]="refine analysis" [greenfield-quick-direct]="quick"
-  [greenfield-promote-zeros]="promote" [greenfield-recall-handles-none-match]="analysis"
-  [autorun-clarification-stops]="autorun" [autorun-gate-grammar-mismatch]="autorun"
-  [autorun-no-challenger-disclosed]="autorun review" [autorun-challenger-default-on]="autorun review"
-  [autorun-budget-degrades]="autorun" [greenfield-autorun-clean]="autorun"
-  [exclusion-expiry-required]="design" [exclusion-expiry-checkable]="design"
-  [exclusion-recurrence-escalates]="design" [refine-want-unattended-stops]="refine autorun"
-  [check-lines-contradiction-blocks]="autorun" [check-lines-missing-blocks]="design autorun"
-  [check-lines-not-checkable]="autorun" [check-lines-one-grammar]="refine"
-  [greenfield-check-lines-clean]="autorun"
-  [provenance-authored-blocks]="design" [provenance-real-corpus-passes]="design"
-  [provenance-na-costs-nothing]="design" [greenfield-no-corpus-clean]="design autorun"
-  [evidence-stale-tree-refused]="review execute" [evidence-provenance-unknown]="review"
-  [no-reviewer-challenger-runs]="review autorun"
+  [refine-want-unattended-stops]="refine autorun"
+  [multi-clause-want]="analysis"
+  [provenance-authored-blocks]="design"
+  [execute-commit-before-review]="execute review"
+  [lesson-claim-split]="finalise"
+  [greenfield-promote-zeros]="promote"
 )
-
-# hash_files <file...> — sha256 over the concatenated files. Guards against a zero-arg call (which would
 # make `cat` block on stdin): no args → empty hash → treated as a MISS (run fresh), never a hang.
 hash_files() { [ "$#" -gt 0 ] || return 1; cat "$@" 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'; }
 skills_files() {  # <fixture-name> — the files whose contents key this fixture's cache
@@ -753,14 +250,10 @@ cache_get() {
 # run everything fresh. So a version that edits the runner (like this one) re-runs
 # every fixture; the per-skill selectivity only bites on a skills-only version.
 mkdir -p "$CACHE_DIR"
-# RUNNER_FP hashes the WHOLE of this file. As of v1.16.0 it no longer names the ledger and the gate
-# no longer compares it: it is recorded on every row and in every archived run as FORENSIC metadata,
-# so a row can be traced to the exact file that wrote it. What the gate compares is the two-tier
-# identity — MACHINERY_FP (below, at the `suite()` boundary) and the per-job job_fp.
+# RUNNER_FP hashes the WHOLE of this file. It keys the transcript-cache wipe (further down, once
+# CACHE_ENABLED is known) and is stamped on every archived run, so a transcript can be traced to the
+# exact file that judged it.
 RUNNER_FP="$(hash_files "${BASH_SOURCE[0]}")"
-# The transcript-cache wipe and the ledger names both key on MACHINERY_FP, which cannot be computed
-# until every function is defined. They are set at the machinery boundary further down; nothing
-# between here and there reads a ledger or the cache.
 
 # --- Measurement identity (v1.15.0) -------------------------------------------
 # A green is a MEASUREMENT, and two measurements only add up if they were taken with the same
@@ -788,7 +281,6 @@ PLUGIN_TREE_FP="$(plugin_tree_fp)"; [ -n "$PLUGIN_TREE_FP" ] || PLUGIN_TREE_FP="
 MODEL_SETTING="${ANTHROPIC_MODEL:-}"; [ -n "$MODEL_SETTING" ] || MODEL_SETTING="cli-default"
 CLI_VERSION="$(claude --version 2>/dev/null | head -1 | tr -d '\t\n' || true)"
 [ -n "$CLI_VERSION" ] || CLI_VERSION="unknown"
-# COVERAGE_LEDGER / RUN_LEDGER are named at the machinery boundary (see `suite()` below).
 RUN_ID="${MANGO_EVAL_RUN_ID:-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RUN_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -803,7 +295,7 @@ auth_ok() {
   # 1. An API key, if exported.
   [ -n "${ANTHROPIC_API_KEY:-}" ] && return 0
   # 2. A logged-in session (OAuth/subscription) via the non-interactive status check.
-  if claude auth status --json 2>/dev/null | grep -qE '"loggedIn"[[:space:]]*:[[:space:]]*true'; then
+  if grep -qE '"loggedIn"[[:space:]]*:[[:space:]]*true' <<<"$(claude auth status --json 2>/dev/null || true)"; then
     return 0
   fi
   # 3. Last resort: a minimal capability probe — one tiny ping; non-empty == capable.
@@ -830,7 +322,7 @@ cleanup() { rm -rf "$TMPROOT" 2>/dev/null || true; }
 trap cleanup EXIT
 # The cache tally ledgers (see tally_add above) — outside the sandbox, gone with TMPROOT on exit.
 CACHE_TALLY_DIR="$TMPROOT/tally"; mkdir -p "$CACHE_TALLY_DIR"
-# The coverage tallies (see cov_expect / cov_assert above) — same lifetime, same reason.
+# The per-job result tally (see cov_assert above) — same lifetime, same reason.
 COV_DIR="$TMPROOT/coverage"; mkdir -p "$COV_DIR"; : >"$COV_DIR/expected"; : >"$COV_DIR/judged"
 
 # A minimal throwaway rule book + harness config so the skills run end-to-end
@@ -1032,7 +524,7 @@ job_weight() {  # <fixture-name>
 transcript_path() { echo "$TDIR/${1//[^A-Za-z0-9_-]/-}.log"; }
 
 # job_selected <name> — honours --only. With no --only, every job is selected (the full suite).
-job_selected() { [ -z "$ONLY" ] && return 0; printf '%s' "$1" | grep -qE "$ONLY"; }
+job_selected() { [ -z "$ONLY" ] && return 0; grep -qE "$ONLY" <<<"$1"; }
 
 # job_register <kind> <name> <prompt> — record one dispatch. The prompt goes to a FILE (prompts carry
 # newlines and quotes), the rest to a tab-separated meta file.
@@ -1168,7 +660,7 @@ transcript_unusable() {
     *[![:space:]]*) ;;
     *) echo "the dispatch produced an EMPTY transcript body"; return 0 ;;
   esac
-  marker="$(printf '%s\n' "$body" | grep -m1 -E '^[[:space:]]*(API Error|Execution error)[: ]|API Error: [0-9]{3}' || true)"
+  marker="$(grep -m1 -E '^[[:space:]]*(API Error|Execution error)[: ]|API Error: [0-9]{3}' <<<"$body" || true)"
   if [ -n "$marker" ]; then
     echo "the dispatch failed with a CLI/API error, so the fixture NEVER RAN: $(printf '%s' "$marker" | cut -c1-90)"
     return 0
@@ -1183,7 +675,7 @@ transcript_unusable() {
 #     always, --only or not. The fixture did not run, so nothing about it has been proven, and the
 #     one thing that must never happen is scoring it.
 #   * no transcript at all → under --only the job was filtered out: SKIPPED and counted skipped
-#     (never silently passed, and the run reports PARTIAL). With no --only there is no legitimate
+#     (never silently passed, and the run names the selection). With no --only there is no legitimate
 #     way for a transcript to be missing — a job was asserted but never registered — so it FAILS.
 assert_judgeable() {
   local label="$1" file="$2" why
@@ -1210,10 +702,10 @@ assert_judgeable() {
 assert_contains() {
   local label="$1" file="$2" regex="$3"
   local rel="${file#$REPO_ROOT/}"
-  if [ "$PHASE" != assert ]; then cov_expect "$file" contains "$regex"; return 0; fi
+  if [ "$PHASE" != assert ]; then return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
-  if judged_body "$file" | grep -qiE -- "$regex"; then
+  if grep -qiE -- "$regex" <<<"$(judged_body "$file")"; then
     echo "  PASS: $label  [$rel]"
     prof_assert "$(basename "$file" .log)" PASS
     cov_assert "$file" PASS
@@ -1232,14 +724,14 @@ assert_contains() {
 assert_all() {
   local label="$1" file="$2"; shift 2
   local rel="${file#$REPO_ROOT/}" missing="" re body
-  if [ "$PHASE" != assert ]; then cov_expect "$file" all "$@"; return 0; fi
+  if [ "$PHASE" != assert ]; then return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
   # One strip, N regexes: the body is materialised ONCE so a multi-token assertion cannot pay the
   # strip N times, and so every token is judged against exactly the same text.
   body="$(judged_body "$file")"
   for re in "$@"; do
-    printf '%s\n' "$body" | grep -qiE -- "$re" || missing="$missing /$re/"
+    grep -qiE -- "$re" <<<"$body" || missing="$missing /$re/"
   done
   if [ -z "$missing" ]; then
     echo "  PASS: $label  [$rel]"
@@ -1259,10 +751,10 @@ assert_all() {
 assert_absent() {
   local label="$1" file="$2" regex="$3"
   local rel="${file#$REPO_ROOT/}"
-  if [ "$PHASE" != assert ]; then cov_expect "$file" absent "$regex"; return 0; fi
+  if [ "$PHASE" != assert ]; then return 0; fi
   assert_judgeable "$label" "$file" || return 0
   total=$((total + 1))
-  if judged_body "$file" | grep -qiE -- "$regex"; then
+  if grep -qiE -- "$regex" <<<"$(judged_body "$file")"; then
     echo "  FAIL: $label (present, must be absent: /$regex/)  [$rel]"
     fails=$((fails + 1))
     prof_assert "$(basename "$file" .log)" FAIL
@@ -1316,95 +808,12 @@ banner() { [ "$PHASE" = assert ] || return 0; echo; echo "$1"; }
 # assertion-convention self-test, so the self-test can never drift from the regex that ships. Each
 # still requires the load-bearing outcome: a wrong decision matches none of them (proven, per token,
 # by the self-test's WRONG transcript).
-RE_INVEST_LETTERS='i[*_]{0,2}ndependent|n[*_]{0,2}egotiable|v[*_]{0,2}aluable|e[*_]{0,2}stimable|t[*_]{0,2}estable'
-RE_INVEST_SMALL='s[*_]{0,2}mall'
-RE_NOT_SPLIT='not[*_ ]{1,6}.{0,8}(re-?)?split|no[*_ ]{1,4}(re-?)?split|kept|left[*_ ]{1,6}.{0,8}(intact|as-?is)|un-?split|untouched|carr(y|ied|ies)[*_ ]{1,6}.{0,14}(through|unchanged)|\bas-?is\b|zero letters? failed|(control|right-?sized)[^.]{0,60}(unchanged|not[*_ ]{1,6}split)|to the gate[*_ ]{1,6}unchanged'
-RE_ZERO_WANTS='0[ _*]*want-decisions?|want-decisions?[ _*:=]*0|zero want-decisions?|no want-decisions? (asked|put|surfaced)'
-# WIDENED over EMPHASIS (v1.15.1, R1). The old window was `not .{0,20}(ask|want-decision|open want)`,
-# a literal space after `not` plus 20 characters. A correct run writes the negative with the negation
-# itself emphasised — "It was **not** put to the user as an open want" — where the `**` eats two of
-# the twenty and pushes `open want` to offset 25. The class is the one already named at the top of
-# this block (emphasis breaking a contiguous match), so the fix is the same: allow the emphasis
-# glyphs after `not`, and bound the gap with `[^.]` so a widened window can never leap a sentence
-# boundary and pick up a negation that belongs to a different claim. The OUTCOME is unchanged: a run
-# that actually asked the question emits no negation and no zero count, and matches none of these.
-RE_NOT_ASKED_AS_WANT="not[*_ ]{1,6}[^.]{0,30}(ask|want-decision|open want)|do ?n.?t ask|without asking|rather than[*_ ]{1,4}[^.]{0,18}ask|not a want-decision|$RE_ZERO_WANTS"
-RE_LAYER_SUBJECT='layer[-_* ]{0,4}(mis-?)?match|risk layer|proof layer|verification plan'
-RE_LAYER_MISMATCH='❌|✗|layer[-_* ]{0,4}mis-?match|mis-?match(ed)?[-_* ]{0,4}(on|at|for|in|—|:)|layer[^.]{0,40}(mis-?match|does not match|not .{0,6}match|is not met|too low)|(proof|test)[^.]{0,40}below[^.]{0,20}(the )?(risk )?layer|below the .{0,12}(risk )?layer|clears? (none|no)\b|(proof|test)[^.]{0,40}(rejected|insufficient|inadequate|not (a )?(valid|sufficient))'
-# `before` + a literal space again — a correct run writes "re-split it **before** the gate" / "*before*
-# the split-gate", where the emphasis sits between the words.
-RE_BEFORE_GATE='before[*_ ]{1,4}.{0,20}ratif|before[*_ ]{1,4}(the )?(split-?)?gate|pre-?ratif|pre-?gate'
-# The verify-only negative is stated as a COST CONTRAST as often as a negation: "round 2 costs zero
-# dispatches … one scoped proof re-run", "re-deriving them would re-pay for facts already proven".
-RE_NO_BLANKET_RERUN='not[*_ ]{1,4}.*(blanket|re-?deriv|full suite|entire suite)|without[*_ ]{1,4}.*full|not[*_ ]{1,4}re-?run the (full|entire)|does[*_ ]{1,4}not[*_ ]{1,4}re-?run|no[*_ ]{1,4}(full|blanket|whole-?suite|entire)[^.]{0,24}(build|suite|run|re-?review|re-?deriv)|no[*_ ]{1,4}re-?deriv|zero[*_ ]{1,4}(subagent |critic )?dispatch|costs?[*_ ]{1,4}zero|re-?deriv(ing|e|ation)?[^.]{0,30}(would|not|never|no need|re-?pay)'
-RE_BEFORE_CHILD='before[*_ ]{1,4}.{0,24}(child|branch)|before any child|prior to[*_ ]{1,4}.{0,20}(child|branch)|only then[^.]{0,40}(child|branch|cut)|(child|branch)[^.]{0,60}uncommitted|(commit|scaffold)[^.]{0,40}too late|last act[^.]{0,40}breakdown|zero child branch|no child branch|committed[*_ ]{0,4}first|between[^.]{0,60}first child'
-# A correct run states the ordering as a WINDOW ("committed in the window between the split ratifying
-# and the first child creating its branch"), as a COUNT ("zero child branches exist at that moment"),
-# or as a RANK ("committed first") — none of which contains `before` next to `child`. The outcome
-# asserted is unchanged: the scaffold commit precedes every child branch.
-RE_ROUTES_TO_REVIEW='refus|rout(e|es|ed|ing)|re-?run review|re-?review|blocked|fresh[*_ ]{1,4}.{0,10}review|back to[*_ ]{1,6}.{0,8}review'
-# The refusal is written in the CONTINUOUS ("Refusing to finalise", "Routing back to review"), where a
-# regex demanding the infinitive (`refuse` / `route`) matches neither.
-# R5 (v1.16.1). The old token was
-#   not[ *_]{1,4}(silent|adopt)|never[ *_]{1,4}(silent|assum)|does not|no[ *_]{1,4}silent
-# and it was wrong in BOTH directions, measured against the archive:
-#   * The free-floating `does not` alternative made it a **false green**. It fires on any unrelated
-#     sentence — in the archived green transcript, on a merge-strategy line ("narrows, does not
-#     remove, the judgement"). A negative control in which mango records `2 ASSUMED` and continues
-#     anyway also PASSES the old token. A branch that a wrong answer satisfies is not a check.
-#   * It MISSED the correct wording. Mango writes "No — `ASSUMED` is not the fallback for silence",
-#     and the old window allows at most four spaces/asterisks between `not` and `silent`, where the
-#     real phrasing puts "the fallback for" between them.
-# Deleting `does not` alone leaves both correct transcripts red, so the fix is delete AND widen:
-# allow the claim's own subject inside the window, bounded by `[^.]` so it can never leap a sentence
-# boundary, and admit the COUNTED artifact — `0 ASSUMED` inside the `REFINE:` line — which is the
-# load-bearing evidence that nothing was recorded. The `[^0-9]` before the zero keeps `10 ASSUMED`
-# out. OUTCOME unchanged: a run that did record a silent ASSUMED prints a non-zero count and none of
-# these alternatives matches it.
-# R6 (v1.16.1). Both of these replace a bare adjective that made its assertion unable to fail.
-# `exclusion-expiry-required` scored 3 of 4 on a THREE-LINE reply that answered none of the fixture's
-# four questions — it pointed at the work doc instead — and the two passes were carried by exactly one
-# word each, measured: A1's `missing` matched mango's description of the file's contents ("the
-# exclusion record with the missing field named"), and A3's `checkable` matched mango handing the
-# choice back ("deferred with a checkable expiry is your decision"). Every other alternative in both
-# tokens scored 0 on that reply. An adjective floating free of its claim is not a check.
-# Both tokens now bind the claim's predicate to its object within one line — `assert_all` matches each
-# regex anywhere in the body, so binding inside the alternative is the only place it can be done
-# without changing the harness. NOTHING is loosened: the correct answer states "Counts as recorded:
-# no … it does not count as a recorded coverage-gap exclusion" and "add a checkable `expiry:`", both
-# of which still match, while the affirmative sibling form ("Counts as recorded: yes … and a checkable
-# `expiry:`") correctly matches neither.
-RE_NOT_COUNTED_AS_RECORDED='counts? as recorded[ *_:?—-]{0,4}no\b|not[ *_]{0,4}count[^.]{0,50}recorded|does not count|not[ *_]{1,4}recorded|fails? to count'
-# The first tightening of this one was itself a FALSE RED, caught by re-running the job rather than
-# by reasoning: it demanded `checkable` next to `expiry` next to an action verb, all on one line.
-# Mango's correct answer adds the field with a CONDITION as its value — `expiry: when
-# config.real_corpus_path is configured` — and asserts the property in the skill's own words on the
-# next sentence: "is **checkable by a non-author**". So the property is admitted where mango states
-# it, bound to `expiry` on the line, and the ticket-key idiom is kept as its own alternative. Every
-# alternative here is exercised by a paired self-test; the unmatched reverse-order variant that a
-# first draft carried was dropped rather than shipped unproven.
-# NOTE for the next cycle: `[^\n]` was tried as "any character on this line" and is WRONG in POSIX
-# ERE — inside a bracket expression it means "not backslash and not the letter n", so it silently
-# failed on `config.real_corpus_path`. `grep` is line-bounded already, so plain `.` is the right
-# thing.
-RE_FIX_IS_CHECKABLE_EXPIRY='expiry.{0,70}checkable by|(add|added|adding|carry|suppl|set).{0,40}checkable.{0,20}expiry|expiry[ *_:`]{0,4}(PROJ-|a ticket key)'
+# RE_NOT_SILENT_ASSUMED is the one shared token that survives the retirement: refine-want-unattended-
+# stops asserts it, and the assertion-convention self-test below proves it BOTH ways against synthetic
+# transcripts (matches the correct wording, still misses the wrong behaviour). It was widened twice,
+# each time over WORDING — a correct run writes the negative with the negation emphasised, and the
+# counted REFINE: line carries the same claim as `0 ASSUMED`. Never widen a token over OUTCOME.
 RE_NOT_SILENT_ASSUMED='not[ *_]{0,4}[^.]{0,30}(silen|fallback|hand.?back)|never[ *_]{1,4}(silent|assum)|no[ *_]{1,4}silent|REFINE:[^.]{0,120}[^0-9]0[ *_]{0,4}ASSUMED'
-# R7 (v1.16.1). `does not` is dropped here for the same reason it was dropped from
-# RE_NOT_SILENT_ASSUMED: free-floating, it is satisfied by any unrelated sentence. Nothing
-# legitimate is lost — the correct phrasing "does not establish" still matches through the
-# `not[*_ ]{1,4}establish` alternative, and no green row in the ledger was resting on it (this token
-# judges exactly one job, and that job is red). What IS added is the shape the batch-4 transcript
-# actually used and no alternative could read: the negative asked as a QUESTION and answered "No" on
-# the same line — `## 3. Does "84 passed" establish AC1 and AC2? No — for two independent reasons.`
-# The verb there is affirmative and the negation sits after the question mark, so no `not … establish`
-# window can reach it. Bounded by `[^.?]` up to the question mark and three glyphs after it, and
-# `grep`'s line-bounding does the rest: a transcript that asks the same question and answers "Yes"
-# matches none of these.
-RE_DOES_NOT_ESTABLISH='not[*_ ]{1,4}(establish|a measurement)|no evidence|says nothing|false.?green|establish[^.?]{0,40}\?[ *_]{0,3}no[ ,.—-]'
-# The negative is as often a QUESTION answered ("Does 84 passed establish AC1 and AC2? No — three
-# reasons"), a re-description ("not a measurement of that tree") or the verdict word ("false-green").
-RE_PROMOTE_BEFORE_RETIRE='writ[^.]{0,24}first|(rule|it)[^.]{0,30}recallable first|must exist[^.]{0,34}first|before[^.]{0,30}(retir|the claims are retired)|only (then|after)[^.]{0,34}retir|(never|not) be reordered|retire[^.]{0,20}(second|last|after)'
-RE_ORDER_COVERAGE='remove[^.]{0,24}coverage|lose[^.]{0,24}coverage|coverage[^.]{0,24}(remov|lost|gone|not moved|hole)|gap|inert|uncovered|no longer|out of recall|nothing yet replaces|stop[^.]{0,30}(appearing|surfaced|recall)|coverage[^.]{0,30}drop|guidance[^.]{0,24}disappear|neither[^.]{0,44}(claim|rule)[^.]{0,34}reach|no check at all'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
 
@@ -1446,58 +855,17 @@ assert_checkout_clean() {
   return 0
 }
 
-# --- The MACHINERY boundary (v1.16.0) ----------------------------------------
-# Everything defined ABOVE this line is machinery: it decides what gets dispatched, what the model is
-# asked, and how the answer is judged. Everything inside `suite()` BELOW it is content: the fixtures,
-# their prompts and their assertion tokens, which are fingerprinted per job instead.
-#
-# The split is STRUCTURAL, not a hand-kept allowlist, and that is the point — an allowlist drifts the
-# first time someone adds a helper and forgets to register it, and the drift is silent and in the
-# unsafe direction. Here the boundary is enforced by where a function is defined: at this exact point
-# in the file `declare -F` knows every machinery function and does not yet know `suite`.
-#
-# Two details that matter:
-#   * the list is INTERSECTED with the functions this file actually defines, so an exported function
-#     inherited from the operator's shell cannot leak into the fingerprint and make the ledger name
-#     machine-dependent;
-#   * `declare -f` is used rather than a text slice of the file, because it prints bash's own parsed
-#     form: COMMENTS ARE GONE and formatting is normalised. So editing a comment, re-indenting, or
-#     rewording a note voids nothing — which removes the single largest source of accidental
-#     invalidation in this harness, and is why this is a saving rather than a book-keeping change.
-#
-# Not covered here, deliberately: `coverage_selftest`, `selftest_assertion` and `re_all_match` are
-# defined after `suite()` and are the harness testing ITSELF. Their soundness is already enforced per
-# run — every row's owning run must have recorded self-tests with zero failures, which --verify-suite
-# checks — so they do not also need to invalidate rows.
-MACHINERY_FN_LIST="$(
-  { declare -F | awk '{print $3}' | LC_ALL=C sort >"$TMPROOT/fn.defined"
-    grep -oE '^[a-z_][a-z0-9_]*\(\)' "${BASH_SOURCE[0]}" | tr -d '()' | LC_ALL=C sort -u >"$TMPROOT/fn.infile"
-    LC_ALL=C comm -12 "$TMPROOT/fn.defined" "$TMPROOT/fn.infile"; } 2>/dev/null
-)"
-machinery_fp() {
-  local f
-  { for f in $MACHINERY_FN_LIST; do
-      printf '== %s ==\n' "$f"
-      declare -f "$f" 2>/dev/null || printf 'ABSENT\n'
-    done; } | sha256sum 2>/dev/null | awk '{print $1}'
-}
-MACHINERY_FP="$(machinery_fp)"; [ -n "$MACHINERY_FP" ] || MACHINERY_FP="unhashable"
-MACHINERY_FN_COUNT="$(printf '%s\n' "$MACHINERY_FN_LIST" | grep -c . || echo 0)"
-
-COVERAGE_LEDGER="$CACHE_DIR/coverage.$MACHINERY_FP.tsv"
-RUN_LEDGER="$CACHE_DIR/runs.$MACHINERY_FP.tsv"
-
-# The transcript cache is wiped when the MACHINERY moves, not when the file changes. A cached
-# transcript is a record of what the model answered; it is re-judged from scratch on every reuse, so
-# an edited assertion does not invalidate it — it re-reads it. That is what makes fixing a token in a
-# GREEN job free: its row goes stale, the job is re-judged against the cached transcript, and no
-# `claude -p` runs at all. A RED job has no cache entry (only greens are minted), so it costs one
-# real dispatch — which is the whole bill for a fix round.
+# --- Transcript-cache invalidation --------------------------------------------
+# The cache is wiped whenever run.sh itself changes. A cached transcript is a record of what the
+# model answered; it is re-judged from scratch on every reuse, so an edited assertion does not
+# invalidate it — it re-reads it. Keying the wipe on the WHOLE file is coarser than the two-tier
+# identity the retired suite carried, and deliberately so: with six fixtures the saving that bought
+# is worth less than the machinery, and a coarse key can only ever err toward running fresh.
 if [ "$CACHE_ENABLED" -eq 1 ]; then
-  FP_FILE="$CACHE_DIR/.machinery.fp"
-  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$MACHINERY_FP" ]; then
+  FP_FILE="$CACHE_DIR/.runner.fp"
+  if [ ! -f "$FP_FILE" ] || [ "$(cat "$FP_FILE" 2>/dev/null)" != "$RUNNER_FP" ]; then
     rm -f "$CACHE_DIR"/*.green 2>/dev/null || true
-    printf '%s' "$MACHINERY_FP" >"$FP_FILE"
+    printf '%s' "$RUNNER_FP" >"$FP_FILE"
   fi
 fi
 
@@ -1508,612 +876,43 @@ fi
 # is what makes "this is a scheduling change, not a coverage change" reviewable in the diff.
 suite() {
 
-# full: expects the SECTIONS count line and a stop at a pre-code gate. analysis stops at Gate 1
-# when clean, OR Gate 0 when it raises clarifications (j>0) — a universal "all signup paths"
-# requirement with an un-enumerable N legitimately surfaces Gate-0 questions, so accept either.
-t="$(run_fixture full 'Run the mango analysis skill on this ticket. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "full: SECTIONS count line"        "$t" 'SECTIONS:'
-assert_contains "full: stops at a pre-code gate"   "$t" 'Gate[ -]?[01]'
+banner "== refine-want-unattended-stops  (refine, autorun — Gate 0) =="
+# T7/T8 refine-want-unattended-stops: an unresolved refine want-decision counts toward `j` and autorun
+# stops; it is never a silent ASSUMED. A fully-locked ticket refine self-skipped on leaves `j` untouched.
+t="$(run_fixture refine-want-unattended-stops 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "want-j: the unresolved want-decision counts toward j" "$t" 'want-decision' 'counts? toward|into[ *_]{1,4}j|j[ *_=:]{0,4}1|toward the (j|clarification)|clarification'
+assert_all "want-j: the run STOPS at Gate 0 rather than guessing" "$t" 'stop|halt|does not (continue|proceed)|not[ *_]{1,4}(continue|proceed)' 'j[ *_=:]{0,4}1|Gate 0|human'
+assert_all "want-j: it is NOT recorded as a silent ASSUMED that ships a PR" "$t" 'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
+assert_all "want-j: the open question reaches the operator verbatim" "$t" 'recommend|likely to want|activity|editorial' 'question|state|report|surfac|morning|verbatim'
+assert_all "want-j: the fully-locked ticket self-skips and leaves j untouched" "$t" 'PROJ-903|self-skip|locked' 'j[ *_=:]{0,4}0|untouched|unaffected|no want|zero|correct'
+assert_absent "want-j: no product decision is invented at 3am" "$t" '(I|we) (chose|picked|selected) (recent activity|similar users|editorial|option [abc])'
 
-# lite: a trivial ticket should be triaged TIER: lite.
-t="$(run_fixture lite 'Run the mango analysis skill on this ticket and declare the TIER.')"
-assert_contains "lite: TIER lite" "$t" 'TIER:[[:space:]*_]*lite'
+banner "== multi-clause-want  (analysis — Gate 1) =="
+# multi-clause-want (v1.7.5 Fix 3e): a ratified want-decision with TWO clauses ("place the rows under the
+# summary" AND "tappable through to detail") must become TWO matrix rows + TWO proof rows at Gate 1 — the
+# injected single-row ✅ certification is FLAGGED (non-vacuous), not accepted.
+t="$(run_fixture multi-clause-want 'Run the mango analysis skill on this ticket. Decompose the ratified want-decision into the requirements matrix and the verification plan, state how many rows it produces and why, and judge the single-row certification shown in the ticket. Do not stop for my input.')"
+# Decision-level: the want-decision has TWO clauses and gets one row PER CLAUSE (outcome + reasoning).
+assert_all "multi-clause-want: two clauses → one row per clause" "$t" 'two|2[[:space:]*_]*(rows|clause)|per clause|each clause' 'clause'
+assert_all "multi-clause-want: both clauses are named (placement + tappable)" "$t" 'placement|under the summary|position' 'tappable|tap|navigat|detail view'
+# Non-vacuous: the injected single-row certification is REJECTED / flagged as a finding.
+assert_all "multi-clause-want: the injected 1-row certification is flagged (non-vacuous)" "$t" 'single[ -]row|one row|R-1|certif' 'not acceptable|unacceptable|reject|finding|insufficient|blocks?|must .{0,16}split|cannot .{0,16}(stand|certif)|flag'
 
-# freeform: a header-less ticket should synthesize and confirm at Gate 0.
-t="$(run_fixture freeform 'Run the mango analysis skill on this freeform ticket.')"
-assert_contains "freeform: synthesized"      "$t" 'synthesi[sz]ed'
-assert_contains "freeform: Gate 0 confirm"   "$t" 'Gate 0'
+banner "== provenance-authored-blocks  (design — Gate 2) =="
+# ===========================================================================================
+# v1.14.0 — fixture provenance (A), evidence provenance (E), the review-seat split (F)
+# ===========================================================================================
 
-# analysis-section-coverage (v1.7.1 Fix 3): a change-list with a MIGRATION → analysis's rule-compliance
-# step must ENUMERATE the applicable rulebook sections by change type and check each. Because the change
-# type is a migration, the DB-conventions section is MANDATORY (grants/soft-delete). Omitting an
-# applicable section is a FINDING (non-vacuous — the second assertion asks what happens if the section
-# is silently dropped).
-t="$(run_fixture analysis-section-coverage 'Run the mango analysis skill on this ticket, focusing on the rule-compliance section-coverage step. Enumerate the rulebook sections that apply to THIS change type and check each. State what you would do if an applicable section were silently omitted. Do not stop for my input.')"
-# Decision-level: enumerates the DB-conventions section by change type (outcome) and checks grants/soft-delete (reasoning).
-assert_all "section-coverage: enumerates the DB-conventions section for a migration" "$t" 'db[ -]conventions|database convention|db section|schema|migration' 'enumerat|applicable|change[ -]type|each section|RULE SECTIONS'
-assert_contains "section-coverage: checks grants + soft-delete"       "$t" 'grant|permission|soft[ -]delete'
-# Non-vacuous: silently omitting an applicable section is a finding.
-assert_all "section-coverage: omitting an applicable section is a finding" "$t" 'omit|missing|silently|left unchecked|drop' 'finding|blocks?|not .{0,12}(allowed|silent)|flag|must .{0,12}(check|cover)'
+# T1/T4 provenance-authored-blocks: an AC about a GROUPING HEURISTIC proven on authored fixtures alone
+# is a layer-match failure that blocks Gate 2; an exclusion with no expiry does not rescue it.
+t="$(run_fixture provenance-authored-blocks 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
+assert_all "prov-authored: AC2 is input-shape-dependent" "$t" 'AC2' 'input-shape|shape of (real )?input|heuristic|grouping|sensible|cannot be written'
+assert_all "prov-authored: authored alone is not acceptable for AC2" "$t" 'authored' 'not[ *_]{1,4}(acceptable|sufficient|enough)|insufficient|❌|mismatch|fails'
+assert_all "prov-authored: Gate 2 is blocked" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|fails'
+assert_all "prov-authored: the expiry-less exclusion does not rescue it" "$t" 'expiry|variant B' 'not[ *_]{1,4}(count|recorded|rescue)|still block|does not close|missing'
+assert_contains "prov-authored: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
 
-# design-layer: an integration-layer AC proved only by a UNIT test must fail the
-# verification-plan layer-match and demand an integration/e2e proof (proof at the risk layer).
-t="$(run_fixture design-layer 'Run the mango design skill on this ticket. Assume Gate 1 cleared. The proposed proving test is a UNIT test that mocks the downstream HTTP client. Produce the Phase 2 artifacts including the per-AC verification plan; do not stop for my input.')"
-# Emphasis/glyph-agnostic (see RE_LAYER_*): the layer-match FAILURE is the outcome, and the `❌`
-# may live in the work-doc verification table rather than the response text. Still outcome-bound —
-# the mismatch token is required alongside the layer subject, so a layer-match ✅ matches neither.
-assert_all "design: verification-plan layer-match ❌" "$t" "$RE_LAYER_SUBJECT" "$RE_LAYER_MISMATCH"
-assert_contains "design: demands integration/e2e proof"   "$t" 'integration|e2e'
-assert_contains "design: Gate 2 cannot pass"              "$t" 'Gate 2'
-
-# blast-radius: a change that alters a string an existing assertion checks must list that existing
-# test file in the Gate-2 change list as proof collateral — a planned edit, not an execute surprise.
-t="$(run_fixture blast-radius 'Run the mango design skill on this ticket. Assume Gate 1 cleared. Produce the Phase 2 artifacts including the smallest change-list table and its mechanical test blast-radius sub-step; do not stop for my input.')"
-assert_contains "blast-radius: names the affected existing test" "$t" 'dashboard_heading_spec|dashboard[_-]heading'
-assert_contains "blast-radius: folds it in as collateral"        "$t" 'blast[ -]radius|collateral|proof collateral'
-
-# challenger: ticket-blind on (raw ticket + diff) must report the one unmet AC as not met + path:line.
-t="$(run_fixture challenger-unmet 'Run the mango challenger agent ticket-blind on the raw ticket and the diff below. Rebuild the acceptance criteria yourself and judge each met / not met / can'\''t tell with path:line. Do not read any working doc.')"
-assert_contains "challenger: reports a not-met AC" "$t" 'not[[:space:]_-]*met'
-# Concrete code evidence: a path:line, a named source file, or an explicit line ref. (The fixture's
-# diff references files that don't exist in this repo, so a ticket-blind challenger may cite the file
-# + diff hunk rather than a resolved line number — both are concrete evidence.)
-assert_contains "challenger: cites concrete evidence" "$t" '[A-Za-z0-9_./-]+:[0-9]+|[A-Za-z0-9_./-]+\.(js|ts|jsx|tsx|py|rb|go|java|css|html)|line [0-9]+'
-
-# frontend-layer (T2): a frontend "no horizontal overflow @320 px" AC proved only by a UNIT test
-# must be layer-match ❌ and BLOCK Gate 2 — demanding an automated-UI render at the width (or a
-# recorded human-approved exclusion), never passing on the mocked-DOM unit proof.
-t="$(run_fixture frontend-layer 'Run the mango design skill on this ticket with track=frontend. Assume Gate 1 cleared and TRACK: frontend. The proposed proving test is a UNIT test that asserts layout math against a mocked DOM. Produce the Phase 2 artifacts including the per-AC verification plan; do not stop for my input.')"
-assert_all "frontend-layer: layer-match ❌"                 "$t" "$RE_LAYER_SUBJECT" "$RE_LAYER_MISMATCH"
-assert_contains "frontend-layer: demands a real render"    "$t" 'render|integration|e2e|real (rendered )?DOM'
-assert_contains "frontend-layer: Gate 2 blocked"           "$t" 'Gate 2'
-
-# rubric-hover: on the frontend review rubric path, a control exposed only via :hover and a
-# mouse-only (mousedown/mousemove, no pointer equivalent) reorder handler must be FLAGGED, not passed.
-t="$(run_fixture rubric-hover 'Run the mango review frontend rubric on the raw ticket and the diff below, with track=frontend. Score the Core items and the M1–M10 responsive/touch gates against a DESIGN.md contract. Report findings; do not stop for my input.')"
-assert_contains "rubric-hover: flags hover-only / mouse-only" "$t" 'hover|mousedown|mousemove|pointer|tap'
-assert_contains "rubric-hover: not a clean pass"             "$t" 'flag|fail|not met|blocked|changes requested|❌'
-
-# surface-denominator: a universal frontend AC whose sitemap shows 5 reachable surfaces but whose
-# proposed proof covers only 2 must read `surfaces proven: 2/5` (k<N) and BLOCK Gate 2 — the
-# denominator is the code surface, not the surfaces the ticket named.
-t="$(run_fixture surface-denominator 'Run the mango design skill with track=frontend. Assume Gate 1 cleared, TRACK: frontend, and SURFACES: 5 (the five reachable surfaces listed). The proposed proof covers only the overview and reports routes (2 of 5). Produce the Phase 2 verification plan / proof manifest and the surface-coverage banner; do not stop for my input.')"
-# Under-coverage surfaced as 2-of-5 (accept the common phrasings: "2/5", "2 of 5", "k = 2 / N = 5").
-assert_contains "surface-denominator: 2 of 5 surfaces covered" "$t" '2[[:space:]]*/[[:space:]]*5|2 of 5|k[[:space:]=]+2[[:space:]/]+N[[:space:]=]+5'
-assert_contains "surface-denominator: Gate 2 blocked"          "$t" 'Gate 2'
-
-# no-runner-proof: a frontend AC in a project with NO automated-UI runner must yield a tier-2
-# PASS(render@<bp>) recorded proof — NOT a silent skip and NOT an automatic exclusion.
-t="$(run_fixture no-runner-proof 'Run the mango execute skill on this AC with track=frontend. The project declares NO automated-UI runner and tests/ is unavailable. Per mango, produce the proof-manifest entry for the affected surface — do not silently skip and do not auto-exclude. State the tier and the proof; do not stop for my input.')"
-assert_contains "no-runner: tier-2 render proof" "$t" 'render@|render proof|PASS\(render'
-assert_contains "no-runner: a proof, not a skip"  "$t" 'render@|PASS\(render|first-class|not an exclusion'
-
-# per-clause (Fix 1): a multi-clause M4 gate (size AND spacing) whose proof asserts ONLY the size
-# clause must mark the spacing clause unproven and BLOCK Gate 2 — proving the easy clause does not
-# clear a gate whose other clause is unasserted.
-t="$(run_fixture per-clause 'Run the mango design/execute per-clause M-gate check on this ticket with track=frontend. Assume TRACK: frontend and Gate 1 cleared. The submitted M4 proof asserts ONLY the size clause (no spacing assertion). Lay out the proof manifest one row per clause and state whether Gate 2 passes; do not stop for my input.')"
-assert_contains "per-clause: spacing clause unproven"  "$t" 'spacing'
-assert_contains "per-clause: gate incomplete / blocks" "$t" 'incomplete|block|❌|unproven|not proven'
-assert_contains "per-clause: Gate 2 blocked"           "$t" 'Gate 2'
-# both-clause variant: a proof asserting BOTH size and spacing clears the M4 gate.
-t="$(run_prompt per-clause-both 'On the mango frontend track, an M4 touch-target proof manifest carries one row asserting size ≥ 44×44 px AND a second row asserting spacing ≥ 8 px between adjacent targets — both clauses asserted. Per the mango per-clause rule, does the M4 gate pass? Answer and say why.')"
-assert_contains "per-clause-both: M4 passes with both clauses" "$t" 'pass|complete|clear|proven'
-
-# format-scope (Fix v1.1): execute runs the project's formatter ONLY on the files this change
-# authored/edited — never a wholesale reformat of a shared/pre-existing file (that reformats untouched
-# lines and reads as scope creep); whole-file conformance is a separate concern (CI / a chore ticket).
-t="$(run_fixture format-scope 'Run the mango execute skill on this ticket. The project has a formatter. Per mango, state exactly which files you would run the formatter over, and whether you would run it over the whole shared file. Do not stop for my input.')"
-# Decision-level: scope the formatter to the authored/edited file (outcome + reasoning token both
-# required), and do NOT wholesale-reformat the shared file (a whole-file token + a decline/defer token).
-assert_all "format-scope: scopes formatter to authored/edited files" "$t" 'format' 'authored|edited|only .*(chang|edit)|files (this|i) (chang|edit)|the (changed|edited) file'
-assert_all "format-scope: no wholesale reformat of the shared file"  "$t" 'whole[- ]?file|wholesale|entire (shared )?file|whole shared file' 'not|never|avoid|would ?n.?t|do ?n.?t|defer|separate|\bCI\b|chore'
-
-# design-invalidated scenario: execute must STOP and re-open Gate 2, never work around it.
-t="$(run_prompt design-invalidated 'In the mango ticket lifecycle, during the execute phase a test reveals that the approved Gate-2 design approach cannot work as designed. Per the mango execute/solve skill, exactly what do you do next? Be specific.')"
-assert_contains "design-invalidated: STOP"          "$t" 'stop'
-assert_contains "design-invalidated: re-open Gate 2" "$t" 're-?open|re-?gate|reopen|Gate 2'
-
-# stuck-detector scenario: repeated failures at the same proof must escalate, not keep trying.
-t="$(run_prompt stuck-detector 'In the mango ticket lifecycle, the same proving test has failed 4 times with the same error during execute. Per the mango skill, what do you do? Be specific.')"
-assert_contains "stuck: STOP and escalate" "$t" 'escalat|stop'
-
-# stale-workdoc-bump: the finalise stale-review guard is a file-set test, NOT a commit-count test.
-# When the ONLY post-review change is the marker-bearing working doc (a bookkeeping bump), the guard
-# must EXEMPT it and PROCEED — it must not dead-lock on "a commit landed after the reviewed SHA".
-t="$(run_fixture stale-workdoc-bump 'Run the mango finalise stale-review guard on this working doc. Apply it mechanically: git diff --name-only against the Reviewed at SHA, exempt the working-doc / bookkeeping path, and decide stale-or-not by whether any remaining file is beyond the reviewed set. State your decision (proceed or refuse) and why. Do not stop for my input.')"
-# Decision-level: correct behaviour is PROCEED *because* the only change was the exempt
-# working-doc/bookkeeping/marker path. Require both the proceed outcome AND an exemption-reasoning
-# token (widened over phrasing) — so a proceed with no exemption recognition, or a wrong "stale"
-# verdict, still fails.
-assert_all "stale-workdoc: exempts the working doc"          "$t" 'not stale|proceed' 'exempt|bookkeeping|working[- ]doc|marker'
-assert_contains "stale-workdoc: proceeds (no dead-lock)"     "$t" 'not stale|proceed|final gate'
-
-# stale-source-change: a source file changed beyond the reviewed set must make the review STALE — the
-# guard refuses, routes back to review, and a bare "go" does not override it.
-t="$(run_fixture stale-source-change 'Run the mango finalise stale-review guard on this working doc. Apply it mechanically: git diff --name-only against the Reviewed at SHA, exempt the working-doc / bookkeeping path, and decide stale-or-not by whether any remaining file is beyond the reviewed set. Then say whether a bare "go" would let you finalise anyway. Do not stop for my input.')"
-assert_contains "stale-source: marks it stale"              "$t" 'stale'
-# Routing widened over phrasing (refuse / route back / re-run review / blocked / fresh review). The
-# separate `stale` and bare-go assertions remain the outcome guards, so a stale verdict that then
-# proceeds/stops WITHOUT routing, or a honoured bare "go", still fails the suite.
-assert_contains "stale-source: refuses + routes to review"  "$t" "$RE_ROUTES_TO_REVIEW"
-assert_contains "stale-source: bare go does not override"   "$t" 'does not override|not override|only a fresh|bare .?go'
-
-# behavioural-drift (Fix v1.2): execute's design-conformance self-check. An approach implemented
-# differently from the approved Gate-2 Approach bullet must be RECORDED as a deviation and surfaced to
-# review — even when every touched file is inside the change-list (so the file-set sweep passes clean).
-t="$(run_fixture behavioural-drift 'Run the mango execute skill on this ticket. Gate 2 is already cleared (the approved Approach bullet is quoted). Run the verification sweep on BOTH axes — the file set AND conformance to the approved design behaviour. State whether you record a design-conformance deviation, and why. Do not stop for my input.')"
-# Decision-level: a deviation is recorded (outcome) BECAUSE the behaviour diverges from the approved
-# design even though the file diff is clean (reasoning) — so a "swept clean" pass drops a token and fails.
-assert_all "behavioural-drift: records a deviation on the behaviour axis" "$t" 'deviat' 'approved (design|approach|gate.?2|bullet)|behaviou?r'
-assert_contains "behavioural-drift: acknowledges the clean file diff"     "$t" 'subset|diff ⊆|file.?set|change.?list|touched file|clean (file )?diff'
-assert_contains "behavioural-drift: surfaces it to review / not clean"    "$t" 'review|not clean|surface|adjudicat'
-
-# vague-requirement (Fix v1.2): Gate-1 falsifiability. A vaguely-worded AC ("loads quickly / feels
-# responsive") must be pinned to a measurable or logged as a manual-check exclusion, and may not carry
-# a bare ✅.
-t="$(run_fixture vague-requirement 'Run the mango analysis skill on this ticket. Apply the Gate-1 falsifiability check in the AC-validation step to each acceptance value. Do not stop for my input; show the artifacts you would produce.')"
-# proof pass, batch 1: "neither falsifiable nor excluded" is the SAME verdict as "not falsifiable" — a real run
-# phrased the negation with neither/nor and the token missed it, while the sibling ✅-guard assertion
-# passed on that very transcript. Widened over WORDING only: `(neither|nor) falsifiable` cannot match
-# an affirmative verdict ("AC-1 is falsifiable"), so the assertion still fails the wrong outcome.
-assert_contains "vague-requirement: flags AC-1 as not falsifiable" "$t" 'not falsifiable|(neither|nor) falsifiable|not measurable|unmeasurable|vague|manual-check'
-# Decision-level: it is pinned to a measurable OR logged as a manual-check exclusion (outcome), and it
-# may not carry a bare ✅ (the guard) — so a silent ✅ drops a token and fails.
-assert_all "vague-requirement: cannot carry a bare ✅"             "$t" 'falsifiable|measurable|manual-check' 'may not|cannot|not carry|flag|pin|Gate[ -]?1 question|exclusion'
-
-# red-baseline (Fix v1.2, hardened v1.3.1): baseline vocabulary against a GENUINELY red command. The
-# config.test_command is pointed at the committed pre-existing failing check for THIS fixture only, so
-# analysis must DETECT baseline: red by RUNNING it (detect-not-assume). The ticket carries NO fabricated
-# command output, so the model cannot pass by narrating "red" — the failing-item detail can only come
-# from the command. Restore the green default immediately after this one run.
-write_harness "sh tests/baseline/verify.sh"
-t="$(run_fixture red-baseline 'Run the mango analysis skill on this ticket, focusing on the baseline-capture step: run config.test_command once on the untouched checkout, record the BASELINE from what you actually observe, state the Definition of Done, and say how any pre-existing failure is handled. Do not stop for my input.')"
-write_harness "true"
-# Decision-level: the baseline is classified red/flaky. Matches the label-adjacent form
-# (`BASELINE: red`), the `is/=` form, and a red/flaky *result* classification (`Result: **red**`,
-# `red, exit code 1`) — emphasis-agnostic over phrasing. Still outcome-bound: a green result never
-# produces a red/flaky classification (the ticket carries no "red" and verify.sh's output has none).
-assert_contains "red-baseline: records baseline red/flaky"  "$t" 'baseline[:*_ ]+(red|flaky)|baseline.*(is|=).*(red|flaky)|result:?[-* ]*(red|flaky)|(red|flaky)[,)* ]+exit'
-# Measured, not narrated: a failing-item detail that exists ONLY in the command's output (never in the
-# ticket) must appear — so a run that read "red" off the ticket without running the command still fails.
-assert_contains "red-baseline: measured (observed failing item, not narrated)" "$t" 'pdf_snapshot_spec|snapshot drift|sub-?pixel|1 failed'
-assert_contains "red-baseline: DoD is delta-green"          "$t" 'delta.?green|prove the delta|delta is green'
-# Decision-level: the pre-existing failure is a recorded exclusion (outcome) that neither blocks nor
-# silently passes (the guard).
-assert_all "red-baseline: pre-existing failure is a recorded exclusion" "$t" 'exclusion|excluded|baseline exclusion' 'not a blocker|neither|not.{0,4}silent|does.{0,4}not.{0,4}block|not.{0,4}block|outside the change'
-
-# conditional-LGTM (Fix v1.2): a round-1 CHANGES REQUESTED with a conditional LGTM leads to a
-# verify-only re-review (confirm findings 1–N + regression scan), NOT a full re-derivation, and the
-# ticket-blind challenger is not re-run unless a fix changed scope.
-t="$(run_fixture conditional-LGTM 'Run the mango review re-review on this ticket. Round 1 already returned CHANGES REQUESTED with the two named findings shown, and the author has applied exactly those two fixes (no scope change). State the round-1 verdict form and exactly what round 2 does. Do not stop for my input.')"
-assert_contains "conditional-LGTM: conditional LGTM offered"      "$t" 'conditional'
-assert_contains "conditional-LGTM: verify-only re-review"         "$t" 'verify-only|verify only'
-# Decision-level: round 2 confirms the named fixes + runs a regression scan (outcome) WITHOUT a full
-# re-derivation / without re-running the challenger (the guard) — so a full re-review drops a token.
-# Widened over WORDING (v1.8.0, separator + word-order class): a correct run writes "what it does
-# **not** do: no full requirement re-derivation … **no repeat of the ticket-blind challenger**".
-assert_all "conditional-LGTM: verify-only, not a full re-derivation" "$t" 'regression' 'not[*_ ]{1,4}.*re-?deriv|no[*_ ]{1,4}.{0,24}re-?deriv|without a full|challenger.*(once|not repeated|not re-?run)|no[*_ ]{1,4}repeat|not repeated|(repeat|re-?run)[^.]{0,40}challenger'
-
-# ledger-descriptive (v1.3): the Cost ledger is a descriptive, facts-only artifact. A completed run
-# records per-phase/per-subagent token usage and finalise surfaces a one-line summary (total + top cost
-# driver) WITHOUT the ledger deciding to cut anything.
-t="$(run_fixture ledger-descriptive 'Run the mango finalise cost-ledger step for this completed full-tier ticket. Using the recorded per-dispatch token usage shown, produce the Cost ledger block and the one-line finalise summary (total + top cost driver). State plainly whether the ledger itself decides to cut anything. Do not stop for my input.')"
-assert_contains "ledger: records a cost ledger"              "$t" 'cost ledger|ledger total'
-# Decision-level: it is descriptive/facts-only (outcome) AND does not itself auto-cut a check/critic (guard).
-# Widened over WORDING (v1.8.0): a correct run writes "it is descriptive and **cuts nothing**" and
-# "only **you** can decide to trim" — the guard, stated positively about who decides.
-assert_all "ledger: descriptive, does not auto-cut"          "$t" 'descriptive|facts[ -]only|facts only' 'not.*cut|never.*cut|(not|never) *\*{0,2}normative|does *\*{0,2}not\*{0,2}.{0,12}(cut|decide|drop)|human (call|can |decide|decision)|not itself|makes.*visible|cuts?[*_ ]{1,4}nothing|nothing is cut|only[*_ ]{1,4}you[^.]{0,20}decide|you[*_ ]{1,4}(can[*_ ]{1,4})?decide|surfaced for you'
-assert_contains "ledger: finalise summary (total + driver)"  "$t" 'top cost driver|cost driver|ledger total'
-
-# rtk-degrade (v1.3): with token_optimizer.rtk: expect but RTK absent, the run completes identically —
-# mango never fails, blocks, or changes a decision on RTK absence; only the token saving is lost.
-t="$(run_fixture rtk-degrade 'Per the mango budget skill and PRINCIPLES, this project sets token_optimizer.rtk: expect but RTK is not installed. Explain exactly what happens to a mango run: does anything fail, block, or change a gate decision because RTK is absent? Be specific. Do not stop for my input.')"
-assert_contains "rtk-degrade: runs identically"             "$t" 'identical|degrade clean|degrade cleanly|unchanged|same|no difference'
-# Decision-level: about RTK (subject) AND nothing fails/blocks/changes a decision / only the saving is lost (guard).
-assert_all "rtk-degrade: no failure / no changed decision"  "$t" 'rtk' 'not fail|never fail|does not.*(fail|block|chang)|no.*(fail|block|chang)|only the saving|degrade'
-
-# caveman-critic-guard (v1.3): with caveman enabled, critic output (reviewer/challenger) must NOT be
-# terse-compressed and must retain path:line evidence detail.
-t="$(run_fixture caveman-critic-guard 'Run the mango review phase on this ticket with token_optimizer.caveman.enabled true. Per mango'\''s Caveman critic guardrail, state whether the reviewer/challenger output may be compressed to a terse form, and what evidence critic output must retain. Do not stop for my input.')"
-assert_contains "caveman-guard: critic keeps evidence detail" "$t" 'path:line|evidence detail|full evidence'
-# Decision-level: names caveman/compression/terse (subject) AND forbids it on critic output (guard).
-assert_all "caveman-guard: forbids terse critic output"       "$t" 'caveman|compress|terse' 'never|not|forbid|must not|non-critic-only|retain'
-
-# optimizer-adoption-gated (v1.3): enabling an optimizer is a recorded provisional decision in
-# .harness.json token_optimizer — never a silent toggle — and budget installs nothing.
-t="$(run_fixture optimizer-adoption-gated 'Run the mango budget skill for this project to consider adopting the detected Headroom optimizer. Per mango, state exactly how the adoption is recorded and where, whether it is silent, and whether budget installs anything. Do not stop for my input.')"
-assert_contains "adoption-gated: recorded in token_optimizer" "$t" 'token_optimizer|\.harness\.json'
-# Decision-level: recorded (outcome) AND provisional / not silent (guard).
-assert_all "adoption-gated: recorded provisional, not silent"  "$t" 'recorded|token_optimizer' 'provisional|not.*silent|not a silent|ratif|human'
-assert_contains "adoption-gated: never installs / no depend"   "$t" 'never install|not install|does not install|installs nothing|depend'
-
-# ledger-auto-append (v1.4 Fix 1): the Cost ledger is emitted mechanically — one row per dispatch
-# return, as a by-product of dispatching, NOT narrated bookkeeping the model must remember. A run that
-# dispatched four subagents ends with four ledger rows.
-t="$(run_fixture ledger-auto-append 'Run the mango solve/finalise Cost-ledger step for this run. Per mango, produce the Cost-ledger block the run ends with, state plainly what emits each row (the dispatch return, mechanically — not narrated bookkeeping), and how many rows a four-dispatch run carries. Do not stop for my input.')"
-assert_contains "ledger-auto-append: records the ledger"         "$t" 'cost ledger|ledger total|ledger'
-# Decision-level: rows are emitted per dispatch return (outcome) mechanically / as a by-product, not narrated (guard).
-# Widened over WORDING (v1.8.0, literal-word class): a correct run writes "when a subagent dispatch
-# returns, **one row is appended** from that return's usage block" — no "per".
-assert_all "ledger-auto-append: one row emitted per dispatch return" "$t" 'per dispatch|each dispatch|per .*return|row per dispatch|one row[^.]{0,40}(dispatch|return)|row is appended|appends? one row' 'mechanical|by-?product|emitted|not narrat|not bookkeep'
-assert_contains "ledger-auto-append: N dispatches → N rows"      "$t" '4 rows|four rows|4 ledger rows|four ledger rows|one row per (dispatch|return)'
-
-# ledger-dispatch-only-honesty (v1.4 Fix 2): the ledger measures subagent dispatch ONLY; main-loop
-# output noise is NOT measured by mango. The summary must declare dispatch-only, refuse to fabricate a
-# dispatch-vs-noise split, and point at the optimizer's own analytics (rtk gain) for the noise side.
-t="$(run_fixture ledger-dispatch-only-honesty 'Run the mango finalise Cost-ledger summary for this completed ticket, then answer the operator honestly per mango. Do not stop for my input.')"
-assert_contains "dispatch-only: declares dispatch-only"          "$t" 'dispatch[ -]only|subagent dispatch only|dispatch-scoped'
-# Decision-level: it does not fabricate a split (guard) over the noise/main-loop side (subject).
-assert_all "dispatch-only: no fabricated dispatch-vs-noise split" "$t" 'not[ _*]*measured?|does[ _*]*not[ _*]*(measure|instrument)|not[ _*]*instrument|instrumentation artifact|artifact of only|no .*split|won.?t merge|would be a fiction' 'noise|main[- ]loop|dispatch.?vs.?noise'
-assert_contains "dispatch-only: points at optimizer analytics"   "$t" 'rtk gain|optimizer.?s own|its own analytics|own savings|own analytics'
-
-# verify-only-scoped (v1.4 Fix 3): a conditional-LGTM verify-only round must REUSE round-1's verified
-# facts and re-run ONLY the proof affected by the named fixes — never blanket-re-run the full suite or
-# re-derive requirements (no fix changed scope), so the cheap path is the default not a coin flip.
-t="$(run_fixture verify-only-scoped 'Run the mango review re-review on this ticket. Round 1 was a conditional LGTM with the two named findings; the author applied exactly those two fixes, no scope change. State exactly what round 2 re-runs and what it reuses, and why. Do not stop for my input.')"
-assert_contains "verify-only-scoped: reuses round-1 facts"       "$t" 'reuse|carr(y|ies).?forward|round.?1 (facts|verified)|already (verified|established)'
-# Decision-level: re-runs only the affected proof (outcome) and does NOT blanket-re-run / re-derive (guard).
-# Widened over WORDING (v1.8.0): a correct run states the negative as "**No** full build, no
-# whole-suite run, no re-read" rather than "not …". Every added alternative still names the thing NOT
-# done, so a round 2 that DOES re-derive or re-run the suite matches none of them.
-assert_all "verify-only-scoped: re-runs only the affected proof" "$t" 'only .*(proof|affected|named|fix)|scoped|affected proof' "$RE_NO_BLANKET_RERUN"
-assert_contains "verify-only-scoped: challenger not repeated"    "$t" 'challenger.*(not|once)|not repeated|not re-?run|re-?deriv.*(not|once)'
-
-# ledger-label (v1.4 Fix 4): a dispatch return surfaces a single unsplit figure, so the Tokens column
-# must be labelled plainly `Tokens` — never `(out)` / `(in / out)` over an unsplit metric (false precision).
-t="$(run_fixture ledger-label 'Run the mango Cost-ledger step for this run and produce the ledger block and its column header. Label the token column to match what is actually measured; do not label it (out) or (in / out) over an unsplit metric, and say why. Do not stop for my input.')"
-assert_contains "ledger-label: single unsplit figure"           "$t" 'single|unsplit|not split|no in.?/.?out|one figure'
-# Decision-level: labelled Tokens (subject) and NOT labelled (out) over an unsplit metric (guard).
-assert_all "ledger-label: column not labelled (out)"            "$t" 'tokens' 'not .*\(out\)|no .*\(out\)|without .*\(out\)|not.*in ?/ ?out|plainly|just .?tokens|not split|unsplit'
-
-# budget-rtk-wire-guidance (v1.4 Fix 5): with RTK present-but-unwired, budget prints the exact wiring
-# command + a "you run this yourself, not mango" note (it edits the global config), and administers
-# nothing — detect + inform usefully, never execute.
-t="$(run_fixture budget-rtk-wire-guidance 'Run the mango budget skill for this project: RTK is installed but not wired. Per mango, state exactly what budget outputs and what it does NOT do. Do not stop for my input.')"
-assert_contains "rtk-wire: prints the wiring command"            "$t" 'rtk init|wire|wiring|hook setup|register.*hook'
-# Decision-level: the user runs it (subject) and mango will not / it edits the global config (guard).
-assert_all "rtk-wire: you run it, not mango"                     "$t" 'you (must |would |should )?run|user (must )?run|run (it|this|that) yourself|must run it' 'mango (will not|won.?t|does not|never)|not mango|global.*config'
-assert_contains "rtk-wire: administers nothing"                  "$t" 'install(ed|s)?[ _*]*nothing|nothing[ _*]*install|never[ _*]*install|wires?[ _*]*nothing|nothing[ _*]*wired?|global config untouched|administers?[ _*]*nothing|did[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)|does[ _*]*n.?t[ _*]*(install|wire|run|touch|edit)'
-
-# ledger-gate (v1.5 Fix 1): the Cost ledger's teeth. finalise runs a dispatch-count check and REFUSES to
-# proceed when the ledger has fewer rows than the run's dispatch count — an incomplete ledger blocks like
-# an unfilled matrix column (a COMPLETENESS check, never content, never auto-cuts). A complete ledger proceeds.
-t="$(run_fixture ledger-gate 'Run the mango finalise Cost-ledger dispatch-count gate for this run. Apply it: count the run'\''s subagent dispatches, compare to the Cost-ledger row count, and decide proceed-or-block. State your decision and why. Do not stop for my input.')"
-assert_contains "ledger-gate: incomplete ledger blocks finalise" "$t" 'block|refuse|not proceed|cannot proceed|does not proceed|incomplete'
-# Decision-level: gated on dispatch count (outcome) BECAUSE rows < dispatches (reasoning) — a proceed, or a
-# block with no count reasoning, drops a token and fails.
-assert_all "ledger-gate: gated on dispatch count, fewer rows than dispatches" "$t" 'dispatch[ -]count|dispatch' 'fewer|less than|2[[:space:]]*(of|/)[[:space:]]*4|missing|incomplete|only 2'
-assert_contains "ledger-gate: blocks like an unfilled matrix column"          "$t" 'matrix column|unfilled|like a.*(gate|column)|gate-?block'
-# Decision-level: it is a completeness check (subject) that never cuts content (guard).
-assert_all "ledger-gate: completeness check, not content (never auto-cuts)"   "$t" 'complete' 'not.*content|never.*cut|not.*cut|descriptive|completeness'
-# proceeds variant: a complete ledger (rows == dispatches) proceeds.
-# PREMISE COMPLETED (v1.15.1, R2). The old prompt fixed the row COUNT and said nothing about row
-# CONTENT, and mango's ledger gate has both conditions — so a correct run answered "not enough
-# information: row count alone doesn't clear it", split the two conditions, and cited the skill. That
-# is better behaviour than the assertion expected, which makes the class OUTCOME, and this suite does
-# not widen an assertion over outcome. The repair is to the scenario's premise instead: state that
-# every row carries a token value, leaving the dispatch-count identity as the only condition under
-# test. Row CONTENT is `ledger-content-gate-marker`'s job, and stays there.
-t="$(run_prompt ledger-gate-complete 'On the mango finalise dispatch-count gate: a run made 4 subagent dispatches and the Cost ledger has 4 rows (one per dispatch return). Every one of those 4 rows carries a token value — no cell is blank and none is marked unmeasured — so the only question left is the dispatch-count condition. Per mango, does finalise proceed or block? Answer and say why.')"
-# STRENGTHENED (v1.15.0). The old single check was `proceed|passes|not block|does not block|complete`:
-# the prompt itself asks "does finalise proceed or block?", so any answer that echoes the question —
-# including a WRONG "it blocks" — matched /proceed/, and /complete/ matched the scenario's own name in
-# the harness header. Nothing this scenario could return would have failed it. It is now decision-level:
-# the OUTCOME token must say it goes through, AND the REASONING token must name the count identity that
-# makes it go through. A "blocks" answer matches neither.
-assert_all "ledger-gate-complete: proceeds, BECAUSE the rows equal the dispatches" "$t" \
-  'proceeds( |,|\.|$)|does not block|is not blocked|no block|passes the gate|gate passes|clears the gate' \
-  '4[^0-9]{0,16}(=|==|of 4|/ ?4|rows?|dispatch)|rows?[^.]{0,28}(match|equal|same|==?)|dispatch(es)?[^.]{0,28}(match|equal|same)|ledger is complete|complete ledger'
-
-# verify-only-main-loop (v1.5 Fix 2): the conditional-LGTM verify-only round is MAIN-LOOP-BY-DEFAULT. An
-# in-scope round verifies in the main loop dispatching NO subagent (cost does not swing on operator choice);
-# a scope-changing fix is the ONLY trigger for re-dispatching a reviewer/challenger.
-t="$(run_fixture verify-only-main-loop 'Run the mango review verify-only re-review on this ticket. Round 1 was a conditional LGTM with two named findings; the author applied exactly those two in-scope fixes, no scope change. State exactly HOW round 2 verifies — in the main loop, or by re-dispatching a reviewer/challenger — and what WOULD trigger a re-dispatch. Do not stop for my input.')"
-assert_contains "verify-only-main-loop: verifies in the main loop" "$t" 'main[ -]loop'
-# Decision-level: main-loop (outcome) with NO re-dispatch of a subagent (guard) for in-scope fixes.
-# Widened over WORDING (v1.8.0): correct runs write "zero subagents dispatched" and "dispatch**es** no
-# reviewer" — the old alternation matched only "dispatch no" / "no subagent". The outcome guard is
-# unchanged: a round that re-dispatches a critic matches none of these.
-assert_all "verify-only-main-loop: no re-dispatch for in-scope fixes" "$t" 're-?dispatch|subagent|reviewer|challenger' 'no re-?dispatch|not re-?dispatch|dispatch(es|ing|ed)? no|without .*(dispatch|subagent)|no subagent|zero subagents?|zero .{0,14}dispatch'
-# Decision-level: a re-dispatch happens (subject) only on a scope change (guard).
-assert_all "verify-only-main-loop: scope change is the only re-dispatch trigger" "$t" 're-?dispatch|full re-?review' 'scope chang|changed scope|outside the .*set|new surface|beyond the .*finding'
-
-# uncodified-standard-nudge (v1.5 Fix 3): a standard applied at a gate with NO codified rule must be
-# SURFACED as an uncodified-standard item into codify's provisional→ratify flow — never silently enforced
-# and never silently ignored.
-t="$(run_fixture uncodified-standard-nudge 'Run the mango analysis uncodified-standard check on this ticket. A standard is applied at a gate but the rule book has NO codified rule for it. Per mango, state what mango does — silently enforce it, silently ignore it, or surface it — and how the human ratifies it. Do not stop for my input.')"
-assert_contains "uncodified-standard: surfaced, not silently applied" "$t" 'uncodified|surface'
-# Decision-level: routed into codify's provisional→ratify flow (outcome) for the human to ratify (guard).
-assert_all "uncodified-standard: routed to codify'\''s ratify flow" "$t" 'codify|ratif|provisional' 'ratif|provisional|human'
-# Decision-level: NOT silently enforced or ignored (guard) — the human ratifies, mango does not author.
-assert_all "uncodified-standard: not silently enforced or ignored" "$t" 'not silent|neither|does not silently|surface|nudge' 'enforc|apply|ignore|ratif|human|never author'
-
-# ledger-content-gate (v1.6 Fix 2): the ledger's teeth become a CONTENT-completeness check. All four
-# dispatch rows are PRESENT but one has a BLANK token cell — finalise must BLOCK (a blank token value is
-# incomplete, exactly like an unfilled matrix column), not merely count rows. This is the test the vacuous
-# row-count field runs could never provide — it INJECTS a short/blank ledger directly.
-t="$(run_fixture ledger-content-gate 'Run the mango finalise Cost-ledger completeness gate for this run. All four dispatch rows are present but the first row'\''s token cell is blank. Apply the content-completeness check and decide proceed-or-block. State your decision and why. Do not stop for my input.')"
-assert_contains "ledger-content-gate: blank token cell blocks finalise" "$t" 'block|refuse|not proceed|cannot proceed|does not proceed|incomplete'
-# Decision-level: blocked BECAUSE a token value is blank/missing (content), not merely a row count.
-assert_all "ledger-content-gate: blocks on a blank token value, not just row count" "$t" 'blank|empty|no.{0,6}(token|value)|missing.{0,6}(token|value)|absent' 'token|value|content|cell'
-assert_contains "ledger-content-gate: blocks like an unfilled matrix column"        "$t" 'matrix column|unfilled|like a.*(gate|column)|gate-?block'
-# Decision-level: still a completeness/descriptive check that never auto-cuts content.
-assert_all "ledger-content-gate: completeness check, never auto-cuts"               "$t" 'complete' 'not.*(inspect|judg|rank|cut)|never.*cut|descriptive|completeness|presence'
-# proceeds variant: every cell has a number OR the explicit unmeasured marker → proceeds.
-t="$(run_prompt ledger-content-gate-marker 'On the mango finalise content-completeness gate: a run made 4 dispatches and the Cost ledger has 4 rows, each with a token count EXCEPT the blocked first dispatch, whose cell reads the explicit marker "unmeasured (blocking retrieval)". Per mango, does finalise proceed or block? Answer and say why.')"
-assert_contains "ledger-content-gate-marker: value-or-marker in every cell proceeds" "$t" 'proceed|passes|not block|does not block'
-
-# usage-unmeasured-marker (v1.6 Fix 1): a dispatch retrieved by BLOCKING carries no <usage> block. Its
-# ledger row must show a REAL count (recovered via a usage-carrying path) or the explicit
-# `unmeasured (blocking retrieval)` marker — NEVER a silent blank and never a fabricated number.
-t="$(run_fixture usage-unmeasured-marker 'Run the mango Cost-ledger usage-surfacing step for this run. The first dispatch was retrieved by blocking and its return carried no <usage> block. Produce its ledger row and state what its token cell holds and why it may never be blank or invented. Do not stop for my input.')"
-# Decision-level: the cell holds a real recovered count OR the explicit unmeasured marker (outcome)...
-assert_contains "usage-marker: real count or explicit unmeasured marker" "$t" 'unmeasured|re-?quer|task-?notification|recover|real (count|number|token)'
-# ...and it is never a silent blank / never fabricated (the guard).
-assert_all "usage-marker: never a silent blank, never invented"          "$t" 'blank|invent|fabricat|made up|guess' 'never|not|no silent|without'
-assert_contains "usage-marker: names the blocking-retrieval reason"       "$t" 'blocking retrieval|blocked dispatch|blocking|no .*usage|without .*usage'
-
-# verify-only-bookkeeping-carveout (v1.6 Fix 3): the verify-only re-dispatch trigger has a docs/bookkeeping
-# carve-out reusing finalise's staleness exemption set (working doc, lessons_path, rule-book drift-list). A
-# verify-only fix touching ONLY exempt bookkeeping files stays MAIN-LOOP (no re-dispatch).
-t="$(run_fixture verify-only-bookkeeping-carveout 'Run the mango review verify-only re-review on this ticket. Round 1 was a conditional LGTM with two named findings; the author applied those two fixes AND touched only exempt bookkeeping files (LESSONS.md + the rule-book drift-list). State whether round 2 stays main-loop or re-dispatches a reviewer/challenger, and why. Do not stop for my input.')"
-assert_contains "carveout: stays main-loop" "$t" 'main[ -]loop'
-# Decision-level: main-loop / no re-dispatch (outcome) BECAUSE the only extra files are exempt bookkeeping (reasoning).
-assert_all "carveout: no re-dispatch for exempt-bookkeeping-only fix" "$t" 'no .{0,40}re-?dispatch|not .{0,40}re-?dispatch|dispatch(ing)? no|no subagent|without .*(dispatch|subagent)|stays[ _*]*main[ -]loop' 'bookkeeping|exempt|lessons|drift-?list|carve-?out|zero runtime'
-# non-exempt variant: a fix touching a non-exempt out-of-scope file still triggers a full re-dispatch.
-t="$(run_prompt carveout-nonexempt 'On the mango verify-only re-review docs/bookkeeping carve-out: after a conditional LGTM, the author fixes the named findings but ALSO edits a product SOURCE file OUTSIDE the approved change list (not an exempt bookkeeping file). Per mango, does round 2 stay main-loop or re-dispatch a full reviewer/challenger? Answer and say why.')"
-assert_all "carveout-nonexempt: non-exempt out-of-scope fix re-dispatches" "$t" 're-?dispatch|full re-?review' 'scope|outside the .*(set|list)|non-exempt|not .*bookkeeping|product|source'
-
-# finalise-lesson-pushed (v1.6 Fix 4): the durable lesson must land on a SHARED/PUSHED ref, not only a
-# local branch a merge would delete. finalise folds the lesson into the branch-push OR takes an explicit
-# "push bookkeeping" outward action under the same per-action approval.
-t="$(run_fixture finalise-lesson-pushed 'Run the mango finalise durable-lesson step on this working doc. The lesson is committed on a local-only feature branch. State where it must end up and how finalise ensures it, and whether the push follows the normal per-action approval. Do not stop for my input.')"
-# Decision-level: it must land on a shared/pushed ref (outcome) NOT only a local branch (the guard).
-assert_all "lesson-pushed: lands on a shared/pushed ref, not local-only" "$t" 'shared ref|pushed|push' 'not .*local|local-?only|orphan|deleted|reach .*main|not only|shared'
-assert_contains "lesson-pushed: via branch-push or a push-bookkeeping action" "$t" 'branch-?push|push bookkeeping|bookkeeping.*(action|commit|push)|fold'
-assert_contains "lesson-pushed: under the normal per-action approval"        "$t" 'per-?action|separate approval|each .*approv|approval per'
-
-# artifact-delta-emission (v1.6.1 Fix 2): on a PARTIAL update mid-run, mango emits only the CHANGED
-# portion into the response (the new ledger row / the just-filled matrix cell) and REFERENCES the
-# unchanged rest ("ledger unchanged except row N") — it does NOT reprint the whole artifact each time.
-# The full artifact still lives COMPLETE on disk in the working doc (single source of truth), so the
-# v1.6 content-completeness gate still passes. "Emit less into the response" ≠ "store less on disk".
-t="$(run_prompt artifact-delta-emission 'In the mango lifecycle, a full-tier run makes several partial updates to the working doc (a new ledger row per dispatch, one matrix cell filled at a time). Per mango, when you report a partial update into the conversation, do you reprint the whole working doc / ledger / matrix each time, or only the changed portion — and what stays on disk? State exactly what goes into the response versus the working doc, and whether the content-completeness gate still passes. Do not stop for my input.')"
-assert_contains "delta-emission: emits only the changed portion"        "$t" 'delta|changed portion|only the (new|changed)|unchanged except'
-# Decision-level: deltas into the response (outcome) while the full artifact stays COMPLETE on disk (guard).
-assert_all "delta-emission: full artifact stays complete on disk"       "$t" 'on disk|working doc|single source' 'complete|full|unchanged|not reprint|content|completeness'
-assert_contains "delta-emission: content-completeness gate still passes" "$t" 'content|completeness|complete on disk|gate.{0,6}(still )?pass'
-
-# --- refine phase (v1.7.0) ---------------------------------------------------
-banner "== refine phase (v1.7.0) =="
-
-# refine-skip-clear-ticket: a clear, convention-covered ticket (the Nth item following an existing
-# repeated pattern) → refine SELF-SKIPS (records "0 unresolved product-decisions") and hands to
-# analysis, WITHOUT fabricating a want-decision question (no over-trigger). refine must not be a tax.
-t="$(run_fixture refine-skip-clear-ticket 'Run the mango refine phase (Phase 0) on this raw request. Scan the project, TRY to expose the unresolved product-decisions, and act on the count you find. State your REFINE line and what you hand to the next phase. Do not stop for my input.')"
-# Decision-level: skips (outcome) BECAUSE 0 unresolved / convention-covered / derivable (reasoning).
-assert_all "refine-skip: skips because clear/convention-covered" "$t" 'skip|0 unresolved|0 want-decision' 'convention|derivable|pattern|cite|already|scan|nth|no genuine'
-assert_contains "refine-skip: hands to analysis"                 "$t" 'analysis'
-# No over-trigger: it does not fabricate a want-decision question.
-assert_contains "refine-skip: no fabricated want-decision (no over-trigger)" "$t" 'no want-decision|0 want-decision|want-decision[[:space:]:=*_]*0|no .{0,20}(fabricat|question)|not .{0,6}over-?trigger|no over-?trigger|no genuine .{0,15}(want|want-decision)'
-
-# refine-classify-A-vs-B: a raw ticket carrying BOTH kinds. The how-decision (HOW) is
-# resolved-with-citation and NOT asked; the want-decision (WANT) is asked in want-language; the
-# self-check catches a convention-answerable question as a how-decision rather than wrongly asking it
-# as a want-decision.
-t="$(run_fixture refine-classify-A-vs-B 'Run the mango refine phase (Phase 0) on this raw request. Classify EVERY product-decision as a want-decision vs a how-decision BEFORE asking anything, apply the self-check, then produce the refined-ticket artifacts. Do not stop for my input.')"
-# Decision-level: how-decision resolved WITH a citation (outcome) and NOT asked (guard).
-assert_all "refine-classify: how-decision resolved+cited, not asked" "$t" 'how-decision' 'cite|citation|convention|rulebook|:[0-9]|code' 'not ask|resolve|self-resolve|do ?n.?t ask|don.t ask|without asking'
-# Decision-level: want-decision asked (outcome) in want-language (guard).
-assert_all "refine-classify: want-decision asked in want-language"   "$t" 'want-decision' 'ask' 'want-language|want language|want|intent'
-# The self-check catches a convention-answerable question as a how-decision (not a fabricated want-decision).
-# Widened over WORDING (v1.8.0): a correct run names the mechanism rather than the step — the
-# tie-breaker, or refusing to "launder" a convention-answerable question into a want-decision.
-assert_all "refine-classify: self-check catches a convention-answerable as a how-decision" "$t" 'self-check|can .{0,25}(convention|code|rule).{0,15}answer|tie-?break|launder' 'how-decision'
-
-# refine-acceptance-bar-is-want (v1.7.1 Fix 1a): a decision about the acceptance BAR itself (what counts
-# as a valid source anchor / a sourcing standard) is a WANT-decision by default, even when it looks
-# derivable — the user owns the bar. refine files it as want-decision / ASSUMED, NOT a silent cited
-# how-decision. Non-vacuous: settling it as an UNCITED how-decision is itself a finding.
-t="$(run_fixture refine-acceptance-bar-is-want 'Run the mango refine phase (Phase 0) on this raw request. The load-bearing decision is what counts as a valid "verified source anchor" — a sourcing/acceptance standard. Classify it, apply the tie-breaker, and state how you file it. Then state what happens if refine were to settle that standard as an uncited how-decision. Do not stop for my input.')"
-# Decision-level: acceptance-bar filed as a want-decision / ASSUMED (outcome) BECAUSE the user owns the bar (reasoning).
-assert_all "refine-acceptance-bar: filed as want-decision/ASSUMED, not a silent how-decision" "$t" 'want-decision|assumed|acceptance[ -]bar|bar' 'user owns|owns the bar|ask|assumed|not .{0,20}how-decision|even .{0,12}derivable|want-decision by default'
-# Non-vacuous: an UNCITED how-decision resolution is a finding.
-assert_all "refine-acceptance-bar: uncited how-decision resolution is a finding" "$t" 'uncited|no .{0,8}(source|citation)|without .{0,8}(a )?citation|how-decision' 'finding|flag|mis-?classif|blocks?|not .{0,12}(allowed|silent)'
-
-# refine-consistency-is-how (v1.7.1 Fix 1b): a scope/consistency question answerable from a DOCUMENTED
-# shared recipe (apply to one consumer or all?) is a how-decision — resolve-by-citation and flag for
-# ratify, NOT asked as an open want-decision.
-t="$(run_fixture refine-consistency-is-how 'Run the mango refine phase (Phase 0) on this raw request. A documented shared table recipe backs several consumers. Decide whether the "one consumer or all consumers?" scope question is a want-decision or a how-decision, apply the tie-breaker, and state exactly how you handle it. Do not stop for my input.')"
-# Decision-level: resolved as a how-decision by citation (outcome) BECAUSE the documented recipe answers it (reasoning).
-assert_all "refine-consistency: resolved-by-citation as a how-decision" "$t" 'how-decision|resolve-by-citation|cite|citation' 'recipe|convention|documented|all consumers|shared'
-# Guard: NOT asked as an open want-decision.
-# The skill states this negative as a COUNT (`0 want-decisions asked`) as readily as a negation
-# phrase; RE_ZERO_WANTS accepts either. Outcome-bound: a run that DID ask it emits a non-zero count
-# and no negation, so it matches neither alternative.
-assert_all "refine-consistency: NOT asked as a want-decision" "$t" 'how-decision|not ask|resolve|cite' "$RE_NOT_ASKED_AS_WANT"
-
-# refine-assumed-on-handback: user says "your call" on a want-decision → refine picks per recommendation
-# but MUST mark ASSUMED (awaiting ratification), require an EXPLICIT next-gate confirm, NEVER silent-adopt
-# and NEVER record it as settled prose; the tripwire fires when the recommendation would reverse a prior
-# human decision.
-t="$(run_fixture refine-assumed-on-handback 'Run the mango refine phase (Phase 0) on this raw request. The requester handed back a want-decision (WANT) ("your call"). State exactly how you record and surface that decision, whether the ASSUMED tag is mandatory, what ratifies it at the next gate, and whether you adopt it silently. Check the tripwire against the prior human decision. Do not stop for my input.')"
-assert_contains "refine-assumed: marks ASSUMED (awaiting ratification)" "$t" 'assumed'
-# Decision-level: ASSUMED tag is MANDATORY (outcome) — settled prose is a finding (guard).
-assert_all "refine-assumed: ASSUMED tag mandatory, not settled prose" "$t" 'assumed|mandat|must' 'mandat|must|required|not .{0,20}(prose|settl)|never .{0,20}(prose|settl)|finding|not optional'
-# Decision-level: ratified only by an EXPLICIT next-gate confirm (guard), not an incidental re-mention.
-assert_all "refine-assumed: explicit next-gate confirm required" "$t" 'assumed|ratif|confirm' 'explicit|next gate|later gate|gate 1|design|not .{0,20}(re-?mention|happen|incidental|organic)'
-# Decision-level: NOT silently adopted (guard).
-assert_all "refine-assumed: not silently adopted"                        "$t" 'assumed|recommend' 'not[*_ ]{0,3}.{0,20}(silent|adopt|settl)|never[*_ ]{0,3}.{0,20}(silent|settl|adopt)|nor .{0,12}(silent|settl)|no silent|silent-?settle|rather than .{0,18}settl|0 silently|not automatically'
-# Tripwire fires on a prior-decision reversal.
-assert_all "refine-assumed: tripwire on prior-decision reversal"         "$t" 'tripwire|prior .{0,15}(human )?decision|revers' 'flag|assumed|surface|loud|never silent|not silent'
-
-# refine-direction-not-tool: refine stops at the solution DIRECTION (wrap vs rebuild) a non-technical
-# user can feel, and does NOT pin the specific tool/library — tool selection is analysis's job.
-t="$(run_fixture refine-direction-not-tool 'Run the mango refine phase (Phase 0) on this raw request. Expose the solution DIRECTION the user can feel, and state whether you pin the specific tool/library or leave that to a later phase. Do not stop for my input.')"
-assert_contains "refine-direction: stops at a direction (wrap vs rebuild)" "$t" 'wrap|rebuild|direction'
-# Decision-level: does NOT pin a tool (outcome) — tool selection is analysis's job (reasoning).
-# Widened over WORDING ONLY (v1.7.5 Fix 4): the old alternation missed correct runs phrased "left to
-# analysis" or "analysis’s job" (a typographic apostrophe is multi-byte, so `analysis.?s` could not match
-# it). The outcome guard is UNCHANGED — the first regex still requires the tool/library subject, and every
-# added alternative still asserts the tool is NOT pinned here. Nothing that pins a tool can now pass.
-assert_all "refine-direction: does not pin a tool"                        "$t" 'tool|library|engine' 'not .{0,14}(pin|pick|choose|select)|analysis.{0,3}s job|(job|task|call|decision) (of|for) .{0,10}analysis|le(ave|ft|aving) .{0,16}(to|for) .{0,12}(analysis|a later phase|design)|leave .{0,12}(tool|analysis)|defer(red|s|ring)? .{0,16}(tool|to analysis|to a later|until analysis)|later phase|not .{0,10}pin.{0,10}tool|stops? at .{0,10}direction|out of scope for refine'
-assert_contains "refine-direction: tool selection is analysis's job"      "$t" 'analysis'
-
-# refine-epic-detect-breakdown: an epic input → refine detects the epic and routes to the epic path;
-# breakdown emits a COUNTED ticket list with a per-ticket INVEST self-check, human-approved before any
-# ticket executes.
-t="$(run_fixture refine-epic-detect-breakdown 'Run the mango refine phase (Phase 0) on this raw request, then describe the path it routes to. If it is an epic, state what breakdown produces and the gate before any ticket executes. Do not stop for my input.')"
-# Decision-level: detected an epic (outcome) and takes the epic path (reasoning).
-assert_all "refine-epic: detects an epic, takes the epic path" "$t" 'epic' 'epic path|analysis\(epic\)|design\(epic\)|breakdown|multiple .{0,20}(deliverable|ticket)'
-# breakdown emits a counted ticket list with a per-ticket INVEST self-check.
-assert_all "refine-epic: breakdown emits a counted ticket list + INVEST" "$t" 'invest' 'ticket list|counted|ticket|breakdown'
-# Human-approved (the human holds the gate) BEFORE any ticket executes.
-assert_all "refine-epic: human-approved before any ticket executes"      "$t" 'human|approv|ratif|gate' 'before .{0,24}(execut|any ticket)|before any ticket|human .{0,10}(hold|ratif|approv)'
-
-# refine-backstop-challenger: the completeness-of-exposure backstop is the ticket-blind challenger used
-# as an exposure-checker with exactly 1 dispatch — it can surface an un-exposed decision, and it is NOT
-# a multi-advisor Council / debate.
-t="$(run_fixture refine-backstop-challenger 'Run the mango refine phase (Phase 0) on this raw request, focusing on the completeness-of-exposure backstop. State what runs it, how many dispatches it uses, what it can surface, and whether it is a multi-advisor debate. Do not stop for my input.')"
-# Decision-level: exposure-checker = ticket-blind challenger, 1 dispatch (outcome).
-assert_all "refine-backstop: exposure-checker is the ticket-blind challenger, 1 dispatch" "$t" 'exposure-checker|challenger' '1 dispatch|one dispatch|single dispatch|ticket-blind'
-assert_contains "refine-backstop: can surface an un-exposed decision" "$t" 'un-?exposed|still .{0,15}expose|missed|surface'
-# Decision-level: NOT a multi-advisor debate (guard) over the debate/council subject.
-assert_all "refine-backstop: not a multi-advisor debate/council"     "$t" 'debate|council|advisor' 'not[*_ ]{0,4}.{0,16}(debate|council|advisor|panel)|never[*_ ]{0,4}.{0,16}(debate|council|panel)|no[*_ ]{0,4}(panel|vote|council|debate|cross)|one dispatch|1 dispatch|single dispatch|single-shot|not a[*_ ]{0,4}(council|debate)'
-
-# --- v1.7.2 (epic exposure-checker + enumerated INVEST + design blast-radius) ----
-banner "== v1.7.2 (epic exposure-checker + enumerated INVEST + design blast-radius) =="
-
-# epic-exposure-checker (v1.7.2 Fix A): on the epic path, refine dispatches the SAME 1-dispatch
-# ticket-blind exposure-checker the ticket path uses — BEFORE breakdown — over the epic's exposed set.
-# Exactly one dispatch, not a debate; it can surface an un-exposed decision (non-vacuous). The epic path
-# is NOT the one path that skips the backstop.
-t="$(run_fixture epic-exposure-checker 'Run the mango refine phase (Phase 0) on this raw request. It is an epic. State the path it routes to, and — before breakdown — whether refine dispatches an exposure-checker, how many dispatches, what runs it, and what it can surface. Do not stop for my input.')"
-# Decision-level: detected an epic and takes the epic path.
-assert_all "epic-exposure: detects an epic, takes the epic path" "$t" 'epic' 'epic path|analysis\(epic\)|design\(epic\)|breakdown|multiple .{0,20}(deliverable|ticket)'
-# Exactly one ticket-blind exposure-checker dispatch, BEFORE breakdown.
-assert_all "epic-exposure: one exposure-checker dispatch before breakdown" "$t" 'exposure-checker|ticket-blind challenger' '1 dispatch|one dispatch|single[ -].{0,24}dispatch|exactly[ _*]*(one|1)\b' 'before .{0,24}breakdown|before breakdown'
-# Not a multi-advisor debate.
-assert_contains "epic-exposure: one dispatch, not a debate"     "$t" 'not a.*(debate|council)|one dispatch|single dispatch|1 dispatch'
-# Non-vacuous: it can surface an un-exposed decision.
-assert_contains "epic-exposure: can surface an un-exposed decision" "$t" 'un-?exposed|still .{0,15}expose|who counts|internal user|surface'
-
-# breakdown-invest-enumerated (v1.7.2 Fix B): each ticket in the breakdown carries a SIX-letter
-# ENUMERATED INVEST check (not a one-line label). A ticket that fails a letter (here: not Small) is
-# FLAGGED for re-split before ratification (non-vacuous — the failing letter must be caught).
-# The prompt asks for the six-letter check IN THE RESPONSE: a correct run may write the enumeration into
-# the working doc and summarise in prose (`4 INVEST self-checks emitted (6 letters each)`), which is
-# right behaviour but leaves no per-letter evidence to judge. Asking for the artifact itself keeps the
-# letter assertions strict instead of widening them into a duplicate of the "enumerated" assertion.
-t="$(run_fixture breakdown-invest-enumerated 'Run the mango breakdown phase on this epic (analysis(epic)/design(epic) already cleared). For each proposed ticket, emit the INVEST self-check IN YOUR RESPONSE — reproduce the per-letter check itself, naming each of the six letters, not only a summary or a count of it. Show whether it is a six-letter enumerated check or a one-liner, and state what happens to a ticket that fails a letter. Do not stop for my input.')"
-# Decision-level: the INVEST check is enumerated across the six letters, not a one-liner.
-assert_all "breakdown-invest: enumerated six-letter INVEST per ticket" "$t" 'invest' 'enumerat|six letters?|all six|each letter|each of the six'
-assert_contains "breakdown-invest: names the individual letters"       "$t" "$RE_INVEST_LETTERS"
-# Non-vacuous: a ticket failing "Small" is flagged for re-split before ratification.
-assert_all "breakdown-invest: ticket failing Small is flagged for re-split" "$t" "$RE_INVEST_SMALL" 'flag|finding|caught|re-?split|not .{0,10}(small|ratif)' 're-?split|split'
-
-# design-blastradius-shared-type (v1.7.2 Fix C): a change touching a shared/generated TYPE with factories
-# in a NON-src test root → the design blast-radius step enumerates EVERY test root + the type factories +
-# runs typecheck, so the change-list is COMPLETE. A shallow name grep (src only) that misses the factory
-# root is a FINDING (non-vacuous).
-t="$(run_fixture design-blastradius-shared-type 'Run the mango design skill on this ticket. Assume Gate 1 cleared. Produce the Phase 2 smallest change-list and its mechanical test blast-radius sub-step for this shared-type change. State which test roots and factory/fixture patterns you enumerate, whether you run typecheck, and what happens if a shallow src-only grep missed a factory root. Do not stop for my input.')"
-# Decision-level: enumerates every test root + the type factories (not a shallow one-string grep).
-assert_all "blastradius-type: enumerates all test roots + factories" "$t" 'test root' 'factor|fixture|makeMoney|MoneyFactory'
-assert_contains "blastradius-type: names the non-src roots (e2e/integration)" "$t" 'e2e|integration'
-assert_contains "blastradius-type: runs typecheck in the estimate"           "$t" 'typecheck'
-# Non-vacuous: a shallow-grep estimate missing the factory root is a finding.
-assert_all "blastradius-type: shallow-grep miss is a finding" "$t" 'shallow|grep|miss|src.only|under-?scope' 'finding|flag|incomplete|under-?scope|not .{0,12}complete'
-
-# design-blastradius-value-threading (v1.7.2 Fix C): a VALUE threaded to a downstream builder called from
-# MULTIPLE sites → the blast-radius step enumerates EVERY builder call site, not just the surface that
-# owns the feature (non-vacuous — it must name the sites beyond the owning page).
-t="$(run_fixture design-blastradius-value-threading 'Run the mango design skill on this ticket. Assume Gate 1 cleared. Produce the Phase 2 change-list and its test blast-radius sub-step for this value-threading change. Enumerate every call site where the threaded value originates, and state whether you trace only the owning surface or all builder call sites. Do not stop for my input.')"
-# Decision-level: enumerates all builder call sites (outcome).
-assert_all "blastradius-value: enumerates all builder call sites" "$t" 'call site' 'all|every|each|multiple' 'builder|summaryBuilder'
-# Non-vacuous: names the call sites beyond the owning page (they exist only in the fixture).
-assert_contains "blastradius-value: names sites beyond the owning page" "$t" 'emailDigest|pushSummary|email digest|push summary'
-# Guard: not just the owning surface/page.
-assert_all "blastradius-value: not just the owning surface" "$t" 'not just|beyond|more than|all .{0,14}call site|every .{0,14}call site' 'owning|surface|page|reportPage'
-
-# --- v1.7.3 (breakdown re-ratification + epic scaffold commit + INVEST force-re-split) ----
-banner "== v1.7.3 (re-ratification + scaffold-commit + force-re-split) =="
-
-# breakdown-reratify (v1.7.3 Fix A): after the split-gate ratifies, an injected change to the ratified
-# ticket list (a ticket ADDED, or a ratified DECISION reversed/re-pointed) must trigger a breakdown-level
-# RE-RATIFICATION — surface the DELTA vs the ratified split as a counted artifact and require an explicit
-# human RE-APPROVE — never let the change ride in silently on a child ticket's Gate 1 (non-vacuous: the
-# silent ride-in is the failure the second assertion catches).
-t="$(run_fixture breakdown-reratify 'Run the mango breakdown phase. The split-gate ALREADY ratified the ticket list. Now a 7th ticket is added AND a previously-ratified decision is reversed. State what breakdown does with that change: does it re-ratify at the breakdown level or let it ride in on a child ticket'\''s Gate 1? Show the delta and the gate. Do not stop for my input.')"
-# Decision-level: breakdown RE-RATIFIES (outcome) by surfacing the delta for an explicit human re-approve (reasoning).
-assert_all "breakdown-reratify: surfaces the delta + re-ratifies" "$t" 're-?ratif|re-?approv|re-?approve' 'delta|changed|added .{0,12}ticket|reversed|vs the ratified'
-assert_contains "breakdown-reratify: explicit human re-approval at breakdown level" "$t" 'human|explicit|approve|gate'
-# Non-vacuous: it does NOT let the change ride in on a child's Gate 1.
-assert_all "breakdown-reratify: change does not ride in on a child Gate 1" "$t" 'gate 1|child ticket|child .{0,10}gate|ride' 'not .{0,20}(ride|silent|slip)|never .{0,20}(ride|silent|slip)|instead|re-?ratif|breakdown level|not on a child'
-
-# invest-force-resplit (v1.7.3 Fix B): the INVEST "flag → re-split" ACT half. An injected oversized
-# ticket that bundles four independent deliverables FAILS Small → breakdown must FLAG it AND DRIVE the
-# re-split (split it into smaller tickets) BEFORE the split-gate ratifies — not merely note it. A
-# right-sized control ticket is NOT split (non-vacuous).
-t="$(run_fixture invest-force-resplit 'Run the mango breakdown phase on this epic. One proposed ticket bundles FOUR independent deliverables (fails INVEST Small); another is a single right-sized deliverable. Enumerate the six-letter INVEST self-check per ticket, then state what breakdown DOES with the oversized ticket (only note it, or actually re-split it before ratification) and what it does with the right-sized control. Do not stop for my input.')"
-# Size-failure decision, emphasis-agnostic over wording (a run may say "oversized" / "bundles four
-# deliverables" / "too big" rather than the literal INVEST letter "Small") — still outcome-bound: a run
-# that never identifies the size problem matches none of these.
-assert_contains "invest-force-resplit: flags the oversized ticket (fails Small)" "$t" "$RE_INVEST_SMALL|oversized|too (big|large)|four .{0,16}deliverabl|bundl"
-# Decision-level: it is FLAGGED (outcome) AND actually RE-SPLIT before ratification (the ACT half), not just noted.
-assert_all "invest-force-resplit: flagged AND re-split before the gate" "$t" "flag|finding|fails? .{0,8}$RE_INVEST_SMALL|not .{0,4}$RE_INVEST_SMALL" 're-?split|split .{0,20}(into|before)|split it' "$RE_BEFORE_GATE"
-# Non-vacuous control: the right-sized ticket is NOT split.
-# The control is reported "unsplit" / "untouched" / "carried through" as often as "not split";
-# RE_NOT_SPLIT accepts all of them. Outcome-bound: a control that WAS split matches none.
-assert_all "invest-force-resplit: right-sized control is not split" "$t" "right-?sized|control|single .{0,12}deliverable|passes .{0,10}(invest|$RE_INVEST_SMALL)" "$RE_NOT_SPLIT"
-
-# epic-scaffold-committed (v1.7.3 Fix C): on the epic path, after the split ratifies, the epic scaffold
-# (child-ticket stubs + BACKLOG/roadmap) must be COMMITTED to a shared ref BEFORE any child ticket starts
-# its own branch — so a child editing a stub reads as an EDIT of a committed file, not net-new authorship
-# (preserving the ticket-blind challenger's evidence).
-t="$(run_fixture epic-scaffold-committed 'Run the mango epic-path breakdown. After the split ratifies, state exactly WHEN the epic scaffold (child-ticket stubs + the epic BACKLOG/roadmap) is committed relative to the first child ticket branching, and WHY that ordering matters for the ticket-blind challenger (net-new vs edit). Do not stop for my input.')"
-# Decision-level: the scaffold is committed (outcome) BEFORE any child branches (reasoning).
-# `before ` + a literal space could not match the correct `**before** the first child ticket`;
-# RE_BEFORE_CHILD tolerates the emphasis. The ordering outcome is unchanged.
-assert_all "epic-scaffold: committed before any child branch" "$t" 'scaffold|stub|backlog' 'commit' "$RE_BEFORE_CHILD"
-# Non-vacuous: a child edit of a committed stub reads as an EDIT, not net-new.
-assert_all "epic-scaffold: a child edit reads as edit, not net-new" "$t" 'edit|committed file|retarget' 'net-?new|not net-?new|challenger|edit of a committed'
-
-# --- v1.7.4 (review git-isolation + maturity + workdoc guidance) -------------
-banner "== v1.7.4 (review git-isolation) =="
-
-# review-git-isolation (v1.7.4 Fix 1): a review subagent inspecting a branch must use read-only,
-# ref-based git (git diff/show/log <base>..<branch>) OR an isolated git worktree, and MUST NOT run
-# stateful git (checkout/switch/stash) in the SHARED working tree (the live checkout). The shared HEAD
-# stays put; an injected shared-cwd `git checkout` is FLAGGED (non-vacuous), never performed, and the
-# live checkout stays on the original branch. Same class as the v1.6.1 eval-isolation fix, review surface.
-t="$(run_fixture review-git-isolation 'Run the mango review phase on this ticket. State exactly how a review subagent (reviewer/challenger) inspects the feature branch, whether it may run git checkout/switch/stash in the shared working tree, and where it runs the suite if it must. Then say what happens to the shared HEAD and what you would do if a subagent were about to run `git checkout main` in the shared checkout. Do not stop for my input.')"
-# Decision-level: inspection is ref-based OR worktree-isolated (outcome + a branch/inspect token).
-assert_all "review-git-isolation: ref-based or worktree-isolated inspection" "$t" 'ref-based|git (diff|show|log)|worktree' 'branch|diff|inspect|review'
-# Decision-level: stateful git in the shared working tree is FORBIDDEN (guard) — names the ops.
-assert_all "review-git-isolation: no stateful git in the shared working tree" "$t" 'checkout|switch|stash' 'not|never|must not|forbid|avoid|would ?n.?t|do ?n.?t'
-# The shared HEAD / live checkout stays unchanged after review.
-assert_contains "review-git-isolation: shared HEAD unchanged" "$t" 'unchanged|stays|untouched|same branch|still on|remain|not .{0,12}switch|does not .{0,12}(switch|change)'
-# Non-vacuous: an injected shared-cwd `git checkout` is flagged/refused (not performed) AND the live
-# checkout stays on the original branch.
-assert_all "review-git-isolation: injected shared-cwd checkout flagged, checkout stays put (non-vacuous)" "$t" 'flag|refuse|not .{0,14}(run|perform|do)|never .{0,12}(run|checkout)|instead|worktree|isolat' 'stay|remain|original|not switch|still on|feat/'
-
-# --- v1.7.5 (validator false-green + worktree env-parity + gathered fixes) ----
-
-# worktree-env-fault (v1.7.5 Fix 2): a review subagent ran the suite inside a FRESH worktree with no
-# untracked env (.env / local config) and got a NEAR-TOTAL failure (12/12). That is an ENVIRONMENT FAULT,
-# not a review finding and not a regression — carry the untracked env in (or run read-only in place at
-# the reviewed SHA) and re-run. Non-vacuous: the guard must NOT swallow a partial, targeted failure.
-t="$(run_fixture worktree-env-fault 'Run the mango review phase on this branch. Classify the suite result reported below, state whether it becomes a review finding or a regression, and state what you do before re-running. Do not stop for my input.')"
-# Decision-level: classified as an ENV fault (outcome) caused by missing untracked files (reasoning).
-assert_all "worktree-env-fault: near-total worktree fail is an environment fault" "$t" 'env[a-z]*[ -]?fault|environment(al)? (fault|issue|problem|failure|cause)|not a (code|real) (regression|finding)' 'untracked|\.env|missing .{0,20}(env|config)|environment parity|env[ -]parity'
-# NOT reported as a review finding / regression.
-assert_all "worktree-env-fault: not reported as a finding or regression" "$t" 'finding|regression' 'not .{0,24}(a )?(review )?(finding|regression)|never .{0,20}(finding|regression)|do(es)? not .{0,20}(report|count|block)|rather than .{0,16}(report|finding)'
-# The remedy: carry the untracked env into the worktree, OR run read-only in place at the reviewed SHA.
-assert_all "worktree-env-fault: carry the env in, or run in place at the reviewed SHA" "$t" 'copy|carry|bring|provide|populate|in place|already at' '\.env|untracked|local config|reviewed sha|in place'
-# Non-vacuous: a PARTIAL, targeted failure inside the blast radius is still a real finding — the
-# reclassification must not become a blanket suppressor.
-assert_all "worktree-env-fault: a partial targeted failure is STILL a finding (non-vacuous)" "$t" 'partial|targeted|blast radius|specific|individual' 'still .{0,20}(a )?(real )?(finding|regression|counts|report)|would be .{0,16}(a )?finding|genuine|real finding|is .{0,10}reportable'
-
+banner "== execute-commit-before-review  (execute, review — Gate 3-4) =="
 # execute-commit-before-review (v1.7.5 Fix 3b): execute COMMITS the change-set BEFORE dispatching review
 # (so a real committed diff exists for the ref-based inspection), AND an empty <base>..<branch> range
 # triggers the `git diff HEAD` + `git status --porcelain -uall` fallback rather than a false "no changes".
@@ -2127,87 +926,7 @@ assert_all "execute-commit-before-review: empty range → git diff HEAD + status
 # LGTM" (hyphen, not space) and "falls back **before it concludes** anything".
 assert_all "execute-commit-before-review: empty range is never a no-change verdict (non-vacuous)" "$t" 'empty' 'not .{0,30}(conclude|assume|no[ -]change)|never .{0,26}(conclude|no[ -]change|rubber)|must .{0,20}(fall ?back|check|verify)|before .{0,16}conclud|falls? back before'
 
-# workdoc-solve-autopath (v1.7.5 Fix 3a): a committed scaffold stub routes to work_doc_mode `separate`
-# at solve's auto-path — auto does NOT mean "always embed into the local file".
-t="$(run_fixture workdoc-solve-autopath 'Run the mango solve orchestrator preflight on this ticket. State which working-doc placement you select under work_doc_mode auto and why, and where you record it. Do not stop for my input.')"
-# Decision-level: chooses `separate` (outcome) because the stub is committed/tracked (reasoning).
-assert_all "workdoc-solve-autopath: committed stub → separate working doc" "$t" 'separate|\.work\.md' 'committed|tracked|stub|scaffold'
-assert_all "workdoc-solve-autopath: explains the committed-tracked-file fragility" "$t" 'uncommitted|tracked|fragile|git[ -]state|dirty' 'embed|inside .{0,20}(the )?(committed|tracked|stub)|working doc'
-assert_contains "workdoc-solve-autopath: records the resolved mode"                "$t" 'session status|record|work_doc_mode'
-
-# epic-lesson-capture (v1.7.5 Fix 3c): an epic ends at breakdown and never reaches finalise, so
-# BREAKDOWN owns writing the epic's durable lesson to config.lessons_path at ratification/close-out.
-t="$(run_fixture epic-lesson-capture 'Run the mango breakdown phase through its ratification and close-out on this epic. State who captures the epic durable lesson, when, where it is written, and what it contains. Emit the counted artifact. Do not stop for my input.')"
-# Decision-level: a durable lesson IS written (outcome) to lessons_path (reasoning).
-assert_all "epic-lesson-capture: durable lesson written to lessons_path" "$t" 'lesson' 'lessons_path|LESSONS|durable lesson'
-# breakdown owns it because the epic never reaches finalise.
-assert_all "epic-lesson-capture: breakdown owns it (the epic never reaches finalise)" "$t" 'breakdown|ratif|close[ -]out' 'never .{0,24}finalise|does not .{0,20}(reach|run) .{0,12}finalise|ends at .{0,16}breakdown|no owner|own(s|er)'
-# The counted artifact proving it happened.
-assert_contains "epic-lesson-capture: emits the EPIC LESSON counting line" "$t" 'EPIC LESSON:|lesson\(s\) written'
-# Content: the split rationale + the overlap/boundary rulings.
-assert_all "epic-lesson-capture: records the split rationale + boundary rulings" "$t" 'rationale|why|reason' 'overlap|boundary|ruling|re-?split'
-
-# codify-drift-count (v1.7.5 Fix 3d): the drift count is a PREFIXED COUNTING LINE (`DRIFT: <n> entries |
-# <m> tickets`), matching REFINE:/BREAKDOWN:, not fudgeable prose. The list holds 5 entries / 2 tickets.
-# The third assertion judges the counted-line-vs-prose CONTRAST, which only exists in the response if the
-# prompt asks for it; a correct run otherwise just emits the line (proven by assertions 1 and 2) and says
-# nothing about prose. Asking keeps assertion 3 strict and distinct instead of collapsing it into 1 and 2.
-t="$(run_fixture codify-drift-count 'Run the mango codify skill on this drift-list step and emit its output exactly as codify specifies, including the counting line. Then state where each number came from, and whether a narrated prose count would be acceptable in its place. Do not stop for my input.')"
-assert_contains "codify-drift-count: emits the DRIFT counting line"   "$t" 'DRIFT:'
-# Decision-level: the count is taken FROM THE LIST (5 entries, 2 tickets), not narrated.
-assert_all "codify-drift-count: counts 5 entries / 2 tickets from the list" "$t" '5[[:space:]*_]*(entries|entr|drift|file)|entries[[:space:]*_|]*5' '2[[:space:]*_]*(tickets|ticket)|tickets[[:space:]*_|]*2'
-# Non-vacuous: a prose count is rejected in favour of the counted line (the near-miss this removes).
-# Widened over WORDING (v1.8.0): a correct run EMITS the prefixed counted line and says the numbers
-# were counted from the list, without also discussing "counting lines" in the abstract. Emitting the
-# artifact is stronger evidence than narrating the rule, so the emitted `DRIFT: <n>` line is accepted
-# as the subject; the second regex still requires the count to be derived from the list, not narrated.
-assert_all "codify-drift-count: a prose count is not acceptable (non-vacuous)" "$t" 'prose|narrat|about six|counted line|counting line|counted artifact|DRIFT:[[:space:]*_]*[0-9]' 'count(ed)? from the (list|table|rows?|above)|not .{0,20}prose|resist|fudg|mechanical|prefixed'
-
-# multi-clause-want (v1.7.5 Fix 3e): a ratified want-decision with TWO clauses ("place the rows under the
-# summary" AND "tappable through to detail") must become TWO matrix rows + TWO proof rows at Gate 1 — the
-# injected single-row ✅ certification is FLAGGED (non-vacuous), not accepted.
-t="$(run_fixture multi-clause-want 'Run the mango analysis skill on this ticket. Decompose the ratified want-decision into the requirements matrix and the verification plan, state how many rows it produces and why, and judge the single-row certification shown in the ticket. Do not stop for my input.')"
-# Decision-level: the want-decision has TWO clauses and gets one row PER CLAUSE (outcome + reasoning).
-assert_all "multi-clause-want: two clauses → one row per clause" "$t" 'two|2[[:space:]*_]*(rows|clause)|per clause|each clause' 'clause'
-assert_all "multi-clause-want: both clauses are named (placement + tappable)" "$t" 'placement|under the summary|position' 'tappable|tap|navigat|detail view'
-# Non-vacuous: the injected single-row certification is REJECTED / flagged as a finding.
-assert_all "multi-clause-want: the injected 1-row certification is flagged (non-vacuous)" "$t" 'single[ -]row|one row|R-1|certif' 'not acceptable|unacceptable|reject|finding|insufficient|blocks?|must .{0,16}split|cannot .{0,16}(stand|certif)|flag'
-
-# --- v1.8.0 (PREMISE-FALSIFIED preflight) ------------------------------------
-banner "== v1.8.0 (PREMISE-FALSIFIED preflight) =="
-
-# premise-falsified (v1.8.0 B1): every source the ticket references AS ALREADY EXISTING is missing from
-# the checkout → refine must emit `PREMISE FALSIFIED` with the missing refs and STOP for the human
-# BEFORE any archaeology (no hunting for a renamed equivalent, no history reconstruction). The counted
-# `PREMISE:` line is emitted either way, so the check cannot silently not-happen.
-t="$(run_fixture premise-falsified 'Run the mango refine phase (Phase 0) on this ticket. Scan the project and act on what the scan finds about the sources the ticket references. State what you emit, whether you continue into the rest of Phase 0, and what you do NOT do next. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "premise-falsified: emits PREMISE FALSIFIED"        "$t" 'PREMISE FALSIFIED'
-# Decision-level: it names the missing referenced-as-existing source(s) (evidence, not a bare verdict).
-assert_all "premise-falsified: names the missing referenced source(s)" "$t" 'exporter\.js|paginate\.js|REPORT_PAGE_SIZE|exporter_spec' 'missing|does not exist|not found|unresolved|absent'
-# Decision-level: it HALTS for the human (outcome) rather than proceeding (guard).
-assert_all "premise-falsified: halts for the human, does not proceed" "$t" 'stop|halt|refuse|block|wait' 'human|you |confirm|correct the ticket|synthetic|your'
-# Non-vacuous the other way: the archaeology is explicitly SKIPPED, not performed.
-assert_all "premise-falsified: skips the archaeology (no rename hunt / history reconstruction)" "$t" 'archaeolog|hunt|search|reconstruct|guess|rename|moved|equivalent' 'not|no |never|skip|without|before any|instead'
-# The counted artifact.
-assert_contains "premise-falsified: emits the PREMISE counting line" "$t" 'PREMISE:'
-
-# premise-to-be-created (v1.8.0 B1, NEGATIVE control): every path the ticket names is framed as
-# TO BE CREATED, so its absence is expected — the premise check must NOT fire and refine must carry on.
-# This is the non-vacuity in the other direction: a guard that halts on a file the ticket exists to
-# create would block every net-new ticket.
-t="$(run_fixture premise-to-be-created 'Run the mango refine phase (Phase 0) on this ticket. Scan the project, run the premise check on the sources the ticket references, and state its result and whether it halts the phase. Then continue with the rest of Phase 0. Do not stop for my input; show the artifacts you would produce.')"
-# Decision-level: the paths are classified to-be-created (reasoning) so nothing is missing (outcome).
-assert_all "premise-new-file: classifies the paths as to-be-created" "$t" 'to.?be.?created|net-?new|will be created|does not exist yet|new (module|file|spec)' 'expected|not .{0,16}missing|0 missing|no .{0,10}missing|create'
-assert_contains "premise-new-file: PREMISE line records 0 missing" "$t" 'PREMISE:[^|]*\|[ *_]*0[ *_]*missing|0[ *_]*missing|missing[ *_:=]*0'
-# The guard stays SILENT: a real firing emits `PREMISE FALSIFIED: <n≥1> …`. Matching only a non-zero
-# count means a transcript that merely DISCUSSES the check cannot fail this assertion.
-assert_absent "premise-new-file: no PREMISE FALSIFIED halt (non-vacuous, other direction)" "$t" 'PREMISE FALSIFIED:[ *_]*[1-9]'
-# And refine gets on with its actual Phase-0 job.
-assert_contains "premise-new-file: refine continues into Phase 0" "$t" 'REFINE:|want-decision|how-decision|skip'
-
-# --- v1.9.0 (the learning loop) -----------------------------------------------
-banner "== v1.9.0 (learning loop: claims → recall → recurrence → falsify → human-gated promotion) =="
-
+banner "== lesson-claim-split  (finalise — Gate 4) =="
 # lesson-claim-split (v1.9.0): the unit is the ATOMIC CLAIM, not the entry. One bundled lesson carrying a
 # tool fact + a principle + a project fact + a demonstrably-skipped check must split into FOUR claims and
 # classify each by type — and the classification must be a PROPOSAL the human confirms, never a decision.
@@ -2222,418 +941,7 @@ assert_all "claim-split: the skipped rule-book check is type 3 (skill-gap SIGNAL
 # Non-vacuous the other way: the classification PROPOSES; it does not decide.
 assert_all "claim-split: classification is a proposal, not a decision" "$t" 'propos' 'confirm|ratif|human|you '
 
-# recall-symbol-type1 (v1.9.0): a type-1 claim is recalled BY SYMBOL — it surfaces when its handle appears
-# in the ticket and does NOT surface when it doesn't (the non-vacuity: a recall that fires on everything is
-# noise, not recall). And recall is ADVISORY — it injects no requirement and blocks no gate.
-t="$(run_fixture recall-symbol-type1 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State what you surface, what you do not, and what recall does to this ticket'"'"'s requirements and gates. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "recall-symbol: emits the RECALL counting line" "$t" 'RECALL:'
-assert_all "recall-symbol: the matching-symbol claim IS surfaced" "$t" 'CLM-014|local_store_client' 'surfac|recall'
-# The other direction: the non-matching symbol claim is explicitly NOT surfaced.
-assert_all "recall-symbol: the non-matching symbol claim is NOT surfaced" "$t" 'CLM-015|layout_grid' 'not[^.]{0,28}(surfac|recall|match)|no[ *_]{1,4}match|does not (match|appear)|skip|exclud|irrelevant'
-assert_all "recall-symbol: recall is advisory — injects nothing, blocks nothing" "$t" 'advisory|surfaces only|surface only' 'blocks nothing|never[^.]{0,28}(block|inject)|not[^.]{0,28}(block|inject)|adds no|no new (requirement|acceptance)'
-
-# recall-area-type5 (v1.9.0): a type-5 claim is recalled BY AREA, not by symbol. The ticket names NO symbol
-# at all, so the symbol-keyed claim must not surface while the area-keyed one must — which is exactly the
-# distinction that makes type 5 its own type rather than a type-1 with a vague handle.
-t="$(run_fixture recall-area-type5 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State which claims you surface and what each was matched by. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "recall-area: emits the RECALL counting line" "$t" 'RECALL:'
-assert_all "recall-area: the type-5 claim is surfaced BY AREA" "$t" 'CLM-021|loyalty' 'area'
-# Non-vacuous: the symbol-keyed claim does NOT surface on a ticket that names no symbol.
-assert_all "recall-area: the symbol-keyed claim is NOT surfaced" "$t" 'CLM-023|band_total' 'not[^.]{0,28}(surfac|recall|match)|no[ *_]{1,4}match|does not (match|appear)|skip|exclud'
-assert_contains "recall-area: the RECALL line records zero by-symbol matches" "$t" '0[ *_]*by symbol|by symbol[ *_:=|]*0|symbol[ *_:=]*0'
-
-# recall-type6-expiry (v1.9.0): an adjudicated non-defect is recalled by THE FINDING that would otherwise
-# be re-raised, and it carries its EXPIRY condition — so an accepted deviation is not a permanent exemption.
-# It still only SURFACES: it does not close the ticket or overrule the human raising it again.
-t="$(run_fixture recall-type6-expiry 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State what you surface, what it was matched by, and what it does and does not do to this ticket. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "recall-type6: emits the RECALL counting line" "$t" 'RECALL:'
-assert_all "recall-type6: recalled by the finding about to be re-raised" "$t" 'CLM-031|sanctioned|adjudicat' 're.rais|the finding|already (examined|accepted)|not be re.litigat'
-assert_all "recall-type6: carries its expiry condition" "$t" 'expir' 'token|surface value|accessibility target|revisit|condition'
-assert_all "recall-type6: surfaces only — does not close or block the ticket" "$t" 'advisory|surfac' 'blocks nothing|not[^.]{0,32}(block|close|overrul|reject|dismiss)|human (decides|weighs|owns)|for (you|the human)'
-
-# recall-retired-skipped (v1.9.0): two claims share the SAME symbol handle; one is `retired:`. Recall skips
-# the retired one and surfaces its superseder — and the retired record is NOT deleted (history stays), with
-# no auto-retire anywhere.
-t="$(run_fixture recall-retired-skipped 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State which claims you surface and which you skip and why, and what happened to the retired record. Do not stop for my input; show the artifacts you would produce.')"
-assert_contains "retired-skip: emits the RECALL counting line" "$t" 'RECALL:'
-assert_all "retired-skip: the retired claim is SKIPPED by recall" "$t" 'CLM-041' 'skip|not surfaced|exclud|retired'
-# Non-vacuous the other way: recall is not simply silent — the superseding claim IS surfaced.
-assert_all "retired-skip: the superseding claim IS surfaced (non-vacuous)" "$t" 'CLM-042' 'surfac|recall'
-assert_all "retired-skip: the record stays and nothing auto-retires" "$t" 'not[ *_]{1,4}delet|never[ *_]{1,4}delet|kept|stays|remains|history' 'no auto.retire|human|not automatic|never auto'
-assert_contains "retired-skip: the RECALL line counts the retired skip" "$t" 'retired[ *_]*skipped|1[ *_]*retired|retired[ *_:=]*1'
-
-# recurrence-supersession (v1.9.0): dedup across entries. A claim recorded and seen AGAIN is flagged a
-# promotion candidate (recording it was not enough); a claim that NARROWS or FALSIFIES an earlier one
-# REPLACES it and the old one is marked retired — replaced, never deleted.
-t="$(run_fixture recurrence-supersession 'Run the mango finalise phase learning loop on this run'"'"'s claims, deduped against the claims already recorded in the project. State for each whether it recurred or supersedes an earlier claim, and what happens to the earlier record. Do not stop for my input.')"
-assert_contains "recurrence: emits the RECURRENCE counting line" "$t" 'RECURRENCE:'
-assert_all "recurrence: the twice-seen claim is flagged recurring" "$t" 'CLM-051|idempotency' 'recur|seen again|promotion candidate'
-assert_all "supersession: the measured claim REPLACES the inferred one" "$t" 'CLM-052|charge_client' 'supersed|replac'
-assert_all "supersession: the old claim is retired, not deleted" "$t" 'retir' 'not[ *_]{1,4}delet|never[ *_]{1,4}delet|stays|kept|history'
-
-# falsify-blocks-promotion (v1.9.0, the decisive case): recurrence measures how often a claim was RESTATED,
-# not whether it was CHECKED — so the MOST-repeated claim here is the FALSE one. Both candidates must be
-# BLOCKED from promotion (one falsified, one with no cheap check), and the gate must sit IN FRONT of the
-# human ratification gate.
-t="$(run_fixture falsify-blocks-promotion 'Run the mango finalise phase learning loop from the dedup step onward on the two promotion candidates in this ticket. For each, state what the falsification check asks, what it finds, and the outcome for its promotion, and say where that check sits relative to the human ratification gate. Do not stop for my input.')"
-assert_contains "falsify-false: emits the FALSIFY counting line" "$t" 'FALSIFY:'
-assert_all "falsify-false: the most-repeated claim is falsified and BLOCKED" "$t" 'CLM-061|empty filter' 'block|not[ *_]{1,4}promot|refus|falsif|fails'
-assert_all "falsify-false: the uncheckable claim is BLOCKED too" "$t" 'CLM-062|responsive|feels' 'block|not[ *_]{1,4}promot|no[ *_]{1,4}(measurable|cheap)|not[^.]{0,28}(measur|verifiab|check)'
-assert_all "falsify-false: recurrence measures restatement, not truth" "$t" 'restat|repeat' 'not[^.]{0,32}(check|true|truth|quality)|never checked|only repeated|is not (quality|truth|proof)'
-assert_all "falsify-false: the check precedes the human ratification gate" "$t" 'before|in front|preced|prior to|first' 'ratif'
-assert_contains "falsify-false: emits the PROMOTION counting line" "$t" 'PROMOTION:'
-
-# falsify-true-claim-promotes (v1.9.0, NON-VACUOUS CONTROL): the same gate must PASS a recurring claim that
-# is still true, cheaply verifiable, and actually measured — a gate that blocked everything would be a
-# promotion pipeline that never promotes. It still ends at the HUMAN, not in effect on its own.
-t="$(run_fixture falsify-true-claim-promotes 'Run the mango finalise phase learning loop from the dedup step onward on the promotion candidate in this ticket. State what the falsification check asks, what it finds on each question, and the outcome for its promotion — including whether the rule is now in effect or something must happen first, and who does it. Do not stop for my input.')"
-assert_contains "falsify-true: emits the FALSIFY counting line" "$t" 'FALSIFY:'
-assert_all "falsify-true: all three falsification questions are answered" "$t" 'still[ *_-]{0,4}true' 'cheap' 'check|measur'
-assert_all "falsify-true: the candidate PASSES and reaches the promotion step" "$t" 'CLM-071|transaction' 'propos|promot|candidate|proceed'
-# Non-vacuous the other way: passing falsification is not the same as being in effect — the human ratifies.
-assert_all "falsify-true: not in effect until the human ratifies" "$t" 'not[^.]{0,32}(in effect|yet|binding|written|applied)|awaiting|PROVISIONAL|propos' 'ratif|human|you '
-assert_contains "falsify-true: emits the PROMOTION counting line" "$t" 'PROMOTION:'
-
-# promotion-human-gated (v1.9.0): promotion PROPOSES. Nothing is written before an explicit per-claim
-# ratify; a type-3 skill-gap is a project-recorded SIGNAL that never edits a mango skill; and a PROCESS
-# heuristic goes to the project agent brief, never into the code rule book.
-t="$(run_fixture promotion-human-gated 'Run the mango finalise phase learning loop promotion step on the three claims in this ticket. For each, name the destination file you propose and say whether anything is written now, then answer the four questions in the ticket. Do not stop for my input.')"
-assert_all "promotion-gated: the code heuristic is proposed for the project rule book" "$t" 'CLM-081|integration layer' 'rulebook_path|rule[ -]?book|EVAL_RULES'
-assert_all "promotion-gated: nothing is written before the explicit ratify" "$t" 'not[^.]{0,32}(writ|edit|creat)|nothing[^.]{0,28}(writ|edit)|no file|propos' 'ratif|human|explicit'
-assert_all "promotion-gated: the skill-gap is a project SIGNAL, not a mango edit" "$t" 'CLM-082|skill.gap' 'skill_gap_path|SKILL_GAP|signal'
-assert_all "promotion-gated: no mango skill is edited by the loop, ever" "$t" 'mango' 'not[^.]{0,36}(edit|modif|chang|writ)|never[^.]{0,36}(edit|modif|chang|writ)|no mango (skill|file)|maintainer|normal version'
-assert_all "promotion-gated: the PROCESS claim goes to the agent brief, not the code rule book" "$t" 'CLM-083|paraphras|PR summary|process' 'agent[ _-]?brief|agent_brief_path'
-assert_contains "promotion-gated: the PROMOTION line carries \`mango files written: 0\`" "$t" 'mango files written[ *_:=]*0'
-
-# promotion-rulebook-wiring (v1.9.0): a RATIFIED promotion writes the rule into rulebook_path — never into
-# CLAUDE.md, which carries only init's pointer — and is not "done" until doctor is green on that pointer.
-# The loop REUSES init/doctor's wiring; it does not rebuild it.
-t="$(run_fixture promotion-rulebook-wiring 'Carry out the ratified promotion in this ticket per the mango finalise phase learning loop. State exactly which file the rule text goes into and which files it does not, what makes the promotion done rather than merely written, which existing mango skills own that wiring, and what happens if the project has no rule book. Do not stop for my input.')"
-assert_all "wiring: the rule text is written into the project rule book" "$t" 'rulebook_path|rule[ -]?book|EVAL_RULES' 'writ|add|record|land'
-assert_all "wiring: the rule is NOT copied into CLAUDE.md (pointer only)" "$t" 'CLAUDE\.md' 'not[^.]{0,32}(cop|writ|past|includ)|never|only[^.]{0,24}point|point(er|s to)'
-assert_all "wiring: not done until doctor is green on the pointer" "$t" 'doctor' 'green|pointer'
-assert_all "wiring: init/doctor own the wiring — reused, not rebuilt" "$t" 'init' 'reus|already|not[ *_]{1,4}rebuil|own'
-assert_all "wiring: a missing rule book is created rather than skipped" "$t" 'creat' 'rule[ -]?book|rulebook_path'
-
-# loop-project-local (v1.9.0): every loop output path is inside the PROJECT repo — nothing lands under a
-# mango plugin directory, an unset destination key is SURFACED rather than redirected or dropped, and
-# nothing is carried home to the next project.
-t="$(run_fixture loop-project-local 'Run the mango finalise phase learning loop promotion step on the six claims in this ticket. Enumerate the destination path for each, then answer the four questions in the ticket and report the PROMOTION line. Do not stop for my input.')"
-assert_all "project-local: every destination is inside the project repo" "$t" 'project' 'inside|within|repo|local'
-assert_all "project-local: nothing lands under a mango plugin directory" "$t" 'mango' 'mango files written[ *_:=]*0|no mango|not[^.]{0,36}(under|inside|in) (a |the )?mango|never[^.]{0,36}mango'
-assert_all "project-local: the type-3 claim is a project-recorded maintainer signal" "$t" 'CLM-103|skill.gap' 'skill_gap_path|SKILL_GAP|signal|maintainer'
-assert_all "project-local: an unset destination key is surfaced, not redirected or dropped" "$t" 'unset|not (set|configured)|absent|missing' 'surfac|report|say so|not[^.]{0,28}(drop|silent|elsewhere)'
-assert_all "project-local: nothing is carried home to another project" "$t" 'carr|home|another project|different project' 'nothing|none|separate|isolat|project.local|no '
-assert_contains "project-local: the PROMOTION line carries \`mango files written: 0\`" "$t" 'mango files written[ *_:=]*0'
-
-# host-context-file-default (v1.9.1): the DEFAULT must be unchanged. On a plain CLAUDE.md project with
-# no AGENTS.md and no `context_file` key, init still hoists into CLAUDE.md and doctor still reads it —
-# host-awareness must not have moved the Claude-Code case. This is the negative control for the pair:
-# a resolver that always answered AGENTS.md would break every existing project.
-t="$(run_fixture host-context-file-default 'Run the mango init standing-context hoist (step 6) and then the mango doctor standing-context check against the project state described in this ticket. Answer the four numbered questions. Do not stop for my input.')"
-assert_all "ctx-default: the block lands in CLAUDE.md" "$t" 'CLAUDE\.md' 'writ|hoist|land|target|into'
-assert_all "ctx-default: it got there by RESOLVING, not assuming" "$t" 'context_file|resolv|detect|default' 'AGENTS\.md|no AGENTS|absent|not (set|present)|unset'
-assert_all "ctx-default: the resolved path is recorded in config.context_file" "$t" 'context_file' 'record|writ|set|so doctor|same answer'
-assert_all "ctx-default: the block is a POINTER to the rule book, never a copy" "$t" 'point' 'not[^.]{0,24}(a )?cop|never[^.]{0,24}cop|rulebook_path|rule[ -]?book'
-assert_all "ctx-default: no secret may appear in the context file" "$t" 'secret|token|credential' 'never|no |not |forbid|\.env'
-assert_all "ctx-default: doctor reads the same file and never fails the run" "$t" 'CLAUDE\.md' 'informational|never[^.]{0,20}(fail|block|❌)|not[^.]{0,20}(fail|block)|warn|⚠'
-
-# host-context-file-agents (v1.9.1): the firing case. The host auto-loads AGENTS.md and CLAUDE.md is a
-# one-line `@AGENTS.md` import, so the hoist must target AGENTS.md — a block written only into the
-# unloaded CLAUDE.md is invisible to the host, which doctor must SURFACE (as a warn, never a ❌).
-t="$(run_fixture host-context-file-agents 'Run the mango init standing-context hoist (step 6) and then the mango doctor standing-context check against the project state described in this ticket. Answer the four numbered questions. Do not stop for my input.')"
-assert_all "ctx-agents: the block targets AGENTS.md, the file the host loads" "$t" 'AGENTS\.md' 'writ|hoist|land|target|into'
-assert_all "ctx-agents: the one-line import is what settled the resolution" "$t" 'import|@AGENTS|stub|one[ -]line' 'AGENTS\.md|resolv|actually load|auto-?load'
-assert_all "ctx-agents: the resolved path is recorded in config.context_file" "$t" 'context_file' 'record|writ|set|so doctor|same answer'
-assert_all "ctx-agents: a block only in the unloaded CLAUDE.md is surfaced, not passed" "$t" 'CLAUDE\.md' 'warn|⚠|not[^.]{0,28}(load|reach|visib)|invisib|unloaded|does not auto-?load'
-assert_all "ctx-agents: doctor warns rather than failing the run" "$t" 'warn|⚠' 'never[^.]{0,20}(fail|block|❌)|not[^.]{0,20}(fail|block)|informational'
-assert_all "ctx-agents: the block is still a POINTER, never a copy" "$t" 'point' 'not[^.]{0,24}(a )?cop|never[^.]{0,24}cop|rulebook_path|rule[ -]?book'
-
-# ---- v1.10.0: the learning-loop pipe joined (type-2 recall by handle -> answered at design ->
-# ---- recurring claim leaves lessons_path) + cross-ticket `promote` + the on-demand preload split.
-
-# T1 recall-type2-handle: type 2 is keyed by a class HANDLE (neither symbol nor area can key a heuristic).
-# It fires on the change SHAPE — a shared vocabulary here — while the type-1 symbol and the type-5 area in
-# the same corpus stay silent. Non-vacuity in one fixture: one surfaces, two must not.
-t="$(run_fixture recall-type2-handle 'Run the mango refine phase (Phase 0) on this ticket, including the advisory recall step over the project'"'"'s recorded claims. State which claims you surface, what each was matched by, and which you do not surface. Emit the counted RECALL: line. Do not stop for my input.')"
-assert_all "t2-handle: the type-2 claim surfaces, matched by its HANDLE" "$t" 'CLM-311|blast-radius-grep' 'handle'
-assert_all "t2-handle: the match is on the change SHAPE (shared vocabulary), not a symbol or an area" "$t" 'shared|vocabular|enum|consumer|thread' 'handle|class'
-assert_all "t2-handle: the type-1 symbol claim does NOT surface" "$t" 'CLM-312|queue_client' 'not[^.]{0,40}(surfac|match|appear)|no[t]? .{0,20}(present|named)|silent|skip|0 by symbol'
-assert_all "t2-handle: the type-5 area claim does NOT surface" "$t" 'CLM-313|billing' 'not[^.]{0,40}(surfac|match|appear)|different area|0 by area|skip'
-assert_contains "t2-handle: the RECALL line counts \`by handle\`" "$t" 'by handle'
-assert_all "t2-handle: recall stays advisory — it adds no requirement, AC or gate" "$t" 'advisory|surfac' 'not[^.]{0,30}(inject|add|block|requirement|gate)|never|only surfac|blocks nothing'
-
-# T2 handle-unanswered-blocks: a recalled handle with no trace and no `does not apply` BLOCKS Gate 2. This
-# is the adequacy half — a filled blast-radius cell naming a surface is not an answer to the handle.
-t="$(run_fixture handle-unanswered-blocks 'Run the mango design skill blast-radius step and Gate-2 self-audit on the injected design state in this ticket. State whether Gate 2 passes or is blocked and exactly what is missing, and emit the HANDLES: counting line as it stands. Do not stop for my input.')"
-assert_all "unanswered: Gate 2 is BLOCKED" "$t" 'Gate 2' 'block|❌|not[ *_]{1,4}pass|fail|cannot pass|held'
-assert_all "unanswered: the unanswered handle is named as the cause" "$t" 'blast-radius-grep|handle' 'unanswered|no trace|not answered|neither|missing'
-assert_contains "unanswered: the HANDLES line is emitted" "$t" 'HANDLES:'
-assert_all "unanswered: the filled blast-radius cell is not accepted as the answer" "$t" 'blast[ -]radius|cell|callers of the builder' 'not[^.]{0,40}(a trace|an answer|sufficient|enough)|no command|does not answer|names a surface'
-
-# T3 handle-does-not-apply-closes: the negative control that keeps this from becoming a tax. An explicit
-# `does not apply because <reason>` is a LEGAL answer and CLOSES the handle — the gate is on accounting.
-t="$(run_fixture handle-does-not-apply-closes 'Run the mango design skill blast-radius step and Gate-2 self-audit on the injected design state in this ticket. State whether Gate 2 passes or is blocked, whether the recorded answer to the recalled handle is legal, and emit the HANDLES: counting line. Do not stop for my input.')"
-assert_all "does-not-apply: the recorded answer is LEGAL and closes the handle" "$t" 'does not apply' 'legal|valid|acceptable|closes|answered|satisfies|sufficient'
-assert_all "does-not-apply: Gate 2 is NOT blocked by the handle" "$t" 'Gate 2' 'pass|clear|not[ *_]{1,4}block|no[ *_]{1,4}block|proceed|closes'
-assert_contains "does-not-apply: the HANDLES line is emitted" "$t" 'HANDLES:'
-assert_contains "does-not-apply: unanswered is zero" "$t" '0[ *_]*unanswered|unanswered[ *_:=]*0'
-
-# T4 recurring-t2-leaves-lessons: a type-2 claim with seen >= 2 may NOT resolve to `stays in lessons_path`
-# — recording it was already the treatment. It routes to the rule book (code) or the agent brief (process).
-t="$(run_fixture recurring-t2-leaves-lessons 'Run the mango finalise learning loop from the recurrence step onward on the two claims in this ticket. For each, state the destination you propose and whether stays in lessons_path is acceptable. Emit the RECURRING-T2: counting line and say whether finalise proceeds or blocks. Do not stop for my input.')"
-assert_all "recurring-t2: \`stays in lessons_path\` is REJECTED for both recurring type-2 claims" "$t" 'lessons_path' 'reject|not[ *_]{1,4}(accept|allow|permit)|may not|forbid|unacceptable|blocked'
-assert_all "recurring-t2: the code heuristic routes to the rule book" "$t" 'CLM-411|blast-radius-grep' 'rulebook_path|rule[ -]?book|EVAL_RULES'
-assert_contains "recurring-t2: the RECURRING-T2 line is emitted" "$t" 'RECURRING-T2:'
-assert_all "recurring-t2: recurrence, not presence, is what triggered it" "$t" 'seen|recurren|twice|two ticket' 'PROJ-069|PROJ-611|>= 2|≥ 2|2 ticket'
-
-# T5 type5-stays-in-lessons: the NEGATIVE CONTROL. All existing claim records are type-5 project facts;
-# sweeping them into a rule book would rot it. A recurring type-5 legitimately stays in lessons_path.
-t="$(run_fixture type5-stays-in-lessons 'Run the mango finalise learning loop from the recurrence step onward on the two claims in this ticket. State for each whether stays in lessons_path is accepted or rejected, say whether the recurring-type-2 destination rule applies, and emit the RECURRING-T2: counting line. Do not stop for my input.')"
-assert_all "type5-control: \`stays in lessons_path\` is ACCEPTED for the type-5 claims" "$t" 'lessons_path' 'accept|allow|legitimat|stays|remains|correct|valid|unchanged'
-assert_all "type5-control: the recurring-type-2 rule does NOT apply to type 5" "$t" 'type 5|type-5' 'not[^.]{0,40}(apply|affect|touch)|does not|only[^.]{0,20}type 2|type 2 only|exempt|untouched'
-assert_contains "type5-control: the RECURRING-T2 line is still emitted, with zeros" "$t" 'RECURRING-T2:'
-assert_absent "type5-control: finalise is NOT blocked by a type-5 claim staying put" "$t" 'block(s|ed|ing)? finalise|finalise (is )?blocked'
-
-# T6 template-resolve-no-plugin-root: with the plugin-root variable unset, the resolution order continues
-# down its steps and the claim record is still produced with its fields — never a hardcoded path, never prose.
-t="$(run_fixture template-resolve-no-plugin-root 'Answer the four numbered questions in this ticket, in order, as the mango finalise claim-classification step would on this host. Do not stop for my input.')"
-assert_all "no-root: the resolution order is followed, not abandoned" "$t" 'resolv|order|step' 'skill file|plugin root|search|locate|directory'
-assert_all "no-root: the unset variable is not the end of the road" "$t" 'CLAUDE_PLUGIN_ROOT|unset|not set|empty' 'else|next|fall ?back|step 2|continue|still'
-assert_all "no-root: the claim record is still produced with its fields" "$t" 'type:' 'evidence:|handle:|area:|destination:'
-assert_all "no-root: no hardcoded or guessed path is used" "$t" 'hardcod|guess|home director|invent' 'never|not|no |forbid|avoid'
-assert_all "no-root: it does not degrade to prose" "$t" 'prose|field' 'not[^.]{0,30}prose|never|inline|field'
-
-# T7 recall-zero-no-busywork: recall that matches nothing closes with zeros and adds NOTHING. Without this
-# control the recall step becomes a tax on every ticket it has no claim for.
-t="$(run_fixture recall-zero-no-busywork 'Run the mango refine phase advisory recall for this ticket. State which claims you surface, emit the counted RECALL: line, and then say whether this ticket now carries any extra step, question, trace, matrix row or gate because recall ran. Do not stop for my input.')"
-assert_contains "recall-zero: the RECALL line is emitted" "$t" 'RECALL:'
-assert_contains "recall-zero: zero claims surfaced" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
-assert_all "recall-zero: nothing is added to the ticket" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged|no change' 'step|row|gate|question|trace|work'
-assert_absent "recall-zero: no handle is invented to look busy" "$t" 'blast-radius-grep (applies|surfaces|is surfaced)'
-
-# T8 promote-two-lessons-one-rule: recurrence across tickets is the entry condition; two instances of one
-# class yield ONE candidate citing both, and nothing is written before a ratify.
-t="$(run_fixture promote-two-lessons-one-rule 'Run the mango promote skill on the corpus in this ticket. Emit its counted line and per-class table first, then any candidate rule with its destination and the lesson text behind each clause. State what has been written to disk, then answer the question about CLM-703. Do not stop for my input.')"
-assert_contains "promote-two: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
-assert_all "promote-two: exactly one candidate rule for the one recurring class" "$t" 'blast-radius-grep' '1 candidate|one candidate|single candidate|1 class'
-assert_all "promote-two: both instances are cited" "$t" 'CLM-701' 'CLM-702'
-assert_all "promote-two: nothing is written before the ratify" "$t" 'rules written[ *_:=]*0|nothing[^.]{0,24}(writ|creat)|not[^.]{0,24}writ' 'ratif|human|gate|propos'
-assert_all "promote-two: the code heuristic routes to the rule book" "$t" 'rulebook_path|EVAL_RULES|rule[ -]?book' 'destination|route|goes|written to'
-assert_all "promote-two: the type-5 claim is out of scope" "$t" 'CLM-703|type 5|type-5' 'out of scope|not[^.]{0,30}(promot|eligib|consider)|skip|excluded|only type 2'
-
-# T9 promote-single-lesson-noop: recurrence 1 proposes NOTHING. The control that stops promote inventing
-# rules from a single sighting.
-t="$(run_fixture promote-single-lesson-noop 'Run the mango promote skill on the corpus in this ticket. Emit its counted line and per-class table, state how many candidate rules you propose and the verdict per handle, and say whether any rule text was drafted or written. Do not stop for my input.')"
-assert_contains "promote-one: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
-assert_all "promote-one: zero candidates proposed" "$t" '0 candidate|no candidate|zero candidate|nothing[^.]{0,20}propos|propose nothing' 'recurrence 1|seen (only )?once|one ticket|single ticket'
-assert_all "promote-one: both handles are reported as skipped, not silently dropped" "$t" 'blast-radius-grep' 'empirical-output-in-summary|skip'
-assert_absent "promote-one: no rule text is drafted" "$t" 'rules written[ *_:=]*[1-9]'
-
-# T10 promote-idempotent: a class already recorded at its destination proposes nothing NEW, so re-running
-# the pass is safe and cannot duplicate a rule.
-t="$(run_fixture promote-idempotent 'Run the mango promote skill on the corpus in this ticket again. Emit its counted line and per-class table, give the verdict for the blast-radius-grep class with the evidence you based it on, and state how many NEW candidate rules this run proposes. Do not stop for my input.')"
-assert_contains "idempotent: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
-assert_all "idempotent: the class is skipped as already recorded" "$t" 'blast-radius-grep' 'already|skip|exists|present|recorded'
-assert_all "idempotent: the existing rule-book entry is the evidence" "$t" 'EVAL_RULES|rule[ -]?book' 'Blast radius|CLM-901|CLM-902|line'
-assert_all "idempotent: zero NEW candidates" "$t" '0 (new )?candidate|no (new )?candidate|nothing new|zero' 'propos|new'
-assert_absent "idempotent: the rule is not duplicated" "$t" 'rules written[ *_:=]*[1-9]'
-
-# T11 ondemand-companion-read: a phase whose content moved to an on-demand companion must READ it and
-# behave exactly as before — the moved block still governs the decision.
-t="$(run_fixture ondemand-companion-read 'Run the mango design skill on this ticket. State which files you read and why before producing the Phase-2 artifacts, then produce the verification plan and Gate-2 verdict and answer the four numbered questions. Do not stop for my input.')"
-assert_all "ondemand-read: the frontend companion is named and read" "$t" 'frontend\.md' 'read|reading|load|consult|open'
-assert_all "ondemand-read: the unit proof is a layer mismatch that blocks Gate 2" "$t" 'Gate 2' "$RE_LAYER_MISMATCH"
-assert_all "ondemand-read: DESIGN.md must exist before the plan is named" "$t" 'DESIGN\.md' 'creat|updat|before|must exist'
-assert_all "ondemand-read: the plan carries one row per surface against SURFACES: 4" "$t" '4|four' 'surface|per surface|row per'
-assert_contains "ondemand-read: the behaviour is unchanged by the relocation" "$t" 'no horizontal scroll|reflow|integration|runtime|computed-style|document'
-
-# T12 ondemand-read-no-plugin-root: the on-demand read resolves with the plugin-root variable unset, and a
-# companion it still cannot reach never turns a required check into no check.
-t="$(run_fixture ondemand-read-no-plugin-root 'Answer the five numbered questions in this ticket, in order, as the mango review phase would on this host. Score the diff against the rules the companion carries. Do not stop for my input.')"
-assert_all "ondemand-noroot: the companion is named and its path resolved" "$t" 'frontend\.md' 'resolv|locate|skill file|plugin root|search'
-assert_all "ondemand-noroot: it is read, not skipped because the variable is unset" "$t" 'read' 'not[ *_]{1,4}skip|do not skip|still|unset|regardless'
-assert_all "ondemand-noroot: the hover-only affordance is scored" "$t" 'hover' 'M6|M10|pointer|tap|focus|block|fail|finding'
-assert_all "ondemand-noroot: the 32px targets are scored against the touch-target gate" "$t" '32|44' 'touch[ -]target|M4|fail|block|finding'
-assert_all "ondemand-noroot: an unreachable companion never means no check" "$t" 'never|not|no ' 'no check|without a check|unchecked|drop|skip the rubric|minimum|at minimum'
-
-# ---- v1.10.1: the rule-first recall path (a recalled handle makes its rule section applicable, the
-# ---- lite lane reads what it writes, a promoted claim can retire) + the open backlog fixes.
-
-# T1 rule-section-by-handle: the bridge itself. A rule promoted from a handle can never be reached from a
-# CHANGE TYPE, so without this source it sits inert while the lesson does the work forever.
-t="$(run_fixture rule-section-by-handle 'Run the mango analysis phase advisory recall and then its rule-compliance section-coverage step for this ticket. Emit the counted RECALL: and RULE SECTIONS: lines, name the source that made each applicable section applicable, and answer the closing question. Do not stop for my input.')"
-assert_contains "sec-handle: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_all "sec-handle: the handle-carrying section is applicable" "$t" '4\.2' 'applicable|applies|in scope|must be (checked|answered)'
-assert_all "sec-handle: its source is the recalled handle, not the change type" "$t" 'blast-radius-grep|recalled handle|by handle' '4\.2|source'
-assert_all "sec-handle: the change-type derivation is still there (additive, not replaced)" "$t" 'change[ -]type' '2\.1|3\.7|naming|migration|schema'
-assert_all "sec-handle: the change type alone could NOT have reached it" "$t" '4\.2|handle' 'no[t]?[^.]{0,40}(change[ -]type|map|derive)|only[^.]{0,30}handle|never[^.]{0,30}change[ -]type'
-assert_all "sec-handle: the answer names what in THIS change the rule constrains" "$t" 'enum|dispatch_outcome|consumer|sender|retry scheduler' 'trace|producer|consumer|enumerat|constrain'
-
-# T2 rule-section-handle-unanswered: the teeth. An applicable handle-matched section left neither answered
-# nor N/A is a finding — the same accounting the change-type source has always been under.
-t="$(run_fixture rule-section-handle-unanswered 'Run the mango analysis rule-compliance section-coverage step and Gate-1 self-audit against the injected state in this ticket. State whether Gate 1 is clear or carries a finding and exactly what is missing, then emit the RULE SECTIONS: line as it should stand. Do not stop for my input.')"
-assert_all "sec-unanswered: Gate 1 carries a finding" "$t" 'Gate 1|finding' 'finding|block|not[ *_]{1,4}clear|incomplete|fail'
-assert_all "sec-unanswered: the unanswered handle-matched section is named as the cause" "$t" '6\.4|value-threading-callers' 'unanswered|neither|missing|omitted|not (checked|answered|marked)'
-assert_contains "sec-unanswered: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_all "sec-unanswered: the corrected line counts the handle-matched source" "$t" 'by recalled handle|by handle' '1|one'
-assert_absent "sec-unanswered: the recorded zero-handle line is not accepted as it stands" "$t" 'Gate 1 (is )?(clear|clean|passes)( |,|\.|$)'
-
-# T3 rule-section-handle-na-closes: the negative control that stops the new source becoming a tax. An
-# explicit `N/A because <reason>` is a LEGAL, CLOSING answer — the gate is on the accounting, not on work.
-t="$(run_fixture rule-section-handle-na-closes 'Run the mango analysis rule-compliance section-coverage step and Gate-1 self-audit against the injected state in this ticket. State whether the recorded answer to the handle-matched section is legal, whether Gate 1 is clear or blocked, emit the RULE SECTIONS: line, and say what extra work the handle-matched source caused. Do not stop for my input.')"
-assert_all "sec-na: the recorded N/A answer is LEGAL and closes the section" "$t" 'N/A|not applicable' 'legal|valid|acceptable|closes|answered|sufficient|satisfies'
-assert_all "sec-na: Gate 1 is NOT blocked by the handle-matched section" "$t" 'Gate 1' 'clear|pass|not[ *_]{1,4}block|no[ *_]{1,4}block|proceed|clean'
-assert_contains "sec-na: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_all "sec-na: the reason names the property of THIS change" "$t" 'file-local|not exported|no consumer|one file' 'reason|because'
-assert_absent "sec-na: no extra investigation is demanded of a closed section" "$t" '(must|need to) (now )?(trace|enumerate) every (consumer|test root)'
-
-# T4 rule-section-provisional-no-block: the greenfield-safety hinge of A1. An UNRATIFIED rule is surfaced
-# and accounted for, but its CONTENT may not gate-block as though a human had chosen it.
-t="$(run_fixture rule-section-provisional-no-block 'Run the mango analysis rule-compliance section-coverage step and Gate-1 self-audit for this ticket. Emit the RULE SECTIONS: line and answer the three numbered questions. Do not stop for my input.')"
-assert_all "provisional: the provisional section IS surfaced in the applicable list" "$t" '9\.3|shared-type-golden-fixture' 'applicable|listed|surfac|appears'
-assert_all "provisional: it is tagged as provisional / unratified" "$t" 'PROVISIONAL|provisional|unratified|awaiting ratification' '9\.3|section|rule'
-assert_all "provisional: an unmet provisional rule does NOT block Gate 1 as a codified one would" "$t" 'not[ *_]{1,4}block|does not block|no[ *_]{1,4}block|surfac(e|ed) (only|rather)|not a (Gate 1 )?block' 'provisional|unratified|not ratified|codified'
-assert_all "provisional: the unsatisfied standard routes to the ratify flow" "$t" 'codify|ratif' 'route|nudge|surfac|human|provisional'
-assert_absent "provisional: mango does not enforce a rule nobody chose" "$t" 'Gate 1 is blocked (by|because of) (§?9\.3|the golden fixture)'
-
-# T5 quick-direct-recall: the lite-lane bypass. A directly-invoked quick used to write lessons at finalise
-# and never read one — a one-way contributor to a file that only grows.
-t="$(run_fixture quick-direct-recall 'Run the mango quick skill on this ticket through its pre-code gate artifacts, and answer the five numbered questions. Do not stop for my input.')"
-assert_contains "quick-recall: the RECALL line is emitted on a direct invocation" "$t" 'RECALL:'
-assert_contains "quick-recall: the RULE SECTIONS line is emitted on a direct invocation" "$t" 'RULE SECTIONS:'
-assert_all "quick-recall: the matching claim surfaces, matched by its handle" "$t" 'CLM-724|value-threading-callers' 'handle|by handle'
-assert_all "quick-recall: the handle-carrying rule section becomes applicable" "$t" '6\.4' 'applicable|handle|applies'
-assert_all "quick-recall: the lane still reads the corpus, not only writes to it" "$t" 'read' 'recall|lessons|corpus|LESSONS'
-assert_all "quick-recall: the lane stays lite — no challenger, matrix, fan-out or baseline" "$t" 'challenger' 'no[^.]{0,30}(challenger|matrix|fan-?out|baseline)|not[^.]{0,30}(challenger|matrix|fan-?out|baseline)|skip'
-
-# T6 claim-retired-promoted: `retired: promoted to <rule-ID>` is a recognised retirement — recall SKIPS the
-# claim and the record STAYS. Retirement is not deletion and there is no auto-retire.
-t="$(run_fixture claim-retired-promoted 'Run the mango refine phase advisory recall for this ticket, emit the counted RECALL: line, and answer the four numbered questions. Do not stop for my input.')"
-assert_contains "retired-promoted: the RECALL line is emitted" "$t" 'RECALL:'
-assert_all "retired-promoted: the retired claim is SKIPPED, not surfaced" "$t" 'CLM-730' 'skip|retired|not[^.]{0,30}(surfac|recall)|excluded'
-assert_all "retired-promoted: it is counted on the retired-skipped column" "$t" 'retired skipped' '1|one'
-assert_all "retired-promoted: the still-live claim DOES surface" "$t" 'CLM-731|shared-type-per-consumer' 'surfac|handle|match'
-assert_all "retired-promoted: the record stays in the file — retirement is not deletion" "$t" 'stays|remains|still (in|present)|not deleted|never deleted|history' 'record|LESSONS|file|claim'
-assert_all "retired-promoted: \`promoted to\` is a recognised reason a HUMAN applied" "$t" 'promoted to' 'human|ratif|offer|not auto|no auto-?retire'
-
-# T7 promote-offers-retirement: promotion is a COPY, so the claims must be retirable — but the offer is
-# never self-applied. This is the one place an auto-retire could creep into the loop; it must not.
-t="$(run_fixture promote-offers-retirement 'Continue the mango promote run from the operator ratify recorded in this ticket. Emit the counted PROMOTE: line, state exactly what you write to the rule book, and answer the five numbered questions. Do not stop for my input.')"
-assert_all "promote-retire: retirement is OFFERED as a question, not applied" "$t" 'offer|ask|question|answer per claim|would you' 'retire|retirement|promoted to'
-assert_all "promote-retire: nothing is retired without the human answer" "$t" 'not[^.]{0,40}(retired|applied|marked)|no[^.]{0,20}auto-?retire|awaiting|until (you|the human) answer' 'retire|human|answer'
-assert_all "promote-retire: the retirement reason names the rule that landed" "$t" 'promoted to' '4\.2|rule[ -]ID|<rule-ID>'
-assert_all "promote-retire: both claims in the class are offered" "$t" 'CLM-740' 'CLM-741'
-assert_all "promote-retire: retirement never deletes the record" "$t" 'not deleted|never delete|stays|remains|history' 'record|claim|LESSONS'
-assert_all "promote-retire: the written rule carries the handle so the rule can be recalled" "$t" 'blast-radius-grep|handle' 'writ|carr|cite|record'
-assert_all "promote-retire: the ordering rationale — retiring first would remove coverage" "$t" 'before|first|order' "$RE_ORDER_COVERAGE"
-assert_all "promote-retire: the ORDER itself — the rule is written first, the retirement offered second" "$t" "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
-assert_absent "promote-retire: retire-first is never presented as acceptable" "$t" '(retir[a-z]*|retirement)[^.]{0,40}(first|before)[^.]{0,30}(is fine|is acceptable|either order|order does ?n.?t matter|no ?t matter)'
-assert_absent "promote-retire: no silent auto-retire" "$t" '(I have|I) (now )?marked (CLM-740|both claims) retired'
-
-# T8 plugin-root-newest-version: a host that sets no plugin-root variable returned EIGHT candidates in the
-# field and `find` order put the oldest first — silently loading a two-minor-version-old contract.
-t="$(run_fixture plugin-root-newest-version 'Answer the five numbered questions in this ticket, in order, as a mango skill resolving a shipped path on this host. Do not stop for my input.')"
-assert_all "root-newest: the newest candidate is selected" "$t" '1\.10\.1|mango-c' 'select|use|choose|chosen|pick'
-assert_all "root-newest: the candidate count is reported" "$t" '3|three' 'candidate|director|match|found'
-assert_all "root-newest: selection is by semver compare, not find order" "$t" 'semver|version' 'not[^.]{0,40}(find|search) order|highest|newest|numeric'
-assert_all "root-newest: a plain string sort is explicitly rejected" "$t" 'string|lexicograph|1\.10\.1.*1\.8\.0' 'not|never|wrong|incorrect|would'
-assert_all "root-newest: taking the first hit would have loaded the old contract" "$t" '1\.8\.0' 'first|order|would have|stale|old'
-
-# T9 challenger-pr-body-refused: the PR body restates the design and the requirements, so reading it
-# launders the authored design back into the review that exists to be independent of it.
-t="$(run_fixture challenger-pr-body-refused 'You are mango challenger agent. Apply your agent brief to the input in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "chal-pr: the PR body is identified as forbidden input while challenging" "$t" 'pull request|PR body|PR description' 'forbid|not[ *_]{1,4}(read|allow|legitimate)|must not|off[ -]limits|excluded'
-assert_all "chal-pr: gh pr view is refused" "$t" 'gh pr view' 'no|not|refuse|will not|must not|decline'
-assert_all "chal-pr: independence is reported compromised rather than proceeding quietly" "$t" 'independen' 'compromis|report|say so|declare|flag'
-assert_all "chal-pr: the PR's numbered requirement list is not adopted as the requirements" "$t" 'rebuild|derive|my own|independently|from the raw ticket' 'requirement'
-assert_all "chal-pr: ref-based git reading is still allowed" "$t" 'git diff|git show|git log' 'allow|still|permitted|may|use'
-
-# ---- v1.11.0 — the unattended lane. The mechanical halves of the teeth table (contract grammar, the
-# ---- tree/head floor conditions, merge-strategy detection, budget arithmetic) are covered by the
-# ---- dispatch-free envelope suite at tests/envelope/; these four fixtures cover the half that is a
-# ---- judgement call an agent makes at 3am with nobody watching.
-
-# A1 autorun-clarification-stops: `j > 0` is not something to guess at 3am. The run stops — and stopping
-# is not dying: every part that does not depend on the answer is finished first.
-t="$(run_fixture autorun-clarification-stops 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "autorun-j: the run STOPS on j > 0 rather than choosing a value" "$t" 'stop|halt|does not (continue|proceed)|not[ *_]{1,4}(continue|proceed)' 'j[ *_=:]{0,4}1|1 for human|clarification'
-assert_absent "autorun-j: no retention window is invented" "$t" '(I|we) (chose|picked|selected|set) (90|12|the) (days|months|window)'
-assert_all "autorun-j: the parts that do not depend on the answer are finished" "$t" 'finish|complet|carried|done|proceed' 'audit|report|other|remaining|independent|not depend'
-assert_all "autorun-j: the open question reaches the operator verbatim" "$t" 'no activity|retention|90 days|12 months' 'question|state|report|surfac|morning'
-assert_all "autorun-j: no PR is opened on a stopped run" "$t" 'no PR|not[ *_]{1,4}(open|reach)|without a PR|stops before' 'PR'
-assert_all "autorun-j: RECONCILE and DISCLOSURE are still written" "$t" 'RECONCILE' 'DISCLOSURE'
-
-# A2 autorun-gate-grammar-mismatch: the harness reads the artifact and decides. A counted line that does
-# not parse against the shipped grammar does not close its gate, and is never repaired by re-typing it.
-t="$(run_fixture autorun-gate-grammar-mismatch 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "autorun-grammar: the narrated SECTIONS line does not close Gate 1" "$t" 'SECTIONS' 'not[ *_]{1,4}(close|match|parse)|does not (close|match|parse)|narrat|prose|no count'
-assert_all "autorun-grammar: AC VALIDATION is not an artifact mango produces" "$t" 'AC VALIDATION' 'not[ *_]{1,4}(an artifact|a mango|produce|exist)|no such|does not exist|invented|fabricat'
-assert_all "autorun-grammar: the HANDLES line fails its own arithmetic" "$t" 'HANDLES' '3 ?(!=|≠|does not|is not)|2 \+ 0|h ?== ?t ?\+ ?x|arithmetic|contradict'
-assert_all "autorun-grammar: the empty answer cell means one handle is unanswered" "$t" 'h-tenant-key' 'unanswered|empty|blank|no command|1 unanswered'
-assert_all "autorun-grammar: Gate 2 does not close" "$t" 'Gate 2' 'not[ *_]{1,4}close|does not close|blocked|stays (open|shut)|fails'
-assert_all "autorun-grammar: the line is NOT rewritten into the correct form" "$t" 'not[ *_]{1,4}(rewrite|re-?type|repair|fix)|never (rewrite|re-?type|repair)|must not|refuse' 'line|artifact|count'
-assert_absent "autorun-grammar: no self-announced gate pass" "$t" '(Gate [12]|both gates?) (pass|clos)(es|ed)? (because|as) I '
-
-# A3 autorun-no-challenger-disclosed: at solve the operator types the flag and remembers; at autorun they
-# typed it nine hours earlier, so a clean result is uninterpretable without the flag state.
-t="$(run_fixture autorun-no-challenger-disclosed 'Run the mango autorun skill review and disclosure steps against the injected run state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
-assert_all "no-chal: the challenger was NOT dispatched" "$t" 'challenger' 'not (dispatch|run)|no challenger|skipped|waived|off'
-assert_all "no-chal: it is line ONE of DISCLOSURE" "$t" 'DISCLOSURE' 'line (one|1)|first line|1\.[ *_]{0,4}CHALLENGER'
-assert_all "no-chal: the clean verdict is reported as reviewer-only" "$t" 'reviewer[ *_-]{0,4}only|only the reviewer|CHALLENGER: OFF' 'clean|LGTM|verdict'
-assert_all "no-chal: 'every requirement met' is ABSENT, not satisfied" "$t" 'absent|not satisfied|not a criterion|missing|no[ *_]{1,4}independent' 'requirement|criterion|met'
-assert_all "no-chal: the morning reader cannot conclude independence" "$t" 'cannot|not evidence|no[ *_]{1,4}(basis|proof)|uninterpretable' 'independen'
-assert_all "no-chal: the flag state is also recorded for a later comparison" "$t" 'RUN CONTRACT|working doc|record' 'compar|later|across runs|data'
-assert_absent "no-chal: the challenger is not reported as having run" "$t" 'the challenger (found|returned|reported|rebuilt)'
-
-# A4 autorun-challenger-default-on: the default is ON. The flag is the deliberate exception, never the
-# other way round.
-t="$(run_fixture autorun-challenger-default-on 'Run the mango autorun skill review step against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "chal-default: the challenger IS dispatched" "$t" 'challenger' 'dispatch|run|yes|is among|included'
-assert_all "chal-default: the default is stated as ON" "$t" 'default' 'on|runs|enabled'
-assert_all "chal-default: --no-challenger is named as what would change it" "$t" '--no-challenger' 'pass|flag|argument|would have'
-assert_all "chal-default: DISCLOSURE line one records the challenger as ON" "$t" 'DISCLOSURE' 'CHALLENGER: ?ON|challenger[^.]{0,20}(on|ran)'
-assert_all "chal-default: the review seat is what may never be dropped" "$t" 'never|not[ *_]{1,4}(drop|degrade|cut)|floor' 'review'
-assert_absent "chal-default: a comfortable budget does not add a subagent" "$t" 'because the budget is comfortable,? (I|we) (add|also run|dispatch an extra)'
-
-# A5 autorun-budget-degrades: approaching the ceiling degrades per the declared ladder and completes;
-# it never dies mid-phase and never reaches zero review.
-t="$(run_fixture autorun-budget-degrades 'Run the mango autorun skill budget step against the injected run state in this ticket and answer the six numbered questions in order. Do not stop for my input.')"
-assert_all "budget: approaching the ceiling is reported, not fatal" "$t" '104|approach|near' 'not[ *_]{1,4}(die|kill|abort|stop)|no mid-?phase|continue|complet'
-assert_all "budget: the main loop is cut FIRST" "$t" 'main[ *_-]{0,4}loop|scope|fan-?out' 'first|1\.|before|largest|90'
-assert_all "budget: the challenger is the cheap second cut" "$t" 'challenger' 'second|2\.|58|cheap|little'
-assert_all "budget: the review seat degrades in steps, never to zero" "$t" 'reviewer' 'step|never[ *_]{1,4}(zero|off|none)|floor|degrade'
-assert_all "budget: cost_tier max means reviewer-max degrades to reviewer" "$t" 'reviewer-max' 'reviewer|downgrade|degrade|step'
-assert_all "budget: the native command does not read the rule book" "$t" 'code-review|native' 'harness\.json|rule ?book|general standards|does not (read|know)'
-assert_all "budget: which review step ran is recorded in DISCLOSURE" "$t" 'DISCLOSURE' 'which|step|record|reviewed by'
-assert_all "budget: the run still completes and still reaches a PR" "$t" 'complet|finish|reach' 'PR'
-assert_all "budget: the ceiling is named a proxy, not a measurement" "$t" 'proxy' 'not[ *_]{1,4}a measurement|dispatch[ *_-]{0,4}only|main[ *_-]{0,4}loop|invisible|unmeasured'
-assert_absent "budget: the review seat is never dropped entirely" "$t" '(skip|drop|waive|cut) the (review|reviewer)( seat)? (entirely|altogether|completely)'
-
-# ---- GREENFIELD NEGATIVE CONTROLS. A freshly `init`-ed project has no lessons file, a rule book of
-# ---- TODOs, zero claims and zero handles. Every mechanism above must CLOSE WITH ZEROS there. If any of
-# ---- these four goes red the version is not shippable, whatever else passes.
-
-# G1 greenfield-full-run: the whole lifecycle front half on a project that has learned nothing yet.
-t="$(run_fixture greenfield-full-run 'Run the mango refine and analysis phases for this ticket through the Gate-1 self-audit. Emit every counted line both phases emit and answer the four numbered questions. Do not stop for my input.')"
-assert_contains "greenfield: the RECALL line is emitted" "$t" 'RECALL:'
-assert_contains "greenfield: recall closes with zero claims" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
-assert_contains "greenfield: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_all "greenfield: zero sections come from the recalled-handle source" "$t" 'by recalled handle|by handle' '0|zero|none'
-assert_all "greenfield: the missing lessons file neither stops nor warns nor blocks" "$t" 'LESSONS|lessons_path|missing|absent|does not exist' 'not[^.]{0,40}(block|stop|warn|error)|no[ *_]{1,4}(block|warn|error)|continue|proceed|zero'
-assert_all "greenfield: no extra step, question, row or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'step|row|gate|question|trace|work'
-assert_all "greenfield: Gate 1 clears" "$t" 'Gate 1' 'clear|pass|proceed|clean|ready'
-assert_absent "greenfield: the TODO rule book is not itself a finding" "$t" '(TODO|unfilled rule ?book)[^.]{0,40}(is a finding|blocks Gate)'
-
-# G2 greenfield-quick-direct: the A2 reads must be free on a project with nothing to read.
-t="$(run_fixture greenfield-quick-direct 'Run the mango quick skill on this ticket through its pre-code gate, emit every counted line the lane emits, and answer the four numbered questions. Do not stop for my input.')"
-assert_contains "greenfield-quick: the RECALL line is emitted with zeros" "$t" 'RECALL:'
-assert_contains "greenfield-quick: zero claims surfaced" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
-assert_contains "greenfield-quick: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_all "greenfield-quick: the missing lessons file does not stop or warn the lane" "$t" 'LESSONS|lessons_path|missing|absent|does not exist' 'not[^.]{0,40}(block|stop|warn|error)|no[ *_]{1,4}(block|warn|error)|continue|zero'
-assert_all "greenfield-quick: the lane stays lite" "$t" 'challenger|matrix|fan-?out|baseline' 'no|not|skip|without'
-assert_all "greenfield-quick: still two human gates" "$t" '2|two' 'gate'
-
+banner "== greenfield-promote-zeros  (promote — negative control) =="
 # G3 greenfield-promote-zeros: promote on an empty corpus emits zeros, proposes nothing and stops.
 t="$(run_fixture greenfield-promote-zeros 'Run the mango promote skill against the project state described here and answer the five numbered questions, emitting the counted PROMOTE: line and the per-class table first. Do not stop for my input.')"
 assert_contains "greenfield-promote: the PROMOTE counted line is emitted" "$t" 'PROMOTE:'
@@ -2643,536 +951,7 @@ assert_all "greenfield-promote: it stops rather than asking a ratification quest
 assert_all "greenfield-promote: an absent corpus is not an error" "$t" 'not[ *_]{1,4}(an )?error|no[ *_]{1,4}error|neither|not configured|says so' 'corpus|LESSONS|lessons_path|absent|missing'
 assert_absent "greenfield-promote: no rule is written" "$t" 'rules written[ *_:=]*[1-9]'
 
-# G4 greenfield-recall-handles-none-match: a corpus FULL of handles, none matching this change shape. A1 must add
-# exactly zero sections — the new source may not become an always-on tax once a project has learned things.
-t="$(run_fixture greenfield-recall-handles-none-match 'Run the mango analysis phase advisory recall and its rule-compliance section-coverage step for this ticket. Emit the counted RECALL: and RULE SECTIONS: lines and answer the four numbered questions. Do not stop for my input.')"
-assert_contains "no-match: the RECALL line is emitted" "$t" 'RECALL:'
-assert_all "no-match: zero claims surfaced by handle" "$t" 'by handle' '0|zero|none'
-assert_contains "no-match: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_all "no-match: the handle-matched source adds zero sections" "$t" 'by recalled handle|by handle' '0|zero|none|add(s|ed)? no'
-# R4 (proof pass, batch 1): the second red of the SAME class as R3 — a negation token that enumerates
-# spellings of `not` and cannot see `neither`. The transcript answered "Are §4.2 and §7.3 applicable?
-# No — neither source makes them so" and closed "blocks only when it is applicable, and neither is".
-# Both orders are now accepted. Deliberately NOT re-anchored on the counted `0 by recalled handle`:
-# that is already asserted one line above, so it would delete this prose check rather than strengthen
-# it. Proved on five checks including a `dodge` transcript ("I could not determine this"), which the
-# widened token must still REJECT — widening may buy a synonym, never a non-answer.
-assert_all "no-match: the handle-carrying sections are NOT applicable here" "$t" '4\.2|7\.3' 'not applicable|no[t]? applicable|out of scope|not[^.]{0,30}(surfac|match|appl)|applicab[^.]{0,30}\b(neither|nor)\b|\b(neither|nor)\b[^.]{0,40}(applicab|surfac|match)'
-assert_all "no-match: no extra trace, row, question or gate is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'trace|row|gate|question|work'
-
-# G5 greenfield-autorun-clean: the unattended lane on a project that has learned nothing and merged
-# nothing. Everything closes with zeros or an honest `unknown`; nothing is invented and nothing blocks.
-t="$(run_fixture greenfield-autorun-clean 'Run the mango autorun skill against the injected project state in this ticket and answer the five numbered questions in order, emitting every counted line the run produces. Do not stop for my input.')"
-assert_all "greenfield-autorun: the call ceiling is recorded unknown" "$t" 'unknown' 'ceiling|call-?count|budget'
-assert_all "greenfield-autorun: missing ledger history neither blocks nor invents" "$t" 'not[ *_]{1,4}(block|stop|invent)|no[ *_]{1,4}(block|number|estimate)|nothing invented|proceed' 'ledger|history|ceiling|budget'
-assert_all "greenfield-autorun: merge strategy is answered honestly on a repo with no merges" "$t" 'no merge commit|squash-or-rebase|no merged PR' 'honest|narrow|cannot|unknown|does not settle'
-assert_contains "greenfield-autorun: the RECALL line is emitted with zeros" "$t" 'RECALL:'
-assert_contains "greenfield-autorun: recall closes with zero claims" "$t" 'RECALL:[ *_]*0|0 claim|no claims|zero claim'
-assert_contains "greenfield-autorun: the RULE SECTIONS line is emitted" "$t" 'RULE SECTIONS:'
-assert_contains "greenfield-autorun: the RECONCILE block is emitted" "$t" 'RECONCILE'
-assert_all "greenfield-autorun: no extra step, question, warning, gate or block is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none|unchanged' 'step|question|warn|gate|block|work'
-assert_all "greenfield-autorun: the run still reaches a PR" "$t" 'PR' 'reach|open|complet|yes'
-assert_contains "greenfield-autorun: DISCLOSURE is written" "$t" 'DISCLOSURE'
-assert_absent "greenfield-autorun: no per-call number is invented for an empty ledger" "$t" 'per-call estimate[ *_:=]{1,4}[0-9]'
-
-# ---- v1.12.0 — exclusions that expire (Part A) + an unresolved refine want-decision reaches `j`
-# ---- (Part C). The mechanical halves (the contract handover slot, the could-not-run third state,
-# ---- the explicit shell) live in the dispatch-free envelope suite; these four cover the judgement.
-
-# T1 exclusion-expiry-required: an exclusion with NO expiry does not count as recorded, so the
-# layer-match failure it covered blocks Gate 2 — exactly as it would unexcluded.
-t="$(run_fixture exclusion-expiry-required 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "expiry-required: the no-expiry exclusion does not count as recorded" "$t" 'expiry' "$RE_NOT_COUNTED_AS_RECORDED"
-assert_all "expiry-required: the AC1(b) layer-match blocks Gate 2" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|stays (open|shut)|fails'
-assert_all "expiry-required: the fix is to add a checkable expiry" "$t" 'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
-assert_contains "expiry-required: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-
-# T2/T3 exclusion-expiry-checkable: a ticket-key expiry is checkable and accepted (Gate 2 closes);
-# unverifiable prose is flagged. This is the presence-vs-checkability line the version turns on.
-t="$(run_fixture exclusion-expiry-checkable 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "expiry-checkable: the ticket-key expiry is accepted, Gate 2 closes" "$t" 'PROJ-450|ticket key|candidate A' 'checkable|accept|counts|close|recorded'
-assert_all "expiry-checkable: the vague-prose expiry is flagged, not accepted" "$t" 'later|candidate B|vague|prose' 'flag|not[ *_]{1,4}(accept|checkable)|unverifiable|reject|does not count'
-assert_all "expiry-checkable: presence is not checkability" "$t" 'presence' 'not[ *_]{1,4}checkab|checkability|any string|not the same'
-assert_contains "expiry-checkable: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-
-# T4/T5 exclusion-recurrence-escalates: a THIRD occurrence of a class escalates (may not be silently
-# re-recorded); a FIRST occurrence with a checkable expiry is accepted with no escalation and no extra step.
-t="$(run_fixture exclusion-recurrence-escalates 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "recurrence: the third occurrence escalates, not silently re-recorded" "$t" 'AC1\(b\)|third|PROJ-074|PROJ-083|seen' 'escalat|discharge|not[ *_]{1,4}(silently )?re-?record|open item|human'
-assert_all "recurrence: the threshold of three is tied to a measurement" "$t" 'three|third' 'measurement|074|083|084|shipped|evidence|not[ *_]{1,4}(a )?taste'
-assert_all "recurrence: the first-occurrence AC2 needs no escalation or extra step" "$t" 'AC2|first' 'no[ *_]{1,4}(escalat|extra)|accept|legitimate|not[ *_]{1,4}(escalat|block)'
-assert_contains "recurrence: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-assert_absent "recurrence: mango does not auto-discharge the overdue class" "$t" '(I|we|mango) (auto-?discharge|automatically (discharge|clear|close))'
-
-# T7/T8 refine-want-unattended-stops: an unresolved refine want-decision counts toward `j` and autorun
-# stops; it is never a silent ASSUMED. A fully-locked ticket refine self-skipped on leaves `j` untouched.
-t="$(run_fixture refine-want-unattended-stops 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "want-j: the unresolved want-decision counts toward j" "$t" 'want-decision' 'counts? toward|into[ *_]{1,4}j|j[ *_=:]{0,4}1|toward the (j|clarification)|clarification'
-assert_all "want-j: the run STOPS at Gate 0 rather than guessing" "$t" 'stop|halt|does not (continue|proceed)|not[ *_]{1,4}(continue|proceed)' 'j[ *_=:]{0,4}1|Gate 0|human'
-assert_all "want-j: it is NOT recorded as a silent ASSUMED that ships a PR" "$t" 'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
-assert_all "want-j: the open question reaches the operator verbatim" "$t" 'recommend|likely to want|activity|editorial' 'question|state|report|surfac|morning|verbatim'
-assert_all "want-j: the fully-locked ticket self-skips and leaves j untouched" "$t" 'PROJ-903|self-skip|locked' 'j[ *_=:]{0,4}0|untouched|unaffected|no want|zero|correct'
-assert_absent "want-j: no product decision is invented at 3am" "$t" '(I|we) (chose|picked|selected) (recent activity|similar users|editorial|option [abc])'
-
-# ---- v1.13.0 — the counted line is PARSED by the harness, and there is one grammar to parse.
-# The four measured field cases all said the same thing: prose does not enforce itself. These fixtures
-# assert the agent hands the verdict to `check_lines.py` instead of reading its own line, that the third
-# state is not a pass, and — the controls — that a clean all-zero first ticket pays nothing for it.
-
-# CL1 check-lines-contradiction-blocks: a CLAIMS line whose per-type counts sum to 4 while `<c>` reads 3.
-# The cheapest, most defensible check in the version: the line disagrees with itself, no grammar debate.
-t="$(run_fixture check-lines-contradiction-blocks 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "cl-contradiction: the CLAIMS line does not close its gate" "$t" 'CLAIMS' 'not[ *_]{1,4}close|does not close|non-?closing|block|fail'
-assert_all "cl-contradiction: the reason is the line contradicting ITSELF" "$t" 'contradict|disagree|sum|4|does not add' 'T1|T5|type|3|c'
-assert_all "cl-contradiction: the harness command decides, not the agent's reading" "$t" 'check_lines(\.py)?' 'exit status|verdict|harness|script'
-assert_all "cl-contradiction: the prose beside the line changes nothing" "$t" 'prose|paragraph|explanation|substance' 'not[ *_]{1,4}(change|substitute|enough)|no|never|addition'
-assert_all "cl-contradiction: the line is reported, never re-typed into shape" "$t" 'not[ *_]{1,4}(repair|re-?type|rewrite)|never[ *_]{1,4}(repair|re-?type|rewrite)|report' 'line|verdict|non-?closing|gate'
-assert_absent "cl-contradiction: the agent does not announce the gate passed" "$t" '(gate|Gate) ?[0-5]? (is )?(passed|closed|clean)( |,|\.|$)'
-
-# CL2 check-lines-missing-blocks: the exclusion is recorded in the matrix and the counted line is absent.
-# This is the measured case 4 — the first field use of the newest mechanism skipped its own counted line.
-t="$(run_fixture check-lines-missing-blocks 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "cl-missing: a complete table row is not the recorded artifact" "$t" 'EXCLUSIONS:' 'not[ *_]{1,4}(recorded|count|emitted)|missing|absent|does not count'
-assert_all "cl-missing: Gate 2 does not close on the missing line" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|fails'
-assert_all "cl-missing: the missing-when-required check is named" "$t" 'missing|required' 'check_lines(\.py)?|harness|script|check'
-assert_contains "cl-missing: the counted line has to be emitted" "$t" 'EXCLUSIONS:'
-
-# CL3 check-lines-not-checkable: a counted line mango ships no grammar for. Third state, never a pass.
-t="$(run_fixture check-lines-not-checkable 'Run the mango autorun skill against the injected run state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "cl-third-state: the verdict is not-checkable, named as its own state" "$t" 'not-?checkable|NOT-CHECKABLE' 'third|own|separate|distinct|neither'
-assert_all "cl-third-state: not-checkable is NOT a pass" "$t" 'not[ *_]{1,4}a pass|never[ *_]{1,4}a[ *_]{1,4}(silent )?pass|unverified|UNVERIFIED' 'not-?checkable|silent|clean'
-assert_all "cl-third-state: it reaches the operator's disclosure list" "$t" 'DISCLOSURE|disclos' 'not-?checkable|line|unverified|AC VALIDATION'
-assert_all "cl-third-state: an artifact mango does not produce is non-closing" "$t" 'AC VALIDATION' 'not[ *_]{1,4}(produce|ship|exist)|no such|invented|non-?closing'
-assert_absent "cl-third-state: the unknown line is not silently accepted" "$t" 'AC VALIDATION[^\n]{0,40}(PASS|passes|is fine|accepted)'
-
-# CL4 check-lines-one-grammar: ONE grammar per line. `<h> by handle` is a field, not an option, and the
-# skill being executed governs over any shorter form a template once carried.
-t="$(run_fixture check-lines-one-grammar 'Run the mango refine advisory recall against the injected state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_contains "cl-one-grammar: the RECALL line is emitted" "$t" 'RECALL:'
-assert_all "cl-one-grammar: it carries the by-handle field with the four handles" "$t" 'by handle' '4|four'
-assert_all "cl-one-grammar: all six fields are named" "$t" 'by symbol' 'by handle'
-assert_all "cl-one-grammar: by finding and retired-skipped are present too" "$t" 'by finding' 'retired'
-assert_all "cl-one-grammar: there is exactly ONE shipped form" "$t" 'one|single|only' 'form|grammar|variant'
-assert_absent "cl-one-grammar: no five-field form is presented as also valid" "$t" '(two|both) (shipped )?(forms|variants|grammars) (are|remain) (valid|acceptable|fine)'
-
-# CL5 greenfield-check-lines-clean: THE CONTROL. A first ticket on an empty project, every line at zero.
-# A failure here means the version became a tax on every ticket, and the version does not ship.
-t="$(run_fixture greenfield-check-lines-clean 'Run the mango autorun skill against the injected project state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "cl-greenfield: the verdict is clean" "$t" 'clean|pass|0 FAIL|no failure' 'check_lines(\.py)?|check|verdict'
-assert_all "cl-greenfield: a zero line counts as emitted, not missing" "$t" 'zero' 'emitted|valid|counts|not[ *_]{1,4}missing|is a line'
-assert_all "cl-greenfield: no extra step, warning, question or block is added" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none' 'step|warning|question|block'
-assert_absent "cl-greenfield: the empty corpus is not treated as a finding" "$t" '(no lessons|empty (corpus|lessons)|missing lessons)[^\n]{0,60}(finding|blocks?|fail|❌)'
-
-# ===========================================================================================
-# v1.14.0 — fixture provenance (A), evidence provenance (E), the review-seat split (F)
-# ===========================================================================================
-
-# T1/T4 provenance-authored-blocks: an AC about a GROUPING HEURISTIC proven on authored fixtures alone
-# is a layer-match failure that blocks Gate 2; an exclusion with no expiry does not rescue it.
-t="$(run_fixture provenance-authored-blocks 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "prov-authored: AC2 is input-shape-dependent" "$t" 'AC2' 'input-shape|shape of (real )?input|heuristic|grouping|sensible|cannot be written'
-assert_all "prov-authored: authored alone is not acceptable for AC2" "$t" 'authored' 'not[ *_]{1,4}(acceptable|sufficient|enough)|insufficient|❌|mismatch|fails'
-assert_all "prov-authored: Gate 2 is blocked" "$t" 'Gate 2' 'block|not[ *_]{1,4}close|does not close|fails'
-assert_all "prov-authored: the expiry-less exclusion does not rescue it" "$t" 'expiry|variant B' 'not[ *_]{1,4}(count|recorded|rescue)|still block|does not close|missing'
-assert_contains "prov-authored: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-
-# T2/T6 provenance-real-corpus-passes: a real-corpus run with the corpus resolved plus the command and
-# its output PASSES; a `real-corpus` label naming nothing checkable does not — presence vs checkability.
-t="$(run_fixture provenance-real-corpus-passes 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "prov-corpus: candidate A is established and passes" "$t" 'candidate A|Candidate A' 'pass|close|establish|accept|✅'
-assert_all "prov-corpus: candidate B names nothing checkable" "$t" 'candidate B|Candidate B' 'not[ *_]{1,4}(establish|checkable|accept)|flag|reads as authored|label|bare'
-assert_all "prov-corpus: the difference is checkability, not the word" "$t" 'checkab|command|output|resolved' 'label|any string|presence|not the same|word'
-assert_contains "prov-corpus: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-
-# T5/T3 provenance-na-costs-nothing: THE ANTI-TAX CONTROL. Literal-value ACs are n/a and pay nothing;
-# the honest escape (authored + an exclusion with a checkable expiry) is accepted.
-t="$(run_fixture provenance-na-costs-nothing 'Run the mango design skill against the injected design state in this ticket and answer the four numbered questions in order. Do not stop for my input.')"
-assert_all "prov-na: the literal-value ACs are n/a" "$t" 'AC1|AC2|AC3' 'n/a|not[ *_]{1,4}(input-shape|applicable)|does not depend'
-assert_all "prov-na: no corpus is needed and nothing is added" "$t" 'no[ *_]{1,4}(corpus|extra|additional)|not[ *_]{1,4}need|nothing' 'step|block|warning|required|added'
-assert_all "prov-na: the checkable-expiry exclusion is the honest escape" "$t" 'PROJ-540|expiry' 'count|recorded|accept|close|checkable'
-assert_contains "prov-na: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-
-# G1/G2/G3 greenfield-no-corpus-clean: a fresh project with NO corpus configured runs with zero extra
-# steps. A failure here means the version became a tax on the first ticket, and the version does not ship.
-t="$(run_fixture greenfield-no-corpus-clean 'Run the mango design skill against the injected project state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
-assert_all "greenfield-corpus: both ACs are n/a" "$t" 'AC1|AC2' 'n/a|not[ *_]{1,4}input-shape|does not depend'
-assert_all "greenfield-corpus: no extra step, warning or block" "$t" 'no[ *_]{1,4}(extra|additional|new)|nothing|none' 'step|warning|block'
-assert_all "greenfield-corpus: an unresolvable path is reported, never a silent real-corpus" "$t" 'not (exist|resolve)|unresolv|absent|missing' 'report|⚠|warn|never|not[ *_]{1,4}(silent|real-corpus)'
-assert_all "greenfield-corpus: nothing fires on a backend-only project" "$t" 'no frontend|backend' 'nothing|inert|does not (fire|apply)|n/a'
-assert_contains "greenfield-corpus: the EXCLUSIONS counted line is emitted" "$t" 'EXCLUSIONS:'
-assert_absent "greenfield-corpus: the missing corpus is not treated as a finding" "$t" '(no|missing|absent)[^\n]{0,40}corpus[^\n]{0,60}(finding|blocks?|fail|❌)'
-
-# T11/T12 evidence-stale-tree-refused: a container built BEFORE the last commit produced a green run
-# against code that was no longer the code. This is the field defect that reached main.
-t="$(run_fixture evidence-stale-tree-refused 'Run the mango review skill against the injected state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
-assert_all "evidence-stale: the evidence is refused" "$t" 'c40b7e1|evidence' 'refus|reject|not[ *_]{1,4}accept|stale|does not (count|close)'
-assert_all "evidence-stale: the container SHA is the tree it was BUILT from" "$t" 'container|image|docker' 'built from|build|COPY|not[ *_]{1,4}the checkout'
-assert_all "evidence-stale: 84 passed does not establish the ACs on b7d5e29" "$t" '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
-assert_all "evidence-stale: the fix is to re-run on the tree under review" "$t" 'rebuild|re-run|rerun' 'b7d5e29|tree under review|HEAD|current'
-assert_contains "evidence-stale: the --tree invocation is shown" "$t" '--tree'
-
-# T13/T14 evidence-provenance-unknown: evidence whose tree cannot be established is a THIRD STATE, never
-# a pass; evidence matching the tree passes with no extra work.
-t="$(run_fixture evidence-provenance-unknown 'Run the mango review skill against the injected state in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
-assert_all "evidence-unknown: block 1 is accepted with no extra work" "$t" 'block 1|4c11d90' 'accept|pass|match|no extra'
-assert_contains "evidence-unknown: block 2 is named provenance-unknown" "$t" 'provenance-unknown'
-assert_all "evidence-unknown: it is never a pass" "$t" 'provenance-unknown|block 2' 'never a pass|not a pass|UNVERIFIED|not clean'
-assert_all "evidence-unknown: the action is to re-run on the tree under review" "$t" 're-?run|re-?record' '4c11d90|tree under review|HEAD'
-assert_contains "evidence-unknown: the --tree invocation is shown" "$t" '--tree'
-
-# T15/T16 no-reviewer-challenger-runs: `--no-reviewer` alone leaves the CHALLENGER RUNNING, and
-# DISCLOSURE records each seat separately. Neither flag → both run.
-t="$(run_fixture no-reviewer-challenger-runs 'Run the mango review skill against each injected run in this ticket and answer the five numbered questions in order. Do not stop for my input.')"
-assert_all "seat-split: run A skips the reviewer only" "$t" '--no-reviewer|reviewer' 'skip|off|waiv|not[ *_]{1,4}(run|dispatch)'
-assert_all "seat-split: run A still runs the challenger" "$t" 'challenger' 'runs|still|on|dispatch|default'
-assert_contains "seat-split: the clean verdict names the seat that was absent" "$t" 'REVIEWER: OFF'
-assert_all "seat-split: DISCLOSURE records both seats separately" "$t" 'DISCLOSURE' 'both|separate|each|REVIEWER.{0,40}CHALLENGER|1a|1b'
-assert_all "seat-split: run B runs both seats" "$t" 'run B|Run B' 'both|reviewer and challenger|ON'
-assert_all "seat-split: both waived is recorded, not refused" "$t" 'both' 'record|not[ *_]{1,4}refus|still (runs|proceeds)|disclosure'
-
 }   # end suite()
-
-# --- coverage-ledger + no-run self-test (v1.15.0) ------------------------------
-# Twelve counted assertions, no dispatch. Every new guard added in this version is proven to have
-# TEETH against a synthetic input carrying the exact defect it exists to catch — the same shape the
-# isolation guards already use. Without this the ledger would be a bookkeeping claim about
-# bookkeeping, which is the one thing a false-green-averse suite must not ship.
-coverage_selftest() {
-  local _cs="$TMPROOT/coverage-selftest" _ident _b
-  mkdir -p "$_cs"
-  _ident=$'PFP\tMODEL\tCLI'
-
-  banner "== no-run / header-vacuity self-test =="
-
-  # (1) judged_body strips the harness header — AND the strip is load-bearing. The second half is
-  # the non-vacuity control: the raw file DOES match the fixture name, so an assertion greping the
-  # raw file would have passed on the harness's own text.
-  printf '== fixture: zebra-quux-guidance ==\nthe model replied with something else entirely\n' >"$_cs/hdr.log"
-  total=$((total + 1))
-  if judged_body "$_cs/hdr.log" | grep -qiE -- 'zebra-quux'; then
-    echo "  FAIL: header-vacuity: judged_body still exposes the harness header (the fixture NAME is greppable)"
-    fails=$((fails + 1))
-  else
-    echo "  PASS: header-vacuity: judged_body strips the harness header, so the fixture name is not greppable"
-  fi
-  total=$((total + 1))
-  if grep -qiE -- 'zebra-quux' "$_cs/hdr.log"; then
-    echo "  PASS: header-vacuity: the RAW file does match the fixture name (the strip is non-vacuous)"
-  else
-    echo "  FAIL: header-vacuity: control broken — the raw file should match, so the strip is unproven"
-    fails=$((fails + 1))
-  fi
-
-  # (2)(3)(4) transcript_unusable: catches a failed dispatch and an empty body, and does NOT fire on
-  # a real transcript. The last one is the false-RED control: a guard that flagged everything would
-  # be useless in the opposite direction.
-  printf '== fixture: f ==\nAPI Error: 529 Overloaded\n' >"$_cs/err.log"
-  total=$((total + 1))
-  if transcript_unusable "$_cs/err.log" >/dev/null; then
-    echo "  PASS: no-run guard: an 'API Error: 529' transcript is NOT judgeable (a no-run can never score)"
-  else
-    echo "  FAIL: no-run guard: a 529 transcript was accepted as judgeable — this is the false-green that once passed 3 assertions"
-    fails=$((fails + 1))
-  fi
-  printf '== fixture: f ==\n\n   \n' >"$_cs/empty.log"
-  total=$((total + 1))
-  if transcript_unusable "$_cs/empty.log" >/dev/null; then
-    echo "  PASS: no-run guard: an empty transcript body is NOT judgeable"
-  else
-    echo "  FAIL: no-run guard: an empty body was accepted as judgeable"; fails=$((fails + 1))
-  fi
-  printf '== fixture: f ==\nGate 1 STOP. SECTIONS: 4. Proceeding as instructed.\n' >"$_cs/ok.log"
-  total=$((total + 1))
-  if transcript_unusable "$_cs/ok.log" >/dev/null; then
-    echo "  FAIL: no-run guard: a REAL transcript was rejected — the guard is over-broad (false red)"
-    fails=$((fails + 1))
-  else
-    echo "  PASS: no-run guard: a real transcript is judgeable (no false red)"
-  fi
-
-  # (5)-(12) verify_suite, against a two-job ledger that is complete and uniform, then against one
-  # copy per defect. Each defect must be REPORTED, or the gate is vacuous for that defect.
-  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-  printf 'j1\tH1\nj2\tH2\n' >"$_cs/hashes"
-  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\tJFP1\tRFP\n' >"$_cs/cov"
-  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\tJFP2\tRFP\n' >>"$_cs/cov"
-  printf 'R1\tT1\tPFP\tMODEL\tCLI\t\t1\t2\t0\t0\t9\t0\n' >"$_cs/runs"
-  printf 'R2\tT2\tPFP\tMODEL\tCLI\tj2\t1\t1\t0\t0\t9\t0\n' >>"$_cs/runs"
-
-  _cs_verify() { verify_suite "$_cs/cov" "$_cs/runs" "$_cs/expected" "$_cs/hashes" "$_ident" >/dev/null 2>&1; }
-  _cs_clean() {  # <label>
-    total=$((total + 1))
-    if _cs_verify; then echo "  PASS: coverage-gate: $1"
-    else echo "  FAIL: coverage-gate: $1 — a complete, uniform, all-green ledger must verify"; fails=$((fails + 1)); fi
-  }
-  _cs_defect() {  # <label>
-    total=$((total + 1))
-    if _cs_verify; then
-      echo "  FAIL: coverage-gate: $1 — VACUOUS: the gate passed a ledger carrying this defect"
-      fails=$((fails + 1))
-    else
-      echo "  PASS: coverage-gate: $1 (non-vacuous)"
-    fi
-  }
-
-  # (5) the clean case — two jobs proven by TWO DIFFERENT RUNS, which is the whole point.
-  _cs_clean "two jobs proven by two separate runs verify as one green suite (batches add up)"
-
-  # (6) a job the suite registers but the ledger has never recorded.
-  cp "$_cs/cov" "$_cs/cov.bak"
-  grep -v '^j2' "$_cs/cov.bak" >"$_cs/cov"
-  _cs_defect "an unrecorded job is caught (never-proven job cannot hide in a green total)"
-
-  # (7) a green measured under a skills-hash the files no longer produce.
-  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tH1-CHANGED\nj2\tH2\n' >"$_cs/hashes"
-  _cs_defect "a STALE green is caught (its skills changed after it was proven)"
-  printf 'j1\tH1\nj2\tH2\n' >"$_cs/hashes"
-
-  # (8) two batches measured with different rulers — the failure mode a multi-batch green risks.
-  sed 's/\tCLI\t1\t1\tgreen/\tCLI-OTHER\t1\t1\tgreen/' "$_cs/cov.bak" >"$_cs/cov"
-  _cs_defect "a row measured under a DIFFERENT CLI version is caught (non-uniform ruler)"
-  sed 's/\tMODEL\tCLI\t1\t1/\tMODEL-OTHER\tCLI\t1\t1/' "$_cs/cov.bak" >"$_cs/cov"
-  _cs_defect "a row measured under a DIFFERENT model is caught (non-uniform ruler)"
-  sed 's/\tPFP\tMODEL\tCLI\t1\t1/\tPFP-OTHER\tMODEL\tCLI\t1\t1/' "$_cs/cov.bak" >"$_cs/cov"
-  _cs_defect "a row measured under a DIFFERENT plugin tree is caught (scripts/ or plugin.json moved)"
-
-  # (9) a recorded red verdict.
-  sed 's/\t1\t1\tgreen/\t1\t1\tred/' "$_cs/cov.bak" >"$_cs/cov"
-  _cs_defect "a recorded RED verdict is caught"
-
-  # (10) the bar moved: the suite now holds more assertions than the row was proven against.
-  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t3\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-  _cs_defect "a green proven against FEWER assertions than the suite now holds is caught"
-  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-
-  # (11) the owning run's harness was not sound.
-  cp "$_cs/cov.bak" "$_cs/cov"
-  sed 's/^R2\(.*\)\t9\t0$/R2\1\t9\t2/' "$_cs/runs" >"$_cs/runs.tmp"; mv "$_cs/runs.tmp" "$_cs/runs"
-  _cs_defect "an owning run with FAILING self-tests is caught (unsound harness taints its greens)"
-  sed 's/^R2\(.*\)\t9\t2$/R2\1\t9\t0/' "$_cs/runs" >"$_cs/runs.tmp"; mv "$_cs/runs.tmp" "$_cs/runs"
-
-  # (12) an owning run that never vouched for the harness at all.
-  cp "$_cs/runs" "$_cs/runs.bak"; grep -v '^R2' "$_cs/runs.bak" >"$_cs/runs"
-  _cs_defect "an owning run missing from the run ledger is caught (harness never vouched for)"
-  cp "$_cs/runs.bak" "$_cs/runs"
-
-  # (12b)-(12e) PER-JOB IDENTITY (v1.16.0). These are the checks that let one job's assertions be
-  # fixed without voiding the other 125 rows, so they are also the checks that would let a stale row
-  # be credited if they were vacuous. Each is proved to bite.
-  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t2\tJFP1-CHANGED\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-  _cs_defect "a row whose job fingerprint no longer matches is caught (its assertions or prompt changed)"
-
-  # The SCOPING claim itself, and the reason this whole change is worth making: with j1's assertions
-  # edited, j1 must be reported and j2 must NOT. A gate that reported both would be the old
-  # whole-file behaviour wearing a new field, and would save nothing.
-  total=$((total + 1))
-  _cs_out="$(verify_suite "$_cs/cov" "$_cs/runs" "$_cs/expected" "$_cs/hashes" "$_ident" 2>&1 || true)"
-  if printf '%s' "$_cs_out" | grep -q "'j1'" && ! printf '%s' "$_cs_out" | grep -q "'j2'"; then
-    echo "  PASS: coverage-gate: editing ONE job's assertions strands ONLY that job's row (j1 reported, j2 stands)"
-  else
-    echo "  FAIL: coverage-gate: per-job scoping is wrong — j1-only edit reported: $(printf '%s' "$_cs_out" | grep -c DEFECT) defect(s)"
-    fails=$((fails + 1))
-  fi
-  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-
-  # A row written before this field existed. It must be REFUSED, not credited: nobody recorded which
-  # assertions it was proven against, so it cannot vouch for the ones in force now.
-  printf 'j1\tfixture\tH1\tPFP\tMODEL\tCLI\t2\t2\tgreen\tR1\tT1\n' >"$_cs/cov"
-  printf 'j2\tscenario\tH2\tPFP\tMODEL\tCLI\t1\t1\tgreen\tR2\tT2\tJFP2\tRFP\n' >>"$_cs/cov"
-  _cs_defect "an 11-field row with NO job fingerprint is caught (a pre-v1.16.0 row cannot be credited)"
-
-  # And the mirror image: the gate could not compute a current fingerprint. Silence there would be a
-  # skipped check, which is a false green with extra steps.
-  cp "$_cs/cov.bak" "$_cs/cov"; printf 'j1\tfixture\t2\t\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-  _cs_defect "an EMPTY current job fingerprint is caught (an uncomputable check must fail, not skip)"
-  printf 'j1\tfixture\t2\tJFP1\nj2\tscenario\t1\tJFP2\n' >"$_cs/expected"
-
-  # back to the clean ledger, and re-verify — proving none of the mutations leaked.
-  cp "$_cs/cov.bak" "$_cs/cov"
-  _cs_clean "the ledger verifies clean again after every defect was reverted (no mutation leaked)"
-
-  # (13)-(17) THE WRITER, v1.15.1 (D1). Everything above proves the READER of a coverage row against
-  # rows typed by hand — including a `scenario` row. The defect that made --verify-suite unsatisfiable
-  # as shipped was in the WRITER: skills_files emitted a fixture path that a scenario does not have,
-  # `cat` failed inside hash_files, and `pipefail`+`errexit` carried that out of the row-writer's
-  # `_h="$(skills_hash …)"` assignment and killed the run before any scenario row existed. A synthetic
-  # row could never have caught it. The rule this section exists to enforce: a gate self-tested
-  # against synthetic inputs is not self-tested against real ones — so exercise the writer.
-  banner "== coverage-row WRITER self-test =="
-  local _nf="__selftest-no-fixture-file__" _row _rj _i _k _n _sh _shrc
-  total=$((total + 1))
-  if [ ! -f "$FIXTURES/$_nf.md" ]; then
-    echo "  PASS: row-writer: the control job genuinely has NO fixture file on disk (the test is non-vacuous)"
-  else
-    echo "  FAIL: row-writer: control broken — $FIXTURES/$_nf.md exists, so the file-less path is untested"
-    fails=$((fails + 1))
-  fi
-
-  total=$((total + 1))
-  _row="$(cov_row_for "$_nf" scenario 3 3 0 || true)"
-  if [ -n "$_row" ] && [ -n "$(printf '%s' "$_row" | cut -f3)" ] &&
-     [ "$(printf '%s' "$_row" | cut -f9)" = green ]; then
-    echo "  PASS: row-writer: a job with NO fixture file still hashes and still yields a GREEN row (D1)"
-  else
-    echo "  FAIL: row-writer: a file-less job yields no coverage row — no scenario can ever be recorded and --verify-suite is unsatisfiable (D1)"
-    fails=$((fails + 1))
-  fi
-
-  # The exact statement that killed the run, tested for the exact property that killed it: EXIT
-  # STATUS. Note what is NOT the failure mode — the hash came back non-EMPTY even with the defect
-  # present, because `cat` failing mid-pipeline still leaves sha256sum a digest of the files that did
-  # exist. Only `pipefail` carrying that failure out of the assignment did the damage, so a check on
-  # emptiness alone would pass under the defect and prove nothing.
-  total=$((total + 1))
-  # The 4th column is the job_fp the gate will now demand. Taken from job_fp itself, not typed in:
-  # a hand-written value here would test the reader against a constant and stop testing the writer.
-  printf '%s\tscenario\t3\t%s\n' "$_nf" "$(job_fp "$_nf")" >"$_cs/exp.nofile"
-  cov_hashes_tsv "$_cs/hash.nofile" "$_cs/exp.nofile"
-  # The status is CAPTURED, not tested by wrapping the call in `if ( set -e … )`: bash IGNORES errexit
-  # inside a compound command used as an `if` condition — even one that re-sets it — so that shape
-  # passes under the defect and proves nothing. Measured: rc=1 with a 64-char hash on stdout.
-  _shrc=0; _sh="$(skills_hash "$_nf")" || _shrc=$?
-  if [ "$_shrc" -eq 0 ] && [ -n "$_sh" ]; then
-    echo "  PASS: row-writer: skills_hash returns status 0 for a file-less job — the assignment that used to kill the run survives it"
-  else
-    echo "  FAIL: row-writer: skills_hash FAILS for a file-less job — under pipefail+errexit that assignment kills the run before any scenario row is written (D1)"
-    fails=$((fails + 1))
-  fi
-
-  # The end-to-end one: a row this run actually WROTE, checked by the real gate against the real
-  # current hashes and the real measurement identity. This is the assertion whose absence let the
-  # shipped bar be unsatisfiable.
-  total=$((total + 1))
-  cov_row_for "$_nf" scenario 3 3 0 >"$_cs/cov.e2e" 2>/dev/null || : >"$_cs/cov.e2e"
-  printf '%s\t%s\t%s\t%s\t%s\t\t1\t3\t0\t0\t9\t0\n' \
-    "$RUN_ID" "$RUN_UTC" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" >"$_cs/runs.e2e"
-  if verify_suite "$_cs/cov.e2e" "$_cs/runs.e2e" "$_cs/exp.nofile" "$_cs/hash.nofile" \
-       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")" >/dev/null 2>&1; then
-    echo "  PASS: row-writer → gate, end to end: a row THIS RUN WROTE for a file-less job satisfies the coverage gate"
-  else
-    echo "  FAIL: row-writer → gate, end to end: a row this run wrote for a file-less job does NOT satisfy the gate"
-    fails=$((fails + 1))
-  fi
-
-  # And the same thing on a REAL registered scenario label, when this run registered one. Under an
-  # --only batch that selects no scenario there is none to name; the four checks above still bind, and
-  # the NOTE says out loud that this last proof did not run rather than letting it vanish silently.
-  _rj="$(for _i in $(seq 1 "${JOB_COUNT:-0}"); do
-           [ -f "$JOBS_DIR/$_i.meta" ] || continue
-           IFS=$'\t' read -r _k _n _ _ <"$JOBS_DIR/$_i.meta"
-           if [ "$_k" = scenario ]; then printf '%s' "$_n"; break; fi
-         done)"
-  if [ -n "$_rj" ]; then
-    total=$((total + 1))
-    _row="$(cov_row_for "$_rj" scenario 1 1 0 || true)"
-    if [ -n "$_row" ] && [ "$(printf '%s' "$_row" | cut -f9)" = green ]; then
-      echo "  PASS: row-writer: the REAL registered scenario '$_rj' yields a green row (the shipped bar is satisfiable)"
-    else
-      echo "  FAIL: row-writer: the real registered scenario '$_rj' yields NO green row — --verify-suite cannot be satisfied"
-      fails=$((fails + 1))
-    fi
-  else
-    echo "  NOTE: row-writer: this run registered no scenario, so the real-label proof did not run (the file-less control above still did)"
-  fi
-
-  # (18)-(23) THE TWO-TIER RULER ITSELF (v1.16.0). Everything above tests the gate that READS a
-  # fingerprint. These test the two functions that PRODUCE one, because the saving this change buys
-  # is only real if job_fp moves on exactly the right things — too eager and it costs the dispatches
-  # it was meant to save, too lax and a stale row is credited.
-  banner "== two-tier ruler self-test =="
-  local _jd="$_cs/jf" _fa _fb _fc _fd _fe _leak _c1 _c2
-  mkdir -p "$_jd"
-  # Exercised through assert_contains/assert_absent in the COLLECT phase — the real call path, not
-  # cov_expect directly, so the label really is dropped by the code that ships.
-  _jf_fp() {  # <kind> <label> <regex> — the job_fp a single such assertion produces for job x1
-    : >"$_jd/expected"; : >"$_jd/patterns"
-    ( PHASE=collect; COV_DIR="$_jd"; "assert_$1" "$2" "/t/x1.log" "$3" ) >/dev/null 2>&1 || true
-    ( COV_DIR="$_jd"; job_fp x1 )
-  }
-  _fa="$(_jf_fp contains "the original label" 'not silent')"
-  _fb="$(_jf_fp contains "a COMPLETELY different label" 'not silent')"
-  _fc="$(_jf_fp contains "the original label" 'not[ *_]{1,4}silent')"
-  _fd="$(_jf_fp absent   "the original label" 'not silent')"
-
-  total=$((total + 1))
-  if [ -n "$_fa" ] && [ ${#_fa} -eq 64 ]; then
-    echo "  PASS: two-tier ruler: job_fp yields a real sha256 for a registered assertion (non-vacuous)"
-  else
-    echo "  FAIL: two-tier ruler: job_fp produced '$_fa' — an empty or short fingerprint would make every row compare equal"
-    fails=$((fails + 1))
-  fi
-  total=$((total + 1))
-  if [ "$_fa" = "$_fb" ]; then
-    echo "  PASS: two-tier ruler: re-WORDING an assertion label does not move job_fp (a label is not a measurement)"
-  else
-    echo "  FAIL: two-tier ruler: a label edit moved job_fp — every typo fix would now cost a dispatch"
-    fails=$((fails + 1))
-  fi
-  total=$((total + 1))
-  if [ "$_fa" != "$_fc" ]; then
-    echo "  PASS: two-tier ruler: editing the REGEX moves job_fp (the R3/R4/R5 fix strands its own row)"
-  else
-    echo "  FAIL: two-tier ruler: a widened regex did NOT move job_fp — a row proven by the OLD token would be credited to the new one"
-    fails=$((fails + 1))
-  fi
-  total=$((total + 1))
-  if [ "$_fa" != "$_fd" ]; then
-    echo "  PASS: two-tier ruler: contains→absent moves job_fp even with the SAME regex (inverting a test is not free)"
-  else
-    echo "  FAIL: two-tier ruler: swapping assert_contains for assert_absent left job_fp unchanged — a test can be inverted while its green stands"
-    fails=$((fails + 1))
-  fi
-  # The prompt half. A scenario's prompt lives in this file and nothing else per-job covers it.
-  : >"$_jd/expected"; : >"$_jd/patterns"
-  ( PHASE=collect; COV_DIR="$_jd"; assert_contains "l" "/t/x1.log" 'not silent' ) >/dev/null 2>&1 || true
-  _fe="$( COV_DIR="$_jd"; job_fp x1 )"
-  total=$((total + 1))
-  if [ "$_fe" = "$_fa" ] && [ "$( COV_DIR="$_jd"; job_fp x2 )" != "$_fa" ]; then
-    echo "  PASS: two-tier ruler: an UNREGISTERED job hashes a per-name marker, so two of them cannot collide"
-  else
-    echo "  FAIL: two-tier ruler: unregistered jobs collide or drift — job_fp is not a function of the job"
-    fails=$((fails + 1))
-  fi
-
-  # The machinery tier. Its whole safety argument is that nothing which decides a verdict is defined
-  # below the boundary, where an edit would void no row. Enforce it instead of asserting it.
-  total=$((total + 1))
-  if [ "$MACHINERY_FP" != unhashable ] && [ "${MACHINERY_FN_COUNT:-0}" -ge 30 ]; then
-    echo "  PASS: two-tier ruler: the machinery fingerprint covers $MACHINERY_FN_COUNT function(s) (an empty list would hash a constant)"
-  else
-    echo "  FAIL: two-tier ruler: machinery fp is '$MACHINERY_FP' over ${MACHINERY_FN_COUNT:-0} function(s) — the ledger name would not track the harness"
-    fails=$((fails + 1))
-  fi
-  total=$((total + 1))
-  declare -F | awk '{print $3}' | LC_ALL=C sort >"$_cs/fn.now"
-  printf '%s\n' $MACHINERY_FN_LIST | LC_ALL=C sort >"$_cs/fn.covered"
-  _leak="$(LC_ALL=C comm -23 "$_cs/fn.now" "$_cs/fn.covered" |
-    grep -E '^(assert_|cov_|dispatch|judge|transcript|skills_|cache_|hash_|job_|run_fixture|run_prompt|claude_run|verify_suite|worker|provision_|reset_|write_harness|plugin_tree)' || true)"
-  if [ -z "$_leak" ]; then
-    echo "  PASS: two-tier ruler: no judging or dispatch function is defined below the boundary (none escapes the fingerprint)"
-  else
-    echo "  FAIL: two-tier ruler: $(echo $_leak) defined AFTER the machinery boundary — editing it would void no row. Move it above suite()."
-    fails=$((fails + 1))
-  fi
-  # The claim that makes comment edits free, tested rather than trusted: bash's own parsed form of a
-  # function drops comments, so machinery_fp cannot see them.
-  total=$((total + 1))
-  _mb_c1() { local x="$1"; echo "$x"; }
-  _c1="$(declare -f _mb_c1 | tail -n +2)"
-  unset -f _mb_c1
-  _mb_c1() {
-    # a comment that must not be able to void 126 rows
-    local x="$1"; echo "$x"
-  }
-  _c2="$(declare -f _mb_c1 | tail -n +2)"
-  unset -f _mb_c1
-  if [ "$_c1" = "$_c2" ]; then
-    echo "  PASS: two-tier ruler: declare -f is comment- and layout-insensitive (a comment edit voids nothing)"
-  else
-    echo "  FAIL: two-tier ruler: declare -f differs on comments alone — every comment edit still costs a full re-run"
-    fails=$((fails + 1))
-  fi
-}
 
 # --- Drive the two passes ------------------------------------------------------
 # collect (silent, no dispatch) → dispatch in parallel → assert (sequential output).
@@ -3180,48 +959,6 @@ RUN_T0="$(prof_now)"
 PHASE=collect; suite
 # Read the registered job count back out of its counter file (registration happens in subshells).
 JOB_COUNT="$(cat "$JOBS_DIR/.count" 2>/dev/null || echo 0)"; JOB_COUNT="${JOB_COUNT:-0}"
-
-# --- --verify-suite: no dispatch, no cost -------------------------------------
-# The collect pass has just told us, from the assertion call sites themselves, exactly what the suite
-# is: every job, its kind, and how many assertions it must clear. Check the coverage ledger against
-# that and stop. This is the step that makes N batches equal one full pass: the sum stops being an
-# operator's recollection and becomes a re-checkable artifact.
-if [ "$VERIFY_SUITE" -eq 1 ]; then
-  echo "== eval coverage verification (no dispatch, no cost) =="
-  echo "  machinery fp       : $MACHINERY_FP  ($MACHINERY_FN_COUNT function(s))"
-  echo "  runner fp (forensic): $RUNNER_FP"
-  echo "  plugin-tree fp     : $PLUGIN_TREE_FP"
-  echo "  model / CLI        : $MODEL_SETTING / $CLI_VERSION"
-  echo "  jobs registered    : $JOB_COUNT"
-  coverage_selftest
-  _vs_exp="$TMPROOT/verify.expected"; _vs_hash="$TMPROOT/verify.hashes"
-  cov_expected_tsv "$_vs_exp"
-  cov_hashes_tsv "$_vs_hash" "$_vs_exp"
-  _vs_jobs="$(wc -l <"$_vs_exp" | tr -d ' ')"
-  _vs_asserts="$(awk -F'\t' '{n += $3} END {print n+0}' "$_vs_exp")"
-  echo
-  echo "== coverage ledger vs the suite =="
-  echo "  suite            : $_vs_jobs job(s), $_vs_asserts transcript assertion(s)"
-  echo "  ledger           : ${COVERAGE_LEDGER##*/}"
-  total=$((total + 1))
-  if verify_suite "$COVERAGE_LEDGER" "$RUN_LEDGER" "$_vs_exp" "$_vs_hash" \
-       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")"; then
-    echo "  PASS: coverage: all $_vs_jobs job(s) green under one uniform ruler, $_vs_asserts assertion(s) accounted for"
-  else
-    echo "  FAIL: coverage: the ledger does NOT prove this suite green (defects above)"
-    fails=$((fails + 1))
-  fi
-  echo
-  if [ "$fails" -gt 0 ]; then
-    echo "EVAL VERIFY: $((total - fails))/$total check(s) pass — $fails failed. The suite is NOT proven green."
-    exit 1
-  fi
-  echo "EVAL VERIFY: $total/$total check(s) pass."
-  echo "EVAL VERIFY: the suite IS proven green — $_vs_jobs/$_vs_jobs job(s), $_vs_asserts assertion(s),"
-  echo "             every green measured under machinery ${MACHINERY_FP:0:12}, plugin-tree ${PLUGIN_TREE_FP:0:12},"
-  echo "             model $MODEL_SETTING, CLI $CLI_VERSION. Equivalent to one full pass."
-  exit 0
-fi
 
 DISPATCH_T0="$(prof_now)"
 dispatch_jobs
@@ -3290,6 +1027,89 @@ else
   fails=$((fails + 1))
 fi
 
+# --- matcher-under-pipefail self-test -----------------------------------------
+# Four counted assertions against a 250 KB transcript whose token sits on line 1 — the shape that made
+# `printf | grep -q` fail 30 times out of 30. Judged through the SHIPPED assert_all and
+# assert_contains, twenty times each, because the defect is a RACE: one evaluation proves nothing, and
+# a check that ran once would have passed on the broken code roughly as often as not.
+#
+# Under `set -o pipefail`, `grep -q` exits at the FIRST match; the writer, still writing, takes SIGPIPE
+# and exits 141, and pipefail hands 141 to the caller — so a token that is plainly PRESENT is read as
+# missing. It affected assert_all, which is what the six fixtures below are mostly built from. Within
+# one run the failure is invisible; across runs it is indistinguishable from the model phrasing things
+# differently, and the standing response to that signature was to widen the token. The fix is the
+# herestring at every site; this is the check that keeps the piped shape from coming back.
+echo
+echo "== matcher-under-pipefail self-test (a present token is never read as missing) =="
+_mp="$TMPROOT/matcher-pipefail"; mkdir -p "$_mp"
+_mp_t="$_mp/big.log"
+{ echo "== fixture: _selftest_big =="
+  echo "MATCHTOKEN and SECONDTOKEN on one line, where grep -q stops reading and leaves"
+  echo "a quarter of a megabyte still to be written by whatever is feeding it."
+  base64 </dev/urandom 2>/dev/null | head -c 250000 || true
+  echo; } >"$_mp_t" 2>/dev/null || true
+total=$((total + 1))
+if [ "$(wc -c <"$_mp_t")" -gt 200000 ]; then
+  echo "  PASS: matcher: the probe body is $(wc -c <"$_mp_t") bytes (big enough to lose the race)"
+else
+  echo "  FAIL: matcher: the probe body is too small to exercise the defect — the test is vacuous"
+  fails=$((fails + 1))
+fi
+# (2) THE ONE THAT MATTERS — assert_all is the shape that raced. Two tokens, both plainly present,
+#     twenty evaluations of the SHIPPED function. On the piped form this reports missing tokens.
+_mp_miss=0; _mp_i=0
+while [ "$_mp_i" -lt 20 ]; do
+  _mp_i=$((_mp_i + 1))
+  _mp_out="$( PHASE=assert; COV_DIR=""; ONLY=""; PROFILE=""; total=0; fails=0; skipped=0
+              assert_all "probe" "$_mp_t" 'MATCHTOKEN' 'SECONDTOKEN' 2>&1 )" || true
+  case "$_mp_out" in "  PASS:"*) ;; *) _mp_miss=$((_mp_miss + 1)) ;; esac
+done
+total=$((total + 1))
+if [ "$_mp_miss" -eq 0 ]; then
+  echo "  PASS: matcher: assert_all matched two PRESENT tokens 20/20 on a 250 KB body"
+else
+  echo "  FAIL: matcher: assert_all lost a PRESENT token $_mp_miss time(s) in 20 — a spurious red"
+  fails=$((fails + 1))
+fi
+# (3) and it must still MISS a token that is genuinely absent, or (2) is satisfied by a matcher that
+#     always says yes.
+total=$((total + 1))
+_mp_out="$( PHASE=assert; COV_DIR=""; ONLY=""; PROFILE=""; total=0; fails=0; skipped=0
+            assert_all "probe" "$_mp_t" 'MATCHTOKEN' '__absent_token__' 2>&1 )" || true
+case "$_mp_out" in
+  *"/__absent_token__/"*) echo "  PASS: matcher: an ABSENT token still fails (the probe is not vacuous)" ;;
+  *) echo "  FAIL: matcher: an absent token passed — the matcher is answering yes unconditionally"
+     fails=$((fails + 1)) ;;
+esac
+# (4) assert_contains was protected only by judged_body's trailing `|| true`. Keep that a tested
+#     property rather than an accident: if the guard is ever removed, this starts failing.
+_mp_miss=0; _mp_i=0
+while [ "$_mp_i" -lt 20 ]; do
+  _mp_i=$((_mp_i + 1))
+  _mp_out="$( PHASE=assert; COV_DIR=""; ONLY=""; PROFILE=""; total=0; fails=0; skipped=0
+              assert_contains "probe" "$_mp_t" 'MATCHTOKEN' 2>&1 )" || true
+  case "$_mp_out" in "  PASS:"*) ;; *) _mp_miss=$((_mp_miss + 1)) ;; esac
+done
+total=$((total + 1))
+if [ "$_mp_miss" -eq 0 ]; then
+  echo "  PASS: matcher: assert_contains found a present token 20/20 on the same body"
+else
+  echo "  FAIL: matcher: assert_contains lost a PRESENT token $_mp_miss time(s) in 20"
+  fails=$((fails + 1))
+fi
+# The rule itself, stated as a check: no matcher in this file may pipe into a short-circuiting grep.
+total=$((total + 1))
+# Comment lines are stripped first: the rule's own explanation above SPELLS the bad shape, and a check
+# that trips over its own documentation teaches the next person to delete the documentation.
+# `grep -c` reads all of its input, so this pipeline cannot be poisoned the way -q can.
+_mp_pipes="$(awk '!/^[[:space:]]*#/' "${BASH_SOURCE[0]}" | grep -cE '\| *grep +-[A-Za-z]*(q|m1)' || true)"
+if [ "${_mp_pipes:-0}" -eq 0 ]; then
+  echo "  PASS: matcher: no pipeline in this file feeds a short-circuiting grep (the shape cannot return)"
+else
+  echo "  FAIL: matcher: $_mp_pipes pipeline(s) still feed a short-circuiting grep — pipefail can poison them"
+  fails=$((fails + 1))
+fi
+
 # --- assertion-convention self-test (v1.8.0) ---------------------------------
 # The teeth of the brittleness fix. Five assertions were FAILING ON CORRECT BEHAVIOUR — emphasis
 # inside a word (`**S**mall`), a count-form negative (`0 want-decisions asked`), a control reported
@@ -3325,218 +1145,6 @@ selftest_assertion() {
   fi
 }
 
-cat >"$_ac/zero-wants.correct" <<'AC'
-REFINE: 1 unresolved surfaced | 0 want-decisions asked | 1 how-decision resolved+cited | 0 ASSUMED | skip: no
-The "one consumer or all consumers?" scope question is a **how-decision**: the documented shared
-recipe (docs/recipes/table.md:12) dictates all consumers, so I resolved it by citation and flagged it
-for ratification instead of putting it to you.
-AC
-cat >"$_ac/zero-wants.wrong" <<'AC'
-REFINE: 1 unresolved surfaced | 1 want-decision asked | 0 how-decision resolved+cited | 0 ASSUMED | skip: no
-I put the scope question to you as an open want: apply the change to one consumer or to all of them?
-AC
-selftest_assertion "zero-count form of a negative (refine-consistency)" \
-  "$_ac/zero-wants.correct" "$_ac/zero-wants.wrong" \
-  'how-decision|not ask|resolve|cite' \
-  "$RE_NOT_ASKED_AS_WANT"
-
-# The SECOND form of the same negative, and the one that went red in the field: the negation itself is
-# emphasised. Deliberately carries NO zero-count line, so it can only pass through the widened
-# emphasis alternative — if that widening is ever reverted, this self-test fails rather than the
-# fixture failing a batch later. The wrong transcript contains no negation at all: it asked.
-cat >"$_ac/emph-negative.correct" <<'AC'
-REFINE: 1 unresolved surfaced | 1 how-decision resolved+cited | 0 ASSUMED | skip: no
-The "one consumer or all?" scope question is a **how-decision** — the documented shared recipe
-(docs/recipes/table.md:12) answers it, so it resolves by citation and is flagged for ratification.
-It was **not** put to the user as an open want.
-AC
-cat >"$_ac/emph-negative.wrong" <<'AC'
-REFINE: 1 unresolved surfaced | 1 want-decision asked | 0 how-decision resolved+cited | 0 ASSUMED | skip: no
-I put the "one consumer or all?" scope question to you as an open want and paused for your answer.
-AC
-selftest_assertion "emphasised form of the same negative (refine-consistency)" \
-  "$_ac/emph-negative.correct" "$_ac/emph-negative.wrong" \
-  'how-decision|not ask|resolve|cite' \
-  "$RE_NOT_ASKED_AS_WANT"
-
-cat >"$_ac/invest.correct" <<'AC'
-T-3 INVEST self-check: **I**ndependent ✅ | **N**egotiable ✅ | **V**aluable ✅ | **E**stimable ✅ |
-**S**mall ❌ | **T**estable ✅ — T-3 bundles three deliverables, so it is flagged and re-split into
-T-3a/T-3b/T-3c before the split-gate ratifies.
-AC
-cat >"$_ac/invest.wrong" <<'AC'
-INVEST: all six tickets look fine (checked as a one-line label). Nothing flagged, nothing re-split;
-the ticket list goes to the gate as proposed.
-AC
-selftest_assertion "emphasis inside a word — INVEST letters (breakdown-invest)" \
-  "$_ac/invest.correct" "$_ac/invest.wrong" "$RE_INVEST_LETTERS"
-selftest_assertion "emphasis inside a word — failing Small drives a re-split (breakdown-invest)" \
-  "$_ac/invest.correct" "$_ac/invest.wrong" \
-  "$RE_INVEST_SMALL" 'flag|finding|caught|re-?split|not .{0,10}(small|ratif)' 're-?split|split'
-
-cat >"$_ac/control.correct" <<'AC'
-### The right-sized control — untouched
-T-2 is a single right-sized deliverable: it passes **6/6** on the enumerated INVEST check and is
-carried through **unsplit**.
-AC
-cat >"$_ac/control.wrong" <<'AC'
-### The right-sized control
-T-2 is a single deliverable, but I split it into two smaller tickets as well, for consistency with
-the re-split above.
-AC
-selftest_assertion "unsplit/untouched control (invest-force-resplit)" \
-  "$_ac/control.correct" "$_ac/control.wrong" \
-  "right-?sized|control|single .{0,12}deliverable|passes .{0,10}(invest|$RE_INVEST_SMALL)" "$RE_NOT_SPLIT"
-
-# A third phrasing of the same decision, seen on a later fresh run: "carried unchanged … no split".
-cat >"$_ac/control.correct2" <<'AC'
-**Right-sized control → carried unchanged.** PROJ-836 "downloadable PDF invoice" passed all six
-(Independent under BR-1/BR-3: read-only over 832's record, adds no field). Zero letters failed → no
-split. That is the non-vacuity proof — the re-split hit the failing ticket only.
-AC
-selftest_assertion "control \"carried unchanged / no split\" (invest-force-resplit)" \
-  "$_ac/control.correct2" "$_ac/control.wrong" \
-  "right-?sized|control|single .{0,12}deliverable|passes .{0,10}(invest|$RE_INVEST_SMALL)" "$RE_NOT_SPLIT"
-
-# Emphasis sitting BETWEEN the two words of the decision — the separator class: a literal space in a
-# regex ("not split") cannot match "**not** split", and neither can a literal hyphen match a space.
-cat >"$_ac/control.correct3" <<'AC'
-### The right-sized control: **not** split
-T5 — "add a downloadable PDF invoice" — all six affirmed (S: one render path, one route). Carried to the
-gate **unchanged**. That is the non-vacuous proof: breakdown re-split the ticket that failed a letter and
-left the one that passed alone.
-AC
-selftest_assertion "emphasis between the words — \"**not** split\" (invest-force-resplit)" \
-  "$_ac/control.correct3" "$_ac/control.wrong" \
-  "right-?sized|control|single .{0,12}deliverable|passes .{0,10}(invest|$RE_INVEST_SMALL)" "$RE_NOT_SPLIT"
-
-cat >"$_ac/layer.correct" <<'AC'
-Verification plan — the proposed proving test is a unit test asserting layout math against a mocked
-DOM. That is a **layer mismatch** on all 9 verification rows: the AC can only fail in a real rendered
-DOM at 320 px. Gate 2 is BLOCKED until an automated render@320 proof (or a recorded human-approved
-exclusion) replaces it. The table itself is written to the working doc.
-AC
-cat >"$_ac/layer.wrong" <<'AC'
-Verification plan — AC-1 risk layer: computed-style; proof artifact: unit test asserting layout math
-against a mocked DOM; layer-match ✅ adequate. Gate 2 passes. The proving test fails before the
-change and passes after it.
-AC
-selftest_assertion "glyph-free layer-match failure (frontend-layer / design-layer)" \
-  "$_ac/layer.correct" "$_ac/layer.wrong" "$RE_LAYER_SUBJECT" "$RE_LAYER_MISMATCH"
-
-# A second correct wording, with neither the glyph nor the word "mismatch": the proof is REJECTED and
-# clears none of the gates. The wrong transcript is unchanged.
-cat >"$_ac/layer.correct2" <<'AC'
-**Gate 2: BLOCKED. The proposed proving test is rejected.** AC1 is M2/M3 — risk layer
-integration/runtime. A unit test against a mocked DOM sits at logic/unit, and the risk-layer floor says
-a mocked-DOM proof clears none of M1–M10: `scrollWidth <= clientWidth` against a mock asserts the mock,
-not the layout engine, so it would also pass pre-change. Upgraded to a tier-2 `render@320` against the
-real rendered DOM.
-AC
-selftest_assertion "layer failure as \"rejected / clears none\" (frontend-layer)" \
-  "$_ac/layer.correct2" "$_ac/layer.wrong" "$RE_LAYER_SUBJECT" "$RE_LAYER_MISMATCH"
-
-cat >"$_ac/scaffold.correct" <<'AC'
-The epic scaffold (child-ticket stubs + the BACKLOG roadmap) is committed to the shared ref **after**
-the human ratifies the split and **before** the first child ticket runs `git checkout -b` — so a
-child's edit of a stub reads as an edit of a committed file, not net-new authorship.
-AC
-cat >"$_ac/scaffold.wrong" <<'AC'
-Each child ticket branches first and commits its own stub as net-new work; the BACKLOG scaffold is
-committed at the end, after all the children merge.
-AC
-selftest_assertion "bold **before** in an ordering claim (epic-scaffold-committed)" \
-  "$_ac/scaffold.correct" "$_ac/scaffold.wrong" \
-  'scaffold|stub|backlog' 'commit' "$RE_BEFORE_CHILD"
-
-# Same ordering, stated WITHOUT the word "before" — a numbered sequence plus "only then". The wrong
-# transcript is unchanged, so the added alternatives are proven not to admit the wrong ordering.
-cat >"$_ac/scaffold.correct2" <<'AC'
-The scaffold commit is the **last act of `breakdown`**; the first child branch is the first act of the
-first child's lifecycle. 3. breakdown commits the scaffold to the shared ref — 4. only then does
-PROJ-833 cut `feat/PROJ-833-…` off that commit. No child branch may be cut from a tree where the
-scaffold is uncommitted, and committing after is too late: the branch base is fixed the moment it
-branches.
-AC
-selftest_assertion "ordering stated as a sequence, no \"before\" (epic-scaffold-committed)" \
-  "$_ac/scaffold.correct2" "$_ac/scaffold.wrong" \
-  'scaffold|stub|backlog' 'commit' "$RE_BEFORE_CHILD"
-
-cat >"$_ac/pregate.correct" <<'AC'
-Breakdown re-split the oversized ticket **before** the gate and left the control untouched. P-A does
-not appear in the proposed list at all: it was replaced by four tickets *before* the split-gate, per
-Step 3 — a ticket that fails a letter is re-split, not carried to the gate as-is.
-AC
-cat >"$_ac/pregate.wrong" <<'AC'
-P-A is carried to the split-gate as proposed, with a note that it bundles four deliverables. If the
-human ratifies it anyway, the re-split can happen afterwards, during the child ticket's own lifecycle.
-AC
-selftest_assertion "emphasis around \"before the gate\" (invest-force-resplit)" \
-  "$_ac/pregate.correct" "$_ac/pregate.wrong" "$RE_BEFORE_GATE"
-
-cat >"$_ac/verifyonly.correct" <<'AC'
-Round 2 costs zero dispatches, two targeted region reads, one scoped proof re-run and one regression
-scan. The full round would cost two subagent dispatches plus a blanket build/lint/test sweep. The
-challenger's reconstruction and every layer-match verdict carry forward: re-deriving them would re-pay
-for facts already proven at the same commit scope.
-AC
-cat >"$_ac/verifyonly.wrong" <<'AC'
-Round 2 re-dispatches the reviewer and the ticket-blind challenger, re-derives the requirements from
-the raw ticket, and re-runs the full suite to be safe.
-AC
-selftest_assertion "cost-contrast form of the verify-only negative (verify-only-scoped)" \
-  "$_ac/verifyonly.correct" "$_ac/verifyonly.wrong" \
-  'only .*(proof|affected|named|fix)|scoped|affected proof' "$RE_NO_BLANKET_RERUN"
-
-# --- the four tokens widened after the 1.14.0 milestone run -------------------
-# Each failed on a transcript whose DECISION was correct, so each is proven both ways here before it
-# is allowed to ship widened: it must match the wording that used to fail, and still miss a WRONG
-# decision. The wrong transcripts state the opposite outcome, not merely different words.
-cat >"$_ac/route.correct" <<'AC'
-## Stale-review guard — PROJ-502: **STALE. Refusing to finalise.**
-Remaining set is non-empty and beyond the reviewed set, so no outward action is taken: no PR, no push,
-no tracker write. Routing back to `review`. Only a fresh clean review covering the current tree clears
-it; a bare "go" does not override the guard.
-AC
-cat >"$_ac/route.wrong" <<'AC'
-Not stale — the reviewed set covers the current tree. I proceed to finalise, push the branch and open
-the PR. A bare "go" is sufficient approval here and the recorded review marker stands.
-AC
-selftest_assertion "continuous-form refusal — \"Refusing / Routing back\" (stale-source-change)" \
-  "$_ac/route.correct" "$_ac/route.wrong" \
-  'stale' "$RE_ROUTES_TO_REVIEW"
-
-cat >"$_ac/establish.correct" <<'AC'
-### 3. Does "84 passed" establish AC1 and AC2 on the reviewed tree? No — three independent reasons.
-- **Provenance.** It is not a measurement of `b7d5e29` at all: the image froze the tree at `c40b7e1`.
-Execute's write-up — "delta-green — 84 passed, no new failure against the recorded BASELINE" — is a
-**false-green**: correct arithmetic against the wrong tree.
-AC
-cat >"$_ac/establish.wrong" <<'AC'
-"84 passed" establishes AC1 and AC2 on b7d5e29. The suite is green, the recorded evidence is accepted
-as a measurement of the reviewed tree, and Gate 4 closes on it.
-AC
-selftest_assertion "question-answered form of the negative (evidence-stale-tree-refused)" \
-  "$_ac/establish.correct" "$_ac/establish.wrong" \
-  '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
-
-# The pair above is named for the question-answered form but its `.correct` file also says "not a
-# measurement", so it passes through THAT alternative and has never once exercised the question
-# shape. These three pairs close that hole. Each `.correct` carries exactly ONE readable form, so it
-# can only pass through the alternative it is named for — the same non-vacuity discipline the
-# row-writer control uses.
-cat >"$_ac/establish-q.correct" <<'AC'
-### 3. Does "84 passed" establish AC1 and AC2 on the reviewed tree? No — for two independent reasons.
-- **Wrong tree.** It is evidence about `c40b7e1`. AC1 and AC2 are claims about `b7d5e29`.
-AC
-cat >"$_ac/establish-q.wrong" <<'AC'
-### 3. Does "84 passed" establish AC1 and AC2 on the reviewed tree? Yes — the green suite covers both.
-Gate 4 closes on the recorded evidence as a measurement of `b7d5e29`.
-AC
-selftest_assertion "question-answered ONLY — no \"not a measurement\" to fall back on (R7)" \
-  "$_ac/establish-q.correct" "$_ac/establish-q.wrong" \
-  '84 passed|green|b7d5e29' "$RE_DOES_NOT_ESTABLISH"
-
 cat >"$_ac/assumed-window.correct" <<'AC'
 **2. No — `ASSUMED` is not the fallback for silence.**
 The `ASSUMED (awaiting ratification)` path applies only where the user explicitly hands the decision
@@ -3563,75 +1171,6 @@ selftest_assertion "counted artifact carries it — 0 ASSUMED in the REFINE line
   "$_ac/assumed-count.correct" "$_ac/assumed-count.wrong" \
   'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
 
-# R6's two pairs use the SAME wrong file twice over: the real three-line pointer reply that scored
-# 3 of 4, and the affirmative sibling form. A token that cannot tell "counts as recorded: no" from
-# "counts as recorded: yes" is measuring the topic, not the claim.
-cat >"$_ac/counted.correct" <<'AC'
-**1. Counts as recorded: no.** The record names item, tier, why-deferred and follow-up, but carries no
-`expiry:` value at all, so it does not count as a recorded coverage-gap exclusion.
-AC
-cat >"$_ac/counted.wrong" <<'AC'
-`docs/tickets/PROJ-410.work.md:1` holds the Phase 2 section — verification plan, the exclusion record
-with the missing field named, the counted line, and the two unblock paths.
-**Counts as recorded: yes** — it names item, tier, why-deferred, follow-up, and a checkable `expiry:`.
-AC
-selftest_assertion "the claim, not the topic — \"counts as recorded: no\" (R6/A1)" \
-  "$_ac/counted.correct" "$_ac/counted.wrong" \
-  'expiry' "$RE_NOT_COUNTED_AS_RECORDED"
-
-cat >"$_ac/smallest.correct" <<'AC'
-**3. Smallest change: add a checkable `expiry:` — a ticket key such as `expiry: PROJ-411`, which an
-outside reader resolves in the tracker without asking the author.**
-AC
-cat >"$_ac/smallest.wrong" <<'AC'
-Design stops here at Gate 2, blocked. I did not write code and did not close the gate; whether AC1(b)
-is upgraded to a real-corpus run or deferred with a checkable expiry is your decision.
-AC
-selftest_assertion "the fix names its own object — \"add a checkable expiry\" (R6/A3)" \
-  "$_ac/smallest.correct" "$_ac/smallest.wrong" \
-  'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
-
-cat >"$_ac/smallest-cond.correct" <<'AC'
-## 3. Smallest change that makes it count: one added field.
-`expiry: when config.real_corpus_path is configured` is checkable by a non-author — they can read
-`.harness.json` and settle it without asking me. `later` / `once we get to it` would be flagged.
-AC
-cat >"$_ac/smallest-cond.wrong" <<'AC'
-The exclusion record is incomplete. An expiry field is what the skill checks, and checkability by a
-non-author is the criterion it applies. I have written the analysis to the work doc.
-AC
-selftest_assertion "condition-valued expiry, checkability asserted separately (R6/A3)" \
-  "$_ac/smallest-cond.correct" "$_ac/smallest-cond.wrong" \
-  'expiry' "$RE_FIX_IS_CHECKABLE_EXPIRY"
-
-cat >"$_ac/ordering.correct" <<'AC'
-## 5. Why the rule must exist and be recallable first
-Retiring first would take the two claims out of recall while nothing yet replaces them, so the
-heuristic would silently stop appearing at the gate it was learned at — coverage removed, not moved,
-with no red anywhere to show it.
-AC
-cat >"$_ac/ordering.wrong" <<'AC'
-I marked CLM-740 and CLM-741 retired first and then drafted §4.2. The order of the two steps is
-interchangeable; either way the class ends up recorded exactly once.
-AC
-selftest_assertion "subject-first ordering rationale (promote-offers-retirement)" \
-  "$_ac/ordering.correct" "$_ac/ordering.wrong" \
-  'before|first|order' "$RE_ORDER_COVERAGE"
-
-cat >"$_ac/window.correct" <<'AC'
-**WHEN.** The epic scaffold is committed to a shared ref in the window between the split ratifying and
-the first child creating its branch. At the moment the scaffold commit lands, **zero child branches
-exist**; every child then branches *from* that commit. Committed first, the child's later change to
-its own stub is a diff against a committed file — unambiguously an edit.
-AC
-cat >"$_ac/window.wrong" <<'AC'
-Each child ticket cuts its branch first; the epic scaffold and BACKLOG stubs are committed afterwards,
-once the six children already exist on their own branches. The scaffold commit is the last step.
-AC
-selftest_assertion "ordering as a window / a count / a rank (epic-scaffold-committed)" \
-  "$_ac/window.correct" "$_ac/window.wrong" \
-  'scaffold|stub|backlog' 'commit' "$RE_BEFORE_CHILD"
-
 # --- option-shaped regex self-test -------------------------------------------
 # The fixtures assert on literal flags (`--tree`, `--no-reviewer`, `--no-challenger`). Without `--`,
 # grep parses those as OPTIONS and exits 2, which reads as "no match" on assert_contains/assert_all
@@ -3649,53 +1188,6 @@ AC
 selftest_assertion "option-shaped regex is judged, not swallowed by grep (--tree / --no-reviewer)" \
   "$_ac/flag.correct" "$_ac/flag.wrong" \
   '--tree' '--no-reviewer'
-
-# --- promote ordering: rule-book rationale + the ORDER itself (v1.14.0 post-milestone) -------
-# The rationale token flapped TWICE — convention rule 8, in its purest form: a correct run stated the
-# reason in the AFFIRMATIVE ("coverage has to be moved rather than dropped", "the guidance disappears",
-# "neither the claims nor a rule reach the next ticket") and the token looked only for the NEGATIVE
-# ("would be removed"). Widened over WORDING; and a second assertion now judges the ORDER itself, which
-# is the decision that matters and is stated far more stably than the reason for it.
-cat >"$_ac/order.correct" <<'AC'
-5. Why the rule must exist and be recallable first. Because promotion is a copy, not a hand-off, and
-coverage has to be moved rather than dropped. Retire first and there is a window — possibly permanent,
-if the write is never made — where neither the claims nor a rule reach the next ticket: the guidance
-disappears while looking like it was promoted, which is a false-green. Writing first makes the offer
-legal because the class is already covered; the two steps must never be reordered.
-AC
-cat >"$_ac/order.wrong" <<'AC'
-5. The two steps are independent, so either order is fine. I retired CLM-740 and CLM-741 first and then
-wrote §4.2 into the rule book; retiring before the rule lands does not matter, because the claims and
-the rule cover the same class either way and nothing is lost in between.
-AC
-selftest_assertion "affirmative rationale for the promote/retire order (was: only the negative matched)" \
-  "$_ac/order.correct" "$_ac/order.wrong" \
-  'before|first|order' "$RE_ORDER_COVERAGE"
-selftest_assertion "the ORDER itself, judged apart from the reason given for it" \
-  "$_ac/order.correct" "$_ac/order.wrong" \
-  "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
-
-# Flap THREE of the same rationale token (v1.14.1 post-release, 3x-fresh re-proof of dbd269d). Runs 1
-# and 2 matched; run 3 stated the reason MORE completely than either — mechanism, consequence, and the
-# failure mode by name — and still missed, because it wrote the consequence as a "coverage HOLE" and as
-# the claims "stop being RECALLED", where the token carried gap/uncovered and stop-appearing/surfaced.
-# Widened over WORDING only, verbatim from that transcript; the ORDER assertion beside it passed 3/3,
-# which is the measurement that matters. The corpus is kept so a later narrowing cannot silently
-# un-cover this paraphrase. The wrong side is the shared retire-first-is-fine text.
-cat >"$_ac/order3.correct" <<'AC'
-**5 — Why rule first, retire second.** Because a `handle:`-carrying rule only becomes an applicable
-`RULE SECTIONS` entry at analysis once recall surfaces that handle — coverage is *moved*, never
-simultaneous. Retire first and the claims stop being recalled while nothing in the rule book has
-picked the class up, so the next ticket that greps one directory hits no check at all: a silent
-coverage hole that looks like tidy bookkeeping. That is the false-green failure mode this ordering
-exists to prevent, so the two steps are never reordered.
-AC
-selftest_assertion "consequence as a coverage HOLE / claims stop being RECALLED (flap 3)" \
-  "$_ac/order3.correct" "$_ac/order.wrong" \
-  'before|first|order' "$RE_ORDER_COVERAGE"
-selftest_assertion "the ORDER itself, on the flap-3 corpus" \
-  "$_ac/order3.correct" "$_ac/order.wrong" \
-  "$RE_PROMOTE_BEFORE_RETIRE" 'retir'
 
 # --- validator jargon-guard self-test (v1.7.5 Fix 1b) ------------------------
 # The TEETH of the false-green fix. v1.7.4 claimed validate.py enforced a zero-jargon grep over shipped
@@ -3804,7 +1296,7 @@ echo
 echo "== envelope script suite (RUN CONTRACT / RECONCILE / BUDGET) =="
 total=$((total + 1))
 _env_out="$( ( cd "$SANDBOX" && python3 tests/envelope/test_envelope.py 2>&1 ) || true )"
-if printf '%s' "$_env_out" | grep -qE '^OK$'; then
+if grep -qE '^OK$' <<<"$_env_out"; then
   echo "  PASS: envelope suite green — $(printf '%s' "$_env_out" | grep -oE 'Ran [0-9]+ tests?' | tail -1)"
 else
   echo "  FAIL: envelope suite is RED"
@@ -3959,131 +1451,68 @@ else
   fails=$((fails + 1))
 fi
 
-coverage_selftest
-
-# --- Record what this run PROVED, and mint the cache it earned (v1.15.0) ------
+# --- Record what this run proved, and mint the cache it earned -----------------
 # Read the cache tallies back out of their ledger files (they were written inside
-# command-substitution subshells, so the shell variables never survived — v1.7.5 Fix 4).
+# command-substitution subshells, so the shell variables never survived).
 CACHE_HITS="$(tally_count cache-hits)"; FRESH_RUNS="$(tally_count fresh-runs)"
-FRESH_FIXTURES="$(tally_list fresh-runs)"
 
 # Split this run's assertions into the ones attributable to a JOB and the ones that are the harness
-# testing ITSELF (dispatch-free self-tests). The self-test tally is what a later --verify-suite uses
-# to decide whether the harness that measured a green was sound.
+# testing ITSELF (the dispatch-free self-tests above). A transcript is only worth caching if the
+# harness that judged it was sound, so a self-test failure suppresses every mint.
 COV_JOB_JUDGED="$([ -s "$COV_DIR/judged" ] && wc -l <"$COV_DIR/judged" | tr -d ' ' || echo 0)"
 COV_JOB_FAILS="$(awk -F'\t' '$2=="FAIL" {n++} END {print n+0}' "$COV_DIR/judged" 2>/dev/null || echo 0)"
 SELFTESTS=$(( total - COV_JOB_JUDGED )); [ "$SELFTESTS" -ge 0 ] || SELFTESTS=0
 SELFTEST_FAILS=$(( fails - COV_JOB_FAILS )); [ "$SELFTEST_FAILS" -ge 0 ] || SELFTEST_FAILS=0
 
-# One coverage row per job this run actually JUDGED, plus — for a fixture whose own assertions all
-# passed — its cache entry.
-#
-# CHANGE A (v1.15.0): a fixture's cache entry is now minted from ANY run, including a --only batch,
-# under PER-ENTRY guards instead of the old suite-wide `fails -eq 0 && -z "$ONLY"` gate. The old gate
-# was standing in for "is this transcript trustworthy?", which it answered only indirectly and at a
-# price: a batched run minted NOTHING, so a suite split into ten batches paid for every fixture and
-# then had to pay again for the full pass. The direct evidence is per fixture and it is now exact:
-#   * the fixture's OWN assertions all passed, and it passed ALL of them (count == expected);
-#   * a failed dispatch can no longer be green at all (assert_judgeable rejects an API-error or
-#     empty transcript outright, so a no-run fails every one of its assertions);
-#   * no assertion in this suite reads across two transcripts, so a sibling fixture failing tells
-#     you nothing about this one.
+# Archive every transcript this run judged, and mint a cache entry for a fixture that passed ALL of
+# its own assertions. The evidence for a mint is per fixture and exact:
+#   * the fixture's own assertions all passed;
+#   * a failed dispatch can never be green at all (assert_judgeable rejects an API-error or empty
+#     transcript outright, so a no-run fails every one of its assertions);
+#   * no assertion here reads across two transcripts, so a sibling failing tells you nothing.
 # Still fail-safe to run: an unhashable fixture, a --no-cache run, or any doubt mints nothing.
-_cov_rows=0; _cov_green=0; _minted=0
+_judged=0; _green=0; _minted=0
 for _idx in $(seq 1 "$JOB_COUNT"); do
   [ -f "$JOBS_DIR/$_idx.meta" ] || continue
   IFS=$'\t' read -r _kind _name _ _ <"$JOBS_DIR/$_idx.meta"
   _p="$(cov_count "$COV_DIR/judged" "$_name" PASS)"
   _f="$(cov_count "$COV_DIR/judged" "$_name" FAIL)"
-  _e="$(cov_count "$COV_DIR/expected" "$_name" "")"
-  # Not judged in this run → record nothing and leave any earlier row standing. Silence is never a
-  # verdict: a job with no row is a DEFECT to --verify-suite, never an assumed pass.
+  # Not judged in this run → nothing to record. Silence is never a verdict.
   [ "$((_p + _f))" -gt 0 ] || continue
-  _row="$(cov_row_for "$_name" "$_kind" "$_e" "$_p" "$_f" || true)"
-  [ -n "$_row" ] || continue                     # unhashable → record nothing (fail-safe)
-  _h="$(printf '%s' "$_row" | cut -f3)"
-  _v="$(printf '%s' "$_row" | cut -f9)"
-  printf '%s\n' "$_row" >>"$COVERAGE_LEDGER"
-  _cov_rows=$((_cov_rows + 1))
-  [ "$_v" = green ] && _cov_green=$((_cov_green + 1))
+  _judged=$((_judged + 1))
+  if [ "$_f" -eq 0 ]; then _v=green; _green=$((_green + 1)); else _v=red; fi
   if [ -s "$(transcript_path "$_name")" ]; then
     mkdir -p "$ARCHIVE_DIR/$RUN_ID" 2>/dev/null || true
     cp "$(transcript_path "$_name")" "$ARCHIVE_DIR/$RUN_ID/$_name.$_v.log" 2>/dev/null || true
   fi
   if [ "$_v" = green ] && [ "$_kind" = fixture ] && [ "$CACHE_ENABLED" -eq 1 ] &&
      [ "$SELFTEST_FAILS" -eq 0 ] && [ -s "$(transcript_path "$_name")" ]; then
-    cp "$(transcript_path "$_name")" "$CACHE_DIR/$_name.$_h.green" 2>/dev/null &&
-      _minted=$((_minted + 1)) || true
+    _h="$(skills_hash "$_name" 2>/dev/null || true)"
+    if [ -n "$_h" ]; then
+      cp "$(transcript_path "$_name")" "$CACHE_DIR/$_name.$_h.green" 2>/dev/null &&
+        _minted=$((_minted + 1)) || true
+    fi
   fi
 done
 
 # Stamp the archived run with the ruler that produced it. Without this the archive is a pile of
-# transcripts with no way to tell which run.sh, plugin tree or CLI wrote them — and a transcript
-# judged under a different ruler is not evidence about this suite.
+# transcripts with no way to tell which run.sh, plugin tree or CLI wrote them.
 if [ -d "$ARCHIVE_DIR/$RUN_ID" ]; then
-  printf 'run\t%s\nutc\t%s\nmachinery_fp\t%s\nrunner_fp\t%s\nplugin_tree_fp\t%s\nmodel\t%s\ncli\t%s\nonly\t%s\n' \
-    "$RUN_ID" "$RUN_UTC" "$MACHINERY_FP" "$RUNNER_FP" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
+  printf 'run\t%s\nutc\t%s\nrunner_fp\t%s\nplugin_tree_fp\t%s\nmodel\t%s\ncli\t%s\nonly\t%s\n' \
+    "$RUN_ID" "$RUN_UTC" "$RUNNER_FP" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
     >"$ARCHIVE_DIR/$RUN_ID/IDENTITY.tsv" 2>/dev/null || true
 fi
 
-# The run row. --verify-suite reads fields 11-12 (self-tests run / self-tests failed) to decide
-# whether the harness that took these measurements had been proven sound; the tallies here are as at
-# row-write time, i.e. they exclude the coverage gate immediately below.
-printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-  "$RUN_ID" "$RUN_UTC" "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION" "$ONLY" \
-  "$_cov_rows" "$total" "$fails" "$skipped" "$SELFTESTS" "$SELFTEST_FAILS" >>"$RUN_LEDGER"
-
-# CHANGE B (v1.15.0): a FULL pass now also has to clear the coverage gate. On a full run this is
-# nearly tautological — the run just wrote every row — and that is exactly why it belongs here: it
-# exercises the ledger and the gate on every full pass, so the machinery a batched green depends on
-# can never rot unnoticed. Under --only the gate is not an assertion (the other batches are not in
-# yet); it prints PROGRESS instead, so an operator can see exactly what is still owed.
-_cg_exp="$TMPROOT/gate.expected"; _cg_hash="$TMPROOT/gate.hashes"
-cov_expected_tsv "$_cg_exp"
-cov_hashes_tsv "$_cg_hash" "$_cg_exp"
-echo
-if [ -z "$ONLY" ]; then
-  echo "== coverage gate =="
-  total=$((total + 1))
-  if verify_suite "$COVERAGE_LEDGER" "$RUN_LEDGER" "$_cg_exp" "$_cg_hash" \
-       "$(printf '%s\t%s\t%s' "$PLUGIN_TREE_FP" "$MODEL_SETTING" "$CLI_VERSION")"; then
-    echo "  PASS: coverage: every registered job is green in the ledger under one uniform ruler"
-  else
-    echo "  FAIL: coverage: the ledger does not account for every registered job (defects above)"
-    fails=$((fails + 1))
-  fi
-else
-  _cg_have="$(awk -F'\t' 'NF>=11 && $9=="green" {g[$1]=1} END {print length(g)+0}' "$COVERAGE_LEDGER" 2>/dev/null || echo 0)"
-  # Count the WHOLE suite, not the selected subset: under --only the collect pass registers only the
-  # selected jobs, so $_cg_exp would report "1 of 1" and make a one-fixture batch look complete. Every
-  # assertion CALL SITE runs in the collect pass regardless of --only, so the cov_expect map is the
-  # whole suite — that is the denominator a partial run owes progress against.
-  _cg_want="$(awk '{j[$1]=1} END {print length(j)+0}' "$COV_DIR/expected" 2>/dev/null || echo 0)"
-  echo "== coverage progress (PARTIAL run — the gate is not asserted here) =="
-  echo "  ledger now holds $_cg_have green job(s) of the $_cg_want this suite registers."
-  echo "  When it holds all $_cg_want, prove it with:  bash tests/eval/run.sh --verify-suite"
-fi
-
-# --- Per-job dispatch timing (v1.15.1) ----------------------------------------
-# Printed on every run. With --workers N, a part of N jobs or fewer is ONE WAVE, so its wall time is
-# the SLOWEST job's latency and not the sum of them — sizing the next batch off a per-job MEAN
-# therefore under-estimates it by however much the group's spread is, and the whole point of a batch
-# is that it fits inside one invocation. The `slowest` figure below is that wave floor, measured.
+# --- Per-job dispatch timing --------------------------------------------------
 _tl="${CACHE_TALLY_DIR:-/nonexistent}/timing"
 if [ -s "$_tl" ]; then
   echo
   echo "== per-job dispatch timing =="
-  _tl_n="$(wc -l <"$_tl" | tr -d ' ')"
   # The row limit lives in awk, not in `head`: `sort | head -25` leaves sort writing to a closed pipe,
   # and under `pipefail` a SIGPIPE'd sort makes this pipeline exit 141 — which `errexit` would turn
-  # into a failed run at the very last step of a green suite. awk reads all of its input.
+  # into a failed run at the very last step of a green run. awk reads all of its input.
   LC_ALL=C sort -t"$(printf '\t')" -k2,2nr "$_tl" |
-    awk -F'\t' 'NR <= 25 { printf "  %5ds  %-9s %s\n", $2, $3, $1 }'
-  [ "$_tl_n" -gt 25 ] && echo "  … $((_tl_n - 25)) more (slowest 25 shown)"
-  awk -F'\t' '{ n++; s += $2; if ($2 + 0 > mx + 0) { mx = $2; mj = $1 } }
-       END { if (n > 0) printf "  ---\n  %d job(s)   slowest %ds (%s)   sum %ds   mean %.0fs\n", n, mx, mj, s, s / n }' "$_tl"
-  echo "  Sizing the next batch: with --workers $WORKERS a part of ≤ $WORKERS jobs is one wave, so"
-  echo "  budget the SLOWEST job above, never the mean or the sum."
+    awk -F'\t' '{ printf "  %5ds  %-9s %s\n", $2, $3, $1 }'
 fi
 
 RUN_SECS=$(( ($(prof_now) - RUN_T0) / 1000000000 ))
@@ -4094,11 +1523,13 @@ if [ "$CACHE_ENABLED" -eq 1 ]; then
 else
   echo "EVAL cache: disabled (--no-cache) — all $FRESH_RUNS fixture(s) ran fresh"
 fi
-echo "EVAL coverage: $_cov_green/$_cov_rows job(s) judged green this run, $_minted cache entry(ies) minted  [ledger ${COVERAGE_LEDGER##*/}]"
-echo "EVAL identity: machinery ${MACHINERY_FP:0:12}  plugin-tree ${PLUGIN_TREE_FP:0:12}  model $MODEL_SETTING  CLI $CLI_VERSION  run $RUN_ID  (runner ${RUNNER_FP:0:12})"
+echo "EVAL guard: $_green/$_judged fixture(s) judged green this run, $_minted cache entry(ies) minted"
+echo "EVAL identity: runner ${RUNNER_FP:0:12}  plugin-tree ${PLUGIN_TREE_FP:0:12}  model $MODEL_SETTING  CLI $CLI_VERSION  run $RUN_ID"
+# What this run does and does not say, printed every time so it cannot be over-read.
+echo "EVAL scope: this is a per-skill smoke guard. It reports that these fixtures passed just now."
+echo "            It is NOT a regression suite: no cross-skill detection, and RETIRE: is uncovered."
 if [ -n "$ONLY" ]; then
-  echo "EVAL: PARTIAL RUN (--only '$ONLY') — $skipped assertion(s) skipped. It records coverage but does"
-  echo "      not itself prove the suite; --verify-suite is what turns a set of batches into that proof."
+  echo "EVAL: selection --only '$ONLY' — $skipped assertion(s) skipped (the unselected fixtures)."
 fi
 if [ "$fails" -gt 0 ]; then
   echo "EVAL: $((total - fails))/$total assertions pass — $fails assertion(s) failed"

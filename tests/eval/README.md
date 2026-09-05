@@ -1,319 +1,116 @@
-# mango behavioural eval
+# mango per-skill smoke guard
 
-`run.sh` is the **real behavioural check** for the mango skills. For each fixture ticket it drives
-`claude -p` headless against the **shipped** skills (`--plugin-dir`) inside a throwaway, isolated clone
-and asserts the transcript contains the expected load-bearing artifacts. The cheap, always-on guard is
-`scripts/validate.py` (offline contract-token checks); this suite is the expensive, end-to-end one and
-CI runs it only via the manual `eval.yml` workflow.
+**mango has no behavioural regression suite.** This directory holds a smoke guard: six fixtures, run
+when a skill is edited, answering one question —
 
-Run it (one command, hands-free — needs either `ANTHROPIC_API_KEY` or a `claude /login` session):
+> *Does the skill I just edited still behave?*
 
+It does **not** answer *"is mango green?"*. Nothing here should be cited as though it did.
+
+```bash
+bash tests/eval/run.sh                                        # all six  (~6 dispatches, ~$3)
+bash tests/eval/run.sh --only '^(multi-clause-want)$'         # the fixtures for the skill you edited
+bash tests/eval/run.sh --workers 1                            # sequential — debugging one transcript
+bash tests/eval/run.sh --no-cache                             # full fresh run: nothing is reused
 ```
-bash tests/eval/run.sh                   # default workers, cache on
-bash tests/eval/run.sh --workers 8       # milestone speed
-bash tests/eval/run.sh --workers 1       # sequential — debugging one transcript
-bash tests/eval/run.sh --only refine-    # dev loop: affected fixtures only (PARTIAL run)
-```
 
-The isolated clone — not a permission flag — is what guarantees a fixture can never touch the live
-checkout; everything is torn down on exit.
+## The two stated limits
 
-> **The eval runs against the COMMITTED tree.** Each worker's sandbox is a `git clone` of this repo, so
-> it holds **HEAD**, not your working tree: an **uncommitted** skill edit is invisible to every fixture,
-> and a fixture asserting the new behaviour will fail while the skills the model actually loaded are the
-> old ones. **Commit first** (locally — pushing is separate), then run the suite; amend if it comes back
-> red. A model that greps the sandbox will say so plainly — one v1.8.0 fixture run reported "there is no
-> premise check in mango's refine phase", which was exactly true of HEAD at that moment.
+Written down here rather than left to be discovered later:
 
-> **The throwaway project declares its tickets synthetic.** The sandbox is a clone of *this* repo, which
-> ships **no application source**, so a fixture ticket about a hypothetical app names sources that can
-> never resolve — and `refine`'s premise check would halt every one of them. The generated
-> `docs/EVAL_RULES.md` therefore declares the project's tickets **synthetic**, which is the premise
-> check's own documented carve-out, stated once for the whole environment instead of in every fixture. The
-> two `premise-*` fixtures opt back in by stating that their references are claims about this checkout —
-> which is a real ticket's default — so the check is still exercised both ways: it fires and halts on a
-> missing named identifier, and stays silent on a to-be-created path.
+- **No cross-skill regression detection.** Editing `design` and breaking `finalise` is not caught.
+  This is accepted, not overlooked: it never once happened in this repo's recorded history — searched
+  across the archive, the findings register, the status register, the CHANGELOG and the git log.
+- **`RETIRE:` is uncovered.** It has no assertion here, and it had none in the retired suite's 511
+  either. `promote` emits it at the ratify step; the `promote` fixture kept below is the zero case,
+  which by construction never reaches a ratify.
 
-## Where a run's results live
+## The six
 
-Four files, one job each. Nothing is appended to a file whose job is to be current.
-
-| File | Job | Update pattern |
+| Fixture | Skill(s) | What it is for |
 |---|---|---|
-| [`EVAL-STATUS.md`](./EVAL-STATUS.md) | the **current** cycle — what is green, what is red, what runs next | rewritten in place |
-| [`EVAL-FINDINGS.md`](./EVAL-FINDINGS.md) | permanent findings and the rules they produced | appended, rarely |
-| [`EVAL-ARCHIVE.md`](./EVAL-ARCHIVE.md) | superseded cycles, verbatim | appended once per cycle close |
-| [`EVAL-PROFILE.md`](./EVAL-PROFILE.md) | per-fixture cost/latency profile | appended |
+| `refine-want-unattended-stops` | `refine`, `autorun` | **Gate 0.** The worked example of a claim bound to a **counted line**: an unresolved want-decision counts toward `j`, autorun stops, and it is never a silent `ASSUMED` — judged against the `REFINE:` line's own arithmetic. |
+| `multi-clause-want` | `analysis` | **Gate 1.** A two-clause want-decision becomes two matrix rows and two proof rows; the injected single-row certification is flagged. Three `all` assertions, no `contains` to pass through. |
+| `provenance-authored-blocks` | `design` | **Gate 2.** An AC about a grouping heuristic proven on authored fixtures alone blocks the gate; anchors on `EXCLUSIONS:`. This gate exists because of four real-data defects the retired fixture suite never saw. |
+| `execute-commit-before-review` | `execute`, `review` | **Gates 3–4.** Commit ordering across two skills, plus the empty-diff fallback. |
+| `lesson-claim-split` | `finalise` | **Gate 4.** Anchors on `CLAIMS:`, a counted line with internal arithmetic — ticket 099's `CLAIMS:` summed to 4 while stating 3, and `check_lines.py` catches that with no grammar judgement. `finalise` emits 6 of the 20 counted grammars, more than any other skill. |
+| `greenfield-promote-zeros` | `promote` | **The negative control.** An empty corpus emits zeros, proposes nothing and writes nothing: `absent  rules written[ *_:=]*[1-9]`. |
 
-The **authority** is none of them: it is `.cache/coverage.<runner-fp>.tsv`, one machine-readable row per
-job per run carrying the job's skills-hash and all four ruler components. A markdown file cannot be
-asked whether a job was missed, which is why status is **read** rather than typed:
+Every fixture is mapped in `FIXTURE_SKILLS` in `run.sh`. **That map is the trigger mechanism** — a
+fixture that is not mapped cannot be selected by a skill edit, and `validate.py`'s `eval-guard`
+validator fails if any of the six loses its key.
 
-```
-bash tests/eval/coverage-report.sh              # dashboard: green / red / stale / ruler uniformity
-bash tests/eval/coverage-report.sh --remaining  # bare list of fixtures with no green row
-bash tests/eval/coverage-report.sh --md         # a markdown table to paste into EVAL-STATUS.md
-```
+## Anchor every `--only` selector
 
-`coverage-report.sh` dispatches nothing, writes nothing, and **is not the gate** — it says so in its own
-output. The gate is `run.sh --verify-suite`, which holds the ledger against the suite's own registered
-job list and re-checks every hash. Only its output may be cited as evidence the suite passes.
-
-## Parallel dispatch (where the wall-time went)
-
-A full instrumented run measured the suite at **100% `claude -p` latency**: harness overhead (clone,
-sandbox, every grep, all the dispatch-free self-tests) was **~3 s of a 10 590 s run — 0.03%**. So the
-only levers are fewer dispatches and *concurrent* dispatches, and concurrency is the whole win:
-`--workers 8` **measures 998 s – 1201 s (16.6 – 20 min) over five full runs**, against 2 h 56 m
-sequential — 8.8× to 10.6×, an order of magnitude more than every available fixture merge combined.
-
-`run.sh` therefore runs the suite body **twice** over the same code:
-
-1. **collect** — every `run_fixture` / `run_prompt` **registers** a dispatch job (its prompt plus the
-   `.harness.json` `test_command` in force at that line); every `assert_*` is a no-op.
-2. **dispatch** — the jobs run across `--workers N` workers, longest-first, each worker claiming jobs
-   from a shared queue by atomic `mkdir`.
-3. **assert** — the same call sites resolve the transcripts the dispatch produced and judge them, in
-   script order, so a parallel run's output reads exactly like a sequential one.
-
-Registering and asserting at the *same call site* is what keeps a prompt from drifting away from the
-assertions that judge it. An assertion whose dispatch was never registered **FAILS loudly**
-(`NO TRANSCRIPT`) rather than reading as coverage.
-
-**Per-worker isolation is mandatory, and asserted.** Each worker gets its own
-`git clone --local --no-hardlinks` and writes its own `.harness.json` **per job**. Both hazards this
-removes are real: fixtures whose `execute` branches and commits would race inside one shared clone, and
-`red-baseline` repoints `config.test_command`, which under concurrency would flip the harness under
-another in-flight dispatch. After the run, one assertion proves every worker tree was disposed (proven
-non-vacuous against an undisposed tree) alongside the existing live-checkout guard.
-
-**Per-JOB reset is the other half of that invariant.** A worker claims *many* jobs, so a clone that is
-private to the worker is still shared across every job that worker runs: whatever job N wrote — a work
-doc, a `docs/LESSONS.md`, a stray branch, a commit — was on disk when job N+1 started. That residue does
-not *race*; it silently **falsifies the premise** of any fixture whose ticket describes a project state,
-and a greenfield fixture injecting "no lesson record has ever been written" then reads the previous job's
-lessons file, correctly refuses its own ticket as false, and fails an assertion that was right all along.
-Which job lands on which worker is the scheduler's business, so it fails *intermittently*.
-`provision_sandbox` records each tree's baseline branch+SHA **beside** the tree (so `git clean -fdx` can
-never delete the definition of clean); `reset_sandbox` restores that baseline before **every** job, and
-`assert_job_start_clean` turns "this job started clean" into a **counted assertion** per job rather than
-a comment. Both guards are proven non-vacuous first — the per-tree guard against a throwaway dirtied
-repo, the ledger guard against a synthetic residue row.
-
-`--only <regex>` filters both the dispatch and the judging. It is a **dev-loop** tool: the run is
-reported `PARTIAL`, its skipped assertions are counted, and **no cache entry is written** — a cache
-green may only ever be minted by a run that proved the whole suite. CI passes no arguments.
+Write `^(name-a|name-b)$`. An unanchored `--only` once dispatched a scenario *inside* a fixture name
+and reported success on a job nobody meant to run.
 
 ## Assertion convention (standing — practised since v1.0, written down here)
 
-A model's wording varies run to run; the **decision** does not. Every new assertion must therefore be
-written to match the *behaviour*, not one transcript's phrasing. The standing rules:
+This is the part of the retired suite that was worth keeping, and it is unchanged:
 
-1. **Match the decision, not one phrasing.** Assert the load-bearing **outcome + its reasoning token**
-   (use `assert_all` to require both), so a correct decision passes under any wording and a wrong
-   *outcome* — which drops one of the tokens — still fails. Never pin an assertion to a sentence you
-   saw in one run.
-2. **Be emphasis-agnostic.** Tolerate markdown emphasis (`**`, `_`) and spacing/hyphenation variants
-   around the token (e.g. `dispatch[ -]count`, `re-?dispatch`). A correct answer wrapped in `**bold**`
-   must still match.
-3. **Pass 3× fresh before it counts as green.** A new assertion is only "green" once it passes on
-   **three independent fresh runs** at the decision level — proving stability across runs, not a regex
-   tuned to a single transcript.
-4. **Widen over wording/emphasis — never over outcome.** When an assertion misses a *correct* run,
-   widen it over phrasing or emphasis only. **Never** widen it so that a *wrong* outcome would also
-   pass — that turns a green into a false green. (v1.4's `rtk-wire` fixture legitimately needed widening
-   over wording twice; that is the allowed kind of widening.)
-5. **Never pin a single glyph, and expect emphasis *inside* a word.** A `❌` may be written into the
-   working-doc table rather than the response text, and `**S**mall` / `**I**ndependent` break a
-   contiguous substring match — as do `**before**` the gate and `**before**` the first child branch. Use
-   the shared `RE_*` tokens at the top of `run.sh` — `RE_INVEST_LETTERS`, `RE_INVEST_SMALL`,
-   `RE_NOT_SPLIT`, `RE_ZERO_WANTS`, `RE_LAYER_SUBJECT`, `RE_LAYER_MISMATCH`, `RE_BEFORE_GATE`,
-   `RE_NO_BLANKET_RERUN`, `RE_BEFORE_CHILD`, `RE_ROUTES_TO_REVIEW`, `RE_DOES_NOT_ESTABLISH`,
-   `RE_ORDER_COVERAGE` — each proven **both ways** by the assertion-convention self-test below, and
-   `scripts/validate.py` fails the build if an assertion regex is a bare glyph again.
+- **Match the DECISION, not one phrasing.** An assertion encodes outcome *and* reasoning — `assert_all`
+  with two tokens — so a correct behaviour passes under any wording while a wrong outcome, which drops
+  one of the tokens, still fails.
+- **Be emphasis-agnostic.** `**S**mall` breaks a contiguous substring match; so does a count-form
+  negative (`0 want-decisions asked` where a regex demanded a negation phrase). Tolerate the markdown.
+- **Never pin a single glyph.** A `❌` may land in the working doc rather than the response text.
+- **Widen over wording or emphasis — NEVER over outcome.** If a red is the model expressing the right
+  outcome differently, widen. If it is the model doing the wrong thing, that is the finding; fix the
+  behaviour, not the token. Widening over outcome is how a suite goes quietly vacuous.
+- **A new assertion passes 3× fresh before it counts green.** One green is a draw from a distribution.
+- **Every regex reaches `grep` after `--`.** A regex starting with `-` (the fixtures assert on literal
+  flags: `--tree`, `--no-reviewer`) is otherwise parsed as an option: `grep` exits 2, which reads as
+  "no match" on `assert_contains`/`assert_all` and as "absent" on `assert_absent` — a permanent red on
+  one side and a permanent silent green on the other. Four assertions were unpassable this way from
+  the day they shipped.
+- **Never pipe into a short-circuiting `grep`.** Under `set -o pipefail`, `grep -q` exits at the first
+  match, the writer takes SIGPIPE and exits 141, and the caller reads a **present** token as missing —
+  measured at 3.3% of evaluations on a 14.5 KB body and 100% on 250 KB. Use a herestring. `run.sh`
+  carries a structural check that fails if the piped shape reappears.
 
-6. **Never put a bare literal separator between two load-bearing words.** A space in the regex cannot
-   match `**not** split`, and a space cannot match a hyphen (`no change` vs `no-change`). Write the
-   separator as a class: `not[*_ ]{1,6}split`, `no[ -]change`. This single class caused most of v1.8.0's
-   assertion failures, every one of them on demonstrably correct behaviour.
-7. **A negative may be stated as a count.** A skill emits `0 want-decisions asked` as readily as "did
-   not ask", so an assertion demanding a negation phrase fails on correct behaviour. Accept the
-   zero-count form (`RE_ZERO_WANTS`).
+## Dispatch-free self-tests (free coverage)
 
-8. **A correct run may not contain your keyword at all — expect the paraphrase.** The four forms that
-   have actually broken assertions on demonstrably correct behaviour, each now carried by an `RE_*`
-   token: an ordering stated as a **window** ("in the window between the split ratifying and the first
-   child creating its branch"), a **count** ("zero child branches exist") or a **rank** ("committed
-   first") — none of which contains `before` anywhere near `child`; a refusal written in the
-   **continuous** ("Refusing" / "Routing back", not `refuse` / `route`); a negative answered as a
-   **question** ("Does 84 passed establish …? No"); and a rationale written **subject-first**
-   ("coverage removed, not moved"). Widen for the paraphrase, never for the opposite outcome — rule 4
-   still binds, and the self-test enforces it.
+`run.sh` runs a set of self-tests that cost nothing and dispatch nothing. They are what keeps the
+harness itself honest, and they run on every invocation — including one that selects no fixtures:
 
-10. **Judge the OUTCOME; treat the REASON as the fragile half.** A rationale is the freest prose a
-   transcript contains, so a keyword on *why* flaps where a keyword on *what was decided* does not.
-   `RE_ORDER_COVERAGE` — the reason retiring a claim before its rule lands is wrong — has now missed a
-   **correct** run twice: it looked for the **negative** ("coverage would be *removed*") while the run
-   stated the same thing in the **affirmative** ("coverage has to be *moved* rather than dropped", "the
-   guidance *disappears*", "neither the claims nor a rule *reach* the next ticket"). Rule 8 covers the
-   widening; this rule covers what to do next. **Do not swap the rationale assertion for an outcome
-   one — add the outcome one beside it** (no CHECK is ever removed): `RE_PROMOTE_BEFORE_RETIRE` judges
-   the ordering itself, and an `assert_absent` refuses a run that presents retire-first as acceptable.
-   The reason assertion keeps its value — it is what distinguishes a run that reached the right order
-   by luck — but the outcome assertion is the one that should not need widening again.
-
-9. **Pass `--` before every assertion regex.** `grep -qiE "$regex"` parses a regex that begins with `-`
-   as an **option**: grep exits 2 with "unrecognized option", which reads as *no match* on the contains
-   side and as *absent* — a silent **GREEN** — on the absent side. Every option-shaped assertion
-   (`--tree`, `--no-reviewer`, `--no-challenger`) was unpassable from the day it shipped for exactly
-   this reason. `assert_contains` / `assert_all` / `assert_absent` all pass `--`, and a self-test pins
-   the judgement in both directions: a flag present must match, a flag absent must not.
-
-## Verify-incremental (build discipline — the Finish flow)
-
-The full suite is expensive (a `claude -p` run per assertion). While **building a fix**, run only the
-**affected fixture(s)** — the one or two behaviours the change touches — not the whole suite after every
-small edit. Run the **full suite once** at the end, before push. Coverage is unchanged; only the
-redundant mid-build re-runs are removed.
-
-The v1.0 green bar is intact and non-negotiable at Finish:
-
-- **every job in the suite green, measured under one ruler**, proven by `bash tests/eval/run.sh
-  --verify-suite` — which refuses a missing job, a **stale** green, and any two greens measured under
-  different rulers (see [the milestone bar](#the-milestonerelease-bar---verify-suite) below); and
-- **each new fixture 3× fresh** (three independent runs, green at the decision level — see rule 3 above).
-
-A **full suite once** at the end still reaches that bar in a single invocation — a full pass now clears
-the same coverage gate before it prints its result. What changed is that reaching it a **batch at a
-time** is now equally provable, because the sum is a recorded artifact instead of a recollection: each
-`--only` batch records one coverage row per job it judged, carrying the runner fingerprint, plugin-tree
-fingerprint, model and CLI version it was measured under, and mints its green fixtures' cache entries so
-a batched suite is paid for once rather than twice.
-
-So: affected-fixture-only during the build, then **every job green under one ruler** — as one **full
-suite once** or as a set of batches — and 3-fresh for anything new.
-
-## Transcript cache (dev-loop speed — never drops coverage)
-
-The runner caches each fixture's last **GREEN** transcript keyed on `(fixture-id + skills-hash)`. On a
-run, a fixture whose exercised skill files are **provably unchanged** is a **cache-hit** — its cached
-green transcript is reused and **no `claude -p` is dispatched**; a fixture whose skills-hash changed (or
-any uncertainty — missing cache, unreadable hash, changed runner) runs **fresh**. The cache is
-**fail-safe to run**: it only ever avoids a re-run it can prove unnecessary (skills unchanged ⇒ behaviour
-unchanged — the same prose-is-behaviour invariant mango relies on), and it **never** drops a fixture from
-coverage. `PRINCIPLES.md`, every agent brief, and every template are always in the hash (a change to any
-invalidates every cache); editing `run.sh` itself invalidates the whole cache. `RATIONALE.md` is
-deliberately **not** in the hash — no skill loads it, so it cannot change behaviour and must never
-invalidate a cache.
-
-```
-bash tests/eval/run.sh              # dev loop: cache-hits for unchanged fixtures
-bash tests/eval/run.sh --no-cache   # every fixture dispatches fresh, nothing reused
-bash tests/eval/run.sh --verify-suite   # milestone/release: prove the whole suite green (no dispatch, no cost)
+```bash
+bash tests/eval/run.sh --only '^__none__$'    # every self-test, zero dispatches, zero cost
 ```
 
-**`--no-cache` forces a full fresh run** — every fixture dispatches, nothing is reused. The final line
-reports `cache-hit(s)` vs `fresh run(s)`.
+- **matcher-under-pipefail** — four counted assertions, judged through the shipped `assert_all` and
+  `assert_contains` twenty times each against a 250 KB body, plus the structural check above. The
+  defect is a race, so a check that ran once would have passed on the broken code about half the time.
+- **assertion-convention** — every shared token proven **both** ways against synthetic transcripts: it
+  must match the correct wording and still miss the wrong behaviour. A token that matches both is
+  vacuous and fails here.
+- **transcript-cache** — hash-match → cache-hit; hash-change → run fresh; `--no-cache` → all fresh.
+- **isolation** — the live-checkout guard, the per-worker tree disposal guard, and the per-job clean
+  start, each proven **non-vacuous** against an injected leak.
+- **no-run detection** — an `API Error:` or empty body is not judgeable and fails loudly. Seven
+  fixtures once never ran and three wrote PASS; that is what this exists to prevent.
 
-### The milestone/release bar: `--verify-suite`
+## Where a run's results live
 
-The bar is **every job in the suite green, measured under one ruler** — and the proof of it is a
-**counted artifact**, not an operator's recollection. `--verify-suite` is that proof. It dispatches
-nothing and costs nothing: it runs the collect pass to learn from the assertion **call sites** exactly
-what the suite is (every job, its kind, its assertion count — derived, never hardcoded), then checks the
-**coverage ledger** against it.
+- `tests/eval/.transcripts/` — the full model transcript per job, cleared on every run (gitignored).
+- `tests/eval/.archive/<run-id>/` — kept, never wiped, with an `IDENTITY.tsv` recording the runner
+  fingerprint, plugin-tree fingerprint, model and CLI version that produced it.
+- `tests/eval/.cache/` — one cached green transcript per fixture, keyed on the hash of the skill files
+  that fixture reads. Wiped whenever `run.sh` itself changes (fail-safe: a coarse key can only err
+  toward running fresh).
 
-It is what lets a milestone run be **split into batches**. A ~$70 suite is often run a skill-group at a
-time, and the batches genuinely do compose: the cache stores a **transcript**, never a verdict, so every
-assertion is re-judged from text on every run, and no assertion in this suite reads across two
-transcripts. What a set of batches was missing was never the arithmetic — it was that nothing could
-re-check the sum. `--verify-suite` re-checks it, and refuses on any of:
+## Transcript cache
 
-| Defect | Why it matters |
-|---|---|
-| a registered job has **no row** | a job nobody ran cannot hide inside a green total |
-| a row is **not green** | a recorded red is a red |
-| the row's **skills-hash ≠ what the files hash now** | that green is **stale** — re-run it |
-| a row's **plugin-tree fingerprint** differs | `scripts/*.py` or `plugin.json` changed between batches: a different ruler |
-| a row's **model** or **CLI version** differs | the same, for the two inputs no file hash covers |
-| a row was proven against **fewer assertions** than the suite now holds | the bar moved after that green |
-| the run that **owns** a row failed, or never ran, its **self-tests** | a green measured by an unsound harness is not a green |
+The cache stores a **transcript**, never a verdict, so an edited assertion does not invalidate it —
+the transcript is re-judged from scratch on every reuse. Fixing a token in a passing fixture is
+therefore free. It is fail-safe to run: an unhashable fixture, a `--no-cache` run, or any doubt runs
+fresh. A fixture only mints a cache entry if it passed **all** of its own assertions and every
+dispatch-free self-test passed too.
 
-Every one of those seven refusals is proven **non-vacuous** by a self-test against a synthetic ledger
-carrying that exact defect — the suite will not ship a bookkeeping gate on the strength of an assurance
-that it works.
+## History
 
-Two things it deliberately does **not** require. It does not require one single invocation, because
-that was never what made a measurement trustworthy. And it does not require an all-fresh run: a
-cache-hit reuses a transcript whose skills-hash still matches, and the ledger asserts that match
-independently, so a reused transcript and a fresh one are the same measurement. What it *does* require —
-and what a bare full pass never checked — is that the runner, plugin tree, model and CLI behind **every**
-green were identical.
-
-The ledger lives in the git-ignored cache (`coverage.<runner-fp>.tsv`, `runs.<runner-fp>.tsv`), keyed by
-runner fingerprint, so editing `run.sh` cannot carry rows forward — the same fail-safe the transcript
-cache has. It is a local proof of local measurements: delete the cache and the batches must be re-run.
-CI passes no arguments and therefore always runs the whole suite in one go. The cache lives outside the committed tree (`tests/eval/.cache/`, git-ignored) and is
-never committed. A runner **self-test** (no `claude -p`) asserts the three guarantees each run: hash-match
-→ skip, hash-change → run, `--no-cache` → all run.
-
-The hit/fresh tallies live in **ledger files**, not shell variables: every fixture is invoked as
-`t="$(run_fixture …)"` — a command substitution, i.e. a subshell — so a `VAR=$((VAR+1))` inside
-`run_fixture` is discarded when that subshell exits. That once lost both the printed counters *and* the
-fresh-fixture list the end-of-run cache **write** iterates, so nothing was ever cached (v1.7.5 Fix 4).
-Any new per-fixture tally must use the same ledger pattern.
-
-## Dispatch-less self-tests (free coverage)
-
-These checks run each suite with **no `claude -p` dispatch**, so they cost nothing and are
-deterministic:
-
-- **transcript-cache self-test** — hash-match → skip, hash-change → run, `--no-cache` → all run.
-- **assertion-convention self-test** — every widened `RE_*` token is judged against two synthetic
-  transcripts: it must **match** the correct wording that used to fail it and still **miss** the wrong
-  behaviour. A token that matches the wrong transcript fails as `VACUOUS`; one that misses the correct
-  transcript fails as still brittle. This is what makes "widen over wording, never over outcome"
-  checkable instead of a promise.
-- **per-worker-isolation guard** — every worker clone the parallel dispatcher created was disposed and
-  is gone from disk, proven non-vacuous against a synthetic undisposed tree.
-- **job-isolation guard** (3 counted assertions) — every job started from its tree's provisioned
-  baseline, with no branch, work doc or lessons file left by an earlier job. The per-tree guard is
-  proven non-vacuous against a throwaway dirtied repo and the ledger guard against a synthetic residue
-  row, *before* the run's own ledger is judged — so a green here can never mean "the guard never looked".
-- **option-shaped-regex guard** — an assertion regex beginning with `-` must be judged, not swallowed by
-  grep as an option: the self-test asserts a present flag matches and an absent one does not, in both
-  directions, so the `--` fix cannot silently regress into a false green (see convention rule 9).
-- **validator jargon-guard self-test** — injects each banned phrase (`v1 — …`, `enough to run and
-  learn`, `n=1`, `v1-learning`) into a shipped operational file **inside the sandbox clone** and asserts
-  `scripts/validate.py` **FAILS**, then that removal restores green. This is the teeth of the v1.7.5
-  false-green fix: a validator that passes while its own claim is false is the worst defect class mango
-  can ship, so this guard is proven by **injection**, never by assertion.
-- **validator no-rationale-guard self-test** — injects a rationale marker (an `(Observed failure: …)` /
-  `(Field-observed: …)` war-story, an `exists because` justification, a `Historically …` note) into a
-  runtime `SKILL.md` and asserts `validate.py` **FAILS**; also asserts that a `SKILL.md` referencing
-  `RATIONALE.md` fails, so the "why" can never be pulled back onto the runtime path. Teeth for the
-  v1.7.6 *skills are directive-only* rule — same injection discipline as the jargon guard.
-
-- **harness script suite** (`tests/envelope/test_envelope.py`, 128 stdlib-only tests) — every script
-  under `plugins/mango/scripts/` carries its own tests, and `run.sh` invokes them so a suite nobody runs
-  cannot rot. Three families: the **envelope** scripts `autorun` runs (`RUN CONTRACT`, `RECONCILE`,
-  `BUDGET`) — contract grammar and two-phase binding, the handover slot, a t0 condition reporting
-  `HOLDING` being struck, the tree/head floor conditions against real throwaway git repos (squash-clean,
-  correction after merge, an unpushed commit, no `origin` remote), merge-strategy detection on a repo
-  that switched strategy mid-history, budget arithmetic and its `unknown`, and — since 1.14.0 — that the
-  **forced-case control is retired**: a contract carrying `force-broken` / `force-holding` is rejected
-  with a named reason and `reconcile.py --prove` is refused rather than silently ignored; the
-  **counted-line checker** (`check_lines.py`, 1.13.0, teeth `T1–T9` / `G1–G3`); and **1.14.0's
-  provenance work** — fixture provenance, evidence provenance, and the size margin. Each git test builds
-  and destroys its own repo under `tempfile`; the live checkout is never touched. The **judgement** half
-  — which cut to take, whether a gate closes, what reaches DISCLOSURE — stays in the `autorun-*`
-  fixtures, because only a model run can demonstrate it.
-
-Prefer this shape for anything a deterministic check can prove — reserve `claude -p` fixtures for
-behaviour only a model run can demonstrate. A change that is a **pure deletion of non-behavioural
-text** — no directive reworded — is proven by `validate.py` plus a marker audit of the deleted
-segments; it needs no fresh fixture run, because the existing fixtures are already the regression net
-for every gate it left untouched.
-
-Keep fixtures **generic** (`PROJ-*` keys; no real project, ticket, library, framework, formatter, or
-brand). The suite's coverage is catalogued in the header comment of `run.sh`.
+`history/` holds the record of the 126-job behavioural suite retired in v1.16.0 — its status and
+archive registers, the 24 harness defects it surfaced, and the one stored full run. It is kept because
+deleting it invites someone to rebuild the same thing in a year. The short version: over its whole
+life it produced 30 reds, **zero** of them mango behaving wrongly, and it never caught a cross-skill
+regression.

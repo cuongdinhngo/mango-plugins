@@ -22,8 +22,9 @@ failure inside a fresh worktree is an **env-fault** (missing untracked files) **
 artifact only; it never suppresses a real finding — a *partial, targeted* failure inside the change's
 blast radius still counts, and once env parity holds the same result is reportable.
 
-This is the **same root cause** the v1.6.1 eval-isolation invariant fixed for the eval path (a process
-running stateful git in a shared cwd) — **one principle, two surfaces** (review and eval). Enforced at
-`review` and the `reviewer` / `challenger` briefs; guarded by `scripts/validate.py` (the review
-git-isolation + env-parity tokens) and, on the eval surface, the `assert_checkout_clean` guard in
-`tests/eval/run.sh`.
+This is the **same root cause** wherever it appears: a process running stateful git in a shared working
+directory. It holds for any harness that drives this repo's own skills as well as for review — **one
+principle, every surface**. Enforced at `review` and the `reviewer` / `challenger` briefs; guarded by
+`scripts/validate.py` (the review git-isolation + env-parity tokens). Any harness that executes a
+skill end-to-end must do so in a throwaway clone and assert afterwards that the live checkout is
+untouched.
