@@ -93,6 +93,14 @@ principle should not cite a test harness the user does not install; it now state
 any harness that executes a skill end-to-end runs it in a throwaway clone and asserts the live
 checkout is untouched afterwards.
 
+**Proven, once, and stored.** All six ran on 2026-09-05: **6/6 green, 77/77 assertions, 0 failed** —
+six dispatches across six workers in 290s under `--no-cache`, so nothing was reused. That is 31
+fixture assertions plus 46 dispatch-free self-tests, the latter including the new
+matcher-under-pipefail check and the live-checkout, per-worker and per-job isolation guards, each
+proven non-vacuous. The result and its date are recorded in `tests/eval/README.md`, because this repo
+stored **one** result between v1.7.6 and v1.16.0 and that gap is why four assertions shipped having
+never run.
+
 **Note on version numbering.** `eval/cycle-3-machinery` carries 1.17.0 and 1.18.0, both eval-only
 releases that were never merged. This version is 1.16.0 off `main`; those numbers do not appear in
 this file and the branch is not carried over.

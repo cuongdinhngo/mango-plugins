@@ -90,6 +90,16 @@ bash tests/eval/run.sh --only '^__none__$'    # every self-test, zero dispatches
 - **no-run detection** — an `API Error:` or empty body is not judgeable and fails loudly. Seven
   fixtures once never ran and three wrote PASS; that is what this exists to prevent.
 
+## Last full run of the guard
+
+**2026-09-05 — 6/6 fixtures green, 77/77 assertions, 0 failed.** Six dispatches across six workers in
+290s, `--no-cache` (nothing reused, every fixture ran fresh), at commit `cf33958`, CLI 2.1.261, model
+`cli-default`. That figure is 31 fixture assertions plus 46 dispatch-free self-tests.
+
+Recorded here because the repo stored **one** result between v1.7.6 and v1.16.0, and that gap is why
+four assertions shipped having never run and a `grep` bug left four more unpassable for the whole
+programme. A result nobody stores is a result nobody has.
+
 ## Where a run's results live
 
 - `tests/eval/.transcripts/` — the full model transcript per job, cleared on every run (gitignored).

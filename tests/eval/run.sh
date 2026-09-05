@@ -219,12 +219,10 @@ skills_files() {  # <fixture-name> — the files whose contents key this fixture
   ls "$PLUGIN_SRC"/principles/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/agents/*.md 2>/dev/null
   ls "$PLUGIN_SRC"/templates/*.md 2>/dev/null
-  # v1.15.1 (D1) — a SCENARIO has no fixture file: it is registered by `run_prompt` and its prompt is
-  # self-contained. Emitting this path unconditionally made `cat` fail inside hash_files, and under
-  # `pipefail`+`errexit` that failure propagated out of the `_h="$(skills_hash "$_name")"` assignment
-  # in the row-writer and KILLED the run before a single scenario row could be written — which made
-  # --verify-suite, whose bar includes every scenario, unsatisfiable as shipped. Emit it only when it
-  # exists, and never let the guard become this function's exit status.
+  # A job with no fixture file on disk must not make `cat` fail inside hash_files: under
+  # `pipefail`+`errexit` that failure propagates out of the `_h="$(skills_hash "$_name")"` assignment
+  # in the cache mint and kills the run at its last step. Emit the path only when it exists, and never
+  # let the guard become this function's exit status.
   [ ! -f "$FIXTURES/$name.md" ] || echo "$FIXTURES/$name.md"
   return 0
 }
@@ -264,10 +262,10 @@ RUNNER_FP="$(hash_files "${BASH_SOURCE[0]}")"
 #     outside skills_files() by construction;
 #   * the MODEL behind `claude -p`;
 #   * the `claude` CLI itself.
-# All three are recorded on every coverage row and asserted UNIFORM by --verify-suite. Docs that
-# are never read at runtime (RATIONALE.md, CHANGELOG.md, README.md, config/harness.example.json)
-# are excluded on the same "read at runtime" criterion skills_files() uses — RATIONALE.md's
-# exclusion from the cache key would otherwise be undone here.
+# All three are stamped into each archived run's IDENTITY.tsv, so a transcript can always be traced
+# to the ruler that produced it. Docs that are never read at runtime (RATIONALE.md, CHANGELOG.md,
+# README.md, config/harness.example.json) are excluded on the same "read at runtime" criterion
+# skills_files() uses — RATIONALE.md's exclusion from the cache key would otherwise be undone here.
 plugin_tree_fp() {
   ( cd "$PLUGIN_SRC" 2>/dev/null &&
       find .claude-plugin scripts -type f \( -name '*.py' -o -name '*.json' \) -print0 2>/dev/null |
