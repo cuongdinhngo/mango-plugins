@@ -342,9 +342,11 @@ Minimal rule set so the mango skills execute end-to-end during the eval.
   application halts on a premise the eval sandbox can never satisfy — it ships no application source.)
 RULES
 )"
-# The sandbox harness, parameterized on test_command. Default is `true` (a green baseline). One
-# fixture (red-baseline) points it at a committed pre-existing failing check so the baseline is
-# GENUINELY red — so the harness JSON stays in one place and only the one field that must vary does.
+# The sandbox harness, parameterized on test_command. Default is `true` (a green baseline). A fixture
+# may point it at the committed pre-existing failing check below so the baseline is GENUINELY red —
+# so the harness JSON stays in one place and only the one field that must vary does. None of the six
+# does so today; the parameterisation is kept because it is what makes the per-JOB write safe, and it
+# is proven by the harness-parameterisation self-test rather than by a fixture.
 # Written PER WORKER, PER JOB (see dispatch_one): each worker writes it into its OWN clone right
 # before each dispatch, so a fixture that repoints test_command can never flip `.harness.json` under
 # another dispatch that is still in flight. That was hazard (2) of parallelising this runner.
@@ -373,12 +375,12 @@ HARNESS
 
 # write_harness <test_command> — the SUITE-FACING form, called from `suite()`. It records the
 # test_command that every job registered AFTER it carries; the job's worker writes it into that
-# worker's own clone at dispatch time. So `red-baseline` gets a genuinely red command without any
-# shared mid-run mutation, and no "restore the default afterwards" ordering dependency survives.
+# worker's own clone at dispatch time. So a fixture needing a red command gets one without any shared
+# mid-run mutation, and no "restore the default afterwards" ordering dependency survives.
 JOB_TEST_COMMAND="true"
 write_harness() { JOB_TEST_COMMAND="$1"; }
 
-# A committed pre-existing failing check, so the red-baseline fixture has a GENUINELY red
+# A committed pre-existing failing check, so a fixture can be given a GENUINELY red
 # config.test_command to detect on a clean checkout (not a red baseline narrated in the ticket). The
 # failing item names (pdf_snapshot_spec / snapshot drift / sub-pixel / "1 failed") appear ONLY here,
 # never in the ticket text — so their presence in a transcript proves the model MEASURED the baseline
@@ -397,7 +399,7 @@ VERIFY
 )"
 
 # provision_sandbox <dir> — build one COMPLETE, INDEPENDENT throwaway project: a local clone of the
-# repo, the throwaway rule book, the green-default harness, and the committed red-baseline check.
+# repo, the throwaway rule book, the green-default harness, and the committed failing baseline check.
 # Called once for the template $SANDBOX (which the dispatch-free validator self-tests run inside) and
 # once PER WORKER. `git clone --local --no-hardlinks` is cheap, which is what makes per-worker
 # isolation affordable: it removes hazard (1) of parallelising this runner — fixtures whose `execute`
@@ -440,7 +442,7 @@ reset_sandbox() {  # <dir>
   done
   git -C "$dir" clean -qfdx >/dev/null 2>&1 || true
   # The rule book and the tickets dir are UNTRACKED scaffolding, so `clean` takes them: re-lay them
-  # exactly as provision_sandbox did. The red-baseline check is committed, so `reset --hard` has it.
+  # exactly as provision_sandbox did. The baseline check is committed, so `reset --hard` has it.
   mkdir -p "$dir/docs/tickets"
   printf '%s\n' "$EVAL_RULES_BODY" >"$dir/docs/EVAL_RULES.md"
 }
@@ -637,7 +639,7 @@ assert_worker_trees_disposed() {  # <ledger-file>
 
 # judged_body <transcript-file> — the transcript AS JUDGED. The harness writes its OWN provenance
 # header into the file (`== fixture: <name> ==`), and that header carries the fixture NAME: for a
-# fixture called `budget-rtk-wire-guidance`, an assertion looking for /wire/ or /budget/ matched the
+# a fixture whose NAME contains a word an assertion looks for, that assertion matched the
 # HARNESS's text, not the model's, and passed no matter what the model said. Every regex is judged
 # against the body with those header lines removed, so an assertion can only ever pass on output the
 # model actually produced. (v1.15.0 — one fully-unfalsifiable assertion and ~54 partial ones had this
@@ -1003,9 +1005,9 @@ CACHE_ENABLED="$_saved_cache_enabled"
 
 # --- harness-parameterisation self-test (v1.8.0) ------------------------------
 # The per-JOB harness write is what makes concurrency safe, so it must actually write the command it
-# is handed. A stray `$1` in `write_harness_at` once wrote the repo PATH into `test_command`: the
-# `red-baseline` fixture's premise (a genuinely red command) was broken while its assertions still
-# passed, because the model found the committed check by itself. Two counted assertions, no dispatch.
+# is handed. A stray `$1` in `write_harness_at` once wrote the repo PATH into `test_command`, which
+# broke a fixture's premise (a genuinely red command) while its assertions still passed, because the
+# model found the committed check by itself. Two counted assertions, no dispatch.
 banner "== harness parameterisation self-test =="
 _hp="$TMPROOT/harness-selftest"; mkdir -p "$_hp"
 write_harness_at "$_hp" "true"
@@ -1019,7 +1021,7 @@ fi
 write_harness_at "$_hp" "sh tests/baseline/verify.sh"
 total=$((total + 1))
 if grep -q '"test_command": "sh tests/baseline/verify.sh"' "$_hp/.harness.json"; then
-  echo "  PASS: harness-parameterisation: a per-job override (red-baseline's command) lands in test_command"
+  echo "  PASS: harness-parameterisation: a per-job override (the failing baseline command) lands in test_command"
 else
   echo "  FAIL: harness-parameterisation: a per-job override did not land — $(grep '"test_command"' "$_hp/.harness.json")"
   fails=$((fails + 1))

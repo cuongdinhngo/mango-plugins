@@ -794,8 +794,8 @@ def validate_rationale_doc():
 def validate_eval_parallel():
     """v1.8.0 A1 — the eval dispatches CONCURRENTLY, and every worker runs in its OWN throwaway clone.
     Two hazards make per-worker isolation load-bearing rather than tidy: fixtures whose `execute`
-    branches and commits would race inside one shared clone, and `red-baseline` repoints
-    `config.test_command`, which under concurrency would flip `.harness.json` under another in-flight
+    branches and commits would race inside one shared clone, and a fixture that repoints
+    `config.test_command` would, under concurrency, flip `.harness.json` under another in-flight
     dispatch. So run.sh must keep: a --workers knob (with a sequential mode for debugging), a
     per-worker provisioning step, a per-JOB harness write, the two-pass collect/assert structure that
     keeps a prompt beside its assertions, and the worker-tree disposal guard proven non-vacuous."""
@@ -833,7 +833,7 @@ def validate_eval_parallel():
     check(re.search(r"harness parameterisation self-test", body, re.IGNORECASE) is not None,
           "eval-parallel: run.sh must self-test that the per-job harness write actually carries the "
           "command it is given (a stray positional once wrote the repo PATH into test_command, "
-          "silently breaking the red-baseline fixture's premise while its assertions still passed)")
+          "silently breaking a fixture's premise while its assertions still passed)")
 
 
 def validate_assertion_convention():
