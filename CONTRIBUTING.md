@@ -69,7 +69,7 @@ bash tests/eval/run.sh
 
 **Commit before you run it.** The fixtures execute against a `git clone` of this repo, i.e. **HEAD** —
 an uncommitted skill edit is not in the sandbox, so a fixture for it fails against the old shipped text.
-Commit locally first (pushing stays a separate, approved step), then run the suite and amend if needed.
+Commit locally first (pushing stays a separate, approved step), then run the guard and amend if needed.
 
 It works with **either** an exported `ANTHROPIC_API_KEY` **or** an OAuth/subscription login
 (`claude /login`) — the guard verifies the *capability* to run `claude -p`, not a specific credential.
@@ -82,8 +82,8 @@ Assertions match at the **decision level** and are **emphasis-agnostic** (tolera
 phrasing variants around the load-bearing token), so a green result reflects stability across
 independent fresh runs, not a regex tuned to one transcript.
 
-**It dispatches in parallel.** `--workers N` (default a safe value; `--workers 8` is the milestone
-setting, `--workers 1` the sequential debugging mode) runs the fixtures concurrently, each worker in
+**It dispatches in parallel.** `--workers N` (default a safe value; `--workers 1` is the sequential
+debugging mode) runs the fixtures concurrently, each worker in
 **its own throwaway clone** with **its own per-job `.harness.json`** — so a fixture that branches and
 commits, or one that repoints `test_command`, cannot affect another in flight. A worker also **resets
 its clone to the provisioned baseline before every job**, because one worker runs many jobs in one tree
@@ -92,22 +92,22 @@ an intermittent red that looks behavioural and is not. Each job's clean start is
 Assertions are still judged in script order, so the output reads like a sequential run. See
 [`tests/eval/README.md`](./tests/eval/README.md) for the two-pass structure and the isolation guards.
 
-**Verify-incremental (build discipline).** The suite is expensive, so while building a fix run only the
-**affected fixture(s)** — `bash tests/eval/run.sh --only <regex>`, which reports the run as `PARTIAL`.
-Coverage is unchanged — only redundant mid-build re-runs are removed.
+**When to run it.** On an edit under `skills/`, `agents/`, `principles/` or `templates/` — not on a
+version bump. Select the fixtures mapped to the skill you edited, with an **anchored** regex:
 
-The Finish bar is **every job in the suite green under one ruler, proven by
-`bash tests/eval/run.sh --verify-suite`**, and each **new fixture 3× fresh** at the decision level. A
-`--only` batch now **records** what it proved (one coverage row per job, carrying the runner fingerprint,
-plugin-tree fingerprint, model and CLI version it was measured under) and **mints that fixture's cache
-entry** on its own green, so a suite run a batch at a time is paid for once rather than twice.
-`--verify-suite` dispatches nothing and costs nothing; it refuses if any job has no row, any row is not
-green, any green has gone stale against the current hashes, any two rows disagree on the ruler, or the
-run that produced a row had a failing self-test. See
-[`tests/eval/README.md`](./tests/eval/README.md#the-milestonerelease-bar---verify-suite) for the full
-list and the non-vacuity proofs behind it. A **full suite once** at the end still satisfies the bar in a
-single invocation — a full pass now clears the same coverage gate before it prints its result — it is
-simply no longer the only way to reach it.
+```bash
+bash tests/eval/run.sh --only '^(refine-want-unattended-stops)$'   # 1 dispatch, well under $1.50
+bash tests/eval/run.sh                                            # all six, ~6 dispatches, ~$3
+```
+
+**Anchor the selector.** An unanchored `--only` once matched a scenario inside a fixture name and
+reported success on a job nobody meant to run.
+
+**There is no whole-suite bar, because there is no suite.** The guard reports that the selected
+fixtures passed just now. It does not detect cross-skill regressions and it does not cover `RETIRE:`.
+Do not describe a green guard as "the eval is green". A **new** assertion still has to hold at the
+decision level across **3× fresh** runs before it counts, and is widened over wording or emphasis but
+**never over outcome** — that convention did not change with the retirement.
 
 The eval also runs a post-run **safety guard**: because every fixture executes inside a throwaway clone,
 the guard asserts the **live checkout** is untouched afterwards (HEAD on `main`, no stray `PROJ-*` branch,
@@ -133,14 +133,17 @@ ones that silently go stale — check them by hand:
 3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
    enforced, and it is the *only* place the version appears in that README, so nothing else
    contradicts it when it drifts. It has silently sat two versions behind before.
-4. **Root `README.md` → *Maturity*** — the "Field-proven on…" claims. Also not enforced, and they
-   carry no version, so they never *look* stale. Re-read them for claims that have aged: usage,
-   stacks, eval coverage, API stability.
+4. **Root `README.md` → *Maturity*** — the "Field-proven on…" claims. Partly enforced since 1.16.0:
+   `validate_readme_eval_claim` checks the guard's fixture count against `tests/eval/fixtures/` and
+   that the README says plainly that mango has no behavioural regression suite. The rest carries no
+   version, so it never *looks* stale. Re-read it for claims that have aged: usage, stacks, API
+   stability.
 
-Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, eval coverage ↔
+Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, guard coverage ↔
 `tests/eval/`). Maturity labels (**Stable** / **Experimental**) live only in
-`plugins/mango/PRINCIPLES.md` → *Maturity* — the README no longer repeats them, so that section is the
-single source and must stay current. A README that over- **or** under-claims is the same defect class
+`plugins/mango/principles/maturity.md` (relocated there in 1.10.0; the pointer here said
+`PRINCIPLES.md` until 1.16.0) — the README no longer repeats them, so that file is the single source
+and must stay current. `validate_maturity_labels` enforces it across the whole PRINCIPLES surface. A README that over- **or** under-claims is the same defect class
 mango exists to prevent — a claim that does not match reality.
 
 **Retro convention — read the CHANGELOG, not a prior retro.** An independent field retro reads

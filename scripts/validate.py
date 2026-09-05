@@ -406,44 +406,6 @@ def validate_eval_isolation():
           "eval-isolation: run.sh must self-test the guard against an injected leak (non-vacuous)")
 
 
-def validate_verify_incremental():
-    """The verify-incremental build discipline (v1.6.1 Fix 3) must be documented where an eval author
-    will see it: run only the AFFECTED fixture(s) mid-build, the FULL SUITE ONCE at the end, and keep
-    each new fixture 3x fresh. Guards that the cost-saving discipline cannot silently vanish, and that
-    it never weakens the Finish bar (coverage unchanged).
-
-    v1.15.0 ADDS three checks and drops none of the three above, because the bar became more specific
-    rather than looser. A ~$70 suite gets run in batches, and a set of green batches is only a green
-    suite if the sum is a COUNTED ARTIFACT: every job accounted for, no green gone stale, and every
-    green measured under the SAME ruler (runner fingerprint + plugin-tree fingerprint + model + CLI
-    version). `--verify-suite` is that check, and the docs must name it, state that the bar is EVERY
-    job rather than a subset, and state the ruler/staleness requirement — so the standard cannot drift
-    back to "someone ran it all at some point"."""
-    for rel in ("tests/eval/README.md", "CONTRIBUTING.md"):
-        path = ROOT / rel
-        if not check(path.exists(), f"verify-incremental: {rel} is missing"):
-            continue
-        try:
-            body = path.read_text(encoding="utf-8")
-        except OSError as exc:
-            check(False, f"verify-incremental: cannot read {rel} ({exc})")
-            continue
-        check(re.search(r"affected fixture", body, re.IGNORECASE) is not None,
-              f"verify-incremental: {rel} must state affected-fixture-only during a build")
-        check(re.search(r"full suite once", body, re.IGNORECASE) is not None,
-              f"verify-incremental: {rel} must state the full suite runs once at the end before push")
-        check(re.search(r"3.{0,3}fresh|three .{0,12}fresh", body, re.IGNORECASE) is not None,
-              f"verify-incremental: {rel} must state each new fixture stays 3x fresh (coverage unchanged)")
-        check(re.search(r"--verify-suite", body) is not None,
-              f"verify-incremental: {rel} must name --verify-suite as the check that proves the bar")
-        check(re.search(r"every job (in the suite )?green", body, re.IGNORECASE) is not None,
-              f"verify-incremental: {rel} must state the bar is EVERY job in the suite green, not a subset")
-        check(re.search(r"(one|same|uniform) ruler", body, re.IGNORECASE) is not None
-              and re.search(r"stale", body, re.IGNORECASE) is not None,
-              f"verify-incremental: {rel} must state every green is measured under the SAME ruler "
-              f"and that a stale green is refused")
-
-
 def validate_changelog_shipped():
     """The CHANGELOG must ship INSIDE the plugin dir (the retro convention's neutral source) and carry an
     entry matching plugin.json's version. Guards Fix D (v1.7.3) — the retro convention may not point at a
@@ -832,8 +794,8 @@ def validate_rationale_doc():
 def validate_eval_parallel():
     """v1.8.0 A1 — the eval dispatches CONCURRENTLY, and every worker runs in its OWN throwaway clone.
     Two hazards make per-worker isolation load-bearing rather than tidy: fixtures whose `execute`
-    branches and commits would race inside one shared clone, and `red-baseline` repoints
-    `config.test_command`, which under concurrency would flip `.harness.json` under another in-flight
+    branches and commits would race inside one shared clone, and a fixture that repoints
+    `config.test_command` would, under concurrency, flip `.harness.json` under another in-flight
     dispatch. So run.sh must keep: a --workers knob (with a sequential mode for debugging), a
     per-worker provisioning step, a per-JOB harness write, the two-pass collect/assert structure that
     keeps a prompt beside its assertions, and the worker-tree disposal guard proven non-vacuous."""
@@ -866,14 +828,12 @@ def validate_eval_parallel():
     check(re.search(r"NO TRANSCRIPT", body) is not None,
           "eval-parallel: run.sh must FAIL an assertion whose dispatch was never registered (never "
           "let a missing transcript read as coverage)")
-    check(re.search(r"PARTIAL RUN", body) is not None,
-          "eval-parallel: run.sh must report an --only run as PARTIAL (never a milestone run)")
     check(re.search(r"cache-hit", body, re.IGNORECASE) is not None,
           "eval-parallel: run.sh must preserve the transcript-cache path through the parallel dispatcher")
     check(re.search(r"harness parameterisation self-test", body, re.IGNORECASE) is not None,
           "eval-parallel: run.sh must self-test that the per-job harness write actually carries the "
           "command it is given (a stray positional once wrote the repo PATH into test_command, "
-          "silently breaking the red-baseline fixture's premise while its assertions still passed)")
+          "silently breaking a fixture's premise while its assertions still passed)")
 
 
 def validate_assertion_convention():
@@ -893,8 +853,10 @@ def validate_assertion_convention():
     except OSError as exc:
         check(False, f"assertion-convention: cannot read tests/eval/run.sh ({exc})")
         return
-    for token in ("RE_INVEST_LETTERS", "RE_INVEST_SMALL", "RE_NOT_SPLIT", "RE_ZERO_WANTS",
-                  "RE_LAYER_MISMATCH", "RE_BEFORE_CHILD", "RE_BEFORE_GATE", "RE_NO_BLANKET_RERUN"):
+    # Seven of the eight shared tokens belonged to fixtures retired in v1.16.0 and were removed with
+    # them — a token no assertion uses is not a convention, it is dead text. The one that still ships
+    # is asserted here, and the self-test below still proves it BOTH ways.
+    for token in ("RE_NOT_SILENT_ASSUMED",):
         check(re.search(rf"^{token}=", body, re.MULTILINE) is not None,
               f"assertion-convention: run.sh must define the shared emphasis-agnostic token {token}")
     # No assertion may re-pin a single glyph: `assert_contains … '❌'` is exactly the shape that flapped.
@@ -964,13 +926,8 @@ def validate_premise_preflight():
               f"premise-preflight: {rel} must STOP for the human on a falsified premise")
         check(re.search(r"archaeolog|hunt|reconstruct|renamed", body, re.IGNORECASE) is not None,
               f"premise-preflight: {rel} must forbid the archaeology (rename hunt / history reconstruction) it replaces")
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    check((fixtures / "premise-falsified.md").exists(),
-          "premise-preflight: tests/eval/fixtures/premise-falsified.md must exist (the firing case)")
-    check((fixtures / "premise-to-be-created.md").exists(),
-          "premise-preflight: tests/eval/fixtures/premise-to-be-created.md must exist (the negative control — "
-          "a guard that fires on a to-be-created path would block every net-new ticket)")
-
+    # The two premise fixtures went with the retired suite (v1.16.0); the shipped preflight TEXT
+    # is what is checked here now.
 
 def validate_claude_md_hoist():
     """v1.8.0 B2 — the harness basics and mango's standing constraints are otherwise re-derived every
@@ -1192,33 +1149,10 @@ def validate_learning_loop():
             check(key in example,
                   f"learning-loop: harness.example.json must ship the loop-destination key '{key}'")
 
-    # --- Fixtures: every piece has one, and both non-vacuity directions are covered.
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    required = {
-        "lesson-claim-split": "a bundled lesson splits into the right claim count",
-        "recall-symbol-type1": "type-1 recall fires on a matching symbol and NOT otherwise",
-        "recall-area-type5": "type-5 recall fires by AREA while symbol recall does not",
-        "recall-type6-expiry": "type-6 is recalled by the re-raised finding and carries its expiry",
-        "recall-retired-skipped": "a `retired:` claim is skipped by recall",
-        "recurrence-supersession": "recurrence flags a twice-seen claim; supersession replaces + retires",
-        "falsify-blocks-promotion": "a recurring-but-FALSE claim is BLOCKED from promotion",
-        "falsify-true-claim-promotes": "the non-vacuous control — a recurring-and-TRUE claim passes the gate",
-        "promotion-human-gated": "promotion PROPOSES only; no project file written without a human ratify",
-        "promotion-rulebook-wiring": "a ratified rule lands in rulebook_path, never in CLAUDE.md",
-        "loop-project-local": "every loop output path is inside the PROJECT repo; no mango file is written",
-    }
-    for name, why in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"learning-loop: tests/eval/fixtures/{name}.md must exist ({why})")
-    runsh = ROOT / "tests" / "eval" / "run.sh"
-    rs = body_of(runsh)
-    if rs is not None:
-        for name in required:
-            check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-                  f"learning-loop: tests/eval/run.sh must dispatch the {name} fixture "
-                  "(an unregistered fixture is not coverage)")
-            check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-                  f"learning-loop: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+    # The eleven behavioural fixtures that used to be asserted here went with the retired suite
+    # (v1.16.0). One survives — `lesson-claim-split`, the guard's finalise fixture — and it is
+    # asserted once, in validate_eval_guard, rather than per feature area. Everything above this
+    # line is the check that still holds: the shipped TEXT of the loop.
 
 
 def validate_host_adaptation():
@@ -1315,23 +1249,8 @@ def validate_host_adaptation():
               "host-adaptation: PRINCIPLES.md's want-decision contract must be host-neutral (question UI "
               "if present, else numbered options)")
 
-    # --- Fixtures: both directions of the context-file resolution (default held AND AGENTS-first).
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    required = {
-        "host-context-file-default": "a CLAUDE.md project still targets CLAUDE.md (the default is unchanged)",
-        "host-context-file-agents": "an AGENTS-first project targets AGENTS.md, not the importing CLAUDE.md",
-    }
-    for name, why in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"host-adaptation: tests/eval/fixtures/{name}.md must exist ({why})")
-    rs = body_of(ROOT / "tests" / "eval" / "run.sh")
-    if rs is not None:
-        for name in required:
-            check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-                  f"host-adaptation: tests/eval/run.sh must dispatch the {name} fixture "
-                  "(an unregistered fixture is not coverage)")
-            check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-                  f"host-adaptation: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
+    # The two context-file fixtures went with the retired suite (v1.16.0). Host adaptation is now
+    # checked here on the shipped text only; no fixture exercises it. Stated rather than hidden.
 
 
 def validate_output_discipline():
@@ -1783,53 +1702,6 @@ def validate_promote_skill():
           "promote: doctor's promote check must never ❌ (promotion is opt-in and off the lifecycle)")
 
 
-def validate_v1_10_fixtures():
-    """v1.10.0 — each of the five items must be shown to CATCH something, per the inject-then-catch
-    standard, and each gate must have its NEGATIVE control so it cannot become a tax. A fixture that
-    exists but is not dispatched is not coverage, so both are asserted: the file exists, `run.sh`
-    dispatches it, and `FIXTURE_SKILLS` keys it to the skill it exercises (without that key the fixture
-    hashes over every skill and never cache-hits)."""
-    required = {
-        # A1 — type-2 recall by handle, and the design-side answer gate
-        "recall-type2-handle": "type-2 recall fires by HANDLE on a change-shape match while the symbol and area claims stay silent",
-        "handle-unanswered-blocks": "a recalled handle with no trace and no `does not apply` BLOCKS Gate 2",
-        "handle-does-not-apply-closes": "the control — an explicit `does not apply because <reason>` CLOSES the handle",
-        "recall-zero-no-busywork": "the control — recall matching nothing closes with zeros and adds no work",
-        # A2 — a recurring type-2 claim must leave lessons_path; type 5 must not be swept up
-        "recurring-t2-leaves-lessons": "a type-2 claim with seen >= 2 may not resolve to `stays in lessons_path`",
-        "type5-stays-in-lessons": "the control — a recurring TYPE-5 claim legitimately stays in lessons_path",
-        # A3 — resolution without the host env var
-        "template-resolve-no-plugin-root": "the claim-record shape still resolves with ${CLAUDE_PLUGIN_ROOT} unset",
-        # B — cross-ticket promote, with both controls
-        "promote-two-lessons-one-rule": "two instances of one class yield ONE candidate citing both, nothing written",
-        "promote-single-lesson-noop": "the control — recurrence 1 proposes nothing",
-        "promote-idempotent": "a re-run on an unchanged corpus proposes nothing new",
-        # E — the on-demand split must still reach the agent, on every host
-        "ondemand-companion-read": "a relocated block is READ at its point of use and the phase behaves as before",
-        "ondemand-read-no-plugin-root": "an on-demand read resolves with ${CLAUDE_PLUGIN_ROOT} unset, and an unreachable companion never means no check",
-    }
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    runsh = ROOT / "tests" / "eval" / "run.sh"
-    if not check(runsh.exists(), "v1.10-fixtures: tests/eval/run.sh is missing"):
-        return
-    rs = runsh.read_text(encoding="utf-8")
-    for name, why in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"v1.10-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
-        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-              f"v1.10-fixtures: run.sh must dispatch the {name} fixture "
-              "(an unregistered fixture is not coverage)")
-        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-              f"v1.10-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
-    # The cache key must cover the relocated text, or a companion edit would reuse a stale GREEN.
-    check(re.search(r'ls "\$PLUGIN_SRC"/principles/\*\.md', rs) is not None,
-          "v1.10-fixtures: run.sh's skills_files must hash every principles/*.md companion — a relocated "
-          "block outside the cache key would let a companion edit reuse a stale GREEN transcript")
-    check(re.search(r'ls "\$PLUGIN_SRC"/skills/"\$s"/\*\.md', rs) is not None,
-          "v1.10-fixtures: run.sh's skills_files must hash a mapped skill's whole directory, so its "
-          "on-demand companion is inside the cache key")
-
-
 def validate_rule_first_recall():
     """v1.10.1 (A1) — a rule promoted from a lesson must become REACHABLE. `RULE SECTIONS` derived
     applicable sections from the change TYPE only, while `RECALL` keyed type-2 claims by `handle:` — two
@@ -2058,50 +1930,6 @@ def validate_refine_selfcheck_contiguous():
     check(re.search(r"type 1 by symbol, \*\*type 2 by handle\*\*, type 5 by area", r) is not None,
           "refine-selfcheck: the recall self-check must enumerate type 2 by handle alongside the other "
           "recall keys — the type the rule-first path depends on may not be the one it omits")
-
-
-def validate_v1_10_1_fixtures():
-    """v1.10.1 — each item must be shown to CATCH something (inject-then-catch), and the greenfield
-    NEGATIVE CONTROLS are not optional: every mechanism in this version must close with zeros on a freshly
-    `init`-ed project (no lessons file, a rule book of TODOs, zero claims, zero handles). A fixture that
-    exists but is not dispatched is not coverage, so all three are asserted: the file exists, `run.sh`
-    dispatches it, and `FIXTURE_SKILLS` keys it to the skill it exercises."""
-    required = {
-        # A1 — the bridge, its teeth, its closing answer, and its provisional-rule safety hinge
-        "rule-section-by-handle": "a recalled handle makes its rule-book section applicable at analysis",
-        "rule-section-handle-unanswered": "an applicable handle-matched section left unanswered is a finding",
-        "rule-section-handle-na-closes": "the control — `N/A because <reason>` CLOSES a handle-matched section",
-        "rule-section-provisional-no-block": "an unratified PROVISIONAL rule is surfaced, never gate-blocking as codified",
-        # A2 — the lite-lane bypass
-        "quick-direct-recall": "a direct /mango:quick runs the advisory recall and the rule-section coverage",
-        # A3 — retirement of a promoted claim, offered and never applied on its own
-        "claim-retired-promoted": "recall SKIPS a claim retired `promoted to <rule-ID>`; the record stays",
-        "promote-offers-retirement": "promote OFFERS retirement after a ratify and applies nothing unanswered",
-        # B — the open fixes
-        "plugin-root-newest-version": "the multi-candidate plugin-root search selects the highest version",
-        "challenger-pr-body-refused": "the challenger refuses the PR body and reports compromised independence",
-        # GREENFIELD NEGATIVE CONTROLS — any failure blocks the version
-        "greenfield-full-run": "a freshly init-ed project runs the full front half with zeros and no extra work",
-        "greenfield-quick-direct": "the lite lane's two reads cost nothing on a project with nothing to read",
-        "greenfield-promote-zeros": "promote on an empty corpus emits zeros, proposes nothing and stops",
-        "greenfield-recall-handles-none-match": "a corpus full of handles, none matching — the handle source adds zero sections",
-    }
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    runsh = ROOT / "tests" / "eval" / "run.sh"
-    if not check(runsh.exists(), "v1.10.1-fixtures: tests/eval/run.sh is missing"):
-        return
-    rs = runsh.read_text(encoding="utf-8")
-    for name, why in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"v1.10.1-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
-        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-              f"v1.10.1-fixtures: run.sh must dispatch the {name} fixture "
-              "(an unregistered fixture is not coverage)")
-        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-              f"v1.10.1-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
-    check(re.search(r"GREENFIELD NEGATIVE CONTROLS", rs) is not None,
-          "v1.10.1-fixtures: run.sh must mark the greenfield controls as such — they are what keep a new "
-          "project working, and an unlabelled control is the one a later edit deletes as redundant")
 
 
 def validate_autorun_gates():
@@ -2441,38 +2269,6 @@ def validate_exclusion_expiry():
           "fields — the template is where a doc gets its slot, and a line with no slot goes missing")
 
 
-def validate_v1_12_0_fixtures():
-    """v1.12.0 — the behavioural teeth for Part A (exclusion expiry + recurrence) and Part C (an
-    unresolved refine want-decision reaching `j`) are registered eval fixtures: the file exists, run.sh
-    dispatches it, and FIXTURE_SKILLS keys it to the skill it exercises. A fixture that exists but is
-    never dispatched is not coverage. (These are asserted dispatch-free here; the eval itself runs at
-    end of month.)"""
-    required = {
-        "exclusion-expiry-required": ("design",
-            "an exclusion with no expiry does not count as recorded; the layer-match failure blocks Gate 2 (T1)"),
-        "exclusion-expiry-checkable": ("design",
-            "a ticket-key expiry is accepted and Gate 2 closes; unverifiable prose is flagged (T2/T3)"),
-        "exclusion-recurrence-escalates": ("design",
-            "a third occurrence of a class escalates; a first occurrence is accepted with no extra step (T4/T5)"),
-        "refine-want-unattended-stops": ("refine",
-            "an unresolved refine want-decision counts toward j and autorun stops; a locked ticket "
-            "self-skips leaving j untouched (T7/T8)"),
-    }
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    runsh = ROOT / "tests" / "eval" / "run.sh"
-    if not check(runsh.exists(), "v1.12.0-fixtures: tests/eval/run.sh is missing"):
-        return
-    rs = runsh.read_text(encoding="utf-8")
-    for name, (skill, why) in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"v1.12.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
-        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-              f"v1.12.0-fixtures: run.sh must dispatch the {name} fixture (an unregistered fixture is "
-              "not coverage)")
-        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-              f"v1.12.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
-
-
 def validate_m7_withdrawal():
     """v1.11.0 (B) — the proposed 'refuse to start when the challenger is waived' directive is
     WITHDRAWN, and the withdrawal is recorded with its grounds in the non-runtime RATIONALE.md (never
@@ -2489,43 +2285,6 @@ def validate_m7_withdrawal():
           "m7: the withdrawal must name what was withdrawn (the challenger waiver refusal)")
     check(re.search(r"a directive waived twice is not a mechanism", body) is not None,
           "m7: the withdrawal must record its grounds")
-
-
-def validate_v1_11_0_fixtures():
-    """v1.11.0 — every behavioural item must be shown to CATCH something, and the greenfield control is
-    not optional: the unattended lane must close with zeros and an honest `unknown` on a project that
-    has learned nothing and merged nothing. A fixture that exists but is never dispatched is not
-    coverage, so all three are asserted: the file exists, run.sh dispatches it, and FIXTURE_SKILLS keys
-    it to the skill it exercises.
-
-    The mechanical half of the teeth table (contract grammar, the tree/head floor conditions,
-    merge-strategy detection, budget arithmetic, the forced-case positive control) is covered by the
-    dispatch-free suite at tests/envelope/, which the eval also runs — asserted here so the two halves
-    cannot drift apart."""
-    required = {
-        "autorun-clarification-stops": "j > 0 stops the run; every unaffected part still finishes",
-        "autorun-gate-grammar-mismatch": "a counted line off the shipped grammar does not close its gate",
-        "autorun-no-challenger-disclosed": "--no-challenger skips the challenger and is DISCLOSURE line one",
-        "autorun-challenger-default-on": "the default invocation runs the challenger",
-        "autorun-budget-degrades": "approaching the ceiling degrades per the ladder and completes",
-        "greenfield-autorun-clean": "the unattended lane on an empty project: zeros, `unknown`, no block",
-    }
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    runsh = ROOT / "tests" / "eval" / "run.sh"
-    if not check(runsh.exists(), "v1.11.0-fixtures: tests/eval/run.sh is missing"):
-        return
-    rs = runsh.read_text(encoding="utf-8")
-    for name, why in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"v1.11.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
-        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-              f"v1.11.0-fixtures: run.sh must dispatch the {name} fixture "
-              "(an unregistered fixture is not coverage)")
-        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-              f"v1.11.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to the skill(s) it exercises")
-    check(re.search(r"tests/envelope/test_envelope\.py", rs) is not None,
-          "v1.11.0-fixtures: run.sh must run the dispatch-free envelope suite — the mechanical half of "
-          "the teeth table lives there, and a suite nobody runs is not coverage")
 
 
 # --- counted-line grammar surface (v1.13.0) -------------------------------------------------------
@@ -2685,41 +2444,63 @@ def validate_counted_line_checker():
               f"{spec['required_at']} and a template with no slot for a line is how one goes missing")
 
 
-def validate_v1_13_0_fixtures():
-    """v1.13.0 — the behavioural teeth for the counted-line checker are registered eval fixtures: the
-    file exists, run.sh dispatches it, and FIXTURE_SKILLS keys it to the skill it exercises. A fixture
-    that exists but is never dispatched is not coverage. (Asserted dispatch-free here; the eval itself
-    runs at end of month, so treat every assertion's WORDING as unproven until it has.)"""
+# --- v1.16.0: the per-skill smoke guard ----------------------------------------------------------
+def validate_eval_guard():
+    """v1.16.0 — the behavioural eval suite is retired. What replaces it is a SIX-fixture per-skill
+    smoke guard, and this is the check that keeps it real: each of the six exists, run.sh dispatches
+    it, and FIXTURE_SKILLS keys it to the skill it exercises — without that key the per-skill trigger
+    cannot select it, which is the whole mechanism. A fixture that exists but is never dispatched is
+    not coverage; a fixture that is dispatched but not mapped cannot be triggered by a skill edit.
+
+    The guard's two limits are asserted as SHIPPED TEXT rather than left to be rediscovered: it does
+    not detect cross-skill regressions, and `RETIRE:` is uncovered (it had no assertion in the
+    retired suite's 511 either). The reasoning and the numbers are in tests/eval/history/."""
     required = {
-        "check-lines-contradiction-blocks": ("autorun",
-            "a CLAIMS line whose per-type counts do not sum to `<c>` does not close its gate, and the "
-            "script's exit status — not the agent's reading — is the verdict (CL1)"),
-        "check-lines-missing-blocks": ("design autorun",
-            "an exclusion recorded only in the matrix, with the counted line absent, does not close "
-            "Gate 2 — the measured case 4 (CL2)"),
-        "check-lines-not-checkable": ("autorun",
-            "a counted line mango ships no grammar for is the THIRD state, counted separately, "
-            "disclosed, and never a silent pass (CL3)"),
-        "check-lines-one-grammar": ("refine",
-            "one grammar per line: `<h> by handle` is a field, and the executing skill governs over a "
-            "shorter form (CL4)"),
-        "greenfield-check-lines-clean": ("autorun",
-            "THE CONTROL — a first ticket with every line at zero is clean and pays nothing: no extra "
-            "step, no warning, no block (CL5)"),
+        "refine-want-unattended-stops": ("refine autorun",
+            "Gate 0 — the worked example of a claim bound to a COUNTED LINE: an unresolved "
+            "want-decision counts toward j, autorun stops, and it is never a silent ASSUMED"),
+        "multi-clause-want": ("analysis",
+            "Gate 1 — a two-clause want-decision becomes two matrix rows and two proof rows; the "
+            "injected single-row certification is flagged"),
+        "provenance-authored-blocks": ("design",
+            "Gate 2 — an AC about a grouping heuristic proven on authored fixtures alone blocks the "
+            "gate; anchors on the EXCLUSIONS: counted line"),
+        "execute-commit-before-review": ("execute review",
+            "Gate 3-4 — commit ordering across two skills, plus the empty-diff fallback"),
+        "lesson-claim-split": ("finalise",
+            "Gate 4 — anchors on the CLAIMS: counted line, whose per-type counts carry internal "
+            "arithmetic check_lines.py verifies with no grammar judgement"),
+        "greenfield-promote-zeros": ("promote",
+            "THE NEGATIVE CONTROL — an empty corpus emits zeros, proposes nothing, writes nothing"),
     }
     fixtures = ROOT / "tests" / "eval" / "fixtures"
     runsh = ROOT / "tests" / "eval" / "run.sh"
-    if not check(runsh.exists(), "v1.13.0-fixtures: tests/eval/run.sh is missing"):
+    if not check(runsh.exists(), "eval-guard: tests/eval/run.sh is missing"):
         return
     rs = runsh.read_text(encoding="utf-8")
     for name, (skill, why) in required.items():
         check((fixtures / f"{name}.md").exists(),
-              f"v1.13.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
+              f"eval-guard: tests/eval/fixtures/{name}.md must exist ({why})")
         check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-              f"v1.13.0-fixtures: run.sh must dispatch the {name} fixture (an unregistered fixture is "
-              "not coverage)")
+              f"eval-guard: run.sh must dispatch the {name} fixture (an unregistered fixture is not "
+              "coverage)")
         check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-              f"v1.13.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
+              f"eval-guard: run.sh's FIXTURE_SKILLS map must key {name} to {skill} — without the key "
+              "the per-skill trigger cannot select it")
+    # The cache key must still cover the companion text a skill reads at run time, or a companion
+    # edit would reuse a stale GREEN transcript.
+    check(re.search(r'ls "\$PLUGIN_SRC"/principles/\*\.md', rs) is not None,
+          "eval-guard: run.sh's skills_files must hash every principles/*.md companion")
+    check(re.search(r'ls "\$PLUGIN_SRC"/skills/"\$s"/\*\.md', rs) is not None,
+          "eval-guard: run.sh's skills_files must hash a mapped skill's whole directory, so its "
+          "on-demand companion is inside the cache key")
+    # The two limits, stated in the shipped text rather than discovered later.
+    check(re.search(r"NO CROSS-SKILL REGRESSION DETECTION", rs) is not None,
+          "eval-guard: run.sh must state that the guard does NOT detect cross-skill regressions — "
+          "a guard read as a suite is the false-green this repo exists to prevent")
+    check(re.search(r"`RETIRE:` IS UNCOVERED", rs) is not None,
+          "eval-guard: run.sh must state that RETIRE: is uncovered (it had no assertion in the "
+          "retired suite's 511 either)")
 
 
 # --- v1.14.0 -------------------------------------------------------------------------------------
@@ -3128,63 +2909,25 @@ def validate_template_skill_consistency():
 
 
 def validate_readme_eval_claim():
-    """v1.14.0 (D) — the root README's eval-coverage claim carries a NUMBER, so it is enforced rather
-    than left to age. CONTRIBUTING's release checklist says every Maturity claim must map to a repo
-    source; this is the source for that one, and a claim nothing checks is how the README sat two
-    versions behind before."""
+    """v1.16.0 — the root README's eval claim carries a NUMBER, so it is enforced rather than left to
+    age. The claim it enforces changed with the retirement: mango has no behavioural regression
+    suite, it has a per-skill smoke guard of a stated number of fixtures. CONTRIBUTING's release
+    checklist says every Maturity claim must map to a repo source; this is the source for that one,
+    and a claim nothing checks is how the README sat two versions behind before."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     actual = len(list((ROOT / "tests" / "eval" / "fixtures").glob("*.md")))
-    m = re.search(r"one fixture per behaviour, (\d+) of them", readme)
+    m = re.search(r"per-skill smoke guard of (\d+) fixtures", readme)
     if not check(m is not None,
-                 "readme-claim: the root README's Maturity section must state the fixture count as a "
-                 "number — an unenforced 'a behavioural eval suite' claim cannot go stale loudly"):
+                 "readme-claim: the root README's Maturity section must state the guard's fixture "
+                 "count as a number — an unenforced claim cannot go stale loudly"):
         return
     check(int(m.group(1)) == actual,
-          f"readme-claim: the root README claims {m.group(1)} eval fixtures; tests/eval/fixtures holds "
-          f"{actual}. A README that over- or under-claims is the same defect class mango exists to "
-          f"prevent.")
-
-
-def validate_v1_14_0_fixtures():
-    """v1.14.0 — the behavioural teeth are registered eval fixtures: the file exists, run.sh dispatches
-    it, and FIXTURE_SKILLS keys it to the skill it exercises. A fixture that exists but is never
-    dispatched is not coverage. (Asserted dispatch-free here; the eval runs at end of month, so treat
-    every assertion's WORDING as unproven until it has.)"""
-    required = {
-        "provenance-authored-blocks": ("design",
-            "an AC about a grouping heuristic, proven on authored fixtures only, is a layer-match ❌ "
-            "and Gate 2 is blocked (T1); the same AC with an expiry-less exclusion is still blocked (T4)"),
-        "provenance-real-corpus-passes": ("design",
-            "the same AC proven on the real corpus passes (T2); a `real-corpus` cell naming nothing "
-            "checkable is flagged and reads as authored (T6)"),
-        "provenance-na-costs-nothing": ("design",
-            "THE ANTI-TAX CONTROL — an AC comparing two literal values is `n/a` and pays nothing (T5); "
-            "an `authored` fixture plus an exclusion with a checkable expiry is the honest escape (T3)"),
-        "greenfield-no-corpus-clean": ("design autorun",
-            "GREENFIELD — a fresh project with no corpus configured completes with the corpus reported "
-            "unconfigured and no extra step, no warning, no block (G1/G2/G3)"),
-        "evidence-stale-tree-refused": ("review execute",
-            "evidence from a container built before the last commit is refused — ticket 150 (T11/T12)"),
-        "evidence-provenance-unknown": ("review",
-            "evidence whose tree cannot be established is provenance-unknown, never a pass (T13); "
-            "evidence matching the tree passes with no extra work (T14)"),
-        "no-reviewer-challenger-runs": ("review autorun",
-            "`--no-reviewer` alone skips the reviewer and the challenger STILL RUNS; DISCLOSURE records "
-            "both seats separately (T15); neither flag passed runs both (T16)"),
-    }
-    fixtures = ROOT / "tests" / "eval" / "fixtures"
-    runsh = ROOT / "tests" / "eval" / "run.sh"
-    if not check(runsh.exists(), "v1.14.0-fixtures: tests/eval/run.sh is missing"):
-        return
-    rs = runsh.read_text(encoding="utf-8")
-    for name, (skill, why) in required.items():
-        check((fixtures / f"{name}.md").exists(),
-              f"v1.14.0-fixtures: tests/eval/fixtures/{name}.md must exist ({why})")
-        check(re.search(rf"run_fixture {re.escape(name)} ", rs) is not None,
-              f"v1.14.0-fixtures: run.sh must dispatch the {name} fixture (an unregistered fixture is "
-              "not coverage)")
-        check(re.search(rf"\[{re.escape(name)}\]=", rs) is not None,
-              f"v1.14.0-fixtures: run.sh's FIXTURE_SKILLS map must key {name} to {skill}")
+          f"readme-claim: the root README claims {m.group(1)} guard fixtures; tests/eval/fixtures "
+          f"holds {actual}. A README that over- or under-claims is the same defect class mango "
+          f"exists to prevent.")
+    check(re.search(r"no behavioural regression suite", readme, re.IGNORECASE) is not None,
+          "readme-claim: the root README must state plainly that mango has NO behavioural "
+          "regression suite — the guard answers a narrower question and must not be read as one")
 
 
 def validate_doc_consistency():
@@ -3245,7 +2988,6 @@ def main():
     validate_ledger_label()
     validate_eval_convention()
     validate_eval_isolation()
-    validate_verify_incremental()
     validate_changelog_shipped()
     validate_eval_cache()
     validate_review_git_isolation()
@@ -3272,30 +3014,25 @@ def main():
     validate_recurring_type2_destination()
     validate_finalise_claim_order()
     validate_promote_skill()
-    validate_v1_10_fixtures()
     validate_rule_first_recall()
     validate_quick_reads()
     validate_claim_retirement()
     validate_plugin_root_tiebreak()
     validate_challenger_pr_body()
     validate_refine_selfcheck_contiguous()
-    validate_v1_10_1_fixtures()
     validate_autorun_gates()
     validate_no_challenger_flag()
     validate_envelope_scripts()
     validate_m7_withdrawal()
-    validate_v1_11_0_fixtures()
     validate_exclusion_expiry()
-    validate_v1_12_0_fixtures()
     validate_counted_line_checker()
-    validate_v1_13_0_fixtures()
     validate_fixture_provenance()
     validate_evidence_provenance()
     validate_review_seat_split()
     validate_size_margin()
     validate_template_skill_consistency()
+    validate_eval_guard()
     validate_readme_eval_claim()
-    validate_v1_14_0_fixtures()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

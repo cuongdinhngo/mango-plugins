@@ -5,6 +5,106 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.16.0] — 2026-09-05
+
+**Minor: nothing inside the plugin changed — no skill, agent, principle, template, script or config.
+The behavioural eval suite is retired and replaced by a six-fixture per-skill smoke guard. Users see
+no change: the eval is not part of the installed plugin package.**
+
+**Why, counted.** Over the whole life of the 126-job suite:
+
+| | |
+|---|---|
+| Reds recorded, all time | 30 |
+| …of which **mango behaved wrongly** | **0** |
+| …assertion wording | 12 |
+| …defects in the eval harness itself | 10 |
+| …environment | 7 |
+| …fixture | 1 |
+| Cross-skill regressions ever caught | 0 |
+| Commits in the last 60 days: `tests/eval/` vs the behaviour directories | 86 vs 25 |
+| Lines shipped 1.15.0 → 1.18.0: eval vs mango | 5,706 vs 0 |
+| Harness defects the suite produced about itself | 24 findings, including 3 classes of false green |
+| Lifetime dispatches (floor) | ≈525, ≈$290, 12 rulers for 126 jobs |
+
+Every defect the suite found was a defect **in the suite**. Every defect found in mango's behaviour
+was found by probing real data, by review, or in the field. A month of work is a sunk cost and is not
+evidence.
+
+**What replaces it.** Six fixtures, run on an edit under `skills/`, `agents/`, `principles/` or
+`templates/` — not on a version bump. Selection is by `FIXTURE_SKILLS`, so only the fixtures mapped to
+the edited skill dispatch: 1–2 for a typical edit, under a minute, under $1.50; all six ≈ $3.
+
+| Fixture | Skill(s) | Gate |
+|---|---|---|
+| `refine-want-unattended-stops` | `refine`, `autorun` | Gate 0 — the worked example of a claim bound to a counted line (`REFINE:`, `0 ASSUMED`) |
+| `multi-clause-want` | `analysis` | Gate 1 — three `all` assertions, no `contains` to pass through |
+| `provenance-authored-blocks` | `design` | Gate 2 — anchors on `EXCLUSIONS:`; the gate born from four real-data defects the fixture suite could not see |
+| `execute-commit-before-review` | `execute`, `review` | Gates 3–4 — commit ordering across two skills |
+| `lesson-claim-split` | `finalise` | Gate 4 — anchors on `CLAIMS:`, whose per-type counts carry arithmetic `check_lines.py` verifies with no grammar judgement |
+| `greenfield-promote-zeros` | `promote` | negative control — `absent  rules written[ *_:=]*[1-9]` |
+
+**Two limits, stated rather than left to be discovered.** Both are written into `run.sh`, both
+READMEs and `tests/eval/README.md`, and `validate.py` fails if `run.sh` stops stating them:
+
+- **No cross-skill regression detection.** Editing `design` and breaking `finalise` is not caught.
+  Accepted because it never once happened in this repo's recorded history.
+- **`RETIRE:` remains uncovered.** It had **zero** assertions across the retired suite's 511 as well —
+  `promote` emits it at the ratify step, and the surviving `promote` fixture is the zero case, which
+  by construction never reaches a ratify. The retirement does not create this hole; it inherits it.
+
+**One thing was salvaged from the abandoned `eval/cycle-3-machinery` branch, and only one: the SIGPIPE
+fix.** Under `set -o pipefail`, `grep -q` exits at the first match, the writer takes SIGPIPE and exits
+141, and the caller reads a **present** token as **missing** — measured at 3.3% of evaluations on a
+14.5 KB transcript and 100% on 250 KB. It affected `assert_all`, which is what the six fixtures are
+mostly built from. Within one run the defect is invisible; across runs it is indistinguishable from
+the model phrasing something differently, and the standing response to that signature was to widen the
+token — so an unknown share of this programme's assertion-widening may have been paid to work around a
+shell race. Every pipeline into a short-circuiting `grep` is now a herestring, and a structural check
+fails if the piped shape reappears. The branch's other two parts (`--preflight`, and taking `version`
+out of the plugin-tree fingerprint) were **not** carried over: both exist only to serve a whole-suite
+cache campaign, and there will not be one.
+
+**`scripts/validate.py` was repaired in the same commit, with the expected count declared first.**
+It was bound to `tests/eval/` more tightly than anything else — 17 validators reading it, ~180 static
+`check()` sites, 60 fixture names hard-coded at 3 checks each. Declared before deleting: 2057 → 1869.
+Actual: **2057 → 1865**, and every check in the difference is accounted for — 3 belong to
+`lesson-claim-split`, which is kept and re-asserted once in the new `eval-guard` validator instead of
+per feature area; 2 are the `run.sh`-exists read that two validators each counted; and 1 is a check
+*added* to `readme-claim`. Nothing load-bearing left quietly. Seven validators were removed
+(`v1.10`, `v1.10.1`, `v1.11.0`, `v1.12.0`, `v1.13.0`, `v1.14.0` fixture registers, and
+`verify-incremental`, which named a `--verify-suite` that no longer exists); `eval-isolation`,
+`eval-cache`, `eval-parallel` (minus its `PARTIAL` reporting check) and `eval-convention` are kept
+because they still apply to the six.
+
+**Removed:** `--verify-suite`, the coverage ledger and its run ledger, the two-tier `MACHINERY_FP` /
+`job_fp` identity, `coverage_selftest`, `coverage-report.sh`, and 113 of the 119 fixtures. `run.sh`
+goes from 4,107 lines to 1,509. Seven of the eight shared `RE_*` assertion tokens went with their
+fixtures — a token no assertion uses is not a convention, it is dead text.
+
+**Kept, untouched:** `plugins/mango/scripts/check_lines.py`, `tests/envelope/test_envelope.py`, and
+`tests/eval/.archive/`. **Moved, not deleted:** `EVAL-STATUS.md`, `EVAL-ARCHIVE.md`,
+`EVAL-FINDINGS.md` and `EVAL-PROFILE.md` are now under `tests/eval/history/`. They record the 24
+harness defects and the reasoning for this retirement; deleting them invites someone to rebuild the
+same suite in a year.
+
+**`plugins/mango/principles/git-isolation.md` no longer names `tests/eval/run.sh`.** A shipped
+principle should not cite a test harness the user does not install; it now states the general rule —
+any harness that executes a skill end-to-end runs it in a throwaway clone and asserts the live
+checkout is untouched afterwards.
+
+**Proven, once, and stored.** All six ran on 2026-09-05: **6/6 green, 77/77 assertions, 0 failed** —
+six dispatches across six workers in 290s under `--no-cache`, so nothing was reused. That is 31
+fixture assertions plus 46 dispatch-free self-tests, the latter including the new
+matcher-under-pipefail check and the live-checkout, per-worker and per-job isolation guards, each
+proven non-vacuous. The result and its date are recorded in `tests/eval/README.md`, because this repo
+stored **one** result between v1.7.6 and v1.16.0 and that gap is why four assertions shipped having
+never run.
+
+**Note on version numbering.** `eval/cycle-3-machinery` carries 1.17.0 and 1.18.0, both eval-only
+releases that were never merged. This version is 1.16.0 off `main`; those numbers do not appear in
+this file and the branch is not carried over.
+
 ## [1.15.1] — 2026-09-03
 
 **Patch: nothing inside the plugin changed — no skill, script, template, principle or config. The
