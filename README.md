@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.16.0-blue)
+![version](https://img.shields.io/badge/version-1.16.1-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -172,9 +172,8 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 
 ## Maturity
 
-Field-proven on multiple real projects across several stacks, including a large-scale production
-codebase, with fault-injection-tested escalation paths. **Every release is gated by `validate.py` and
-the dispatch-free script suites**, both run in CI on every push.
+**Every release is gated by `validate.py` and the dispatch-free script suites**, both run in CI on
+every push.
 
 **mango has no behavioural regression suite.** It has a per-skill smoke guard of 6 fixtures, run when
 a skill is edited: it reports that those fixtures passed just now, and nothing more. Two limits are
@@ -186,18 +185,16 @@ reds over its whole life, of which **zero** were mango behaving wrongly: 12 were
 10 were defects in the eval harness itself, 7 were environment, 1 was a fixture. It never caught a
 cross-skill regression. Over the last 60 days it absorbed 86 commits against 25 to the behaviour
 directories. Every defect it did find was a defect in itself; every defect found in mango's behaviour
-was found by probing real data, by review, or in the field. The reasoning, the 24 harness defects it
-surfaced, and the numbers are kept in [`tests/eval/history/`](./tests/eval/history/) so the decision
-is auditable rather than repeated.
+was found by probing real data, by review, or in the field. The counts above are tabulated in the
+1.16.0 entry of [`plugins/mango/CHANGELOG.md`](./plugins/mango/CHANGELOG.md), and the cycle records and
+harness defects they were read off — every one with the method that found it — are kept in
+[`tests/eval/history/`](./tests/eval/history/), so the decision is auditable rather than repeated.
 
 The public skill/config API has been stable since 1.0 **with one exception, in 1.14.0**: the `RUN
 CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py --prove` are removed.
 Three field runs measured the forced-case control inert — every condition reported `FORCE-UNPROVEN` —
 so it was retired rather than left as ceremony. A contract carrying either field is rejected with a
 named reason, and `--prove` is refused rather than silently ignored.
-
-**Used by engineers beyond its author — including a maintainer of a major open-source frontend
-framework — on their own projects.**
 
 Though written for Claude Code, mango is not locked to it: it has run its full lifecycle on other
 hosts — including Cursor, driving real tasks to merged pull requests on a production codebase, with a

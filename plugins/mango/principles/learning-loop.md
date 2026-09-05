@@ -54,7 +54,7 @@ process brief; it is **not** one of mango's own `agents/*.md` briefs, which no l
 4. **Lessons never modify mango.** No lesson — however recurrent, however ratified — edits a mango
    skill, agent brief, template, or this file. A **type-3 skill-gap is a SIGNAL** recorded in the
    project's `config.skill_gap_path` for mango's maintainer; mango changes only through a normal
-   version (build + `validate.py` + the behavioural eval + retro). A lesson flowing into a skill would
+   version (build + `validate.py` + the per-skill smoke guard + retro). A lesson flowing into a skill would
    make mango carry one project's context — breaking *harness, not rules* — and would destroy
    provenance, since mango's own design could no longer be told apart from an injected check.
 5. **Everything is project-local.** Every loop output — claims, promoted rules, skill-gap signals,
@@ -71,4 +71,4 @@ in the rule book **and** `doctor` is green on the `CLAUDE.md` → rule-book poin
 
 Enforced at `finalise` (split → classify → recurrence/supersession → falsification → the per-action
 ratification gate), `refine`/`analysis` (advisory recall), and `codify` (the rule-book write stays
-`PROVISIONAL (awaiting ratification)`); guarded by `scripts/validate.py` and the behavioural eval.
+`PROVISIONAL (awaiting ratification)`); guarded by `scripts/validate.py` and the per-skill smoke guard.

@@ -5,6 +5,65 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.16.1] — 2026-09-05
+
+**Patch: metadata and documentation only. No skill, agent, principle, template, script or config
+changed — mango behaves exactly as it did in 1.16.0.** Prepares the plugin for submission to the
+Claude Code community marketplace.
+
+**`plugin.json`.** The `description` was 3,149 characters — a README section sitting in the field a
+plugin manager renders in a listing. It is now one 231-character sentence naming what mango does, that
+it stops for a human, and that it needs configuration before it runs. Nothing was lost: every topic the
+long text covered is already carried, at length, by the shipped `README.md`, so the prose was dropped
+rather than relocated. `homepage` and `repository` are added (both strings, per the manifest schema).
+`keywords`, `author`, `license` and `displayName` are unchanged.
+
+**The README no longer describes files a user does not receive.** The installed plugin is
+`plugins/mango/`; `scripts/validate.py` and `tests/eval/` live at the repository root and are not
+shipped. The *Contributing* section named both as if the reader had them and now points at
+`CONTRIBUTING.md` in the source repository instead. The *Skills are directive-only* paragraph cited the
+validator as the enforcement mechanism; it now states the rule itself — a `SKILL.md` may not reference
+`RATIONALE.md`, because that would put the why back on the path every ticket run pays for. The envelope
+section no longer claims a test suite (`tests/envelope/`) that ships with the repository and not with
+the plugin.
+
+**Onboarding cost is stated near the top of the README.** mango is not install-and-go: it needs a
+per-project `.harness.json`, `/mango:init`, and a read-back of every value `init` marked `UNVERIFIED`.
+A user who learns that after installing is a user who uninstalls.
+
+**Two unverifiable claims removed from the root README's *Maturity* block** — *"Field-proven on
+multiple real projects across several stacks, including a large-scale production codebase, with
+fault-injection-tested escalation paths"* and *"Used by engineers beyond its author — including a
+maintainer of a major open-source frontend framework."* **Both are true.** They were removed because the
+projects cannot be named, so neither maps to a repo source, and `CONTRIBUTING.md` requires every claim in
+that blockquote to map to one. A vaguer rewording would fail the same rule, so they are deleted rather
+than softened. Every sentence that remains resolves to something countable in this repository.
+
+**`principles/learning-loop.md` no longer names the behavioural eval**, retired in 1.16.0, in either of
+the two places it appeared: the maintenance path a type-3 skill-gap signal travels, and the loop's
+enforcement footnote. Both now name the per-skill smoke guard, which is what actually guards the loop —
+two of its six fixtures (`lesson-claim-split`, `greenfield-promote-zeros`) exercise it. This is a
+**description of a removed subsystem being corrected, not a behaviour change**: both references sit in
+non-directive clauses, and no directive, gate, condition, count or format is altered.
+
+**Two uncitable numbers corrected in the 1.16.0 entry above, and one in the root README.** Editing a
+past entry is recorded here rather than done silently, because this file is the neutral source a retro
+reads. (a) The table row *"Lines shipped 1.15.0 → 1.18.0: eval vs mango | 5,706 vs 0"* named a range
+this repository cannot measure — `eval/cycle-3-machinery` was never merged and carries no ref here — and
+the entry's own version note said those numbers were not cited. It now states the range that **is**
+measurable on `main`: `+2,322 / −5,897` across 119 files under `tests/eval/` against `+6 / −5` in 1 file
+across the behaviour directories, between `df45512` (1.15.0) and `c71594d` (1.16.0). (b) *"24 findings"*
+had no method written down, which `EVAL-FINDINGS.md`'s own standard rejects — *"a count with no method is
+an assertion, not a finding"* — and could not be reproduced from the directory it cited. Both the table
+row and the root README now point at the record instead of asserting a total. The README also attributes
+the retirement counts to the 1.16.0 CHANGELOG table, where they are actually tabulated, rather than to
+`tests/eval/history/`, which holds the underlying cycle records they were read off.
+
+**Known, deliberately not fixed here.** `PRINCIPLES.md` and six files under `principles/`
+(`authoring`, `descriptive-normative`, `frontend-track`, `git-isolation`, `refine`, `token-cost`) name
+`scripts/validate.py`, which a user does not receive. Each is a maintainer-facing statement about
+mango's build guard rather than a claim the reader has the file, so they are left alone.
+
 ## [1.16.0] — 2026-09-05
 
 **Minor: nothing inside the plugin changed — no skill, agent, principle, template, script or config.
@@ -23,8 +82,8 @@ no change: the eval is not part of the installed plugin package.**
 | …fixture | 1 |
 | Cross-skill regressions ever caught | 0 |
 | Commits in the last 60 days: `tests/eval/` vs the behaviour directories | 86 vs 25 |
-| Lines shipped 1.15.0 → 1.18.0: eval vs mango | 5,706 vs 0 |
-| Harness defects the suite produced about itself | 24 findings, including 3 classes of false green |
+| Lines changed 1.15.0 → 1.16.0 on `main`: `tests/eval/` vs the behaviour directories | +2,322 / −5,897 across 119 files vs +6 / −5 in 1 file |
+| Harness defects the suite produced about itself | recorded in `tests/eval/history/EVAL-FINDINGS.md`, including 3 classes of false green |
 | Lifetime dispatches (floor) | ≈525, ≈$290, 12 rulers for 126 jobs |
 
 Every defect the suite found was a defect **in the suite**. Every defect found in mango's behaviour
@@ -101,9 +160,9 @@ proven non-vacuous. The result and its date are recorded in `tests/eval/README.m
 stored **one** result between v1.7.6 and v1.16.0 and that gap is why four assertions shipped having
 never run.
 
-**Note on version numbering.** `eval/cycle-3-machinery` carries 1.17.0 and 1.18.0, both eval-only
-releases that were never merged. This version is 1.16.0 off `main`; those numbers do not appear in
-this file and the branch is not carried over.
+**Note on version numbering.** `eval/cycle-3-machinery` carried 1.17.0 and 1.18.0, both eval-only
+releases that were never merged. This version is 1.16.0 off `main`; that branch is not carried over and
+its numbers are not cited here — every count in the table above is measured on `main`.
 
 ## [1.15.1] — 2026-09-03
 
