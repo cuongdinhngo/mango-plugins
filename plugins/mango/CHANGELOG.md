@@ -31,10 +31,25 @@ the plugin.
 per-project `.harness.json`, `/mango:init`, and a read-back of every value `init` marked `UNVERIFIED`.
 A user who learns that after installing is a user who uninstalls.
 
-**Known, deliberately not fixed here.** `PRINCIPLES.md` and six files under `principles/` name
-`scripts/validate.py`, and `principles/learning-loop.md` still refers to "the behavioural eval" retired
-in 1.16.0. Every one is a shipped principle, and a principle is behaviour — editing one is not a patch.
-They are recorded here so the next minor closes them rather than rediscovering them.
+**Two unverifiable claims removed from the root README's *Maturity* block** — *"Field-proven on
+multiple real projects across several stacks, including a large-scale production codebase, with
+fault-injection-tested escalation paths"* and *"Used by engineers beyond its author — including a
+maintainer of a major open-source frontend framework."* **Both are true.** They were removed because the
+projects cannot be named, so neither maps to a repo source, and `CONTRIBUTING.md` requires every claim in
+that blockquote to map to one. A vaguer rewording would fail the same rule, so they are deleted rather
+than softened. Every sentence that remains resolves to something countable in this repository.
+
+**`principles/learning-loop.md` no longer names the behavioural eval**, retired in 1.16.0, in either of
+the two places it appeared: the maintenance path a type-3 skill-gap signal travels, and the loop's
+enforcement footnote. Both now name the per-skill smoke guard, which is what actually guards the loop —
+two of its six fixtures (`lesson-claim-split`, `greenfield-promote-zeros`) exercise it. This is a
+**description of a removed subsystem being corrected, not a behaviour change**: both references sit in
+non-directive clauses, and no directive, gate, condition, count or format is altered.
+
+**Known, deliberately not fixed here.** `PRINCIPLES.md` and six files under `principles/`
+(`authoring`, `descriptive-normative`, `frontend-track`, `git-isolation`, `refine`, `token-cost`) name
+`scripts/validate.py`, which a user does not receive. Each is a maintainer-facing statement about
+mango's build guard rather than a claim the reader has the file, so they are left alone.
 
 ## [1.16.0] — 2026-09-05
 

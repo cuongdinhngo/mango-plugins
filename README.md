@@ -172,9 +172,8 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 
 ## Maturity
 
-Field-proven on multiple real projects across several stacks, including a large-scale production
-codebase, with fault-injection-tested escalation paths. **Every release is gated by `validate.py` and
-the dispatch-free script suites**, both run in CI on every push.
+**Every release is gated by `validate.py` and the dispatch-free script suites**, both run in CI on
+every push.
 
 **mango has no behavioural regression suite.** It has a per-skill smoke guard of 6 fixtures, run when
 a skill is edited: it reports that those fixtures passed just now, and nothing more. Two limits are
@@ -195,9 +194,6 @@ CONTRACT`'s `force-broken` / `force-holding` condition fields and `reconcile.py 
 Three field runs measured the forced-case control inert — every condition reported `FORCE-UNPROVEN` —
 so it was retired rather than left as ceremony. A contract carrying either field is rejected with a
 named reason, and `--prove` is refused rather than silently ignored.
-
-**Used by engineers beyond its author — including a maintainer of a major open-source frontend
-framework — on their own projects.**
 
 Though written for Claude Code, mango is not locked to it: it has run its full lifecycle on other
 hosts — including Cursor, driving real tasks to merged pull requests on a production codebase, with a
