@@ -93,9 +93,12 @@ bash tests/eval/run.sh --only '^__none__$'    # every self-test, zero dispatches
 
 ## Last full run of the guard
 
-**2026-09-05 — 6/6 fixtures green, 77/77 assertions, 0 failed.** Six dispatches across six workers in
-290s, `--no-cache` (nothing reused, every fixture ran fresh), at commit `cf33958`, CLI 2.1.261, model
-`cli-default`. That figure is 31 fixture assertions plus 46 dispatch-free self-tests.
+**2026-10-20 — 7/7 fixtures green, 84/84 assertions, 0 failed.** Seven dispatches across eight workers
+in 92s, `--no-cache` (nothing reused, every fixture ran fresh), at commit `1073665`, CLI 2.1.304, model
+`cli-default`. That figure is 38 fixture assertions plus 46 dispatch-free self-tests.
+
+The previous full run, before `execute-implementer-dispatch` existed: **2026-09-05 — 6/6 fixtures
+green, 77/77 assertions** (31 fixture + 46 self-tests) at commit `cf33958`, CLI 2.1.261.
 
 Recorded here because the repo stored **one** result between v1.7.6 and v1.16.0, and that gap is why
 four assertions shipped having never run and a `grep` bug left four more unpassable for the whole
