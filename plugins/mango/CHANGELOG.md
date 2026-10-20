@@ -54,7 +54,18 @@ model. A pinned agent's frontmatter holds. This is the mechanism `review` alread
   - the example config declares `high_stakes_paths: []`.
 
   A negative control confirmed the new checks fail when the text they guard is broken. **No CHECK
-  removed, no gate loosened.** `quick` (the lite lane still runs on a single model), `autorun`,
+  removed, no gate loosened.**
+- **New smoke-guard fixture `execute-implementer-dispatch`** (mapped to `execute`). The guard grows
+  from six fixtures to seven. Four variants each end on a `VARIANT X:` decision line:
+  - a plain change dispatches `implementer`;
+  - a security-tagged change stays on the main loop;
+  - a `high_stakes_paths` match stays on the main loop;
+  - a worker's stuck STOP escalates to the user.
+
+  Two `absent` controls fail a dispatch on B/C and a re-dispatch or continue on D. A seventh assertion
+  checks that not dispatching is recorded in the Cost ledger. The patterns were tested both ways before
+  any dispatch: correct answers match, wrong answers fail, and an echoed prompt template matches
+  nothing. `explorer` has no behavioural fixture; only `validate.py` guards it. `quick` (the lite lane still runs on a single model), `autorun`,
   `reviewer`, `reviewer-max`, `challenger` and `extractor` are unchanged.
 
 **Not measured.** There is no token-saving figure for this change. No run has yet compared execute or

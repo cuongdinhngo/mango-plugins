@@ -2467,6 +2467,9 @@ def validate_eval_guard():
             "gate; anchors on the EXCLUSIONS: counted line"),
         "execute-commit-before-review": ("execute review",
             "Gate 3-4 — commit ordering across two skills, plus the empty-diff fallback"),
+        "execute-implementer-dispatch": ("execute",
+            "Gate 3 — v1.17.0: step 3 dispatches `implementer` on a plain change, stays on the main "
+            "loop for a security tag or a high_stakes_paths match, and escalates a worker's stuck STOP"),
         "lesson-claim-split": ("finalise",
             "Gate 4 — anchors on the CLAIMS: counted line, whose per-type counts carry internal "
             "arithmetic check_lines.py verifies with no grammar judgement"),

@@ -1,6 +1,6 @@
 # mango per-skill smoke guard
 
-**mango has no behavioural regression suite.** This directory holds a smoke guard: six fixtures, run
+**mango has no behavioural regression suite.** This directory holds a smoke guard: seven fixtures, run
 when a skill is edited, answering one question —
 
 > *Does the skill I just edited still behave?*
@@ -8,7 +8,7 @@ when a skill is edited, answering one question —
 It does **not** answer *"is mango green?"*. Nothing here should be cited as though it did.
 
 ```bash
-bash tests/eval/run.sh                                        # all six  (~6 dispatches, ~$3)
+bash tests/eval/run.sh                                        # all seven  (~7 dispatches, ~$3.50)
 bash tests/eval/run.sh --only '^(multi-clause-want)$'         # the fixtures for the skill you edited
 bash tests/eval/run.sh --workers 1                            # sequential — debugging one transcript
 bash tests/eval/run.sh --no-cache                             # full fresh run: nothing is reused
@@ -25,7 +25,7 @@ Written down here rather than left to be discovered later:
   either. `promote` emits it at the ratify step; the `promote` fixture kept below is the zero case,
   which by construction never reaches a ratify.
 
-## The six
+## The seven
 
 | Fixture | Skill(s) | What it is for |
 |---|---|---|
@@ -33,12 +33,13 @@ Written down here rather than left to be discovered later:
 | `multi-clause-want` | `analysis` | **Gate 1.** A two-clause want-decision becomes two matrix rows and two proof rows; the injected single-row certification is flagged. Three `all` assertions, no `contains` to pass through. |
 | `provenance-authored-blocks` | `design` | **Gate 2.** An AC about a grouping heuristic proven on authored fixtures alone blocks the gate; anchors on `EXCLUSIONS:`. This gate exists because of four real-data defects the retired fixture suite never saw. |
 | `execute-commit-before-review` | `execute`, `review` | **Gates 3–4.** Commit ordering across two skills, plus the empty-diff fallback. |
+| `execute-implementer-dispatch` | `execute` | **Gate 3.** Step 3 is a choice of agent: a plain change dispatches `implementer`, a security-tagged change or a `high_stakes_paths` match stays on the main loop, a worker's stuck STOP escalates to the user and is never re-dispatched, and not dispatching is recorded in the Cost ledger. Anchors on one `VARIANT X:` decision line per case, with two `absent` controls. |
 | `lesson-claim-split` | `finalise` | **Gate 4.** Anchors on `CLAIMS:`, a counted line with internal arithmetic — ticket 099's `CLAIMS:` summed to 4 while stating 3, and `check_lines.py` catches that with no grammar judgement. `finalise` emits 6 of the 20 counted grammars, more than any other skill. |
 | `greenfield-promote-zeros` | `promote` | **The negative control.** An empty corpus emits zeros, proposes nothing and writes nothing: `absent  rules written[ *_:=]*[1-9]`. |
 
 Every fixture is mapped in `FIXTURE_SKILLS` in `run.sh`. **That map is the trigger mechanism** — a
 fixture that is not mapped cannot be selected by a skill edit, and `validate.py`'s `eval-guard`
-validator fails if any of the six loses its key.
+validator fails if any of the seven loses its key.
 
 ## Anchor every `--only` selector
 
