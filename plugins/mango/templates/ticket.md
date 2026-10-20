@@ -376,7 +376,7 @@ claim that is falsified or not cheaply checkable is **BLOCKED from promotion** a
 ## Cost ledger (descriptive — facts only, never auto-cuts)
 
 A **counted artifact** recording token usage **per subagent dispatch** (reviewer, challenger,
-extractor, Explore fan-out, each review round), transcribed from each return's usage block. **One row
+extractor, implementer, explorer fan-out, each review round), transcribed from each return's usage block. **One row
 is emitted per dispatch return — a run that dispatched N subagents ends with N rows** — as a mechanical
 by-product of dispatching, not bookkeeping to remember (see `solve`). It reports **facts only**: phase,
 subagent/dispatch, round, tokens. **Descriptive, never normative** — it makes the cost visible so a

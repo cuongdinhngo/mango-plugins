@@ -1,7 +1,7 @@
 {
   "name": "mango",
   "displayName": "Mango",
-  "version": "1.16.1",
+  "version": "1.17.0",
   "description": "A gated ticket lifecycle for Claude Code — refine, analysis, design, execute, review, finalise. Every phase emits counted, gate-blocking artifacts and stops for you at each gate. Needs a per-project .harness.json (run /mango:init).",
   "author": {
     "name": "Cuong Ngo"

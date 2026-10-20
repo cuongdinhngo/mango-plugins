@@ -428,10 +428,14 @@ The `sitemap`/`db-map` outputs are **descriptive** (what the project is); `codif
 
 ## Agents
 
-All review agents are **read-only** — they produce verdicts and findings, never edits.
+All agents except `implementer` are **read-only** — they produce verdicts and findings, never edits.
+`implementer` is the one writer: it lands a Gate-2-approved change list on the branch it is given and
+returns raw evidence; it never decides.
 
 | Agent | Role | Model |
 |-------|------|-------|
+| `implementer` | Execute-phase worker: implements ONLY the approved change list + proving test, commits, returns verbatim test output (the main loop implements instead for a high-stakes change) | Sonnet |
+| `explorer` | Analysis fan-out: handler / entry point, callers, dependents, blast radius, as `path:line` (gathers; never decides scope or root cause) | Sonnet |
 | `reviewer` | Rule-book / standards verdict on the diff (BLOCK / CHANGES REQUESTED / LGTM) | Sonnet |
 | `reviewer-max` | Same role, for high-stakes diffs under `cost_tier: max` | Opus |
 | `challenger` | Ticket-blind requirement reconstruction (met / not met / can't tell, with `path:line`) | Sonnet |
@@ -464,6 +468,10 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
   `branch_strategy` (default `fix|feat|chore/<KEY>-<slug>`), `lessons_path`, `pr_host`,
   `cause_taxonomy`, `explore_fanout` (default `true`), `cost_tier` (`economy|standard|max`, default
   `standard`).
+- `high_stakes_paths` — an array of globs **your project** declares high-stakes (default `[]`). A
+  change touching a match is implemented on the main loop rather than dispatched to `implementer`, and
+  counts as high-stakes for `reviewer-max` selection. It only adds to the built-in signals (security
+  tag, auth / access control / data access / schema migration); it never removes one.
 - `token_optimizer` — the human-gated record of which optimizers mango may assume (set via
   `/mango:budget`). Ships with hard-pinned invariants: `rtk: "expect"`,
   `headroom.output_shaper: false`, `caveman.scope: "non-critic-only"`.
@@ -499,7 +507,7 @@ Run `/mango:init` to generate this file for you.
 ### Tier weight
 
 The full tier is heavier — rule-book reads, requirement re-derivation, the challenger, and (when
-`explore_fanout` is `true`) read-only Explore fan-out. For small, low-stakes, high-volume tickets use
+`explore_fanout` is `true`) read-only `explorer` fan-out. For small, low-stakes, high-volume tickets use
 the **lite** tier (`/mango:quick`), which skips fan-out and the challenger. Set `explore_fanout: false`
 to disable investigation fan-out on the full tier too.
 
@@ -513,14 +521,17 @@ only gather, never conclude.*
 |------|-------|
 | Orchestrator + gates, analysis judgment, design | Opus (the model you drive) |
 | Review verdict + challenger reconstruction | Sonnet — `reviewer-max` (Opus) for high-stakes diffs under `cost_tier: max` — **never Haiku** |
-| Implement the approved change list; draft PR body; Explore | Sonnet |
+| Implement the approved change list (`implementer`); draft PR body | Sonnet — high-stakes change → the main loop |
+| Explore: handler, callers, blast radius (`explorer`) | Sonnet |
 | Bulk read-and-extract across many files (`extractor`) | Haiku |
 | grep stray refs / run tests / lint | no model — Bash directly |
 
 `cost_tier` shifts the dials within this map: `economy` pushes more bulk retrieval to Haiku and avoids
 Opus on review; `standard` is the map above; `max` dispatches `reviewer-max` (Opus) for high-stakes
-diffs (security-tagged, or touching auth / data access / schema migration). The full routing map lives
-in [`PRINCIPLES.md`](./PRINCIPLES.md).
+diffs (security-tagged, touching auth / data access / schema migration, or touching
+`high_stakes_paths`). The two Sonnet rows are pinned by **choice of agent** (`implementer`, `explorer`),
+the same mechanism `review` uses for `reviewer` vs `reviewer-max`, so they hold even when the main loop
+runs on Opus. The full routing map lives in [`PRINCIPLES.md`](./PRINCIPLES.md).
 
 ### Token ledger — measure before you optimize
 
