@@ -21,8 +21,9 @@ barrel on with a broken approach: the two STOP conditions in **Escalations** bel
 
 **Model delegation (concrete, not advisory — see `<mango>/PRINCIPLES.md`).** Steps 3, 4 and 6
 (implement, proving test, commit) are a **choice of agent**: **dispatch the `implementer` agent**
-(Sonnet) with the approved change list, the proving test, `SCOPE`, TRACK, the branch, the repo root,
-`config.test_command`, `config.rulebook_path` and `config.stuck_threshold`. **Exception — the main loop
+(Sonnet) with the approved change list, the proving test, `SCOPE`, TRACK, the recorded `BASELINE:`,
+the branch, the repo root, `config.test_command`, `config.rulebook_path` and `config.stuck_threshold`.
+**Exception — the main loop
 implements, it does not dispatch,** when the change is high-stakes: the ticket is security-tagged,
 **or** the approved change list touches auth / access control / data access / schema-migration per
 `config.rulebook_path`, **or** it touches a path matching `config.high_stakes_paths`. **Fallback:** if

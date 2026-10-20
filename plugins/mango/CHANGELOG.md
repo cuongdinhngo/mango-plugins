@@ -18,9 +18,11 @@ model. A pinned agent's frontmatter holds. This is the mechanism `review` alread
 
 - **New agent `implementer` (Sonnet).** `execute` dispatches it for steps 3, 4 and 6 (implement, proving
   test, commit). It implements only the approved change list and applies execute's rules verbatim
-  (match style, never reformat untouched lines, format-scope, commit per logical unit, no AI co-author
+  (match style, never reformat untouched lines, format-scope, the baseline-aware Definition of Done
+  against the recorded `BASELINE:`, never re-record a golden, commit per logical unit, no AI co-author
   trailer). It STOPs and returns instead of working around any of these: an infeasible item, a design
-  invalidation, `stuck_threshold`, or a touch outside the list or on an unlisted high-stakes path. It
+  invalidation, a red golden / snapshot test (with the old→new delta), `stuck_threshold`, or a touch
+  outside the list or on an unlisted high-stakes path. It
   never edits the working doc. Its output is files, SHAs, and test commands with verbatim output. It
   never says "done" or "clean". The main loop keeps the verification sweep (both axes), the write-back
   and every escalation, and treats the implementer's output as unverified evidence.
@@ -41,11 +43,12 @@ model. A pinned agent's frontmatter holds. This is the mechanism `review` alread
 - **The Cost ledger lists `implementer` and `explorer`.** They appear in `solve`, `finalise`'s
   completeness gate, `principles/token-cost.md` and `templates/ticket.md`. The finalise gate counts
   dispatches from that list, so a missing row for either agent now counts as an incomplete ledger.
-- **`scripts/validate.py`.** `validate_delegation_agents` (about 43 checks) asserts the following:
+- **`scripts/validate.py`.** `validate_delegation_agents` (about 46 checks) asserts the following:
   - both agents exist, pin a model, and are never Haiku;
   - `explorer` denies Write and Edit;
-  - `implementer` is not a critic and carries its rules, STOPs, working-doc ban and output contract;
-  - `execute` carries the dispatch, the exception, the fallback, the escalation hand-back and the
+  - `implementer` is not a critic and carries its rules (including `BASELINE:` and the changed-golden
+    rule), STOPs, working-doc ban and output contract;
+  - `execute` carries the dispatch (with the recorded `BASELINE:`), the exception, the fallback, the escalation hand-back and the
     main-loop sweep;
   - `analysis` dispatches `explorer`, not the built-in, and is still gated by `explore_fanout`;
   - `review` ORs in `high_stakes_paths` and keeps its built-in signals;
@@ -65,8 +68,9 @@ model. A pinned agent's frontmatter holds. This is the mechanism `review` alread
   Two `absent` controls fail a dispatch on B/C and a re-dispatch or continue on D. A seventh assertion
   checks that not dispatching is recorded in the Cost ledger. The patterns were tested both ways before
   any dispatch: correct answers match, wrong answers fail, and an echoed prompt template matches
-  nothing. `explorer` has no behavioural fixture; only `validate.py` guards it. `quick` (the lite lane still runs on a single model), `autorun`,
-  `reviewer`, `reviewer-max`, `challenger` and `extractor` are unchanged.
+  nothing. `explorer` has no behavioural fixture; only `validate.py` guards it. `quick` (the lite lane
+  still runs on a single model), `autorun`, `reviewer`, `reviewer-max`, `challenger` and `extractor`
+  are unchanged. `.github/workflows/eval.yml` and the `validate_eval_guard` docstring now say seven.
 
 **Not measured.** There is no token-saving figure for this change. No run has yet compared execute or
 fan-out cost before and after. **Known effect on `autorun`:** its call-count ceiling is derived from

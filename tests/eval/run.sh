@@ -72,7 +72,7 @@
 #   execute-implementer-dispatch  execute          Gate 3. Step 3 is a choice of agent: a plain change
 #                     dispatches `implementer`; a security-tagged one or a `high_stakes_paths` match stays
 #                     on the main loop; a worker's stuck STOP escalates to the user, never a re-dispatch.
-#   lesson-claim-split           finalise         Gate 4. Anchors on the CLAIMS: line, whose per-type
+#   lesson-claim-split            finalise         Gate 4. Anchors on the CLAIMS: line, whose per-type
 #                     counts carry internal arithmetic check_lines.py can verify with no grammar
 #                     judgement. finalise emits 6 of the 20 counted grammars — more than any skill.
 #   greenfield-promote-zeros      promote          NEGATIVE CONTROL. An empty corpus emits zeros,

@@ -2446,8 +2446,8 @@ def validate_counted_line_checker():
 
 # --- v1.16.0: the per-skill smoke guard ----------------------------------------------------------
 def validate_eval_guard():
-    """v1.16.0 — the behavioural eval suite is retired. What replaces it is a SIX-fixture per-skill
-    smoke guard, and this is the check that keeps it real: each of the six exists, run.sh dispatches
+    """v1.16.0 — the behavioural eval suite is retired. What replaces it is a per-skill smoke
+    guard (six fixtures at v1.16.0, seven since v1.17.0), and this is the check that keeps it real: each exists, run.sh dispatches
     it, and FIXTURE_SKILLS keys it to the skill it exercises — without that key the per-skill trigger
     cannot select it, which is the whole mechanism. A fixture that exists but is never dispatched is
     not coverage; a fixture that is dispatched but not mapped cannot be triggered by a skill edit.
@@ -2974,12 +2974,15 @@ def validate_delegation_agents():
             (r"verbatim", "test output is pasted verbatim"),
             (r'"done", "clean"', "it never self-declares done/clean"),
             (r"high_stakes_paths", "it STOPs on an undeclared high-stakes touch"),
+            (r"BASELINE:", "the baseline-aware Definition of Done"),
+            (r"[Nn]ever re-record a golden", "the changed-golden rule (STOP, never re-record)"),
         ):
             check(re.search(pat, body) is not None, f"delegation: agents/implementer.md must carry {why}")
 
     execute, analysis, review = skill_text("execute"), skill_text("analysis"), skill_text("review")
     for pat, why in (
         (r"dispatch the `implementer` agent", "the concrete dispatch of `implementer`"),
+        (r"the recorded `BASELINE:`", "the baseline handed to `implementer`"),
         (r"config\.high_stakes_paths", "the project-declared high-stakes exception"),
         (r"security-tagged", "the security-tag high-stakes exception"),
         (r"host cannot dispatch", "the host-agnostic fallback"),
