@@ -5,6 +5,31 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.17.1] — 2026-10-20
+
+**Patch: the 1.17.0 delegation dispatch is labelled Experimental.** `principles/maturity.md` defines
+Stable as *field-tested*. Neither `implementer` nor `explorer` has run on a real ticket, so leaving them
+Stable by default over-claimed. No behaviour changes.
+
+- **`principles/maturity.md`** lists a sixth Experimental behaviour: *the delegation dispatch*. That the
+  implement and explore rows are a choice of agent is Stable, because it reuses `review`'s mechanism.
+  Experimental is the split itself: which steps `execute` hands to `implementer`, what the dispatch
+  carries, and what the `explorer` fan-out returns. The safety boundaries are not Experimental:
+  - a high-stakes change stays on the main loop;
+  - an `implementer` STOP always escalates and is never re-dispatched;
+  - the main loop keeps the verification sweep and the write-back;
+  - not dispatching is recorded in the Cost ledger.
+- **`execute` and `analysis`** carry the label beside the behaviour, as `breakdown` does for
+  re-ratification.
+- **Both READMEs** list it (*Five* → *Six* in the plugin README; a paragraph in the root *Maturity*).
+- **Plugin README, `/mango:autorun` row:** it still said every `RUN CONTRACT` condition declares a
+  `force-broken` and a `force-holding` case. Those fields were retired in 1.14.0. The row now names the
+  fields a condition does declare.
+- **`scripts/validate.py`:** new `validate_maturity_count`. In `maturity.md` and the plugin README, the
+  stated number of Experimental behaviours must equal the bullets listed, and the list must include the
+  delegation dispatch. This is the drift the "four above five bullets" fix once corrected by hand. A
+  negative control (*Six* → *Five*) fails it. **No CHECK removed.**
+
 ## [1.17.0] — 2026-10-20
 
 **Two rows of the model-delegation map were prose, so nothing enforced them. They are now a choice of
