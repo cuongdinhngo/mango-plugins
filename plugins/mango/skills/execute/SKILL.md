@@ -19,10 +19,24 @@ changes) via the verification sweep and the diff ⊆ approved-list check.
 a gate — but it implements ONLY what Gate 2 approved. Autonomy is **not** licence to thrash or to
 barrel on with a broken approach: the two STOP conditions in **Escalations** below are mandatory.
 
-**Model delegation** (see `<mango>/PRINCIPLES.md`): implementing the approved change
-list and drafting the PR body are **execute** work — Sonnet. Bulk read-and-extract may go to the
-Haiku `extractor` worker. Run the verification sweep's grep / tests / lint via the Bash tool
-directly — never spawn a model for a one-line shell command.
+**Model delegation (concrete, not advisory — see `<mango>/PRINCIPLES.md`).** Steps 3, 4 and 6
+(implement, proving test, commit) are a **choice of agent**: **dispatch the `implementer` agent**
+(Sonnet) with the approved change list, the proving test, `SCOPE`, TRACK, the recorded `BASELINE:`,
+the branch, the repo root, `config.test_command`, `config.rulebook_path` and `config.stuck_threshold`.
+**Exception — the main loop
+implements, it does not dispatch,** when the change is high-stakes: the ticket is security-tagged,
+**or** the approved change list touches auth / access control / data access / schema-migration per
+`config.rulebook_path`, **or** it touches a path matching `config.high_stakes_paths`. **Fallback:** if
+the host cannot dispatch a subagent, the main loop implements. In both cases record a Cost-ledger row
+`implementer — not dispatched (<high-stakes | host cannot dispatch>); main loop implemented` with the
+token cell `unmeasured (main-loop spend, not a dispatch)` — never silently. The main loop **always
+keeps** the judgment work: step 5 (the verification sweep on both axes, diff ⊆ approved list), the
+working-doc write-back (step 7), and every escalation. **Every STOP the `implementer` returns is an
+Escalation below** — handle it with the user exactly as if the main loop had hit it; never re-dispatch
+to work around it. Treat the `implementer`'s output as unverified evidence: confirm its commits exist and
+its pasted output matches before step 5 relies on it. Drafting the PR body is **execute** work —
+Sonnet. Bulk read-and-extract may go to the Haiku `extractor` worker. Run the verification sweep's
+grep / tests / lint via the Bash tool directly — never spawn a model for a one-line shell command.
 
 ## Steps
 

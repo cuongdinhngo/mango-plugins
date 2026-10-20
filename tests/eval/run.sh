@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Per-skill behavioural smoke guard for the mango skills.
 #
-# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: six
+# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: seven
 # fixtures, run when a skill is edited, answering one question — "does the skill I just edited still
 # behave?" It does NOT answer "is mango green?", and nothing here should be read as though it did.
 #
@@ -21,7 +21,7 @@
 # contract text), plugins/mango/scripts/check_lines.py (counted lines), tests/envelope/.
 #
 # HOW TO RUN IT. Hands-free: one command, no manual scaffolding.
-#   bash tests/eval/run.sh                       # all six  (~6 dispatches)
+#   bash tests/eval/run.sh                       # all seven  (~7 dispatches)
 #   bash tests/eval/run.sh --only '^(a|b)$'      # the fixtures mapped to the skill you edited
 #   bash tests/eval/run.sh --workers 1           # sequential — debugging one transcript
 #   bash tests/eval/run.sh --no-cache            # full fresh run: nothing is reused
@@ -35,7 +35,7 @@
 # minimal rule book) so the skills execute end-to-end without depending on the operator's setup, and
 # tears it down on exit — the live checkout is never mutated.
 #
-# This costs tokens. Six fixtures is roughly $3; a typical one- or two-fixture selection is under
+# This costs tokens. Seven fixtures is roughly $3.50; a typical one- or two-fixture selection is under
 # $1.50 and under a minute.
 #
 # --- How the runner works: PARALLEL DISPATCH over a TWO-PASS body ---------------
@@ -58,7 +58,7 @@
 # worker gets its own clone AND writes its own per-JOB harness; the worker tree is disposed after its
 # last job and the disposal is a counted assertion, alongside the live-checkout guard.
 #
-# --- The six, and what each one is for ------------------------------------------
+# --- The seven, and what each one is for ----------------------------------------
 #   refine-want-unattended-stops  refine, autorun  Gate 0. The worked example of a claim bound to a
 #                     COUNTED LINE: an unresolved want-decision counts toward `j`, autorun stops, and
 #                     it is never a silent ASSUMED — asserted against the REFINE: line's own arithmetic.
@@ -69,6 +69,9 @@
 #                     gate exists because of four real-data defects the old fixture suite never saw.
 #   execute-commit-before-review  execute, review  Gate 3-4. Commit ordering across two skills, plus
 #                     the empty-diff fallback.
+#   execute-implementer-dispatch  execute          Gate 3. Step 3 is a choice of agent: a plain change
+#                     dispatches `implementer`; a security-tagged one or a `high_stakes_paths` match stays
+#                     on the main loop; a worker's stuck STOP escalates to the user, never a re-dispatch.
 #   lesson-claim-split            finalise         Gate 4. Anchors on the CLAIMS: line, whose per-type
 #                     counts carry internal arithmetic check_lines.py can verify with no grammar
 #                     judgement. finalise emits 6 of the 20 counted grammars — more than any skill.
@@ -197,6 +200,7 @@ declare -A FIXTURE_SKILLS=(
   [multi-clause-want]="analysis"
   [provenance-authored-blocks]="design"
   [execute-commit-before-review]="execute review"
+  [execute-implementer-dispatch]="execute"
   [lesson-claim-split]="finalise"
   [greenfield-promote-zeros]="promote"
 )
@@ -344,7 +348,7 @@ RULES
 )"
 # The sandbox harness, parameterized on test_command. Default is `true` (a green baseline). A fixture
 # may point it at the committed pre-existing failing check below so the baseline is GENUINELY red —
-# so the harness JSON stays in one place and only the one field that must vary does. None of the six
+# so the harness JSON stays in one place and only the one field that must vary does. None of the fixtures
 # does so today; the parameterisation is kept because it is what makes the per-JOB write safe, and it
 # is proven by the harness-parameterisation self-test rather than by a fixture.
 # Written PER WORKER, PER JOB (see dispatch_one): each worker writes it into its OWN clone right
@@ -859,7 +863,7 @@ assert_checkout_clean() {
 # The cache is wiped whenever run.sh itself changes. A cached transcript is a record of what the
 # model answered; it is re-judged from scratch on every reuse, so an edited assertion does not
 # invalidate it — it re-reads it. Keying the wipe on the WHOLE file is coarser than the two-tier
-# identity the retired suite carried, and deliberately so: with six fixtures the saving that bought
+# identity the retired suite carried, and deliberately so: with seven fixtures the saving that bought
 # is worth less than the machinery, and a coarse key can only ever err toward running fresh.
 if [ "$CACHE_ENABLED" -eq 1 ]; then
   FP_FILE="$CACHE_DIR/.runner.fp"
@@ -925,6 +929,20 @@ assert_all "execute-commit-before-review: empty range → git diff HEAD + status
 # Widened over WORDING (v1.8.0): the separator class again — a correct run writes "not a **no-change**
 # LGTM" (hyphen, not space) and "falls back **before it concludes** anything".
 assert_all "execute-commit-before-review: empty range is never a no-change verdict (non-vacuous)" "$t" 'empty' 'not .{0,30}(conclude|assume|no[ -]change)|never .{0,26}(conclude|no[ -]change|rubber)|must .{0,20}(fall ?back|check|verify)|before .{0,16}conclud|falls? back before'
+
+banner "== execute-implementer-dispatch  (execute — Gate 3) =="
+# execute-implementer-dispatch (v1.17.0): step 3 is a CHOICE OF AGENT. Each assertion anchors on the
+# fixture's VARIANT X: decision line (outcome) plus the signal that decides it (reasoning). The
+# patterns cannot match the prompt's `<dispatch implementer | …>` template, so an echoed prompt passes
+# nothing.
+t="$(run_fixture execute-implementer-dispatch 'Run the mango execute skill against the injected project state in this ticket and answer the three numbered questions, then emit the four VARIANT decision lines. Do not stop for my input.')"
+assert_all "implementer-dispatch: a plain change dispatches implementer" "$t" 'variant[ *_`]*a[ *_`]*:[ *_`]*dispatch[ *_`]+(the[ *_`]+)?implementer'
+assert_all "implementer-dispatch: a security-tagged change stays on the main loop" "$t" 'variant[ *_`]*b[ *_`]*:[ *_`]*main[ -]loop' 'security'
+assert_all "implementer-dispatch: a high_stakes_paths match stays on the main loop" "$t" 'variant[ *_`]*c[ *_`]*:[ *_`]*main[ -]loop' 'high_stakes_paths|src/pricing'
+assert_absent "implementer-dispatch: B and C are never dispatched (non-vacuous)" "$t" 'variant[ *_`]*[bc][ *_`]*:[ *_`]*dispatch'
+assert_all "implementer-dispatch: a stuck STOP escalates to the user" "$t" 'variant[ *_`]*d[ *_`]*:[ *_`]*escalat' 'stuck|threshold|same signature'
+assert_absent "implementer-dispatch: a stuck STOP is never re-dispatched (non-vacuous)" "$t" 'variant[ *_`]*d[ *_`]*:[ *_`]*(dispatch|continue)'
+assert_all "implementer-dispatch: not dispatching is recorded in the Cost ledger" "$t" 'not[ *_]+dispatched' 'cost[ -]ledger|ledger row'
 
 banner "== lesson-claim-split  (finalise — Gate 4) =="
 # lesson-claim-split (v1.9.0): the unit is the ATOMIC CLAIM, not the entry. One bundled lesson carrying a
@@ -1035,7 +1053,7 @@ fi
 #
 # Under `set -o pipefail`, `grep -q` exits at the FIRST match; the writer, still writing, takes SIGPIPE
 # and exits 141, and pipefail hands 141 to the caller — so a token that is plainly PRESENT is read as
-# missing. It affected assert_all, which is what the six fixtures below are mostly built from. Within
+# missing. It affected assert_all, which is what the fixtures below are mostly built from. Within
 # one run the failure is invisible; across runs it is indistinguishable from the model phrasing things
 # differently, and the standing response to that signature was to widen the token. The fix is the
 # herestring at every site; this is the check that keeps the piped shape from coming back.

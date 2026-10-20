@@ -213,7 +213,7 @@ substitute for their answer.
 - **Emit a Cost-ledger row per dispatch return (mechanical, not narrated).** The ledger is **not**
   bookkeeping to remember "as you go" — a thing the model can silently forget (an unenforced artifact
   is a coin flip). Instead: **when a subagent dispatch returns** (reviewer, challenger, extractor,
-  Explore fan-out, each review round), **append one ledger row from that return's usage block** — phase,
+  implementer, explorer fan-out, each review round), **append one ledger row from that return's usage block** — phase,
   dispatch name, round, tokens — as an **immediate, non-optional by-product of dispatching**. The rule
   is mechanical: **a ledger row is emitted per dispatch return; a run that dispatched N subagents ends
   with N rows.** (This is the ledger's "teeth" — not a gate that blocks, but a mechanical emission so it

@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.16.1-blue)
+![version](https://img.shields.io/badge/version-1.17.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -175,7 +175,7 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 **Every release is gated by `validate.py` and the dispatch-free script suites**, both run in CI on
 every push.
 
-**mango has no behavioural regression suite.** It has a per-skill smoke guard of 6 fixtures, run when
+**mango has no behavioural regression suite.** It has a per-skill smoke guard of 7 fixtures, run when
 a skill is edited: it reports that those fixtures passed just now, and nothing more. Two limits are
 stated rather than left to be discovered — it does **not** detect cross-skill regressions (editing
 `design` and breaking `finalise` is not caught), and the `RETIRE:` counted line is uncovered.

@@ -230,7 +230,7 @@ goes through `config.tracker.cli` — **never** an MCP.
 9. **Cost ledger — completeness gate (content, not just row count), then the descriptive summary (dispatch-only).**
    Before surfacing the summary, enforce the **ledger-completeness check** — the ledger's *teeth*, and a
    **dispatch-count** check widened to the **content** of each row. Count the subagent dispatches this run
-   actually made (knowable from the run — every `reviewer` / `challenger` / `extractor` / Explore fan-out /
+   actually made (knowable from the run — every `reviewer` / `challenger` / `extractor` / `implementer` / `explorer` fan-out /
    per-review-round dispatch return). The ledger is **complete** only when **both** hold: **(i)** every
    dispatch has a row (row count ≥ dispatch count), **and** **(ii)** every dispatch row carries a **token
    value** — a real count from that return's usage block **or** an explicit `unmeasured (<reason>)`

@@ -97,7 +97,7 @@ version bump. Select the fixtures mapped to the skill you edited, with an **anch
 
 ```bash
 bash tests/eval/run.sh --only '^(refine-want-unattended-stops)$'   # 1 dispatch, well under $1.50
-bash tests/eval/run.sh                                            # all six, ~6 dispatches, ~$3
+bash tests/eval/run.sh                                            # all seven, ~7 dispatches, ~$3.50
 ```
 
 **Anchor the selector.** An unanchored `--only` once matched a scenario inside a fixture name and

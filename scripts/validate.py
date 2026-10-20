@@ -2446,8 +2446,8 @@ def validate_counted_line_checker():
 
 # --- v1.16.0: the per-skill smoke guard ----------------------------------------------------------
 def validate_eval_guard():
-    """v1.16.0 — the behavioural eval suite is retired. What replaces it is a SIX-fixture per-skill
-    smoke guard, and this is the check that keeps it real: each of the six exists, run.sh dispatches
+    """v1.16.0 — the behavioural eval suite is retired. What replaces it is a per-skill smoke
+    guard (six fixtures at v1.16.0, seven since v1.17.0), and this is the check that keeps it real: each exists, run.sh dispatches
     it, and FIXTURE_SKILLS keys it to the skill it exercises — without that key the per-skill trigger
     cannot select it, which is the whole mechanism. A fixture that exists but is never dispatched is
     not coverage; a fixture that is dispatched but not mapped cannot be triggered by a skill edit.
@@ -2467,6 +2467,9 @@ def validate_eval_guard():
             "gate; anchors on the EXCLUSIONS: counted line"),
         "execute-commit-before-review": ("execute review",
             "Gate 3-4 — commit ordering across two skills, plus the empty-diff fallback"),
+        "execute-implementer-dispatch": ("execute",
+            "Gate 3 — v1.17.0: step 3 dispatches `implementer` on a plain change, stays on the main "
+            "loop for a security tag or a high_stakes_paths match, and escalates a worker's stuck STOP"),
         "lesson-claim-split": ("finalise",
             "Gate 4 — anchors on the CLAIMS: counted line, whose per-type counts carry internal "
             "arithmetic check_lines.py verifies with no grammar judgement"),
@@ -2930,6 +2933,99 @@ def validate_readme_eval_claim():
           "regression suite — the guard answers a narrower question and must not be read as one")
 
 
+def validate_delegation_agents():
+    """v1.17.0 — the two Sonnet rows of the delegation map (implement, explore) are a CHOICE OF AGENT,
+    pinned by frontmatter, exactly as `review` picks `reviewer` vs `reviewer-max`. Before this they
+    were prose: execute said "Sonnet" and analysis fanned out the host's built-in Explore, and both ran
+    on whatever model the main loop drove. These checks keep the pin, the dispatch, the high-stakes
+    exception, the escalation hand-back and the ledger rows from silently falling back to prose."""
+    plugin = ROOT / "plugins" / "mango"
+    agents = {}
+    for name in ("implementer", "explorer"):
+        path = plugin / "agents" / f"{name}.md"
+        if not check(path.exists(), f"delegation: agents/{name}.md is missing"):
+            continue
+        fm = parse_frontmatter(path)
+        check(fm.get("name") == name, f"delegation: agents/{name}.md frontmatter name must be '{name}'")
+        model = fm.get("model", "")
+        check(bool(model), f"delegation: agents/{name}.md must pin a `model:` — the pin IS the mechanism")
+        check("haiku" not in model.lower(),
+              f"delegation: agents/{name}.md must never be pinned to Haiku (it carries judgment)")
+        agents[name] = (fm, path.read_text(encoding="utf-8"))
+
+    if "explorer" in agents:
+        fm, _ = agents["explorer"]
+        denied = {t.strip() for t in fm.get("disallowedTools", "").split(",")}
+        check({"Write", "Edit"} <= denied, "delegation: explorer must disallow Write and Edit (read-only)")
+    if "implementer" in agents:
+        _, body = agents["implementer"]
+        check("implementer" not in CRITIC_AGENTS,
+              "delegation: implementer is a worker, not a critic — it must not be in CRITIC_AGENTS")
+        for pat, why in (
+            (r"approved change list", "it implements ONLY the approved change list"),
+            (r"[Nn]ever reformat lines", "the untouched-lines rule"),
+            (r"[Ff]ormat-scope", "the format-scope rule"),
+            (r"[Cc]ommit per logical unit", "commit per logical unit"),
+            (r"no AI co-author trailer", "the no-co-author-trailer rule"),
+            (r"stuck_threshold", "the stuck-detector STOP"),
+            (r"design invalidated", "the design-invalidated STOP"),
+            (r"never improvise", "STOP and return, never work around"),
+            (r"<KEY>\.work\.md", "it never edits the working doc"),
+            (r"verbatim", "test output is pasted verbatim"),
+            (r'"done", "clean"', "it never self-declares done/clean"),
+            (r"high_stakes_paths", "it STOPs on an undeclared high-stakes touch"),
+            (r"BASELINE:", "the baseline-aware Definition of Done"),
+            (r"[Nn]ever re-record a golden", "the changed-golden rule (STOP, never re-record)"),
+        ):
+            check(re.search(pat, body) is not None, f"delegation: agents/implementer.md must carry {why}")
+
+    execute, analysis, review = skill_text("execute"), skill_text("analysis"), skill_text("review")
+    for pat, why in (
+        (r"dispatch the `implementer` agent", "the concrete dispatch of `implementer`"),
+        (r"the recorded `BASELINE:`", "the baseline handed to `implementer`"),
+        (r"config\.high_stakes_paths", "the project-declared high-stakes exception"),
+        (r"security-tagged", "the security-tag high-stakes exception"),
+        (r"host cannot dispatch", "the host-agnostic fallback"),
+        (r"never silently", "a fallback that is recorded, never silent"),
+        (r"Every STOP the `implementer` returns is an\s+Escalation", "implementer STOPs routed to Escalations"),
+        (r"verification sweep on both axes", "the sweep kept on the main loop"),
+    ):
+        check(re.search(pat, execute) is not None, f"delegation: execute/SKILL.md must carry {why}")
+    check(re.search(r"`explorer`", analysis) is not None,
+          "delegation: analysis/SKILL.md must dispatch the `explorer` agent for fan-out")
+    check(re.search(r"never the host's built-in\s+Explore", analysis) is not None,
+          "delegation: analysis/SKILL.md must not fall back to the host's built-in Explore")
+    check(re.search(r"config\.explore_fanout", analysis) is not None,
+          "delegation: analysis fan-out must still be gated by config.explore_fanout")
+    check(re.search(r"config\.high_stakes_paths", review) is not None,
+          "delegation: review's Reviewer selection must OR in config.high_stakes_paths")
+    check(re.search(r"security-tagged, \*\*or\*\* the diff touches auth", review) is not None,
+          "delegation: review must keep its built-in high-stakes signals (high_stakes_paths only tightens)")
+
+    ledger_lists = {
+        "skills/solve/SKILL.md": skill_text("solve"),
+        "skills/finalise/SKILL.md": skill_text("finalise"),
+        "principles/token-cost.md": (plugin / "principles" / "token-cost.md").read_text(encoding="utf-8"),
+        "templates/ticket.md": (plugin / "templates" / "ticket.md").read_text(encoding="utf-8"),
+    }
+    for rel, body in ledger_lists.items():
+        check(re.search(r"extractor`?[\s,/]+`?implementer`?[\s,/]+`?explorer`?\s+fan-out", body) is not None,
+              f"delegation: {rel} must list `implementer` and `explorer` among the ledger's dispatches")
+
+    principles = (plugin / "PRINCIPLES.md").read_text(encoding="utf-8")
+    check(re.search(r"\| Implement the approved change list.*`implementer` agent \(Sonnet\)", principles) is not None,
+          "delegation: PRINCIPLES.md's Implement row must name the `implementer` agent")
+    check(re.search(r"\| Explore: .*`explorer` agent \(Sonnet\)", principles) is not None,
+          "delegation: PRINCIPLES.md's Explore row must name the `explorer` agent")
+
+    data = load_json(plugin / "config" / "harness.example.json")
+    if isinstance(data, dict):
+        check(data.get("high_stakes_paths") == [] and "//high_stakes_paths" in data,
+              "delegation: harness.example.json must declare `high_stakes_paths` defaulting to [] with a // note")
+    check("high_stakes_paths" not in skill_text("doctor"),
+          "delegation: doctor must not require `high_stakes_paths` (it is optional)")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -3033,6 +3129,7 @@ def main():
     validate_template_skill_consistency()
     validate_eval_guard()
     validate_readme_eval_claim()
+    validate_delegation_agents()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

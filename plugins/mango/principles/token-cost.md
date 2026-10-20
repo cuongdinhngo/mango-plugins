@@ -6,7 +6,7 @@
 > critic emits.**
 
 - **The Cost ledger is descriptive.** The run records token usage **per subagent dispatch** (reviewer,
-  challenger, extractor, Explore fan-out, each review round) into the working doc as a **facts-only**
+  challenger, extractor, implementer, explorer fan-out, each review round) into the working doc as a **facts-only**
   counted artifact — **one row emitted per dispatch return as a mechanical by-product of dispatching**
   (N dispatches → N rows), not bookkeeping the model is asked to remember; `finalise` surfaces a
   one-line summary (total + top cost driver). It **never** auto-cuts anything — it makes cost **visible**

@@ -27,7 +27,8 @@ snippets); it never produces a verdict.
 runtime, so the Opus upgrade is a **choice of agent**, not a setting:
 - Dispatch **`reviewer-max`** (Opus) when `config.cost_tier == "max"` **AND** the diff is
   high-stakes — the ticket is security-tagged, **or** the diff touches auth / access control / data
-  access / schema-migration per `config.rulebook_path`.
+  access / schema-migration per `config.rulebook_path`, **or** the diff touches a path matching
+  `config.high_stakes_paths` (an addition to these signals, never a replacement).
 - Otherwise dispatch **`reviewer`** (Sonnet).
 - **Never** dispatch a Haiku reviewer.
 

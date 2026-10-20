@@ -235,8 +235,8 @@ not a weaker one.
 | Analysis: root cause/gap, requirements decomposition, AC validation, clarification, scope | judgment | Opus |
 | Design: smallest change list, proving test | judgment | Opus |
 | Review verdict + challenger requirement reconstruction | judgment (highest) | Sonnet — the `reviewer-max` agent (Opus) for high-stakes diffs under `cost_tier: max` — **never Haiku** |
-| Implement the approved change list; draft PR body | execute | Sonnet |
-| Explore: locate handler, callers, blast radius | retrieval + light judgment | Sonnet |
+| Implement the approved change list; draft PR body | execute | the `implementer` agent (Sonnet); high-stakes diff → orchestrator |
+| Explore: locate handler, callers, blast radius | retrieval + light judgment | the `explorer` agent (Sonnet) |
 | Bulk read-and-extract / summarise across many files | heavy tokens, low judgment | Haiku |
 | grep stray refs / run tests / lint | pure shell | no model — call the Bash tool directly |
 

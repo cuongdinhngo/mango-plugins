@@ -174,7 +174,9 @@ count, and the requirements matrix.
    from the opt-in `db-map` skill), consult it to widen the blast radius to **schema dependents** —
    columns still read/written, foreign keys, and dependent views/procedures. This is "use it if
    present"; never require it — the lifecycle runs fully when no `db-map` exists. **Fan-out (cost knob):** on the **full** tier you may fan
-   out read-only Explore agents to investigate, but only if `config.explore_fanout` is true
+   out by dispatching the read-only **`explorer`** agent (Sonnet) — never the host's built-in
+   Explore — to locate the handler, callers, dependents and blast radius, but only if
+   `config.explore_fanout` is true
    (default true). The **lite** tier always skips fan-out. **Model delegation** (see
    `<mango>/PRINCIPLES.md`): keep the judgment work of this phase — decomposition, AC
    validation, root-cause/gap, scope — on the strong model; delegate only **bulk read-and-extract**

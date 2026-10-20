@@ -1,15 +1,15 @@
 name: smoke-guard
 
-# Per-skill behavioural smoke guard — six fixtures, ~6 dispatches, ~$3. It costs tokens and calls
+# Per-skill behavioural smoke guard — seven fixtures, ~7 dispatches, ~$3.50. It costs tokens and calls
 # the model, so it is manual only. The always-on cheap guard is scripts/validate.py in validate.yml.
 #
-# This is NOT a regression suite. It reports that these six fixtures passed just now; it does not
+# This is NOT a regression suite. It reports that these seven fixtures passed just now; it does not
 # detect cross-skill regressions. See tests/eval/README.md for the two stated limits.
 on:
   workflow_dispatch:
     inputs:
       only:
-        description: 'Anchored fixture selector, e.g. ^(multi-clause-want)$ — empty runs all six'
+        description: 'Anchored fixture selector, e.g. ^(multi-clause-want)$ — empty runs all seven'
         required: false
         default: ''
 

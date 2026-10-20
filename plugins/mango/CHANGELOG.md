@@ -5,6 +5,78 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.17.0] — 2026-10-20
+
+**Two rows of the model-delegation map were prose, so nothing enforced them. They are now a choice of
+agent.** `PRINCIPLES.md` routes *implement the approved change list* and *explore (handler, callers,
+blast radius)* to Sonnet. But `execute` only *described* the implement row as Sonnet, with no agent to
+dispatch, and `analysis` fanned out through the host's built-in Explore. Both ran on whatever model
+the main loop drove, usually Opus. A skill-level `model:` override was not used: it holds only until
+the end of the current turn, and mango stops at a gate, so the next turn returns to the main loop's
+model. A pinned agent's frontmatter holds. This is the mechanism `review` already uses to pick
+`reviewer` or `reviewer-max`.
+
+- **New agent `implementer` (Sonnet).** `execute` dispatches it for steps 3, 4 and 6 (implement, proving
+  test, commit). It implements only the approved change list and applies execute's rules verbatim
+  (match style, never reformat untouched lines, format-scope, the baseline-aware Definition of Done
+  against the recorded `BASELINE:`, never re-record a golden, commit per logical unit, no AI co-author
+  trailer). It STOPs and returns instead of working around any of these: an infeasible item, a design
+  invalidation, a red golden / snapshot test (with the old→new delta), `stuck_threshold`, or a touch
+  outside the list or on an unlisted high-stakes path. It
+  never edits the working doc. Its output is files, SHAs, and test commands with verbatim output. It
+  never says "done" or "clean". The main loop keeps the verification sweep (both axes), the write-back
+  and every escalation, and treats the implementer's output as unverified evidence.
+- **High-stakes exception.** The main loop implements, rather than dispatching, when the ticket is
+  security-tagged, when the approved change list touches auth / access control / data access /
+  schema-migration per the rule book, or when it touches the new `config.high_stakes_paths`. This
+  reuses review's high-stakes signals.
+- **Host-agnostic fallback.** If the host cannot dispatch a subagent, the main loop implements. In that
+  case, and in the high-stakes case, it records a Cost-ledger row
+  `implementer — not dispatched (<reason>)`, so the choice is never silent.
+- **New agent `explorer` (Sonnet, read-only).** `analysis` step 8 fan-out dispatches it instead of
+  the built-in Explore. Plugins cannot override built-ins, so the agent needs its own name. It gathers
+  with light judgment and never decides scope or the final root cause. `explore_fanout`, the lite-tier
+  skip, the `extractor` route and the Bash-for-shell rule are unchanged.
+- **New optional config `high_stakes_paths`** (globs, default `[]`). The project declares it. `execute`
+  reads it to keep implementation on the main loop, and `review` ORs it into `reviewer-max` selection.
+  It only adds to the built-in signals and never removes one. `doctor` does not require it.
+- **The Cost ledger lists `implementer` and `explorer`.** They appear in `solve`, `finalise`'s
+  completeness gate, `principles/token-cost.md` and `templates/ticket.md`. The finalise gate counts
+  dispatches from that list, so a missing row for either agent now counts as an incomplete ledger.
+- **`scripts/validate.py`.** `validate_delegation_agents` (about 46 checks) asserts the following:
+  - both agents exist, pin a model, and are never Haiku;
+  - `explorer` denies Write and Edit;
+  - `implementer` is not a critic and carries its rules (including `BASELINE:` and the changed-golden
+    rule), STOPs, working-doc ban and output contract;
+  - `execute` carries the dispatch (with the recorded `BASELINE:`), the exception, the fallback, the escalation hand-back and the
+    main-loop sweep;
+  - `analysis` dispatches `explorer`, not the built-in, and is still gated by `explore_fanout`;
+  - `review` ORs in `high_stakes_paths` and keeps its built-in signals;
+  - all four ledger lists name both agents;
+  - `PRINCIPLES.md` names both agents;
+  - the example config declares `high_stakes_paths: []`.
+
+  A negative control confirmed the new checks fail when the text they guard is broken. **No CHECK
+  removed, no gate loosened.**
+- **New smoke-guard fixture `execute-implementer-dispatch`** (mapped to `execute`). The guard grows
+  from six fixtures to seven. Four variants each end on a `VARIANT X:` decision line:
+  - a plain change dispatches `implementer`;
+  - a security-tagged change stays on the main loop;
+  - a `high_stakes_paths` match stays on the main loop;
+  - a worker's stuck STOP escalates to the user.
+
+  Two `absent` controls fail a dispatch on B/C and a re-dispatch or continue on D. A seventh assertion
+  checks that not dispatching is recorded in the Cost ledger. The patterns were tested both ways before
+  any dispatch: correct answers match, wrong answers fail, and an echoed prompt template matches
+  nothing. `explorer` has no behavioural fixture; only `validate.py` guards it. `quick` (the lite lane
+  still runs on a single model), `autorun`, `reviewer`, `reviewer-max`, `challenger` and `extractor`
+  are unchanged. `.github/workflows/eval.yml` and the `validate_eval_guard` docstring now say seven.
+
+**Not measured.** There is no token-saving figure for this change. No run has yet compared execute or
+fan-out cost before and after. **Known effect on `autorun`:** its call-count ceiling is derived from
+ledger history. History recorded before 1.17.0 has no `implementer` or `explorer` rows, so a ceiling
+taken from it undercounts calls until new history accrues.
+
 ## [1.16.1] — 2026-09-05
 
 **Patch: metadata and documentation only. No skill, agent, principle, template, script or config
