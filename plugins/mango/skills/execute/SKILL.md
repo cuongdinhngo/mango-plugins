@@ -19,7 +19,8 @@ changes) via the verification sweep and the diff ⊆ approved-list check.
 a gate — but it implements ONLY what Gate 2 approved. Autonomy is **not** licence to thrash or to
 barrel on with a broken approach: the two STOP conditions in **Escalations** below are mandatory.
 
-**Model delegation (concrete, not advisory — see `<mango>/PRINCIPLES.md`).** Steps 3, 4 and 6
+**Model delegation (concrete, not advisory — see `<mango>/PRINCIPLES.md`; the split is
+Experimental, its safety boundaries are not).** Steps 3, 4 and 6
 (implement, proving test, commit) are a **choice of agent**: **dispatch the `implementer` agent**
 (Sonnet) with the approved change list, the proving test, `SCOPE`, TRACK, the recorded `BASELINE:`,
 the branch, the repo root, `config.test_command`, `config.rulebook_path` and `config.stuck_threshold`.

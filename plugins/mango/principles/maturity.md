@@ -7,7 +7,7 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Five behaviours are **Experimental** today:
+Six behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
@@ -44,6 +44,14 @@ Five behaviours are **Experimental** today:
   are NOT Experimental** and never will be: the classifier proposes and the human confirms, recall is
   advisory, falsification precedes ratification, lessons never modify mango, and everything is
   project-local. Those are safety boundaries, not a shape to be tuned.
+- **the delegation dispatch (`implementer`, `explorer`).** That the implement and explore rows of the
+  routing map are a choice of agent pinned by frontmatter is Stable — it is the mechanism `review`
+  already uses for `reviewer` / `reviewer-max`. What is Experimental is the split itself: which steps
+  `execute` hands to `implementer`, what the dispatch carries, and what the `explorer` fan-out returns.
+  Neither agent has yet run on a real ticket. **Its safety boundaries are NOT Experimental**: a
+  high-stakes change is implemented on the main loop, every `implementer` STOP is an escalation and is
+  never re-dispatched, the main loop keeps the verification sweep and the write-back, and not
+  dispatching is recorded in the Cost ledger, never silently.
 
 Everything else on the ticket and epic paths is **Stable** — ticket-path classification (want-decision /
 how-decision), `ASSUMED` handling, the 1-dispatch exposure-checker, epic detection, the enumerated

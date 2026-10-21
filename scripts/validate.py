@@ -3026,6 +3026,26 @@ def validate_delegation_agents():
           "delegation: doctor must not require `high_stakes_paths` (it is optional)")
 
 
+def validate_maturity_count():
+    """v1.17.1 — the stated number of Experimental behaviours must equal the bullets listed under it, in
+    principles/maturity.md and in the plugin README. The count once said four above five bullets
+    (see CHANGELOG); the delegation dispatch is the sixth and must be listed in both."""
+    words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+             "nine": 9, "ten": 10}
+    plugin = ROOT / "plugins" / "mango"
+    for rel, end in (("principles/maturity.md", r"\nEverything else"), ("README.md", r"\nIn every case")):
+        text = (plugin / rel).read_text(encoding="utf-8")
+        m = re.search(r"(\w+) behaviours are \**Experimental\**\s+today:(.*?)" + end, text, re.S)
+        if not check(m is not None, f"maturity-count: {rel} must state how many behaviours are Experimental"):
+            continue
+        stated = words.get(m.group(1).lower())
+        bullets = len(re.findall(r"^- ", m.group(2), re.M))
+        check(stated == bullets,
+              f"maturity-count: {rel} says '{m.group(1)}' Experimental behaviours but lists {bullets}")
+        check(re.search(r"delegation dispatch", m.group(2)) is not None,
+              f"maturity-count: {rel} must list the delegation dispatch (implementer, explorer) as Experimental")
+
+
 def validate_doc_consistency():
     """Docs must reflect reality: the plugin README's skill list matches the skills/
     directory exactly, and every config key in harness.example.json is documented.
@@ -3130,6 +3150,7 @@ def main():
     validate_eval_guard()
     validate_readme_eval_claim()
     validate_delegation_agents()
+    validate_maturity_count()
     validate_doc_consistency()
 
     print(f"mango validate: {checks} checks run, {len(failures)} failed.")

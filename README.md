@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.17.0-blue)
+![version](https://img.shields.io/badge/version-1.17.1-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -221,6 +221,13 @@ Settled and not Experimental: `provenance-unknown` is a third state and never a 
 caller did not ask for is reported as absent rather than as clean. **Experimental** is how much of a
 project's evidence the marker reaches: it binds the shipped `$ <command>` empirical-output shape, and
 evidence recorded in some other shape is counted `provenance-unknown` rather than silently skipped.
+
+The **delegation dispatch** (1.17.0) is the newest surface: `execute` hands implementation to the
+Sonnet `implementer` agent and `analysis` fans out to the Sonnet `explorer` agent. That these rows are a
+choice of agent is settled; **Experimental** is the split itself, since neither agent has yet run on a
+real ticket. Its safety boundaries are not Experimental: a high-stakes change stays on the main loop,
+every `implementer` STOP escalates and is never re-dispatched, and not dispatching is recorded in the
+Cost ledger.
 
 Per-phase maturity (Stable / Experimental) is tracked in
 [`plugins/mango/PRINCIPLES.md`](./plugins/mango/PRINCIPLES.md).

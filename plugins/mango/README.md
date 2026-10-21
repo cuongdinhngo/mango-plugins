@@ -174,7 +174,7 @@ security-tagged, touches more than one file, or has a universal requirement reso
 | `/mango:finalise` | 5 → final gate | **Stale-review guard** (routes back to `review` only if a source file changed beyond the reviewed set), optional `pr_checklist_path` walk, PR draft, per-action approval for every outward action, tracker writes via CLI, a **cost-ledger completeness gate**, follow-up tickets for deferred rows, and a **durable lesson** captured to `lessons_path` and pushed to a shared ref — then the **learning loop** on it: split into atomic claims → classify (a proposal) → recurrence/supersession → a **falsification check in front of** the ratification gate → each promotion **proposed** into a **project** file and ratified per claim. No lesson edits a mango skill. |
 | `/mango:quick` | lite lane | Single combined pre-code gate → execute → reviewer-only check → final gate, for trivial tickets. Runs exactly two reads from the full lane — the advisory `RECALL:` and the `RULE SECTIONS:` coverage (reused, not reimplemented) — so a **directly-invoked** lite ticket reads the lesson corpus it writes to at `finalise` instead of only feeding it. Both close with zeros on an empty corpus. No challenger, matrix, fan-out or baseline. |
 | `/mango:breakdown` | epic path (after design(epic)) | Splits an epic into tickets from the thin epic-level architecture: a **counted** ticket list with a per-ticket **enumerated six-letter INVEST** self-check (each of Independent/Negotiable/Valuable/Estimable/Small/Testable affirmed or N/A — a one-liner is a finding; a ticket failing a letter is flagged for **re-split**), held at a **✋ human gate** — the human ratifies the split before any ticket executes. Each ratified ticket then runs its own full lifecycle. **Boundary sizing is corrected by retro; the re-ratification behaviour is Experimental.** |
-| `/mango:autorun` | unattended orchestrator | Runs the **same** phases as `solve` and closes each gate from the artifacts they already emit, instead of waiting for a human to type "go" — five waits become one, and that one is the merge. **No gate is removed** (the review seat included) and **there is no auto-merge**: the run stops when the PR exists. Takes one handover authorisation naming exactly two outward actions (push the branch, open the PR); everything else is on the abort list. `j > 0` stops the run — every unaffected part is still finished and the open question is reported. Writes three envelope artifacts: a machine-written **`RUN CONTRACT`** (fixed grammar, parsed back before the run starts, every condition declaring a `force-broken` and a `force-holding` case, `${PLACEHOLDER}`s bound at Gate 2), a harness-run **`RECONCILE`** at t0 **and** at close (three floor conditions the agent may not author: the PR is readable, a **tree** comparison, and nothing stranded unpushed), and a **`DISCLOSURE`** list read first in the morning. |
+| `/mango:autorun` | unattended orchestrator | Runs the **same** phases as `solve` and closes each gate from the artifacts they already emit, instead of waiting for a human to type "go" — five waits become one, and that one is the merge. **No gate is removed** (the review seat included) and **there is no auto-merge**: the run stops when the PR exists. Takes one handover authorisation naming exactly two outward actions (push the branch, open the PR); everything else is on the abort list. `j > 0` stops the run — every unaffected part is still finished and the open question is reported. Writes three envelope artifacts: a machine-written **`RUN CONTRACT`** (fixed grammar, parsed back before the run starts, every condition declaring a statement, origin, `derived-by`, value and runnable `check`; the `force-broken` / `force-holding` fields were retired in 1.14.0; `${PLACEHOLDER}`s bound at Gate 2), a harness-run **`RECONCILE`** at t0 **and** at close (three floor conditions the agent may not author: the PR is readable, a **tree** comparison, and nothing stranded unpushed), and a **`DISCLOSURE`** list read first in the morning. |
 | `/mango:solve` | orchestrator | Runs `refine` (Phase 0) FIRST and branches — **skip** / **ticket-refine** / **epic-path** — then a Doctor preflight and every gated phase in order honouring `TIER`, holding each gate; resumes from `Session status`. Raises an **"outgrew its ticket" nudge** — if realized scope crosses up a tier (S/M → L) or the diff materially exceeds the approved list, it stops to re-scope or split. |
 
 ### Unattended runs — `/mango:autorun`
@@ -280,7 +280,7 @@ Shipped behaviour carries an honest maturity level (the single source is
 [`principles/maturity.md`](./principles/maturity.md), read on demand from
 [`PRINCIPLES.md`](./PRINCIPLES.md)): **Stable** = committed, field-tested behaviour, safe to rely on
 (the default); **Experimental** = works and is validated, but its exact shape may still change until
-further real-world use. Five behaviours are Experimental today:
+further real-world use. Six behaviours are Experimental today:
 
 - **the unattended lane** (`autorun`, 1.11.0) — the unattended closing itself, the exact condition set a
   `RUN CONTRACT` should carry, and the call-count budget proxy.
@@ -291,12 +291,15 @@ further real-world use. Five behaviours are Experimental today:
 - **breakdown re-ratification** — its trigger and granularity, validated once in the field.
 - **the learning loop's classification/promotion machinery** — where the six-type boundaries fall, which
   recall key each type gets, how recurrence is scored.
+- **the delegation dispatch** (`implementer`, `explorer`, 1.17.0) — which steps `execute` hands to
+  `implementer`, what the dispatch carries, and what the `explorer` fan-out returns.
 
 In every case the **safety boundaries are not Experimental**: no gate is removed and there is no
 auto-merge; the checker reports and never rewrites and `not-checkable` is never a pass;
 `provenance-unknown` is a third state and never a pass; and the loop's five invariants hold — the
 classifier proposes and the human confirms, recall is advisory, falsification precedes ratification,
-lessons never modify mango, and everything is project-local. Everything else on the ticket and epic
+lessons never modify mango, and everything is project-local; a high-stakes change is implemented on the
+main loop, an `implementer` STOP is always an escalation, and not dispatching is always recorded. Everything else on the ticket and epic
 paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
 `re-ratification: Experimental → Stable`).
 
