@@ -13,6 +13,9 @@ The required gate is deterministic, stdlib-only, and needs no network or auth:
 python3 scripts/validate.py
 ```
 
+On Windows, `python3` may be the Microsoft Store stub rather than an interpreter; use `py -3` (or
+`python`) for every command in this doc.
+
 The **envelope scripts** (`plugins/mango/scripts/` — `RUN CONTRACT`, `RECONCILE`, `BUDGET`, `CHECK-LINES`) carry their
 own suite, equally deterministic and equally free. Run it after touching any of them:
 
@@ -21,7 +24,7 @@ python3 tests/envelope/test_envelope.py
 ```
 
 Every git test inside it builds its own throwaway repo under `tempfile`; the live checkout is never
-touched. The behavioural eval runs it too, so it cannot rot unnoticed. The scripts always write UTF-8,
+touched. The smoke guard runs it too, so it cannot rot unnoticed. The scripts always write UTF-8,
 whatever the console's code page; `TestConsoleEncoding` runs them under a forced cp1252 console to keep
 it that way.
 
@@ -55,13 +58,14 @@ ever references `RATIONALE.md` (which would put the why back on the runtime path
 test for any candidate cut: *"if I delete this, does any instruction, gate, condition, count, format,
 or escalation disappear?"* If yes or unsure — **keep it**.
 
-## Behavioural eval
+## Per-skill smoke guard
 
-The behavioural eval (`tests/eval/run.sh`) drives the model over fixture tickets (one per behaviour,
-so a red run is diagnosable) and asserts the expected artifacts — the analysis happy path plus the
-behaviours that matter most: proof at the risk layer, the ticket-blind challenger catching an unmet
-AC, the design-invalidated escalation, the stuck-detector, the frontend surface-coverage and
-layer-match gates, the cost-ledger completeness gate, and the verify-only re-review.
+mango has **no behavioural regression suite**; the 126-job suite was retired in 1.16.0. What remains is
+a per-skill smoke guard (`tests/eval/run.sh`): **seven fixtures**, one per behaviour so a red run is
+diagnosable, each mapped in `FIXTURE_SKILLS` to the skill it exercises. It drives the model over an
+injected ticket state and asserts the decision the skill is meant to make. The fixture list, the skill
+each covers and the last full run are in [`tests/eval/README.md`](./tests/eval/README.md) — the single
+source; it is not repeated here.
 
 It costs tokens, so CI runs it only via the manual `eval.yml` workflow (`workflow_dispatch`, needs the
 `ANTHROPIC_API_KEY` secret). Run it yourself with one command from a fresh clone:
