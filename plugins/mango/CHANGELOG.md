@@ -5,6 +5,27 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.17.2] — 2026-10-21
+
+**Patch: the harness scripts no longer crash on a Windows console.** `check_lines.py grammars` prints
+`≥` and `—`. A cp1252 console (the Windows default) cannot encode them, so the script died with
+`UnicodeEncodeError`, and the envelope suite failed on Windows unless UTF-8 mode was on. A checker that
+crashes reads as one that never ran. The fault also reproduces on Linux with `PYTHONIOENCODING=cp1252`.
+No skill, agent, principle or template changes.
+
+- **All four scripts** (`check_lines.py`, `run_contract.py`, `reconcile.py`, `budget.py`) reconfigure
+  stdout and stderr to UTF-8 at entry. Their output is UTF-8 whatever the console's code page.
+- **`tests/envelope/test_envelope.py`** decodes script output as UTF-8 instead of the locale encoding.
+  The new `TestConsoleEncoding` runs every script under a forced cp1252 console. Against the 1.17.1
+  scripts it gives 4 errors and 1 failure; against 1.17.2 it passes.
+- **CI** gains an `envelope-windows` job: the suite on `windows-latest`, with the console left at its
+  default code page.
+- **`CONTRIBUTING.md`** now says CI runs the envelope suite (it named only `validate.py`), lists
+  `CHECK-LINES` among the envelope scripts, and states the UTF-8 output contract.
+
+**Not changed.** `run_contract.py` still decodes a condition's `check` command output with the locale
+encoding. That output comes from the project's own commands, so the locale is the right default there.
+
 ## [1.17.1] — 2026-10-20
 
 **Patch: the 1.17.0 delegation dispatch is labelled Experimental.** `principles/maturity.md` defines
