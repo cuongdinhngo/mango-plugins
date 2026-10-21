@@ -630,7 +630,7 @@ class TestForcedCaseRetirement(unittest.TestCase):
         Path(path).write_text(contract(), encoding="utf-8")
         out = subprocess.run(
             [sys.executable, str(SCRIPTS / "reconcile.py"), "run", path, "--phase", "close",
-             "--repo", self.tmp, "--prove"], capture_output=True, text=True)
+             "--repo", self.tmp, "--prove"], capture_output=True, encoding="utf-8")
         self.assertEqual(out.returncode, 1)
         self.assertIn("RETIRED", out.stdout)
 
@@ -966,7 +966,7 @@ class TestCheckLinesTeeth(unittest.TestCase):
     def test_CL_T8_an_unreadable_working_doc_reports_plainly_and_never_passes(self):
         proc = subprocess.run(
             [sys.executable, str(SCRIPTS / "check_lines.py"), "check", "/nonexistent/PROJ-1.work.md"],
-            capture_output=True, text=True)
+            capture_output=True, encoding="utf-8")
         self.assertNotEqual(proc.returncode, 0)
         self.assertIn("CANNOT READ", proc.stdout)
         self.assertIn("NOTHING was checked", proc.stdout)
@@ -1047,7 +1047,7 @@ class TestCheckLinesDiscipline(unittest.TestCase):
                                             "T1=0 T2=2 T3=1 T4=0 T5=1 T6=0 | 0 unclassified"})
         path.write_text(before, encoding="utf-8")
         proc = subprocess.run([sys.executable, str(SCRIPTS / "check_lines.py"), "check", str(path)],
-                              capture_output=True, text=True)
+                              capture_output=True, encoding="utf-8")
         self.assertEqual(proc.returncode, 2)
         self.assertEqual(path.read_text(encoding="utf-8"), before, "the checker must never rewrite")
 
@@ -1174,7 +1174,7 @@ class TestCheckLinesDiscipline(unittest.TestCase):
 
     def test_the_grammars_subcommand_prints_every_shipped_line(self):
         proc = subprocess.run([sys.executable, str(SCRIPTS / "check_lines.py"), "grammars"],
-                              capture_output=True, text=True)
+                              capture_output=True, encoding="utf-8")
         self.assertEqual(proc.returncode, 0)
         for token in cl.GRAMMARS:
             self.assertIn(token, proc.stdout)
@@ -1384,6 +1384,33 @@ class TestSizeMargin(unittest.TestCase):
         out, _ = run(doc, size_budget=len(doc.encode("utf-8")) * 2)
         doc_line = next(ln for ln in out.splitlines() if ln.strip().startswith("doc "))
         self.assertIn("size:", doc_line)
+
+
+class TestConsoleEncoding(unittest.TestCase):
+    """v1.17.2 — every harness script writes UTF-8 whatever the console's code page. A cp1252 console
+    (Windows' default) cannot encode the ≥ and — the grammars carry; before 1.17.2 the script crashed
+    there, and a checker that crashes reads as one that never ran."""
+
+    CP1252 = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONUTF8": "0"}
+
+    def run_script(self, name, *args):
+        return subprocess.run([sys.executable, str(SCRIPTS / name), *args],
+                              capture_output=True, encoding="utf-8", env=self.CP1252)
+
+    def test_check_lines_grammars_survives_a_cp1252_console(self):
+        proc = self.run_script("check_lines.py", "grammars")
+        self.assertNotIn("UnicodeEncodeError", proc.stderr)
+        self.assertEqual(proc.returncode, 0)
+        self.assertIn("≥", proc.stdout)
+
+    def test_every_script_usage_survives_a_cp1252_console(self):
+        for name in ("check_lines.py", "run_contract.py", "reconcile.py", "budget.py"):
+            with self.subTest(script=name):
+                proc = self.run_script(name)
+                self.assertNotIn("UnicodeEncodeError", proc.stderr)
+                self.assertNotIn("Traceback", proc.stderr)
+                self.assertTrue(any(ord(c) > 127 for c in proc.stdout),
+                                f"{name}'s usage text carries no non-ASCII, so this test proves nothing")
 
 
 if __name__ == "__main__":

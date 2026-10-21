@@ -1058,4 +1058,8 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    # Output is UTF-8 whatever the console's code page: the grammars carry ≥ and —, which a cp1252
+    # console cannot encode, and a crash there would read as a checker that never ran.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     sys.exit(main(sys.argv))

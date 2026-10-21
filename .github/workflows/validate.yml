@@ -31,3 +31,18 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           claude plugin validate ./plugins/mango --strict
           claude plugin validate . --strict
+
+  # Required gate: the same harness script suite on Windows, with the console left at its default code
+  # page (no PYTHONUTF8). It is the platform where a cp1252 console once crashed check_lines.py.
+  envelope-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Harness script suite (Windows, default console encoding)
+        run: python tests/envelope/test_envelope.py
