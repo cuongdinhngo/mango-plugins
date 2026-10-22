@@ -5,6 +5,28 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.17.3] — 2026-10-22
+
+**Patch: `reviewer-max` gets the git-isolation rules it was missing.** `reviewer-max` is described as
+the `reviewer` brief on Opus, with the same role, rules and output. In 1.7.4 the git-isolation,
+environment-parity and empty-diff sections went into `reviewer.md` and `challenger.md` but not into
+`reviewer-max.md`. So from 1.7.4 to 1.17.2 the reviewer used for high-stakes diffs (auth, data access,
+schema migration) had no rule against `git checkout` / `switch` / `stash` on the live checkout and no
+empty-diff fallback. The validator missed it as well, because each of the three guards named only
+`reviewer.md`. `review/SKILL.md` still told the orchestrator to put the empty-diff fallback into every
+brief, which partly covered that one rule; nothing covered the isolation rule. No skill, principle or
+template changes.
+
+- **`agents/reviewer-max.md`** carries the four sections from `reviewer.md` verbatim: *Git isolation*,
+  *Worktree ≠ environment-equivalence*, the near-total-failure sanity rule, and the *Empty-diff
+  fallback*. Its body is now identical to `reviewer.md` below the frontmatter.
+- **`scripts/validate.py`**:
+  - `review-git-isolation`, `worktree-env-parity` and `empty-diff` now include `reviewer-max.md`.
+  - The new `reviewer-pair` guard requires the two reviewer bodies to be identical below the
+    frontmatter, so a future one-sided edit fails whichever section it touches.
+  - Run against the 1.17.2 `reviewer-max.md`, the guards report 17 failures. A one-line edit to either
+    file alone fails `reviewer-pair`.
+
 ## [1.17.2] — 2026-10-21
 
 **Patch: the harness scripts no longer crash on a Windows console.** `check_lines.py grammars` prints

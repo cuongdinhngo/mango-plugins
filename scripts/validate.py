@@ -459,6 +459,7 @@ def validate_review_git_isolation():
     targets = [
         plugin / "skills" / "review" / "SKILL.md",
         plugin / "agents" / "reviewer.md",
+        plugin / "agents" / "reviewer-max.md",
         plugin / "agents" / "challenger.md",
         # v1.10.0: the invariant moved to principles/git-isolation.md. Assert it over the WHOLE
         # PRINCIPLES surface (core + companions) so relocation cannot drop the check.
@@ -503,6 +504,7 @@ def validate_worktree_env_parity():
     targets = [
         plugin / "skills" / "review" / "SKILL.md",
         plugin / "agents" / "reviewer.md",
+        plugin / "agents" / "reviewer-max.md",
         plugin / "agents" / "challenger.md",
         # v1.10.0: the invariant moved to principles/git-isolation.md. Assert it over the WHOLE
         # PRINCIPLES surface (core + companions) so relocation cannot drop the check.
@@ -556,7 +558,8 @@ def validate_empty_diff_fallback():
               "empty-diff: execute must commit the change-set BEFORE review is dispatched")
         check(re.search(r"empty", body, re.IGNORECASE) is not None,
               "empty-diff: execute must explain that an uncommitted change-set makes the ref-based range EMPTY")
-    for rel_path in ("agents/reviewer.md", "agents/challenger.md", "skills/review/SKILL.md"):
+    for rel_path in ("agents/reviewer.md", "agents/reviewer-max.md", "agents/challenger.md",
+                     "skills/review/SKILL.md"):
         path = plugin / rel_path
         rel = path.relative_to(ROOT)
         if not check(path.exists(), f"empty-diff: {rel} is missing"):
@@ -570,6 +573,31 @@ def validate_empty_diff_fallback():
               f"empty-diff: {rel} must name the `git status --porcelain -uall` fallback")
         check(re.search(r"uncommitted", body, re.IGNORECASE) is not None,
               f"empty-diff: {rel} must state the change may simply be UNCOMMITTED")
+
+
+def validate_reviewer_pair_identical():
+    """v1.17.3 — `reviewer-max` is the `reviewer` brief on a stronger model: "identical role, rules,
+    and output". The two bodies must therefore be byte-identical below the frontmatter. v1.7.4 added the
+    git-isolation, env-parity and empty-diff sections to `reviewer.md` and `challenger.md` but not to
+    `reviewer-max.md`, and every per-file guard above listed only `reviewer.md` — so the high-stakes seat
+    shipped without the isolation rule from v1.7.4 to v1.17.2 while validate.py reported OK. Comparing the
+    whole body catches any future one-sided edit, not just the sections a regex happens to name."""
+    agents = ROOT / "plugins" / "mango" / "agents"
+    bodies = {}
+    for name in ("reviewer.md", "reviewer-max.md"):
+        path = agents / name
+        if not check(path.exists(), f"reviewer-pair: agents/{name} is missing"):
+            return
+        parts = path.read_text(encoding="utf-8").replace("\r\n", "\n").split("---", 2)
+        if not check(len(parts) == 3, f"reviewer-pair: agents/{name} has no frontmatter block"):
+            return
+        bodies[name] = parts[2]
+    a = bodies["reviewer.md"].splitlines()
+    b = bodies["reviewer-max.md"].splitlines()
+    first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
+    check(a == b, "reviewer-pair: agents/reviewer.md and agents/reviewer-max.md bodies differ below "
+          f"the frontmatter (first difference at body line {first + 1}); reviewer-max must "
+          "carry the reviewer brief verbatim; only name, description and model may differ")
 
 
 def validate_epic_lesson_owner():
@@ -3109,6 +3137,7 @@ def main():
     validate_review_git_isolation()
     validate_worktree_env_parity()
     validate_empty_diff_fallback()
+    validate_reviewer_pair_identical()
     validate_epic_lesson_owner()
     validate_drift_count_line()
     validate_multi_clause_want()
