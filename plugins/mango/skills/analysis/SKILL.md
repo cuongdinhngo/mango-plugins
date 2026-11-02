@@ -21,8 +21,9 @@ count, and the requirements matrix.
 
 ## Steps
 
-1. **Pull the ticket.** Read it via `config.tracker.read_mcp` (or ask the user to paste it if no
-   read MCP is configured). **Request the full field set in one read** — a tracker read can default
+1. **Pull the ticket.** When `config.tracker.mode` is `"local"`, read `<config.tickets_dir>/<KEY>.md`
+   — no tracker call, no paste; if that file is missing, STOP and name the path to create. Otherwise
+   read it via `config.tracker.read_mcp` (or ask the user to paste it if no read MCP is configured). **Request the full field set in one read** — a tracker read can default
    to a minimal field set (e.g. summary + status) and return an empty description, wasting a
    re-fetch. Request `config.tracker.fields` if it is set; otherwise request a sensible full default
    (description/body, type, labels, parent, priority). Capture the raw ticket text verbatim — later

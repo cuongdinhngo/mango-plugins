@@ -71,8 +71,9 @@ A few terms recur throughout; here they are once.
 
 **Prerequisites:** Claude Code, git, Python 3.7+ on `PATH` (the scripts are stdlib-only; CI runs the
 current Python 3), your project's test command, a tracker connection (`tracker.cli` or
-`tracker.read_mcp` — `doctor` reports ❌ without one, and `solve` will not start while a ❌ remains),
-and your PR host's CLI named in `pr_host`.
+`tracker.read_mcp`) **or** local mode (`"tracker": { "mode": "local" }`, tickets as files in
+`tickets_dir`) — `doctor` reports ❌ with neither, and `solve` will not start while a ❌ remains — and
+your PR host's CLI named in `pr_host`.
 
 | Skill | Use | Produces |
 |-------|-----|----------|
@@ -285,7 +286,7 @@ Shipped behaviour carries an honest maturity level (the single source is
 [`principles/maturity.md`](./principles/maturity.md), read on demand from
 [`PRINCIPLES.md`](./PRINCIPLES.md)): **Stable** = committed, field-tested behaviour, safe to rely on
 (the default); **Experimental** = works and is validated, but its exact shape may still change until
-further real-world use. Six behaviours are Experimental today:
+further real-world use. Seven behaviours are Experimental today:
 
 - **the unattended lane** (`autorun`, 1.11.0) — the unattended closing itself, the exact condition set a
   `RUN CONTRACT` should carry, and the call-count budget proxy.
@@ -298,6 +299,8 @@ further real-world use. Six behaviours are Experimental today:
   recall key each type gets, how recurrence is scored.
 - **the delegation dispatch** (`implementer`, `explorer`, 1.17.0) — which steps `execute` hands to
   `implementer`, what the dispatch carries, and what the `explorer` fan-out returns.
+- **tracker local mode** (`"tracker": { "mode": "local" }`, 1.18.0) — the exact local-mode surface:
+  how `finalise` presents the tracker update it does not run, and which phases read the ticket file.
 
 In every case the **safety boundaries are not Experimental**: no gate is removed and there is no
 auto-merge; the checker reports and never rewrites and `not-checkable` is never a pass;
@@ -461,7 +464,11 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 - `repos` — array of `{name, root}` (supports multi-repo porting).
 - `test_command` — the command phases use to run the proving test.
 - `tracker` — `{base_url, project_key, cli, read_mcp, fields}`. Writes go through `cli`; reads may use
-  the optional read-only `read_mcp`.
+  the optional read-only `read_mcp`. Or `{ "mode": "local" }` for **local mode**: `analysis` reads
+  `<tickets_dir>/<KEY>.md`, `review` re-reads the raw ticket from that file, mango makes no tracker
+  call, and `finalise` lists the tracker comment and transition as `manual — local mode` and prints
+  them for you to apply. `doctor` requires `tickets_dir` to exist and rejects any other `mode` value;
+  local mode is only ever declared, never inferred from a missing key.
 - `ticket_header_schema` — maps each ticket header to `C` / `R` / `G` / `AC`.
 
 **Optional / defaulted**

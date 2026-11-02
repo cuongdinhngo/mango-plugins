@@ -213,6 +213,9 @@ goes through `config.tracker.cli` — **never** an MCP.
    - open a PR via `config.pr_host`;
    - tracker comment (via `config.tracker.cli`);
    - tracker transition (via `config.tracker.cli`).
+   **Local mode (`config.tracker.mode: "local"`):** list the tracker comment and transition as
+   **`manual — local mode`**, print the exact comment text and the target status for the human to
+   apply, and run **no** tracker command for them — not in step 7, not on approval.
    **Frontend-track PR discipline (when `config.track` includes frontend):** do **not** mix
    aesthetic/responsive changes into a logic/backend PR — they ride a **separate branch** (per
    `config.branch_strategy`). If the diff has crossed from one into the other, surface it here as an
@@ -225,7 +228,7 @@ goes through `config.tracker.cli` — **never** an MCP.
    A step-3 classification or promotion is **ratified here, per claim, explicitly** — a blanket "go" on
    the outward actions is **not** a ratification of a claim, and an unratified claim is written nowhere.
 7. **Execute only approved actions.** For each approved action, run it. All tracker writes use
-   `config.tracker.cli`. After each, report what happened.
+   `config.tracker.cli`; in local mode there are none to run. After each, report what happened.
 8. **Draft follow-up tickets** for every deferred (⚠) matrix row, so nothing silently drops.
 9. **Cost ledger — completeness gate (content, not just row count), then the descriptive summary (dispatch-only).**
    Before surfacing the summary, enforce the **ledger-completeness check** — the ledger's *teeth*, and a

@@ -75,6 +75,7 @@
   "migrations_path": null,
 
   "tracker": {
+    "//mode": "OPTIONAL. Omit to use a tracker (the keys below). Set \"tracker\": { \"mode\": \"local\" } — with tickets_dir set and the directory present — to work with no tracker: analysis reads <tickets_dir>/<KEY>.md, mango makes no tracker read or write, and finalise prints the tracker comment and transition for you to apply. \"local\" is the only value; doctor rejects any other.",
     "base_url": "https://tracker.example.com",
     "project_key": "PROJ",
     "cli": "REPLACE_ME (CLI command for ALL tracker writes — comments, transitions; never an MCP)",

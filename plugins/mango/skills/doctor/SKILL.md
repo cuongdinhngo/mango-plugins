@@ -49,8 +49,19 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
    does not exist. In either the ⚠ (thin/boilerplate) or the ❌ (missing) case, **suggest**
    `/mango:codify` to facilitate defining the rule book and database conventions — *suggest only;
    never run it automatically.*
-4. **Tracker writable.** `tracker.cli` exists and is executable, **or** `tracker.read_mcp` is set
-   (reads only). ❌ if neither — "set `tracker.cli` to your tracker write command."
+4. **Tracker writable — or local mode, declared.** Branch on `tracker.mode`:
+   - **`tracker.mode` absent** → `tracker.cli` exists and is executable, **or** `tracker.read_mcp` is
+     set (reads only). ❌ if neither — "set `tracker.cli` to your tracker write command, or set
+     `"tracker": { "mode": "local" }` to work from ticket files with no tracker."
+   - **`tracker.mode` = `"local"`** → ✅ only when `tickets_dir` is set **and** that directory exists;
+     ❌ otherwise — "local mode reads tickets from `tickets_dir`; set it and create the directory." On
+     the ✅ line print: *"local mode: tickets are read from `<tickets_dir>/<KEY>.md`; mango makes no
+     tracker read or write, and finalise prints the tracker update for you to apply."* ⚠ if
+     `tracker.cli` or `tracker.read_mcp` is also set — "ignored in local mode."
+   - **any other `tracker.mode` value** → ❌ "unknown `tracker.mode` `<value>`; the only value is
+     `"local"` — remove the key to use a tracker."
+   Local mode is **only** ever the declared value; a missing `tracker` key stays a check-2 ❌ and is
+   never read as local mode.
 5. **Test command set.** `test_command` is non-empty and not a `REPLACE_ME` placeholder. ❌ → "set
    `test_command` to the command that runs your proving test."
 6. **Finalise checklist (if set).** If `config.pr_checklist_path` is set, the file it points at must

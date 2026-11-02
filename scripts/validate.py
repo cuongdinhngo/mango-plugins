@@ -2976,6 +2976,42 @@ def validate_readme_eval_claim():
           "source of the Experimental labels")
 
 
+def validate_tracker_local_mode():
+    """v1.18.0 — `"tracker": { "mode": "local" }` lets a project run with no tracker: tickets are files
+    in `tickets_dir`, no tracker read or write happens, and finalise prints the tracker update instead of
+    running it. The boundary this guards: local mode is DECLARED, never inferred — a missing `tracker` key
+    is still a doctor ❌, an unknown mode is a ❌, and local mode without an existing `tickets_dir` is a ❌.
+    Each surface that reads the ticket or writes the tracker must carry its local-mode branch, or a run in
+    local mode would fall through to a tracker call it has no tracker for."""
+    doctor, analysis, review = skill_text("doctor"), skill_text("analysis"), skill_text("review")
+    finalise, init = skill_text("finalise"), skill_text("init")
+    check(re.search(r'`tracker\.mode` = `"local"`', doctor) is not None,
+          "local-mode: doctor check 4 must branch on `tracker.mode` = \"local\"")
+    check(re.search(r"tickets_dir` is set \*\*and\*\* that directory exists", doctor) is not None,
+          "local-mode: doctor must pass local mode only when tickets_dir is set AND exists")
+    check(re.search(r"unknown `tracker\.mode`", doctor) is not None,
+          "local-mode: doctor must reject an unknown tracker.mode value as a fail")
+    check(re.search(r"never read as local mode", doctor) is not None,
+          "local-mode: doctor must state a missing tracker key is never read as local mode")
+    check(re.search(r"set \\?`tracker\.cli` to your tracker write command", doctor) is not None,
+          "local-mode: doctor's tracker fail must keep the tracker.cli remediation")
+    check(re.search(r"<config\.tickets_dir>/<KEY>\.md`\s*\n?\s*— no tracker call, no paste", analysis)
+          is not None,
+          "local-mode: analysis must read <tickets_dir>/<KEY>.md in local mode, with no tracker call or paste")
+    check(re.search(r'tracker\.mode: "local"`, from `<config\.tickets_dir>/<KEY>\.md`', review) is not None,
+          "local-mode: review must re-read the raw ticket from <tickets_dir>/<KEY>.md in local mode")
+    check("manual — local mode" in finalise
+          and re.search(r"run \*\*no\*\* tracker command", finalise) is not None,
+          "local-mode: finalise must list tracker actions as `manual — local mode` and run no tracker "
+          "command for them")
+    check(re.search(r"only on the user's yes", init) is not None,
+          "local-mode: init must write local mode only on the user's yes, never because answers are blank")
+    example = load_json(ROOT / "plugins" / "mango" / "config" / "harness.example.json") or {}
+    mode_doc = (example.get("tracker") or {}).get("//mode", "")
+    check('"local"' in mode_doc and "tickets_dir" in mode_doc,
+          "local-mode: harness.example.json must document tracker.//mode (\"local\", tickets_dir)")
+
+
 def validate_delegation_agents():
     """v1.17.0 — the two Sonnet rows of the delegation map (implement, explore) are a CHOICE OF AGENT,
     pinned by frontmatter, exactly as `review` picks `reviewer` vs `reviewer-max`. Before this they
@@ -3193,6 +3229,7 @@ def main():
     validate_template_skill_consistency()
     validate_eval_guard()
     validate_readme_eval_claim()
+    validate_tracker_local_mode()
     validate_delegation_agents()
     validate_maturity_count()
     validate_doc_consistency()

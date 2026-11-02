@@ -121,7 +121,8 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    is procedural, not just requested: build the payload as exactly *(a)* the **raw ticket portion
    only** plus *(b)* the diff/branch. Source the raw ticket by `config.work_doc_mode`:
    - **separate working doc** (tracker-hosted, or `work_doc_mode: separate`) → re-fetch the raw ticket
-     **from the tracker** (`config.tracker.read_mcp`, or have the user paste it) — do NOT copy it out
+     **from the tracker** (`config.tracker.read_mcp`, or have the user paste it; under
+     `config.tracker.mode: "local"`, from `<config.tickets_dir>/<KEY>.md`) — do NOT copy it out
      of the working doc — and **exclude** `<config.work_dir>/<KEY>.work.md` entirely.
    - **embedded working doc** (local-file ticket under `auto`/`embed`) → take **only the text above
      the raw-ticket separator line** in the ticket file; **exclude everything below the separator**
