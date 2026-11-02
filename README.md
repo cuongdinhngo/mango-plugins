@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.18.1-blue)
+![version](https://img.shields.io/badge/version-1.18.2-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -210,6 +210,17 @@ of each newer surface are in [`docs/MATURITY.md`](./docs/MATURITY.md).
 ```
 /plugin marketplace update mango-plugins
 /plugin install mango@mango-plugins
+```
+
+### Pinning a version
+
+Every push to `main` ships, and every version bump is tagged `v<version>` with a
+[GitHub Release](https://github.com/cuongdinhngo/mango-plugins/releases) carrying that version's
+CHANGELOG entry. Tags start at `v1.18.2`. To stay on one version, add the marketplace pinned to its
+tag:
+
+```
+/plugin marketplace add cuongdinhngo/mango-plugins#v1.18.2
 ```
 
 ---

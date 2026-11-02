@@ -3051,6 +3051,49 @@ def validate_harness_minimal():
         check("config/harness.minimal.json" in text, f"harness-minimal: {rel} must name config/harness.minimal.json")
 
 
+def validate_release_workflow():
+    """v1.18.2 — .github/workflows/release.yml tags v<version> from plugin.json and publishes the
+    CHANGELOG entry as the notes. Keep the parts that make it safe: the extractor finds the current
+    version's entry, the deterministic gates run before publishing, an existing tag is never re-made,
+    and the publish step runs only on a push (a pull request is a dry run)."""
+    wf_path = ROOT / ".github" / "workflows" / "release.yml"
+    if not check(wf_path.exists(), "release: .github/workflows/release.yml is missing"):
+        return
+    wf = wf_path.read_text(encoding="utf-8")
+    sys.path.insert(0, str(ROOT / "scripts"))
+    try:
+        import release_notes
+    except ImportError as exc:
+        check(False, f"release: cannot import scripts/release_notes.py ({exc})")
+        return
+    finally:
+        sys.path.pop(0)
+    version = release_notes.plugin_version()
+    check(bool(release_notes.changelog_entry(version)),
+          f"release: release_notes.py finds no CHANGELOG entry for the current version [{version}]")
+    sample = "## [2.0.0] - x\n\nnew body\n\n## [1.0.0] - y\n\nold body\n"
+    check(release_notes.changelog_entry("2.0.0", sample) == "new body"
+          and release_notes.changelog_entry("1.0.0", sample) == "old body"
+          and release_notes.changelog_entry("3.0.0", sample) == "",
+          "release: changelog_entry must return exactly one entry's body, and '' for a missing version")
+    gates = wf.find("python3 scripts/validate.py")
+    publish = wf.find("gh release create")
+    check(gates != -1 and publish != -1 and gates < publish,
+          "release: release.yml must run validate.py before `gh release create`")
+    check("python3 tests/envelope/test_envelope.py" in wf,
+          "release: release.yml must run the harness script suite before publishing")
+    steps = re.split(r"(?m)^\s*- name:", wf)
+    publish_steps = [st for st in steps if "gh release create" in st]
+    check(len(publish_steps) == 1
+          and "if: github.event_name == 'push' && steps.meta.outputs.exists == 'false'" in publish_steps[0],
+          "release: `gh release create` must run in one step, only on a push and only when the tag does not exist")
+    check(re.search(r"(?m)^\s+branches: \[main\]", wf) is not None,
+          "release: the publishing trigger must be limited to pushes on main")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    check(re.search(r"/plugin marketplace add cuongdinhngo/mango-plugins#v\d+\.\d+\.\d+", readme) is not None,
+          "release: root README must show pinning the marketplace by tag (`owner/repo#v<version>`)")
+
+
 def validate_delegation_agents():
     """v1.17.0 — the two Sonnet rows of the delegation map (implement, explore) are a CHOICE OF AGENT,
     pinned by frontmatter, exactly as `review` picks `reviewer` vs `reviewer-max`. Before this they
@@ -3270,6 +3313,7 @@ def main():
     validate_readme_eval_claim()
     validate_tracker_local_mode()
     validate_harness_minimal()
+    validate_release_workflow()
     validate_delegation_agents()
     validate_maturity_count()
     validate_doc_consistency()
