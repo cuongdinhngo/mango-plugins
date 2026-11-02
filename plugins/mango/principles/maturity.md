@@ -7,7 +7,7 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Seven behaviours are **Experimental** today:
+Eight behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
@@ -58,6 +58,13 @@ Seven behaviours are **Experimental** today:
   not yet run on a real project. **Its safety boundaries are NOT Experimental**: local mode is only ever
   declared, never inferred from a missing key; doctor still fails on a missing `tracker`, an unknown
   `mode`, or a missing `tickets_dir`; and in local mode mango runs no tracker command at all.
+
+- **the standalone challenger (`/mango:challenge`).** Running the existing `challenger` once on a raw
+  ticket and a diff, outside the lifecycle, is new; what is Experimental is the entry surface — how the
+  ticket and the default range are resolved. It has not yet run on a real project. **Its safety
+  boundaries are NOT Experimental**: it dispatches the one shipped `challenger` brief unmodified, its
+  payload is the raw ticket and the range and nothing else (never a PR body or a working doc), it
+  writes nothing, and its output is labelled advisory and never satisfies a review criterion or a gate.
 
 Everything else on the ticket and epic paths is **Stable** — ticket-path classification (want-decision /
 how-decision), `ASSUMED` handling, the 1-dispatch exposure-checker, epic detection, the enumerated

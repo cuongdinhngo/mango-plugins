@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.18.2-blue)
+![version](https://img.shields.io/badge/version-1.19.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -75,6 +75,10 @@ In Claude Code:
 ```
 
 That's enough to run your first ticket.
+
+Want to see the independent check before setting anything up? `/mango:challenge <ticket-file>
+[<base>..<branch>]` runs the ticket-blind challenger once on a branch, needs no `.harness.json`, and
+writes nothing. Its table is advisory, not a review verdict.
 
 `/mango:init` detects your stack, writes `.harness.json`, scaffolds a starter rule book, marks every
 inferred value `UNVERIFIED` for you to confirm, and writes **no secrets** — tokens live only in a
@@ -180,8 +184,9 @@ commit can't quietly inherit an old review.
 ## Skills at a glance
 
 The lifecycle skills are above. The rest are **supporting** — setup, diagnostics, and maps, none of
-them gated: `init` · `doctor` · `codify` · `version-check` · `budget`, plus opt-in descriptive maps
-`sitemap` (code surface) and `db-map` (database schema).
+them gated: `init` · `doctor` · `codify` · `version-check` · `budget`, the one-shot `challenge`
+(the challenger on any branch, outside the lifecycle), plus opt-in descriptive maps `sitemap` (code
+surface) and `db-map` (database schema).
 
 The **[plugin README](./plugins/mango/README.md)** has what each skill produces, plus phase-by-phase
 detail, the lite/full tiers, the frontend track, and the model-delegation map.
@@ -193,7 +198,7 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 **Every release is gated by `validate.py` and the dispatch-free script suites**, both run in CI on
 every push.
 
-**mango has no behavioural regression suite.** It has a per-skill smoke guard of 7 fixtures, run when
+**mango has no behavioural regression suite.** It has a per-skill smoke guard of 8 fixtures, run when
 a skill is edited: it reports that those fixtures passed just now, and nothing more. Two limits are
 stated rather than left to be discovered — it does **not** detect cross-skill regressions (editing
 `design` and breaking `finalise` is not caught), and the `RETIRE:` counted line is uncovered.

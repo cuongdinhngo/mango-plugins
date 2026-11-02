@@ -55,6 +55,11 @@ SKILL_CONTRACTS = {
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk",
                 r"commit(ted)? .{0,24}before .{0,20}review", r"ref-based", r"empty",
                 r"empirical output", r"verbatim", r"golden", r"docstring", r"interface contract"],
+    "challenge": [r"agents/challenger\.md", r"never dispatch a second\s+challenger", r"not required",
+                  r"\*\.work\.md", r"MANGO WORKING DOC", r"PR body", r"gh pr view", r"nothing else",
+                  r"git-isolation\.md", r"ref-based", r"in full", r"never compress",
+                  r"CHALLENGER ONLY — advisory", r"not a mango review verdict", r"Run /mango:init",
+                  r"writes nothing", r"never satisfies a `review` criterion"],
     "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out",
                r"ref-based", r"worktree", r"checkout",
                r"env-?parity|environment-equivalence", r"env-?fault|environment fault", r"untracked",
@@ -2479,7 +2484,7 @@ def validate_counted_line_checker():
 # --- v1.16.0: the per-skill smoke guard ----------------------------------------------------------
 def validate_eval_guard():
     """v1.16.0 — the behavioural eval suite is retired. What replaces it is a per-skill smoke
-    guard (six fixtures at v1.16.0, seven since v1.17.0), and this is the check that keeps it real: each exists, run.sh dispatches
+    guard (six fixtures at v1.16.0, seven since v1.17.0, eight since v1.19.0), and this is the check that keeps it real: each exists, run.sh dispatches
     it, and FIXTURE_SKILLS keys it to the skill it exercises — without that key the per-skill trigger
     cannot select it, which is the whole mechanism. A fixture that exists but is never dispatched is
     not coverage; a fixture that is dispatched but not mapped cannot be triggered by a skill edit.
@@ -2507,6 +2512,10 @@ def validate_eval_guard():
             "arithmetic check_lines.py verifies with no grammar judgement"),
         "greenfield-promote-zeros": ("promote",
             "THE NEGATIVE CONTROL — an empty corpus emits zeros, proposes nothing, writes nothing"),
+        "challenge-standalone": ("challenge",
+            "v1.19.0 — the existing challenger runs once outside the lifecycle with no .harness.json, "
+            "on the raw ticket above the separator + the range; the PR body stays out, nothing is "
+            "written, and the output is never a review verdict"),
     }
     fixtures = ROOT / "tests" / "eval" / "fixtures"
     runsh = ROOT / "tests" / "eval" / "run.sh"
@@ -3094,6 +3103,20 @@ def validate_release_workflow():
           "release: root README must show pinning the marketplace by tag (`owner/repo#v<version>`)")
 
 
+def validate_challenge_standalone():
+    """v1.19.0 — /mango:challenge reuses the ONE shipped challenger brief. A second challenger agent,
+    or a challenge skill that drops the review-scoping note, would split the independent check into
+    two definitions that can drift apart."""
+    agents = sorted(p.name for p in (ROOT / "plugins" / "mango" / "agents").glob("*challenger*.md"))
+    check(agents == ["challenger.md"],
+          f"challenge: agents/ must hold exactly one challenger brief (challenger.md), found {agents}")
+    review = skill_text("review")
+    check(re.search(r"challenger-dispatch decision in the lifecycle \(`/mango:challenge` runs outside it\)",
+                    review) is not None,
+          "challenge: review must scope its single challenger-dispatch claim to the lifecycle and name "
+          "/mango:challenge as running outside it")
+
+
 def validate_delegation_agents():
     """v1.17.0 — the two Sonnet rows of the delegation map (implement, explore) are a CHOICE OF AGENT,
     pinned by frontmatter, exactly as `review` picks `reviewer` vs `reviewer-max`. Before this they
@@ -3314,6 +3337,7 @@ def main():
     validate_tracker_local_mode()
     validate_harness_minimal()
     validate_release_workflow()
+    validate_challenge_standalone()
     validate_delegation_agents()
     validate_maturity_count()
     validate_doc_consistency()

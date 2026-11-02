@@ -5,6 +5,56 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.19.0] — 2026-11-02
+
+**Minor: `/mango:challenge` — the challenger on any branch, outside the lifecycle.** Trying mango meant
+`init`, a rule book and a full ticket before seeing anything independent look at a diff. `review` will
+not run without `.harness.json` and a working doc, so the ticket-blind challenger was out of reach for a
+first look. `challenge` dispatches the **existing** `challenger` agent once, on a raw ticket and a range,
+and prints its table. Labelled **Experimental** in `principles/maturity.md` until it has run on a real
+project.
+
+- **New skill `skills/challenge/`:** `/mango:challenge <ticket-file-or-KEY> [<base>..<branch>]`.
+  - **Ticket:** a file needs no `.harness.json`. A `*.work.md` file stops the run. For a file holding
+    the raw-ticket separator, only the text above it is used. A KEY needs `.harness.json` and reads
+    `<tickets_dir>/<KEY>.md` in local mode, or the tracker through `read_mcp`.
+  - **Range:** defaults to `<default>...HEAD`. It stops and asks when HEAD is the default branch, or
+    when the range is empty and the tree is clean.
+  - **Payload:** exactly the raw ticket and the range, nothing else. It never includes a PR body
+    (`gh pr view` is never run to build it), a working doc, or a design.
+  - **Output:** the challenger's output is printed in full, then two fixed lines:
+    `CHALLENGER ONLY — advisory. … this is not a mango review verdict.` and
+    `Want this on every ticket, with gates? Run /mango:init.`
+  - **Writes nothing:** no file, no working doc, no `Reviewed at` marker, no tracker or PR write, and
+    no git command that moves HEAD or touches the index. Its output never satisfies a `review`
+    criterion.
+- **`agents/challenger.md` is unchanged.** No second challenger brief exists, and the validator now
+  fails if one appears.
+- **`review` step 2:** its "single challenger-dispatch decision" is scoped to the lifecycle and names
+  `/mango:challenge` as running outside it. Nothing else in `review` changes.
+- **Smoke guard:** the new fixture `challenge-standalone`, mapped to `challenge`, brings it to eight.
+  It is adversarial: there is no `.harness.json`, the ticket file carries an embedded working doc below
+  the separator, and the developer offers the PR body as a shortcut. The run ends with four decision
+  lines (`HARNESS:`, `PAYLOAD:`, `KEPT OUT:`, `WRITES:`). Four assertions anchor on them, with two
+  `absent` controls: the PR body is never put into the payload, and no verdict is written to a working
+  doc or tracker. A fifth assertion checks the `CHALLENGER ONLY` closing line.
+  - **Why decision lines.** The first design asserted on free prose. Over three rounds of three fresh
+    runs, every transcript was correct, yet each round failed on a new phrasing ("never needs the
+    config", "What it writes: nothing", "that line"), because matching is line by line.
+  - **Self-tests.** Five new assertion-convention self-tests prove the decision-line tokens both ways.
+    One proves that an echoed template matches no outcome.
+  - **Counts:** the fixture count in `run.sh`, the eval README, CONTRIBUTING, CLAUDE.md, `eval.yml` and
+    the root README was updated to eight.
+- **READMEs:** the root Quick start and *Skills at a glance* name `challenge`, and the plugin README has
+  a row for it. Eight Experimental behaviours, up from seven.
+- **`scripts/validate.py`:**
+  - A `challenge` skill contract with 17 tokens.
+  - The new `validate_challenge_standalone`: exactly one challenger brief in `agents/`, and `review`'s
+    scoping note.
+  - The `eval-guard` entry for the new fixture.
+  - Negative test: against a second challenger brief, an unscoped `review` sentence, a skill with its
+    PR-body and writes-nothing directives removed, and a missing fixture, it fails 5 times.
+
 ## [1.18.2] — 2026-11-02
 
 **Patch: every version bump is tagged and released.** The repo had no git tags, so a user could not pin
