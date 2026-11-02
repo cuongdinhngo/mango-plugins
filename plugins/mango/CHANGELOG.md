@@ -5,6 +5,33 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.18.1] — 2026-11-02
+
+**Patch: a minimal config to start from.** `harness.example.json` ships 35 top-level keys, and only five
+are required, so a first-time user had to read all of them to learn which mattered. Its header comment
+also said `.harness.json` "is gitignored by mango's marketplace", which describes this repo's own
+`.gitignore`, not the user's project. No skill changes and no check is loosened.
+
+- **New `config/harness.minimal.json`:** the five keys `doctor` check 2 requires, plus `tickets_dir`
+  and `pr_host`, in local mode (`"tracker": { "mode": "local" }`). As copied, `doctor` still reports ❌
+  on the `REPLACE_ME` `test_command` and on a missing rule book, which is correct: those are the values
+  the user must supply.
+- **`harness.example.json` header comment:** points at the minimal file, says every key beyond it is
+  optional, and states the real commit policy: `/mango:init` asks whether `.harness.json` is committed or
+  kept local. The misleading gitignore sentence is gone. No key was moved or removed.
+- **READMEs:** the hand-fill instructions name `config/harness.minimal.json`.
+- **`scripts/validate.py`:** the new `validate_harness_minimal` checks the minimal file:
+  - It carries every key `doctor` check 2 requires, with the list parsed from `doctor` so the two
+    cannot drift.
+  - `tracker` is exactly local mode, `tickets_dir` is set, and `pr_host` is present.
+  - It ships no key that `harness.example.json` lacks.
+  - The example's header comment and both READMEs name it.
+  - Against a broken copy (a required key dropped, a tracker CLI, an invented key) it fails three times.
+- **Not done:** `init` still writes the full shape, including every learning-loop destination key. Its
+  step 3 requires those keys, so switching it to the minimal shape would drop them. The key grouping
+  into REQUIRED / RECOMMENDED / ADVANCED sections proposed for `harness.example.json` was also left out;
+  the minimal file carries that split instead of a reordering of the 35-key file.
+
 ## [1.18.0] — 2026-11-02
 
 **Minor: tracker local mode — run mango with no tracker.** `doctor` required `tracker.cli` or
