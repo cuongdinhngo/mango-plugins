@@ -124,6 +124,10 @@ RATIONALE_MARKERS = [
     (r"\bhistorically\b", "a historical justification"),
     (r"war-?stor", "a war-story"),
     (r"retro-#\d", "a past-incident reference ('retro-#N')"),
+    # v1.17.5 — a rationale HEADING ('## Why this is a skill, not an agent') slipped past every phrase
+    # marker above; a section titled Why/Rationale/History/Background is the why by its own name.
+    (r"(?im)^#{1,6}[ \t]+(why|rationale|history|background)\b",
+     "a rationale heading ('## Why …' / Rationale / History / Background)"),
 ]
 
 failures = []

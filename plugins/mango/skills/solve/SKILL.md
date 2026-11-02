@@ -24,8 +24,7 @@ State up front, verbatim: **"I stop and wait for you at every ✋ gate."**
 
 **Waiving review is TWO decisions, not one — two flags, each defaulting to its seat RUNNING.**
 `--no-reviewer` waives the rule-book-grounded reviewer (about 108k per round); `--no-challenger` waives
-the ticket-blind challenger (about 58k). **Neither implies the other**, because one flag for both loses
-the cheap seat along with the expensive one. Waiving is a **deliberate decision recorded as an
+the ticket-blind challenger (about 58k). **Neither implies the other.** Waiving is a **deliberate decision recorded as an
 argument**, never an improvised mid-run instruction: pass both flag states to `review`, which owns the
 **single** reviewer-dispatch decision (step 1) and the **single** challenger-dispatch decision (step 2)
 — do not build a second one here. Record `REVIEWER: ON | OFF (--no-reviewer)` and
@@ -38,11 +37,10 @@ or `clean (nobody looked — REVIEWER: OFF, CHALLENGER: OFF)` rather than a bare
 live conversation and waits for a human; `autorun` runs the same phases and closes each gate from the
 artifacts they emit, stopping at the PR. Same two flags, same defaults.
 
-## Why this is a skill, not an agent
+## Orchestration stays in the live conversation
 
-Gates require pausing in the **live conversation** so the human can approve. A subagent runs
-isolated and returns once — it cannot hold a gate open, surface a Gate-0 question mid-run, or take a
-per-action approval. So orchestration must live here, in-conversation, as a skill.
+Run the orchestration here, in the **live conversation** — never hand it to a subagent. Every gate,
+every Gate-0 question, and every per-action approval must reach the human in this conversation.
 
 ## Preflight (fail-fast)
 

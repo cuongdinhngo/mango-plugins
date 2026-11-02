@@ -165,6 +165,21 @@ process running stateful git in a shared cwd) — one principle, two surfaces.
 
 ---
 
+## solve — why orchestration is a skill, not an agent (moved from the skill in v1.17.5)
+
+**Rule (`skills/solve/SKILL.md`, *Orchestration stays in the live conversation*):** run the
+orchestration in the live conversation; never hand it to a subagent.
+
+**Why.** Gates require pausing in the **live conversation** so the human can approve. A subagent runs
+isolated and returns once — it cannot hold a gate open, surface a Gate-0 question mid-run, or take a
+per-action approval. So orchestration must live here, in-conversation, as a skill.
+
+The same version also dropped the clause "because one flag for both loses the cheap seat along with the
+expensive one" from `solve`'s flag paragraph; that reason is recorded under *review — why waiving
+review is two flags* below.
+
+---
+
 ## autorun — why the review seat stays in an unattended run
 
 **Rule (`skills/autorun/SKILL.md`, the degradation ladder):** the review seat degrades in three steps
