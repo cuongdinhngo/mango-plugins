@@ -823,6 +823,11 @@ RE_NOT_SILENT_ASSUMED='not[ *_]{0,4}[^.]{0,30}(silen|fallback|hand.?back)|never[
 # could not cross the closing `**`. Each separator after before / prior to / then now tolerates `[ *_]`,
 # as the other tokens here do; the alternatives and their windows are unchanged.
 RE_COMMIT_BEFORE_REVIEW='before[ *_]{1,4}.{0,30}(review|dispatch)|prior[ *_]{1,4}to[ *_]{1,4}.{0,24}(review|dispatch)|then[ *_]{1,4}.{0,12}(dispatch|flow).{0,20}review|first.{0,30}review'
+# RE_EMPTY_RANGE_NOT_VERDICT (2026-11-02) — the same fixture's empty-range token. Widened once, over
+# WORDING only, on two correct fresh runs: "is never an acceptable conclusion" (`conclude` did not cover
+# `conclusion`) and "'No changes' is allowed only after `git diff HEAD` …" (the fallback-first rule
+# stated as a precondition). Both alternatives still require the decision: no verdict before the fallback.
+RE_EMPTY_RANGE_NOT_VERDICT='not .{0,30}(conclude|assume|no[ -]change)|never[ *_]{0,4}.{0,26}(conclu(de|sion)|no[ -]change|rubber)|must .{0,20}(fall ?back|check|verify)|before .{0,16}conclud|falls? back before|only after .{0,40}(fall ?back|git diff HEAD|git status)'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
 
@@ -933,7 +938,7 @@ assert_contains "execute-commit-before-review: because review is ref-based"     
 assert_all "execute-commit-before-review: empty range → git diff HEAD + status fallback" "$t" 'git diff head' 'porcelain|git status|uncommitted'
 # Widened over WORDING (v1.8.0): the separator class again — a correct run writes "not a **no-change**
 # LGTM" (hyphen, not space) and "falls back **before it concludes** anything".
-assert_all "execute-commit-before-review: empty range is never a no-change verdict (non-vacuous)" "$t" 'empty' 'not .{0,30}(conclude|assume|no[ -]change)|never .{0,26}(conclude|no[ -]change|rubber)|must .{0,20}(fall ?back|check|verify)|before .{0,16}conclud|falls? back before'
+assert_all "execute-commit-before-review: empty range is never a no-change verdict (non-vacuous)" "$t" 'empty' "$RE_EMPTY_RANGE_NOT_VERDICT"
 
 banner "== execute-implementer-dispatch  (execute — Gate 3) =="
 # execute-implementer-dispatch (v1.17.0): step 3 is a CHOICE OF AGENT. Each assertion anchors on the
@@ -1203,6 +1208,18 @@ AC
 selftest_assertion "emphasis around the ordering word — **before** it dispatches review (execute-commit-before-review)" \
   "$_ac/commit-order.correct" "$_ac/commit-order.wrong" \
   'commit' "$RE_COMMIT_BEFORE_REVIEW"
+
+cat >"$_ac/empty-range.wrong" <<'AC'
+The range `main..feat/PROJ-902-retry-backoff` is empty, so there are no changes to review and the review is clean.
+AC
+cat >"$_ac/empty-range-conclusion.correct" <<'AC'
+"The range is empty, so there are no changes" is never an acceptable conclusion on its own. An empty range means look harder.
+AC
+selftest_assertion "noun form — never an acceptable conclusion (execute-commit-before-review)"   "$_ac/empty-range-conclusion.correct" "$_ac/empty-range.wrong"   'empty' "$RE_EMPTY_RANGE_NOT_VERDICT"
+cat >"$_ac/empty-range-only-after.correct" <<'AC'
+An empty range is a reason to look harder. "No changes" is allowed only after `git diff HEAD` and `git status --porcelain -uall` also show nothing.
+AC
+selftest_assertion "precondition form — no-change allowed only after the fallback (execute-commit-before-review)"   "$_ac/empty-range-only-after.correct" "$_ac/empty-range.wrong"   'empty' "$RE_EMPTY_RANGE_NOT_VERDICT"
 
 # --- option-shaped regex self-test -------------------------------------------
 # The fixtures assert on literal flags (`--tree`, `--no-reviewer`, `--no-challenger`). Without `--`,
