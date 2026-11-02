@@ -103,8 +103,8 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    brief** (and the challenger's) so it also scores the frontend rubric — see the **Frontend track**
    section below. Do **not** fork the agents per track; the rubric is injected content.
 2. **Run the `challenger` agent ticket-blind — unless `--no-challenger` was passed.** This is the
-   **single** challenger-dispatch decision in mango: `solve` and `autorun` route through it and
-   neither builds a parallel one. (`quick` never reaches this step — the lite lane is reviewer-only by
+   **single** challenger-dispatch decision in the lifecycle (`/mango:challenge` runs outside it):
+   `solve` and `autorun` route through it and neither builds a parallel one. (`quick` never reaches this step — the lite lane is reviewer-only by
    design, so the flag is inert there rather than a second way to waive.)
 
    **The challenger runs by DEFAULT.** It is skipped only when the invocation carried

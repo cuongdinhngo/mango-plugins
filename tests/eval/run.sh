@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Per-skill behavioural smoke guard for the mango skills.
 #
-# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: seven
+# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: eight
 # fixtures, run when a skill is edited, answering one question — "does the skill I just edited still
 # behave?" It does NOT answer "is mango green?", and nothing here should be read as though it did.
 #
@@ -21,7 +21,7 @@
 # contract text), plugins/mango/scripts/check_lines.py (counted lines), tests/envelope/.
 #
 # HOW TO RUN IT. Hands-free: one command, no manual scaffolding.
-#   bash tests/eval/run.sh                       # all seven  (~7 dispatches)
+#   bash tests/eval/run.sh                       # all eight  (~8 dispatches)
 #   bash tests/eval/run.sh --only '^(a|b)$'      # the fixtures mapped to the skill you edited
 #   bash tests/eval/run.sh --workers 1           # sequential — debugging one transcript
 #   bash tests/eval/run.sh --no-cache            # full fresh run: nothing is reused
@@ -35,7 +35,7 @@
 # minimal rule book) so the skills execute end-to-end without depending on the operator's setup, and
 # tears it down on exit — the live checkout is never mutated.
 #
-# This costs tokens. Seven fixtures is roughly $3.50; a typical one- or two-fixture selection is under
+# This costs tokens. Eight fixtures is roughly $4; a typical one- or two-fixture selection is under
 # $1.50 and under a minute.
 #
 # --- How the runner works: PARALLEL DISPATCH over a TWO-PASS body ---------------
@@ -58,7 +58,7 @@
 # worker gets its own clone AND writes its own per-JOB harness; the worker tree is disposed after its
 # last job and the disposal is a counted assertion, alongside the live-checkout guard.
 #
-# --- The seven, and what each one is for ----------------------------------------
+# --- The eight, and what each one is for ----------------------------------------
 #   refine-want-unattended-stops  refine, autorun  Gate 0. The worked example of a claim bound to a
 #                     COUNTED LINE: an unresolved want-decision counts toward `j`, autorun stops, and
 #                     it is never a silent ASSUMED — asserted against the REFINE: line's own arithmetic.
@@ -77,6 +77,9 @@
 #                     judgement. finalise emits 6 of the 20 counted grammars — more than any skill.
 #   greenfield-promote-zeros      promote          NEGATIVE CONTROL. An empty corpus emits zeros,
 #                     proposes nothing, writes nothing: `absent rules written[ *_:=]*[1-9]`.
+#   challenge-standalone          challenge        Outside the lifecycle. The existing challenger runs once
+#                     with no .harness.json, on the raw ticket above the separator + the range; the PR
+#                     body stays out, nothing is written, and the output is never a review verdict.
 #
 # ASSERTION CONVENTION (tests/eval/README.md): match the DECISION, not one phrasing; tolerate
 # markdown emphasis; widen over wording, NEVER over outcome. Every widened token is proven both ways
@@ -203,6 +206,7 @@ declare -A FIXTURE_SKILLS=(
   [execute-implementer-dispatch]="execute"
   [lesson-claim-split]="finalise"
   [greenfield-promote-zeros]="promote"
+  [challenge-standalone]="challenge"
 )
 # make `cat` block on stdin): no args → empty hash → treated as a MISS (run fresh), never a hang.
 hash_files() { [ "$#" -gt 0 ] || return 1; cat "$@" 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'; }
@@ -828,6 +832,19 @@ RE_COMMIT_BEFORE_REVIEW='before[ *_]{1,4}.{0,30}(review|dispatch)|prior[ *_]{1,4
 # `conclusion`) and "'No changes' is allowed only after `git diff HEAD` …" (the fallback-first rule
 # stated as a precondition). Both alternatives still require the decision: no verdict before the fallback.
 RE_EMPTY_RANGE_NOT_VERDICT='not .{0,30}(conclude|assume|no[ -]change)|never[ *_]{0,4}.{0,26}(conclu(de|sion)|no[ -]change|rubber)|must .{0,20}(fall ?back|check|verify)|before .{0,16}conclud|falls? back before|only after .{0,40}(fall ?back|git diff HEAD|git status)'
+# challenge-standalone's decision lines (2026-11-02). The fixture asks for four fixed lines
+# (HARNESS:, PAYLOAD:, KEPT OUT:, WRITES:), and each assertion anchors on one of them, the way
+# execute-implementer-dispatch anchors on VARIANT X:. Its first design asserted on free prose: over
+# three rounds of three fresh runs, every transcript was correct, yet each round failed a different
+# phrasing ("never needs the config", "What it writes: nothing", "that line" for the separator), because
+# matching is line by line and the answers wandered. A decision line holds the outcome in one place, so
+# it is judged on the decision rather than on a phrasing. Each token below is proven both ways by the
+# assertion-convention self-test. The template the fixture shows cannot match them: "needed | not needed"
+# opens with "needed", and the angle-bracket placeholders match no outcome word.
+RE_CHALLENGE_HARNESS_LINE='^[ *_`>-]*HARNESS[ *_`]*:[ *_`]*not[ *_]{1,4}needed'
+RE_CHALLENGE_KEPT_OUT_PR_BODY='^[ *_`>-]*KEPT[ *_]{1,4}OUT[ *_`]*:.*PR[ *_]{1,4}body'
+RE_CHALLENGE_KEPT_OUT_BELOW='^[ *_`>-]*KEPT[ *_]{1,4}OUT[ *_`]*:.*(below|under|working[ *_-]{1,4}doc|design[ *_]{1,4}notes|matrix)'
+RE_CHALLENGE_WRITES_LINE='^[ *_`>-]*WRITES[ *_`]*:[ *_`]*(nothing|none)([^a-z]|$)'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
 
@@ -873,7 +890,7 @@ assert_checkout_clean() {
 # The cache is wiped whenever run.sh itself changes. A cached transcript is a record of what the
 # model answered; it is re-judged from scratch on every reuse, so an edited assertion does not
 # invalidate it — it re-reads it. Keying the wipe on the WHOLE file is coarser than the two-tier
-# identity the retired suite carried, and deliberately so: with seven fixtures the saving that bought
+# identity the retired suite carried, and deliberately so: with eight fixtures the saving that bought
 # is worth less than the machinery, and a coarse key can only ever err toward running fresh.
 if [ "$CACHE_ENABLED" -eq 1 ]; then
   FP_FILE="$CACHE_DIR/.runner.fp"
@@ -968,6 +985,21 @@ assert_all "claim-split: the settings-table fact is type 5 (project ground-truth
 assert_all "claim-split: the skipped rule-book check is type 3 (skill-gap SIGNAL)" "$t" 'skill.gap|type[ *_:]*3' 'signal|skill_gap_path|maintainer'
 # Non-vacuous the other way: the classification PROPOSES; it does not decide.
 assert_all "claim-split: classification is a proposal, not a decision" "$t" 'propos' 'confirm|ratif|human|you '
+
+banner "== challenge-standalone  (challenge — outside the lifecycle) =="
+# challenge-standalone (v1.19.0): /mango:challenge dispatches the EXISTING challenger once, with no
+# .harness.json, on exactly the raw ticket (text above the separator) + the range. The PR body offered
+# as a shortcut stays out, nothing is written, and the output is labelled advisory — never a review
+# verdict. Four assertions anchor on the fixture's decision lines; two absent controls are the
+# non-vacuous side.
+t="$(run_fixture challenge-standalone 'Run the mango challenge skill as invoked in this ticket and answer the four numbered questions for this run, then end with the four decision lines the ticket asks for. Do not stop for my input.')"
+assert_all "challenge: .harness.json is not needed and the existing challenger is dispatched" "$t" 'challenger' "$RE_CHALLENGE_HARNESS_LINE"
+assert_all "challenge: the PR body is kept out of the payload" "$t" "$RE_CHALLENGE_KEPT_OUT_PR_BODY"
+assert_all "challenge: the text below the separator is kept out" "$t" "$RE_CHALLENGE_KEPT_OUT_BELOW"
+assert_all "challenge: writes nothing" "$t" "$RE_CHALLENGE_WRITES_LINE"
+assert_absent "challenge: no verdict is written to a working doc or tracker (non-vacuous)" "$t" 'writes?[ *_]{1,4}(the[ *_]{1,4})?(verdict|table|result)[^.]{0,30}(to|into)[ *_]{1,4}(the[ *_]{1,4})?(working doc|work\.md|tracker)'
+assert_all "challenge: advisory, never a mango review verdict" "$t" 'CHALLENGER[ *_]{1,4}ONLY' 'not[ *_]{1,4}a[ *_]{1,4}mango[ *_]{1,4}review[ *_]{1,4}verdict'
+assert_absent "challenge: the PR body is never put into the payload (non-vacuous)" "$t" 'PR[ *_]{1,4}body[ *_]{1,4}(is|was|gets)[ *_]{1,4}(included|added|passed)[ *_]{1,4}(in|into|to)'
 
 banner "== greenfield-promote-zeros  (promote — negative control) =="
 # G3 greenfield-promote-zeros: promote on an empty corpus emits zeros, proposes nothing and stops.
@@ -1220,6 +1252,37 @@ cat >"$_ac/empty-range-only-after.correct" <<'AC'
 An empty range is a reason to look harder. "No changes" is allowed only after `git diff HEAD` and `git status --porcelain -uall` also show nothing.
 AC
 selftest_assertion "precondition form — no-change allowed only after the fallback (execute-commit-before-review)"   "$_ac/empty-range-only-after.correct" "$_ac/empty-range.wrong"   'empty' "$RE_EMPTY_RANGE_NOT_VERDICT"
+
+cat >"$_ac/challenge-lines.correct" <<'AC'
+**Decision lines**
+- **HARNESS:** not needed (a ticket file path; only a KEY needs it)
+- **PAYLOAD:** the text of docs/PROJ-950.md above the separator line, plus main..feat/PROJ-950-export-csv
+- **KEPT OUT:** the PR body, and everything below the separator (design notes, matrix, rationale)
+- **WRITES:** nothing
+AC
+cat >"$_ac/challenge-lines.wrong" <<'AC'
+HARNESS: needed — run /mango:init first
+PAYLOAD: the whole of docs/PROJ-950.md, the PR body, and the range
+KEPT OUT: none
+WRITES: the table, appended to docs/PROJ-950.work.md
+AC
+selftest_assertion "decision line: HARNESS: not needed (challenge-standalone)" \
+  "$_ac/challenge-lines.correct" "$_ac/challenge-lines.wrong" "$RE_CHALLENGE_HARNESS_LINE"
+selftest_assertion "decision line: KEPT OUT: names the PR body (challenge-standalone)" \
+  "$_ac/challenge-lines.correct" "$_ac/challenge-lines.wrong" "$RE_CHALLENGE_KEPT_OUT_PR_BODY"
+selftest_assertion "decision line: KEPT OUT: names the text below the separator (challenge-standalone)" \
+  "$_ac/challenge-lines.correct" "$_ac/challenge-lines.wrong" "$RE_CHALLENGE_KEPT_OUT_BELOW"
+selftest_assertion "decision line: WRITES: nothing (challenge-standalone)" \
+  "$_ac/challenge-lines.correct" "$_ac/challenge-lines.wrong" "$RE_CHALLENGE_WRITES_LINE"
+cat >"$_ac/challenge-lines-template.wrong" <<'AC'
+HARNESS: needed | not needed
+PAYLOAD: <what goes into the challenger's payload>
+KEPT OUT: <what is kept out of it>
+WRITES: <what this run writes>
+AC
+selftest_assertion "decision line: an echoed template passes no outcome (challenge-standalone)" \
+  "$_ac/challenge-lines.correct" "$_ac/challenge-lines-template.wrong" \
+  "$RE_CHALLENGE_HARNESS_LINE" "$RE_CHALLENGE_KEPT_OUT_PR_BODY" "$RE_CHALLENGE_WRITES_LINE"
 
 # --- option-shaped regex self-test -------------------------------------------
 # The fixtures assert on literal flags (`--tree`, `--no-reviewer`, `--no-challenger`). Without `--`,

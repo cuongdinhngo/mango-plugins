@@ -82,6 +82,7 @@ your PR host's CLI named in `pr_host`.
 | `/mango:codify` | When the rule book is missing / thin (opt-in) | **Counts** the conventions the code and schema actually use, asks **you** to choose each standard, and writes them tagged `PROVISIONAL (awaiting ratification)`. Any drift list carries the counted line `DRIFT: <n> entries \| <m> tickets` (counted from the list, never narrated). Facilitates; never auto-picks the majority, never changes code. |
 | `/mango:version-check` | On demand (opt-in) | Reports running vs latest version and **prints** the host `/plugin` commands to update. Needs `update_check_url`; never updates. |
 | `/mango:promote` | Between tickets, once a lesson class recurs (opt-in) | Groups **type-2** claims in `lessons_path` by their `handle:`, and for each class seen on **≥ 2 tickets** proposes **one** candidate rule citing every instance, then **stops for a per-candidate ratify**. Emits `PROMOTE: … \| rules written: 0`. Cross-ticket by design — a single ticket's `finalise` cannot see across tickets. Proposes; never authors a rule, never touches a mango file. |
+| `/mango:challenge` | Before adopting anything, or on any branch (opt-in) | Runs the existing ticket-blind `challenger` **once** on a raw ticket and a diff, outside the lifecycle: a numbered **met** / **not met** / **can't tell** table with `path:line`, then `CHALLENGER ONLY — advisory`. Needs only a ticket file (a KEY needs `.harness.json`). Its payload is the raw ticket and the range, never a PR body or working doc; it writes nothing and is never a review verdict. **Experimental.** |
 
 **Where mango's own contract lives.** `plugins/mango/PRINCIPLES.md` is the always-loaded core — the four
 principles, the `<mango>` path-resolution order, and the model-delegation map. The rest of the contract sits
@@ -286,7 +287,7 @@ Shipped behaviour carries an honest maturity level (the single source is
 [`principles/maturity.md`](./principles/maturity.md), read on demand from
 [`PRINCIPLES.md`](./PRINCIPLES.md)): **Stable** = committed, field-tested behaviour, safe to rely on
 (the default); **Experimental** = works and is validated, but its exact shape may still change until
-further real-world use. Seven behaviours are Experimental today:
+further real-world use. Eight behaviours are Experimental today:
 
 - **the unattended lane** (`autorun`, 1.11.0) — the unattended closing itself, the exact condition set a
   `RUN CONTRACT` should carry, and the call-count budget proxy.
@@ -301,6 +302,8 @@ further real-world use. Seven behaviours are Experimental today:
   `implementer`, what the dispatch carries, and what the `explorer` fan-out returns.
 - **tracker local mode** (`"tracker": { "mode": "local" }`, 1.18.0) — the exact local-mode surface:
   how `finalise` presents the tracker update it does not run, and which phases read the ticket file.
+- **the standalone challenger** (`/mango:challenge`, 1.19.0) — how the ticket and the default range are
+  resolved.
 
 In every case the **safety boundaries are not Experimental**: no gate is removed and there is no
 auto-merge; the checker reports and never rewrites and `not-checkable` is never a pass;
