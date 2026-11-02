@@ -5,6 +5,32 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.17.5] — 2026-11-02
+
+**Patch: `solve` loses its rationale section, and the validator now catches rationale headings.**
+`skills/solve/SKILL.md` carried a `## Why this is a skill, not an agent` section and a "because one
+flag for both loses the cheap seat…" clause. Both are reasons, not directives, and a skill is
+directive-only. `validate_no_rationale_in_skills` matched rationale *phrases* only (`observed
+failure`, `exists because`, …), so a heading that announced itself as the why passed.
+
+- **`skills/solve/SKILL.md`:**
+  - The section becomes *Orchestration stays in the live conversation*: run the orchestration here,
+    never in a subagent; every gate, Gate-0 question and per-action approval reaches the human in
+    this conversation. The rule is unchanged; only the reason left.
+  - The flag paragraph keeps **Neither implies the other.** and drops the "because" clause. The seat
+    costs (≈108k / ≈58k) stay, as operator-facing facts.
+- **`RATIONALE.md`:** new entry *solve — why orchestration is a skill, not an agent*, holding the
+  removed section word for word. The flag reason was already recorded under *review — why waiving
+  review is two flags*.
+- **`scripts/validate.py`:** `RATIONALE_MARKERS` gains a heading marker — any `#`–`######` heading in
+  a `skills/*/*.md` file that starts with *Why*, *Rationale*, *History* or *Background* fails
+  `no-rationale`. Run against the 1.17.4 `solve/SKILL.md`, it fails; no other skill or companion has
+  such a heading.
+- **Not changed:** `solve`'s frontmatter `description` still ends "This is a skill, not an agent,
+  because gates must pause in the live conversation." The description controls when the skill
+  triggers, so editing it is a separate behaviour change. No smoke-guard fixture is mapped to `solve`
+  (`FIXTURE_SKILLS` in `tests/eval/run.sh`), so the guard cannot verify this edit behaviourally.
+
 ## [1.17.4] — 2026-11-02
 
 **Patch: first-impression docs.** A newcomer's first view of mango is the marketplace listing and the
