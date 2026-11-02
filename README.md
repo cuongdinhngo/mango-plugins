@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.18.0-blue)
+![version](https://img.shields.io/badge/version-1.18.1-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -78,8 +78,10 @@ That's enough to run your first ticket.
 
 `/mango:init` detects your stack, writes `.harness.json`, scaffolds a starter rule book, marks every
 inferred value `UNVERIFIED` for you to confirm, and writes **no secrets** — tokens live only in a
-gitignored `.env`. To fill it by hand, copy `<plugin>/config/harness.example.json` to `.harness.json`
-and edit `rulebook_path`, `repos`, `test_command`, `tracker`, and `ticket_header_schema`.
+gitignored `.env`. To fill it by hand, copy `<plugin>/config/harness.minimal.json` to `.harness.json`:
+it holds only the required keys plus `pr_host`, in local mode with no tracker. Replace each
+`REPLACE_ME` and create `tickets_dir`. Every other key is optional and documented in
+`<plugin>/config/harness.example.json`.
 
 No rule book yet? Run `/mango:codify` — it **counts** the conventions your code and schema already
 use, asks **you** to choose each standard, and records them as provisional until you ratify. mango

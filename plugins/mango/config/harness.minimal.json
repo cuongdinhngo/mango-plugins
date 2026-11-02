@@ -1,0 +1,15 @@
+{
+  "//": "Minimal mango config: copy to your project root as .harness.json, replace each REPLACE_ME, and create tickets_dir. It carries the keys doctor requires plus pr_host, with no tracker (local mode: tickets are <tickets_dir>/<KEY>.md). Every other key is optional and documented in harness.example.json. No secrets here — tokens go in a gitignored .env.",
+  "rulebook_path": "docs/ENGINEERING_RULES.md",
+  "repos": [{ "name": "app", "root": "." }],
+  "test_command": "REPLACE_ME (e.g. the single command that runs your test suite)",
+  "tickets_dir": "docs/tickets",
+  "tracker": { "mode": "local" },
+  "ticket_header_schema": {
+    "Constraint": "C",
+    "Requirement": "R",
+    "Goal": "G",
+    "Acceptance Criteria": "AC"
+  },
+  "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)"
+}

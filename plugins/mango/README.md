@@ -456,7 +456,10 @@ returns raw evidence; it never decides.
 ## `.harness.json` config keys
 
 Copy [`config/harness.example.json`](./config/harness.example.json) to your repo root as
-`.harness.json`.
+`.harness.json`, or start from [`config/harness.minimal.json`](./config/harness.minimal.json): the
+**Required** keys below plus `pr_host`, in local mode with no tracker. Replace each `REPLACE_ME` and
+create `tickets_dir`; `doctor` reports ❌ on a `REPLACE_ME` `test_command` and on a missing rule book
+until you do.
 
 **Required**
 - `rulebook_path` — your engineering rule book; every phase grounds its rules here. May be a **file or

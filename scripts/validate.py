@@ -3012,6 +3012,45 @@ def validate_tracker_local_mode():
           "local-mode: harness.example.json must document tracker.//mode (\"local\", tickets_dir)")
 
 
+def validate_harness_minimal():
+    """v1.18.1 — config/harness.minimal.json is the hand-fill starting point. It must carry exactly
+    the keys doctor check 2 requires (parsed from doctor, so the two cannot drift), declare local mode
+    with tickets_dir, invent no key harness.example.json does not ship, and be named by both READMEs
+    and the example's header comment, so nobody copies a config doctor would reject on check 2."""
+    plugin = ROOT / "plugins" / "mango"
+    path = plugin / "config" / "harness.minimal.json"
+    if not check(path.exists(), "harness-minimal: config/harness.minimal.json is missing"):
+        return
+    minimal = load_json(path)
+    if not check(isinstance(minimal, dict), "harness-minimal: harness.minimal.json must be a JSON object"):
+        return
+    doctor = skill_text("doctor")
+    m = re.search(r"\*\*Required keys present\.\*\*(.*?)all exist", doctor, re.S)
+    required = re.findall(r"`([a-z_]+)`", m.group(1)) if m else []
+    check(len(required) >= 5,
+          "harness-minimal: cannot read doctor check 2's required-key list (expected 5 or more keys)")
+    for key in required:
+        check(key in minimal, f"harness-minimal: doctor check 2 requires '{key}' but harness.minimal.json omits it")
+    check(minimal.get("tracker") == {"mode": "local"},
+          "harness-minimal: tracker must be exactly {\"mode\": \"local\"} (the no-tracker starting point)")
+    check(isinstance(minimal.get("tickets_dir"), str) and minimal.get("tickets_dir"),
+          "harness-minimal: local mode needs a non-empty tickets_dir")
+    check("pr_host" in minimal, "harness-minimal: harness.minimal.json must carry pr_host (finalise opens the PR with it)")
+    example = load_json(plugin / "config" / "harness.example.json") or {}
+    for key in minimal:
+        if key.startswith("//"):
+            continue
+        check(key in example, f"harness-minimal: key '{key}' is not shipped in harness.example.json")
+    check("harness.minimal.json" in str(example.get("//", "")),
+          "harness-minimal: harness.example.json's header comment must point at harness.minimal.json")
+    for rel in ("README.md", "plugins/mango/README.md"):
+        try:
+            text = (ROOT / rel).read_text(encoding="utf-8")
+        except OSError:
+            text = ""
+        check("config/harness.minimal.json" in text, f"harness-minimal: {rel} must name config/harness.minimal.json")
+
+
 def validate_delegation_agents():
     """v1.17.0 — the two Sonnet rows of the delegation map (implement, explore) are a CHOICE OF AGENT,
     pinned by frontmatter, exactly as `review` picks `reviewer` vs `reviewer-max`. Before this they
@@ -3230,6 +3269,7 @@ def main():
     validate_eval_guard()
     validate_readme_eval_claim()
     validate_tracker_local_mode()
+    validate_harness_minimal()
     validate_delegation_agents()
     validate_maturity_count()
     validate_doc_consistency()
