@@ -5,6 +5,44 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.18.0] — 2026-11-02
+
+**Minor: tracker local mode — run mango with no tracker.** `doctor` required `tracker.cli` or
+`tracker.read_mcp`, and `solve` refuses to start on any ❌. So a project with no tracker could not run
+the lifecycle, even though `analysis` already handled local-file tickets and `review` already built the
+challenger payload from one. Trying mango on a single Markdown ticket was blocked at preflight.
+`"tracker": { "mode": "local" }` is the new, **declared** way to run without a tracker. Behaviour with a
+tracker configured is unchanged. Labelled **Experimental** in `principles/maturity.md` until it has run on
+a real project.
+
+- **`doctor` check 4** branches on `tracker.mode`:
+  - **absent:** unchanged — `tracker.cli` or `tracker.read_mcp`, else ❌, and the remediation now also
+    names local mode.
+  - **`"local"`:** ✅ only when `tickets_dir` is set **and** exists, else ❌. ⚠ if `cli`/`read_mcp` are
+    also set (ignored).
+  - **any other value:** ❌.
+  - A missing `tracker` key is still a check-2 ❌ and is **never** read as local mode. No check is
+    loosened: the only new ✅ needs an explicit key plus an existing directory.
+- **`analysis` step 1:** in local mode, read `<tickets_dir>/<KEY>.md`, with no tracker call and no
+  paste. A missing file stops the run and names the path.
+- **`review`:** with a separate working doc in local mode, the raw ticket for the challenger is re-read
+  from `<tickets_dir>/<KEY>.md`, not from a tracker.
+- **`finalise`:** in local mode the tracker comment and transition are listed as
+  `manual — local mode`. Their exact text and target status are printed for the human, and **no**
+  tracker command runs for them, approved or not. Push and PR actions are unchanged.
+- **`init`:** when the user has no tracker CLI and no read MCP, it **offers** local mode and writes it
+  only on the user's yes, creating `tickets_dir` if absent. It never writes local mode because the
+  tracker answers were blank.
+- **`config/harness.example.json`:** `tracker.//mode` documents the key.
+- **READMEs:** Prerequisites and the `tracker` config key describe local mode.
+- **`principles/maturity.md`** and the plugin README: seven Experimental behaviours, up from six.
+- **`scripts/validate.py`:** the new `validate_tracker_local_mode` adds 10 checks.
+  - Covered: doctor's four branches, including "never read as local mode"; analysis's file read;
+    review's re-read; finalise's `manual — local mode` with no tracker command; init's
+    only-on-yes; and the example's `//mode` doc.
+  - Against the 1.17.5 text, 9 of the 10 fail. The 10th — doctor keeps the `tracker.cli`
+    remediation — passes, as intended.
+
 ## [1.17.5] — 2026-11-02
 
 **Patch: `solve` loses its rationale section, and the validator now catches rationale headings.**

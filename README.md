@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.17.5-blue)
+![version](https://img.shields.io/badge/version-1.18.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -52,9 +52,11 @@ Every ticket produces:
 - **Python 3.7 or newer** on `PATH`. mango's checker scripts use only the standard library, so there is
   nothing to `pip install`. CI runs them on the current Python 3.
 - **A test command** for your project (for example `npm test` or `pytest -q`).
-- **A tracker connection**: a CLI for tracker writes (`tracker.cli`) or a read-only MCP server for
-  ticket reads (`tracker.read_mcp`). `/mango:doctor` reports ❌ without one, and `/mango:solve` will
-  not start while a ❌ remains.
+- **A tracker connection, or local mode**: a CLI for tracker writes (`tracker.cli`) or a read-only
+  MCP server for ticket reads (`tracker.read_mcp`). With no tracker, set
+  `"tracker": { "mode": "local" }`: tickets are Markdown files in `tickets_dir`, mango makes no tracker
+  call, and `finalise` prints the tracker update for you to apply. `/mango:doctor` reports ❌ with
+  neither, and `/mango:solve` will not start while a ❌ remains.
 - **Your PR host's CLI** (for example `gh`), named in `pr_host`, for `finalise` to open the PR.
 
 ---

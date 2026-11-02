@@ -25,7 +25,10 @@ produce grounded, project-specific output instead of generic noise.
 2. **Interview only for the undetectable.** Ask the user only for what cannot be observed: the
    rule-book location (if none found), `tracker.cli` (the write command), `tracker.read_mcp`, and
    the `ticket_header_schema` (header → C/R/G/AC). **Mark every guessed value `UNVERIFIED`** in the
-   output for the user to confirm.
+   output for the user to confirm. If the user has **no** tracker CLI and **no** read MCP, offer
+   **local mode** — `"tracker": { "mode": "local" }` with `tickets_dir` (default `docs/tickets`) —
+   and write it **only on the user's yes**, creating `tickets_dir` if it is absent; never write local
+   mode because the tracker answers are blank.
 3. **Write `.harness.json`.** Write `${CLAUDE_PROJECT_DIR}/.harness.json` using
    `<mango>/config/harness.example.json` as the shape. **Never overwrite an existing
    `.harness.json` without explicit confirmation.** Put no secrets in it (note that tokens live in a

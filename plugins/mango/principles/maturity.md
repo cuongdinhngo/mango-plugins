@@ -7,7 +7,7 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Six behaviours are **Experimental** today:
+Seven behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
@@ -52,6 +52,12 @@ Six behaviours are **Experimental** today:
   high-stakes change is implemented on the main loop, every `implementer` STOP is an escalation and is
   never re-dispatched, the main loop keeps the verification sweep and the write-back, and not
   dispatching is recorded in the Cost ledger, never silently.
+- **tracker local mode (`"tracker": { "mode": "local" }`).** That a project with no tracker runs from
+  ticket files in `tickets_dir` is Stable in intent; what is Experimental is the exact surface — how
+  `finalise` presents the tracker update it does not run, and which phases read the ticket file. It has
+  not yet run on a real project. **Its safety boundaries are NOT Experimental**: local mode is only ever
+  declared, never inferred from a missing key; doctor still fails on a missing `tracker`, an unknown
+  `mode`, or a missing `tickets_dir`; and in local mode mango runs no tracker command at all.
 
 Everything else on the ticket and epic paths is **Stable** — ticket-path classification (want-decision /
 how-decision), `ASSUMED` handling, the 1-dispatch exposure-checker, epic detection, the enumerated
