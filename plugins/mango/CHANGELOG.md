@@ -5,6 +5,40 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.18.2] — 2026-11-02
+
+**Patch: every version bump is tagged and released.** The repo had no git tags, so a user could not pin
+a version or see which commit shipped which release, and every push to `main` ships. No skill changes,
+and no check is loosened.
+
+- **New `.github/workflows/release.yml`:** on a push to `main` that touches `plugin.json`, it does the
+  following, in order:
+  - runs `validate.py` and the harness script suite, and stops if either fails;
+  - reads the version from `plugin.json` and that version's CHANGELOG entry;
+  - creates tag `v<version>` and a GitHub Release with the entry as its notes, unless the tag already
+    exists.
+
+  On a pull request it is a **dry run**: the same checks, then it prints the tag and notes it would
+  publish and writes nothing. It never bumps a version, edits a file or merges.
+- **New `scripts/release_notes.py`** (stdlib only): prints the version, or one version's CHANGELOG entry
+  up to the next `## [` heading. It exits 1 when the version or entry is missing or empty, so a release
+  cannot go out with no notes.
+- **Root README → *Pinning a version*:** adding the marketplace as `cuongdinhngo/mango-plugins#v<version>`
+  pins it to a tag. This is the documented Claude Code `owner/repo#ref` form. Tags start at `v1.18.2`;
+  earlier versions are not tagged.
+- **`scripts/validate.py`:** the new `validate_release_workflow` checks the following:
+  - `release_notes.py` finds the current version's entry, and returns exactly one entry's body (or
+    nothing for a missing version) on a sample.
+  - `release.yml` runs both deterministic gates before `gh release create`.
+  - The publish step runs only on a push and only when the tag does not exist.
+  - The publishing trigger is limited to `main`.
+  - The README shows pinning by tag.
+
+  It fails three times against a workflow whose publish step drops the push-only guard and whose
+  trigger is widened to every branch.
+- **Not covered:** the workflow's real run on `main` is proven only when this version merges. If that
+  run fails, no tag is created, and the next bump tags only its own version.
+
 ## [1.18.1] — 2026-11-02
 
 **Patch: a minimal config to start from.** `harness.example.json` ships 35 top-level keys, and only five

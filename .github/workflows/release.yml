@@ -1,0 +1,75 @@
+name: release
+
+# Tags v<version> and publishes a GitHub Release, with that version's CHANGELOG entry as the notes,
+# when a push to main carries a plugin.json version that has no tag yet. A merge to main already ships
+# (CONTRIBUTING.md -> `main` is the release channel); this only records which commit shipped which
+# version. It never bumps a version, edits a file, or merges anything.
+#
+# On a pull request it is a DRY RUN: same checks, prints the tag and notes it would publish, writes
+# nothing.
+on:
+  push:
+    branches: [main]
+    paths:
+      - plugins/mango/.claude-plugin/plugin.json
+  pull_request:
+    paths:
+      - plugins/mango/.claude-plugin/plugin.json
+      - plugins/mango/CHANGELOG.md
+      - scripts/release_notes.py
+      - .github/workflows/release.yml
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      # Never tag a commit the deterministic gates reject.
+      - name: Deterministic gates
+        run: |
+          python3 scripts/validate.py
+          python3 tests/envelope/test_envelope.py
+
+      - name: Resolve version and notes
+        id: meta
+        run: |
+          version="$(python3 scripts/release_notes.py version)"
+          python3 scripts/release_notes.py notes "$version" > "$RUNNER_TEMP/notes.md"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dry run (pull request)
+        if: github.event_name == 'pull_request'
+        run: |
+          echo "DRY RUN: would tag v${{ steps.meta.outputs.version }} (tag already exists: ${{ steps.meta.outputs.exists }})"
+          echo "--- notes ---"
+          cat "$RUNNER_TEMP/notes.md"
+
+      - name: Skip (tag exists)
+        if: github.event_name == 'push' && steps.meta.outputs.exists == 'true'
+        run: echo "v${{ steps.meta.outputs.version }} is already tagged; nothing to publish."
+
+      - name: Tag and publish release
+        if: github.event_name == 'push' && steps.meta.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file "$RUNNER_TEMP/notes.md"

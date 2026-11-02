@@ -165,6 +165,11 @@ ones that silently go stale — check them by hand:
    suite, and that it links `docs/MATURITY.md` (which must exist). The rest carries no version, so it
    never *looks* stale. Re-read both for claims that have aged: usage, stacks, API stability.
 
+You never tag by hand. When the bump reaches `main`, `.github/workflows/release.yml` re-runs the
+deterministic gates, then creates tag `v<version>` and a GitHub Release from that version's CHANGELOG
+entry, skipping a tag that already exists. On the PR it is a dry run that prints the notes it would
+publish, so an empty or mis-headed entry shows up before the merge.
+
 Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, guard coverage ↔
 `tests/eval/`). Maturity labels (**Stable** / **Experimental**) live only in
 `plugins/mango/principles/maturity.md` (relocated there in 1.10.0; the pointer here said
