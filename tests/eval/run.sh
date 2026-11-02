@@ -818,6 +818,11 @@ banner() { [ "$PHASE" = assert ] || return 0; echo; echo "$1"; }
 # each time over WORDING — a correct run writes the negative with the negation emphasised, and the
 # counted REFINE: line carries the same claim as `0 ASSUMED`. Never widen a token over OUTCOME.
 RE_NOT_SILENT_ASSUMED='not[ *_]{0,4}[^.]{0,30}(silen|fallback|hand.?back)|never[ *_]{1,4}(silent|assum)|no[ *_]{1,4}silent|REFINE:[^.]{0,120}[^0-9]0[ *_]{0,4}ASSUMED'
+# RE_COMMIT_BEFORE_REVIEW (2026-11-02) — execute-commit-before-review's ordering token. Widened once, over
+# EMPHASIS only: a correct run wrote `commits … **before** it dispatches review`, and `before .{0,30}`
+# could not cross the closing `**`. Each separator after before / prior to / then now tolerates `[ *_]`,
+# as the other tokens here do; the alternatives and their windows are unchanged.
+RE_COMMIT_BEFORE_REVIEW='before[ *_]{1,4}.{0,30}(review|dispatch)|prior[ *_]{1,4}to[ *_]{1,4}.{0,24}(review|dispatch)|then[ *_]{1,4}.{0,12}(dispatch|flow).{0,20}review|first.{0,30}review'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
 
@@ -922,7 +927,7 @@ banner "== execute-commit-before-review  (execute, review — Gate 3-4) =="
 # triggers the `git diff HEAD` + `git status --porcelain -uall` fallback rather than a false "no changes".
 t="$(run_fixture execute-commit-before-review 'Run the mango execute→review handoff on this ticket. State when execute commits relative to dispatching review and why, then state exactly what a reviewer does when the base..branch diff is empty. Do not stop for my input.')"
 # Decision-level: commit happens BEFORE the review dispatch (outcome) because the review is ref-based (reasoning).
-assert_all "execute-commit-before-review: commits before review is dispatched" "$t" 'commit' 'before .{0,30}(review|dispatch)|prior to .{0,24}(review|dispatch)|then .{0,12}(dispatch|flow).{0,20}review|first.{0,30}review'
+assert_all "execute-commit-before-review: commits before review is dispatched" "$t" 'commit' "$RE_COMMIT_BEFORE_REVIEW"
 assert_contains "execute-commit-before-review: because review is ref-based"      "$t" 'ref-based|<base>\.\.|base\.\.branch|git diff .{0,24}\.\.'
 # Empty-diff fallback: git diff HEAD + git status --porcelain, not a "no changes" conclusion.
 assert_all "execute-commit-before-review: empty range → git diff HEAD + status fallback" "$t" 'git diff head' 'porcelain|git status|uncommitted'
@@ -1188,6 +1193,16 @@ AC
 selftest_assertion "counted artifact carries it — 0 ASSUMED in the REFINE line (R5)" \
   "$_ac/assumed-count.correct" "$_ac/assumed-count.wrong" \
   'ASSUMED' "$RE_NOT_SILENT_ASSUMED"
+
+cat >"$_ac/commit-order.correct" <<'AC'
+**Commit first, then dispatch.** `execute` commits the approved two-file change-set (the handler and its test) on `feat/PROJ-902-retry-backoff` **before** it dispatches `review`.
+AC
+cat >"$_ac/commit-order.wrong" <<'AC'
+`execute` dispatches `review` on the uncommitted working tree, and commits the change-set only after the reviewer returns clean, just before the PR is opened.
+AC
+selftest_assertion "emphasis around the ordering word — **before** it dispatches review (execute-commit-before-review)" \
+  "$_ac/commit-order.correct" "$_ac/commit-order.wrong" \
+  'commit' "$RE_COMMIT_BEFORE_REVIEW"
 
 # --- option-shaped regex self-test -------------------------------------------
 # The fixtures assert on literal flags (`--tree`, `--no-reviewer`, `--no-challenger`). Without `--`,
