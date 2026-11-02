@@ -5,6 +5,36 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.17.4] — 2026-11-02
+
+**Patch: first-impression docs.** A newcomer's first view of mango is the marketplace listing and the
+root README. The listing was a 106-word sentence of internal terms; the README gave five long
+paragraphs to version history before a reader knew what mango does; no README said what to install
+first; and the plugin README described the challenger wrongly. No skill, agent, principle or template
+changes, so mango's behaviour is unchanged.
+
+- **Descriptions.** The marketplace entry and `plugin.json` are each under 25 words and name no
+  internal term. They claim gates, checkable evidence and a ticket-blind challenger — not that every
+  requirement is proven, which would over-claim.
+- **Prerequisites** in both READMEs: Claude Code, git, Python 3.7+ (the earliest the scripts' calls
+  allow — `sys.stdout.reconfigure`, `subprocess.run(capture_output=…)`; CI runs only the current
+  Python 3), a test command, a tracker connection, and the PR host's CLI. They state that `doctor`
+  reports ❌ without a tracker connection and that `solve` will not start while a ❌ remains.
+- **Root README → Maturity** keeps the two claims that matter on the front page — the CI gates, and
+  that mango has **no behavioural regression suite** (the smoke guard and its two stated limits) —
+  and links the rest. The suite-retirement record, the API-stability note, other hosts, and the
+  safety boundaries of each newer surface moved to **`docs/MATURITY.md`** word for word; only the
+  relative link paths changed. One stale pointer was corrected rather than moved: per-phase maturity
+  is tracked in `principles/maturity.md`, not `PRINCIPLES.md` (the source moved in 1.10.0).
+- **Plugin README → Key ideas:** the challenger rebuilds the requirements from the **raw ticket**,
+  then judges the diff against them — not "from the diff alone". 1.7.6 corrected this wording
+  elsewhere and missed this line.
+- **`scripts/validate.py`**:
+  - `docs/MATURITY.md` joins the operational-text set, so the jargon scan still covers the moved text.
+  - `readme-claim` also requires `docs/MATURITY.md` to exist and the root README to link it and
+    `principles/maturity.md`. The existing fixture-count and no-regression-suite checks are unchanged.
+- **`CONTRIBUTING.md`** release checklist item 4 covers both the README summary and `docs/MATURITY.md`.
+
 ## [1.17.3] — 2026-10-22
 
 **Patch: `reviewer-max` gets the git-isolation rules it was missing.** `reviewer-max` is described as

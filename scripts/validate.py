@@ -695,7 +695,7 @@ def operational_text_files():
             + sorted(plugin.glob("templates/*.md"))
             + sorted(plugin.glob("principles/*.md"))
             + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md",
-               ROOT / "CLAUDE.md"])
+               ROOT / "CLAUDE.md", ROOT / "docs" / "MATURITY.md"])
 
 
 def validate_maturity_labels():
@@ -2959,6 +2959,17 @@ def validate_readme_eval_claim():
     check(re.search(r"no behavioural regression suite", readme, re.IGNORECASE) is not None,
           "readme-claim: the root README must state plainly that mango has NO behavioural "
           "regression suite — the guard answers a narrower question and must not be read as one")
+    # v1.17.4 — the Maturity detail moved to docs/MATURITY.md. The root README keeps the two claims
+    # above and must still lead to the detail, and the detail must exist: a pointer to a missing page,
+    # or a summary with no route to its record, would hide the record rather than relocate it.
+    detail = ROOT / "docs" / "MATURITY.md"
+    check(detail.exists(),
+          "readme-claim: docs/MATURITY.md is missing — the root README's Maturity summary points to it")
+    check("docs/MATURITY.md" in readme,
+          "readme-claim: the root README's Maturity section must link docs/MATURITY.md")
+    check("principles/maturity.md" in readme,
+          "readme-claim: the root README must point at plugins/mango/principles/maturity.md, the single "
+          "source of the Experimental labels")
 
 
 def validate_delegation_agents():

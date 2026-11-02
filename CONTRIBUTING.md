@@ -154,15 +154,16 @@ ones that silently go stale — check them by hand:
    alongside `plugin.json` / `README.md`; `scripts/validate.py` fails if the entry is missing.
 3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
    enforced, and it is the only place the README states the *current* version, so nothing else
-   contradicts it when it drifts. (Other version numbers do appear in that README — 1.16.0 in the
-   *Maturity* section, 1.14.0 in the API-stability note — but each names the release a past change
+   contradicts it when it drifts. (Other version numbers appear in `docs/MATURITY.md` — 1.16.0 for the
+   suite retirement, 1.14.0 in the API-stability note — but each names the release a past change
    shipped in and is not a current-version claim. Do not bump those.) It has silently sat two versions
    behind before.
-4. **Root `README.md` → *Maturity*** — the "Field-proven on…" claims. Partly enforced since 1.16.0:
-   `validate_readme_eval_claim` checks the guard's fixture count against `tests/eval/fixtures/` and
-   that the README says plainly that mango has no behavioural regression suite. The rest carries no
-   version, so it never *looks* stale. Re-read it for claims that have aged: usage, stacks, API
-   stability.
+4. **Root `README.md` → *Maturity*, and `docs/MATURITY.md`** — the README keeps the short summary;
+   the field claims (usage, other hosts, API stability, newer surfaces) moved to `docs/MATURITY.md` in
+   1.17.4. Partly enforced: `validate_readme_eval_claim` checks the guard's fixture count against
+   `tests/eval/fixtures/`, that the README says plainly that mango has no behavioural regression
+   suite, and that it links `docs/MATURITY.md` (which must exist). The rest carries no version, so it
+   never *looks* stale. Re-read both for claims that have aged: usage, stacks, API stability.
 
 Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, guard coverage ↔
 `tests/eval/`). Maturity labels (**Stable** / **Experimental**) live only in

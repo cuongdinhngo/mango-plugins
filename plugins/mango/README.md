@@ -45,8 +45,8 @@ A few terms recur throughout; here they are once.
 - **BASELINE** — the verification command's result on the *untouched* checkout (`green | red | flaky`).
   If it isn't green, the definition of done becomes **delta-green** (fix what you touched, don't claim
   the whole suite green).
-- **challenger** — a ticket-blind agent that reconstructs the requirements from the diff alone and
-  reports met / not met / can't tell. It never sees the working doc, the design, or **the PR body**
+- **challenger** — a ticket-blind agent that reconstructs the requirements from the raw ticket alone,
+  then judges the diff against them and reports met / not met / can't tell. It never sees the working doc, the design, or **the PR body**
   (`gh pr view` and equivalents are forbidden while challenging), so it can't rubber-stamp.
 - **TIER** — process weight (`lite | full`); **track** — which gate set (`backend | frontend`).
   Orthogonal.
@@ -68,6 +68,11 @@ A few terms recur throughout; here they are once.
   An all-zero line is a valid line, so a first ticket on an empty project pays nothing for this.
 
 ## Getting set up
+
+**Prerequisites:** Claude Code, git, Python 3.7+ on `PATH` (the scripts are stdlib-only; CI runs the
+current Python 3), your project's test command, a tracker connection (`tracker.cli` or
+`tracker.read_mcp` — `doctor` reports ❌ without one, and `solve` will not start while a ❌ remains),
+and your PR host's CLI named in `pr_host`.
 
 | Skill | Use | Produces |
 |-------|-----|----------|
