@@ -40,7 +40,8 @@ template invalidates every fixture's cache by design.
 
 **`main` is the release channel.** The community-marketplace pin advances on every push to `main`, so a
 merge ships. Merge only with the deterministic gates green on the merged commit and the smoke guard run
-for every skill the change edited (`CONTRIBUTING.md` → *`main` is the release channel*).
+for every skill the change edited (`CONTRIBUTING.md` → *`main` is the release channel*). A merged
+version bump is tagged `v<version>` and released by `.github/workflows/release.yml` — never tag by hand.
 
 **On Windows**, `python3` may be the Microsoft Store stub rather than an interpreter; run the gates with
 `py -3` (or `python`) instead.

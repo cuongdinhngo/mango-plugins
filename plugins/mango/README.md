@@ -310,8 +310,9 @@ auto-merge; the checker reports and never rewrites and `not-checkable` is never 
 `provenance-unknown` is a third state and never a pass; and the loop's five invariants hold — the
 classifier proposes and the human confirms, recall is advisory, falsification precedes ratification,
 lessons never modify mango, and everything is project-local; a high-stakes change is implemented on the
-main loop, an `implementer` STOP is always an escalation, and not dispatching is always recorded. Everything else on the ticket and epic
-paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
+main loop, an `implementer` STOP is always an escalation, and not dispatching is always recorded; local mode is only ever declared, never inferred, and runs no
+tracker command; and `/mango:challenge` sends only the raw ticket and the range, writes nothing, and
+never satisfies a review criterion or a gate. Everything else on the ticket and epic paths is Stable. When an Experimental behaviour graduates, the CHANGELOG records it (e.g.
 `re-ratification: Experimental → Stable`).
 
 ### Skills are directive-only

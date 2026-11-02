@@ -196,7 +196,7 @@ detail, the lite/full tiers, the frontend track, and the model-delegation map.
 ## Maturity
 
 **Every release is gated by `validate.py` and the dispatch-free script suites**, both run in CI on
-every push.
+every push, and every version bump is tagged with a GitHub Release (see *Pinning a version*).
 
 **mango has no behavioural regression suite.** It has a per-skill smoke guard of 8 fixtures, run when
 a skill is edited: it reports that those fixtures passed just now, and nothing more. Two limits are

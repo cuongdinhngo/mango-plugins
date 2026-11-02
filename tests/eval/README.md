@@ -98,6 +98,10 @@ bash tests/eval/run.sh --only '^__none__$'    # every self-test, zero dispatches
 in 92s, `--no-cache` (nothing reused, every fixture ran fresh), at commit `1073665`, CLI 2.1.304, model
 `cli-default`. That figure is 38 fixture assertions plus 46 dispatch-free self-tests.
 
+That run predates `challenge-standalone` (1.19.0), so **no full run of all eight exists yet**. The new
+fixture was proven alone: 3× fresh, `--no-cache`, sequential — 61/61 each run (7 fixture assertions plus
+54 dispatch-free self-tests). The next milestone run of the whole guard replaces this entry.
+
 The previous full run, before `execute-implementer-dispatch` existed: **2026-09-05 — 6/6 fixtures
 green, 77/77 assertions** (31 fixture + 46 self-tests) at commit `cf33958`, CLI 2.1.261.
 
