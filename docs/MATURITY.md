@@ -33,14 +33,14 @@ proxy — with one part of the condition set now settled and removed: the forced
 was measured inert across three runs and is retired. Its safety boundaries are not Experimental — no gate is removed, the review seat is never degraded
 away, and there is no auto-merge.
 
-The **counted-line checker** (`scripts/check_lines.py`, 1.13.0) is the newest surface. That the harness
+The **counted-line checker** (`scripts/check_lines.py`, 1.13.0): that the harness
 parses a counted line rather than its author reading it is settled and is the point; **Experimental** is
 the grammar registry's tolerance boundary — which spellings are inflection and which are a paraphrase.
 Its safety boundaries are not Experimental: it reports and never rewrites, `not-checkable` is never a
 pass, it adds no counted line of its own, and where it cannot run the run says so instead of claiming to
 have checked.
 
-**Evidence provenance** (1.14.0) is the newest surface on it: test evidence records the SHA of the tree
+**Evidence provenance** (1.14.0) builds on it: test evidence records the SHA of the tree
 it ran against — for a containerised suite, the tree the **image was built from** — and a gate refuses
 evidence from a different tree, reusing the stale-review guard's rule rather than building a second one.
 Settled and not Experimental: `provenance-unknown` is a third state and never a pass, and an axis the
@@ -48,9 +48,28 @@ caller did not ask for is reported as absent rather than as clean. **Experimenta
 project's evidence the marker reaches: it binds the shipped `$ <command>` empirical-output shape, and
 evidence recorded in some other shape is counted `provenance-unknown` rather than silently skipped.
 
-The **delegation dispatch** (1.17.0) is the newest surface: `execute` hands implementation to the
+The **delegation dispatch** (1.17.0): `execute` hands implementation to the
 Sonnet `implementer` agent and `analysis` fans out to the Sonnet `explorer` agent. That these rows are a
 choice of agent is settled; **Experimental** is the split itself, since neither agent has yet run on a
 real ticket. Its safety boundaries are not Experimental: a high-stakes change stays on the main loop,
 every `implementer` STOP escalates and is never re-dispatched, and not dispatching is recorded in the
 Cost ledger.
+
+**Tracker local mode** (1.18.0) lets a project with no tracker run from Markdown ticket files in
+`tickets_dir`, declared as `"tracker": { "mode": "local" }`. **Experimental** is the exact surface — how
+`finalise` presents the tracker update it does not run, and which phases read the ticket file — since it
+has not yet run on a real project. Its safety boundaries are not Experimental: local mode is only ever
+declared, never inferred from a missing key; `doctor` still fails on a missing `tracker`, an unknown
+`mode` or a missing `tickets_dir`; and in local mode mango runs no tracker command at all.
+
+The **standalone challenger** (`/mango:challenge`, 1.19.0) is the newest surface: it runs the existing
+`challenger` once on a raw ticket and a range, outside the lifecycle and with no `.harness.json`.
+**Experimental** is the entry surface — how the ticket and the default range are resolved — since it has
+not yet run on a real project. Its safety boundaries are not Experimental: it dispatches the one shipped
+`challenger` brief unmodified, its payload is the raw ticket and the range and nothing else (never a PR
+body or a working doc), it writes nothing, and its output is labelled advisory and never satisfies a
+review criterion or a gate.
+
+**Releases are tagged** from 1.18.2 on: every version bump that reaches `main` gets a `v<version>` tag
+and a GitHub Release carrying its CHANGELOG entry, so a version can be pinned. Earlier versions are not
+tagged.

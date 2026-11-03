@@ -170,7 +170,7 @@ deterministic gates, then creates tag `v<version>` and a GitHub Release from tha
 entry, skipping a tag that already exists. On the PR it is a dry run that prints the notes it would
 publish, so an empty or mis-headed entry shows up before the merge.
 
-Every claim in that blockquote must map to a repo source (API stability ↔ CHANGELOG, guard coverage ↔
+Every Maturity claim, in the README and `docs/MATURITY.md`, must map to a repo source (API stability ↔ CHANGELOG, guard coverage ↔
 `tests/eval/`). Maturity labels (**Stable** / **Experimental**) live only in
 `plugins/mango/principles/maturity.md` (relocated there in 1.10.0; the pointer here said
 `PRINCIPLES.md` until 1.16.0) — the README no longer repeats them, so that file is the single source
