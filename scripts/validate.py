@@ -3164,6 +3164,35 @@ def validate_root_readme_docs():
               "root-readme: docs/COST.md with no rows must say plainly that no measurements are recorded yet")
 
 
+def validate_golden_e2e():
+    """The golden e2e (tests/e2e/) dispatches a full unattended lifecycle, so its cost guard is
+    structural: the workflow runs on a schedule and on demand, never on push or pull_request; the run
+    refuses to start outside CI without --local; the PR host is a test double; and the free judge
+    self-test runs in validate.yml so the judge cannot rot unnoticed."""
+    e2e = ROOT / "tests" / "e2e"
+    for name in ("make_sample.sh", "run.sh", "assert_run.py", "test_assert_run.py", "README.md"):
+        check((e2e / name).exists(), f"golden-e2e: tests/e2e/{name} is missing")
+    wf = ROOT / ".github" / "workflows" / "e2e.yml"
+    if check(wf.exists(), "golden-e2e: .github/workflows/e2e.yml is missing"):
+        text = wf.read_text(encoding="utf-8")
+        on = text[text.find("\non:"):text.find("\njobs:")]
+        check("schedule:" in on and "workflow_dispatch" in on,
+              "golden-e2e: e2e.yml must run on a schedule and on workflow_dispatch")
+        check(re.search(r"^\s+(push|pull_request)\s*:", on, re.M) is None,
+              "golden-e2e: e2e.yml must never run on push or pull_request (it costs tokens)")
+    run = (e2e / "run.sh").read_text(encoding="utf-8") if (e2e / "run.sh").exists() else ""
+    check('"${CI:-}" != "true"' in run and "--local" in run,
+          "golden-e2e: run.sh must refuse to start outside CI without --local")
+    check('PATH="$SAMPLE/bin:$PATH"' in run and "-u GH_TOKEN" in run and "-u GITHUB_TOKEN" in run,
+          "golden-e2e: run.sh must put the gh test double first on PATH and drop GitHub tokens")
+    sample = (e2e / "make_sample.sh").read_text(encoding="utf-8") if (e2e / "make_sample.sh").exists() else ""
+    check("never contacts any server" in sample and "--bare" in sample,
+          "golden-e2e: make_sample.sh must use a local bare remote and a gh test double")
+    vwf = (ROOT / ".github" / "workflows" / "validate.yml").read_text(encoding="utf-8")
+    check("python3 tests/e2e/test_assert_run.py" in vwf,
+          "golden-e2e: validate.yml must run the judge self-test on every push")
+
+
 def validate_challenge_standalone():
     """v1.19.0 — /mango:challenge reuses the ONE shipped challenger brief. A second challenger agent,
     or a challenge skill that drops the review-scoping note, would split the independent check into
@@ -3407,6 +3436,7 @@ def main():
     validate_release_workflow()
     validate_challenge_standalone()
     validate_root_readme_docs()
+    validate_golden_e2e()
     validate_delegation_agents()
     validate_maturity_count()
     validate_doc_consistency()

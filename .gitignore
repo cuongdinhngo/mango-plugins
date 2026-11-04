@@ -29,3 +29,6 @@ tests/eval/.archive/
 # Eval transcript-cache (last GREEN transcript per fixture+skills-hash; dev-loop only,
 # --no-cache bypasses it; never committed — lives outside the tracked tree)
 tests/eval/.cache/
+
+# Golden e2e run artifacts (result JSON, working doc, assertions; regenerated each run, never committed)
+tests/e2e/.runs/
