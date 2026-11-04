@@ -50,7 +50,9 @@ this phase.
    Before closing the change list, **mechanically enumerate the existing assertions and call sites this
    change will invalidate**. A shallow grep of one string in one directory (a table-name in
    `src/**/*.test.*`, or the owning page) **under-scopes** the change and leaves the change-list
-   incomplete — so the diff exceeds it at execute. Trace to the **real producers/consumers**:
+   incomplete — so the diff exceeds it at execute. Trace to the **real producers/consumers**. A
+   pasted trace runs before any code exists: stamp it **`Ran at <sha> (pre-change)`** with the SHA of
+   the untouched tree the branch will be cut from.
 
    - **Change touching a generated/shared TYPE or symbol:** grep by the exported **type/symbol NAME**
      **and its factory/fixture patterns** (test-data builders, mother/factory helpers keyed on that
