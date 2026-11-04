@@ -1,21 +1,41 @@
 {
   "//": "Copy this file to your project repo root as .harness.json and fill in the values. It is the per-project contract mango reads at runtime. For a first ticket, start from harness.minimal.json instead: it holds only the keys doctor requires plus pr_host, in local mode with no tracker; every other key in this file is optional. /mango:init asks whether .harness.json is committed (shared team config) or kept local (gitignored). Either way, SECRETS/TOKENS DO NOT BELONG HERE: keep them in a gitignored .env.",
 
-  "//context_file": "The host's ALWAYS-ON context file — the one the coding host auto-loads into every session. Default CLAUDE.md. Some hosts load AGENTS.md instead (a project may keep a CLAUDE.md that only imports it). init hoists the mango:standing-context POINTER block into THIS file and doctor checks THIS file, so on an AGENTS-first project set it to AGENTS.md. It is still a pointer, never a copy, and never holds a secret.",
-  "context_file": "CLAUDE.md",
-
+  "//== REQUIRED (doctor fails without these) ==": "",
   "//rulebook_path": "May be a FILE or a DIRECTORY. If a directory, every consumer (reviewer/onboarder agents, grounding skills) reads all *.md inside it. Default to one file so the whole rule set always loads; point at a folder to split later.",
   "rulebook_path": "docs/ENGINEERING_RULES.md",
-  "standards_path": "docs/CODING_STANDARDS.md",
-
   "repos": [
     { "name": "app", "root": "." },
     { "name": "shared-lib", "root": "../shared-lib" }
   ],
-
   "test_command": "REPLACE_ME (e.g. the single command that runs your test suite or a focused subset)",
+  "tracker": {
+    "//mode": "OPTIONAL. Omit to use a tracker (the keys below). Set \"tracker\": { \"mode\": \"local\" } — with tickets_dir set and the directory present — to work with no tracker: analysis reads <tickets_dir>/<KEY>.md, mango makes no tracker read or write, and finalise prints the tracker comment and transition for you to apply. \"local\" is the only value; doctor rejects any other.",
+    "base_url": "https://tracker.example.com",
+    "project_key": "PROJ",
+    "cli": "REPLACE_ME (CLI command for ALL tracker writes — comments, transitions; never an MCP)",
+    "read_mcp": "REPLACE_ME_OR_NULL (optional read-only MCP server name for ticket READS only)",
+    "//fields": "OPTIONAL list of fields to request on a ticket READ, so one read returns the full ticket (some trackers default to a minimal set and return an empty description). If unset, analysis requests a sensible full default (description/body, type, labels, parent, priority).",
+    "fields": ["description", "type", "labels", "parent", "priority"]
+  },
+  "ticket_header_schema": {
+    "Constraint": "C",
+    "Requirement": "R",
+    "Goal": "G",
+    "Acceptance Criteria": "AC"
+  },
 
+  "//== RECOMMENDED ==": "",
   "tickets_dir": "docs/tickets",
+  "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",
+  "lessons_path": "docs/LESSONS.md",
+  "//high_stakes_paths": "OPTIONAL array of globs the PROJECT declares high-stakes (default []). execute keeps implementation on the main loop (no implementer dispatch) when the approved change list touches a match; review ORs it with its existing high-stakes signals (security tag, auth / access control / data access / schema-migration per rulebook_path) when selecting reviewer-max. It only ever tightens — it never removes a built-in signal. doctor does not require it.",
+  "high_stakes_paths": [],
+
+  "//== ADVANCED (safe to omit) ==": "",
+  "//context_file": "The host's ALWAYS-ON context file — the one the coding host auto-loads into every session. Default CLAUDE.md. Some hosts load AGENTS.md instead (a project may keep a CLAUDE.md that only imports it). init hoists the mango:standing-context POINTER block into THIS file and doctor checks THIS file, so on an AGENTS-first project set it to AGENTS.md. It is still a pointer, never a copy, and never holds a secret.",
+  "context_file": "CLAUDE.md",
+  "standards_path": "docs/CODING_STANDARDS.md",
   "//work_dir": "Directory for mango's per-ticket WORKING DOC (<KEY>.work.md) — the mutable state doc carrying all five phases. Kept SEPARATE from the ticket spec so the challenger's input can exclude it. Defaults to tickets_dir if unset.",
   "work_dir": "docs/tickets",
   "//work_doc_mode": "Where the working doc lives: auto | separate | embed (default auto). A tracker-hosted ticket always gets a separate <work_dir>/<KEY>.work.md. When the ticket is itself a local file in the repo, auto/embed APPEND the working doc to that file below a raw-ticket separator line (one file, no duplicate); separate always writes a distinct file. The raw ticket portion stays above the separator either way, so the challenger payload can exclude the working doc. GUIDANCE: for a local-file ticket that is ALSO a committed scaffold stub (e.g. an epic child-ticket stub committed by breakdown), prefer separate — embedding the mutable working doc in a committed, tracked file leaves its edits as uncommitted changes to a TRACKED file, which is fragile to any stray subagent git-state op; a distinct <KEY>.work.md avoids that fragility.",
@@ -25,7 +45,6 @@
   "//stuck_threshold": "Circuit-breaker: after this many failed attempts against the SAME proving artifact / failing-test signature, execute and quick STOP and escalate to the user instead of retrying. The counter resets when the failing signature changes. Default 3.",
   "stuck_threshold": 3,
   "explore_fanout": true,
-
   "//track": "Which gate set(s) apply: backend | frontend | fullstack (default backend). ORTHOGONAL to TIER (TIER = process weight; track = which gates). backend behaves exactly as pre-0.7. frontend adds the falsifiable a11y/token rubric + the M1–M10 responsive/touch gates. fullstack applies both gate sets. When unset, mango may INFER the track from touched-file paths (k/N files under UI paths). A ticket may be track=frontend + TIER=lite.",
   "track": "backend",
   "//breakpoints": "OPTIONAL list of viewport widths (CSS px) the frontend responsive gates test against, e.g. [375, 768, 1280]. The 320 px reflow floor is a STANDARD, always tested when track includes frontend regardless of this list. When a declared width is a small viewport, the width-parametric gates (M2 no-h-scroll, M3 reflow) come into scope. Ignored on the backend track.",
@@ -34,9 +53,6 @@
   "design_doc_path": "DESIGN.md",
   "//cost_tier": "Model-delegation dial: economy | standard | max (default standard). economy pushes more bulk retrieval to a Haiku worker and avoids Opus on review; max allows Opus on review for high-stakes diffs. Never demotes review/challenger to Haiku. See PRINCIPLES.md routing map.",
   "cost_tier": "standard",
-  "//high_stakes_paths": "OPTIONAL array of globs the PROJECT declares high-stakes (default []). execute keeps implementation on the main loop (no implementer dispatch) when the approved change list touches a match; review ORs it with its existing high-stakes signals (security tag, auth / access control / data access / schema-migration per rulebook_path) when selecting reviewer-max. It only ever tightens — it never removes a built-in signal. doctor does not require it.",
-  "high_stakes_paths": [],
-
   "//token_optimizer": "Human-gated record (via /mango:budget) of which external token optimizers mango may assume are present. DESCRIPTIVE + human-gated, exactly like codify: mango DETECTS + INFORMS + records a human's choice — it NEVER installs an optimizer, never DEPENDS on one, and never lets one weaken a check/gate/critic. Safety axis: an optimizer is safe only if it removes representation redundancy (how output is phrased), never a check, a gate, a critic, or the evidence detail a critic relies on (path:line, measured values, diffs). rtk: expect|off (default expect) — mango tolerates RTK rewriting Bash-command output into a compact form; it does not install RTK and DEGRADES CLEANLY when RTK is absent (nothing fails, no decision changes — only the saving is lost). headroom.output_shaper MUST stay false (it changes what the model writes / how hard it thinks → can weaken a critic). caveman.scope is HARD-PINNED to non-critic-only: Caveman-style output compression must NEVER be applied to reviewer/challenger/gate-blocking output, which must retain full evidence detail. Enabling any optimizer is a recorded provisional decision (ratified like codify), never a silent toggle.",
   "token_optimizer": {
     "rtk": "expect",
@@ -46,7 +62,6 @@
   "//update_check_url": "OPTIONAL raw URL to the published marketplace manifest (e.g. the raw marketplace.json of the marketplace mango is published from). If set, /mango:version-check fetches it to compare the running version against the latest published version and PRINTS the host /plugin commands when a newer one exists. mango never updates or installs — plugin administration is the host's job. Leave unset/null to disable the check (no network call).",
   "update_check_url": null,
   "branch_strategy": "fix|feat|chore/<KEY>-<slug>",
-  "lessons_path": "docs/LESSONS.md",
   "//learning-loop-destinations": "The learning loop's PROJECT-OWNED destinations (see PRINCIPLES.md, The learning loop). Every one is a path in THIS repo — the loop never writes into mango-plugins and never edits a mango skill. All optional: unset → the loop reports the destination is not configured and surfaces the claim for the human instead of silently dropping it. Type 1 stays in lessons_path; type 2/5-normative go to rulebook_path (code) or agent_brief_path (process); type 3 to skill_gap_path; type 4 to gotchas_path; type 5-descriptive to design_doc_path; type 6 to drift_path.",
   "//skill_gap_path": "OPTIONAL project-owned note recording type-3 SKILL-GAP SIGNALS — a mango phase that demonstrably skipped a check it could have made. A SIGNAL for mango's maintainer only: nothing here ever edits a mango skill, and mango is changed only by its maintainer through a normal version.",
   "skill_gap_path": "docs/SKILL_GAP_CANDIDATES.md",
@@ -56,13 +71,10 @@
   "drift_path": "docs/DRIFT.md",
   "//agent_brief_path": "OPTIONAL project-owned PROCESS brief for agents working in this repo — the destination for a type-2 PROCESS heuristic and for a preventive process-lesson that fits neither type 2 nor type 3. A process claim must never be filed in the code rule book. This is a PROJECT file: it is NOT one of mango's own agents/*.md briefs, which no loop output may touch.",
   "agent_brief_path": "docs/AGENT_BRIEF.md",
-  "pr_host": "REPLACE_ME (e.g. the host/command used to open a pull request)",
-
   "//real_corpus_path": "OPTIONAL path to (or name of) a REAL indexed repository this project accepts as its reality check — input the change's author did not write. design's per-AC verification plan records a fixture provenance of authored | real-corpus | n/a; only an INPUT-SHAPE-DEPENDENT AC (a heuristic, grouping, ranking, summary or classification — output judged 'sensible' rather than 'equal to X') needs more than authored fixtures, and every other AC reads n/a and costs nothing. Unset → design REPORTS the corpus is not configured and records the claim as a coverage-gap exclusion with a checkable expiry; it is never silently downgraded to a passing 'authored'. A fresh project with no corpus runs with zero extra steps.",
   "real_corpus_path": null,
   "//doc_size_budget": "OPTIONAL size ceiling in BYTES for the per-ticket working doc. PROJECT-supplied — mango has no ceiling of its own. When set, scripts/check_lines.py reports the margin on its `doc` line and warns from 80% so the ceiling is surfaced BEFORE it bites rather than discovered after. It NEVER blocks: the budget is the project's rule, not a mango gate. Unset → no margin is reported and nothing changes.",
   "doc_size_budget": null,
-
   "//docs_dir": "OPTIONAL directory where the opt-in descriptive adapters write their regenerable maps (sitemap.md, db-map.md). Descriptive facts only — never normative rules. Unset → the adapters have nowhere to write and report they are not configured.",
   "docs_dir": null,
   "//code_map_cmd": "OPTIONAL command for /mango:sitemap to emit the code surface (routes/endpoints + modules). Opt-in & stack-specific; unset → sitemap reports it is not configured and does nothing.",
@@ -73,17 +85,6 @@
   "db_introspect_cmd": null,
   "//migrations_path": "OPTIONAL directory of migration files for /mango:db-map to derive the schema from when no live introspection command is available. Use this OR db_introspect_cmd.",
   "migrations_path": null,
-
-  "tracker": {
-    "//mode": "OPTIONAL. Omit to use a tracker (the keys below). Set \"tracker\": { \"mode\": \"local\" } — with tickets_dir set and the directory present — to work with no tracker: analysis reads <tickets_dir>/<KEY>.md, mango makes no tracker read or write, and finalise prints the tracker comment and transition for you to apply. \"local\" is the only value; doctor rejects any other.",
-    "base_url": "https://tracker.example.com",
-    "project_key": "PROJ",
-    "cli": "REPLACE_ME (CLI command for ALL tracker writes — comments, transitions; never an MCP)",
-    "read_mcp": "REPLACE_ME_OR_NULL (optional read-only MCP server name for ticket READS only)",
-    "//fields": "OPTIONAL list of fields to request on a ticket READ, so one read returns the full ticket (some trackers default to a minimal set and return an empty description). If unset, analysis requests a sensible full default (description/body, type, labels, parent, priority).",
-    "fields": ["description", "type", "labels", "parent", "priority"]
-  },
-
   "cause_taxonomy": [
     "logic",
     "data",
@@ -92,12 +93,5 @@
     "concurrency",
     "validation",
     "ui"
-  ],
-
-  "ticket_header_schema": {
-    "Constraint": "C",
-    "Requirement": "R",
-    "Goal": "G",
-    "Acceptance Criteria": "AC"
-  }
+  ]
 }

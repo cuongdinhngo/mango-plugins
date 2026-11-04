@@ -5,6 +5,56 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.19.1] — 2026-11-04
+
+**Patch: adoption fixes from a review of 1.19.0 — first-run stumbles, a one-screen README, and
+adoption and cost pages.** No gate, agent brief or `doctor` check changed; one skill (`challenge`)
+gains a STOP for a case it left undefined. Released as one version rather than several, so the
+Releases page does not read as constant churn.
+
+- **The hand-fill path now passes `doctor`.** Both READMEs and `harness.minimal.json` told a user to
+  copy the minimal config, replace `REPLACE_ME` and create `tickets_dir` — but `doctor` check 3 reports
+  ❌ when the file at `rulebook_path` does not exist, so a user who did every step still could not start
+  `solve`. They now also say to create the rule book file (an empty file is enough: `doctor` reports it
+  as a ⚠ stub, not a ❌) or to run `/mango:init`. `doctor` is unchanged — it still fails on a missing rule
+  book. `validate_harness_minimal` now requires the instruction in both READMEs and the config comment.
+- **`/mango:challenge` leads the root README.** The zero-config entry point sat after `init` / `doctor`
+  / `solve`, inside a paragraph. A new *Try it in 2 minutes* section right after *Why mango?* shows the
+  three commands; the old paragraph is removed so it is introduced once. `validate_challenge_standalone`
+  checks it appears in the first 40 lines and exactly once.
+- **`/mango:challenge <KEY>` with no ticket read configured now stops.** Outside local mode the skill
+  read a KEY only through `tracker.read_mcp`; a project with only `tracker.cli` fell into an undefined
+  case. It now stops with *"no ticket read is configured; pass the ticket as a file path"*, and never
+  reads through `tracker.cli`, the write channel. Two contract tokens added for `challenge`.
+- **The pin example names the current version.** The README showed `#v1.18.2`, a tag without
+  `/mango:challenge`, so copying it verbatim installed an older mango. It now shows the current tag, and
+  `validate_release_workflow` fails unless every pin example and the version badge match `plugin.json` —
+  the badge was the release-checklist item most often left stale, and it is now enforced too.
+- **Root README is 120 lines, from 261.** The autorun detail, the `SECTIONS` / `ROWS` and
+  `surfaces proven` examples, the full prerequisites list and the `codify` / `promote` paragraphs
+  moved to the plugin README (new *Prerequisites* and *What the artifacts look like* sections) or were
+  already there; the cross-skill-regression example moved to `docs/MATURITY.md`. The challenger table
+  stays, under *Try it in 2 minutes*, since that is what the command prints. Nothing was dropped: each
+  removed sentence was checked against the README, plugin README, `docs/` and `CONTRIBUTING.md`.
+  `validate_root_readme_docs` fails a root README over 120 lines.
+- **`harness.example.json` is grouped REQUIRED / RECOMMENDED / ADVANCED.** Section markers
+  (`"//== REQUIRED (doctor fails without these) =="` and so on) head each group; no key was added,
+  removed or renamed, and the parsed content is identical apart from the three markers.
+  `validate_harness_minimal` checks the markers are in order and that the REQUIRED group is exactly
+  `doctor` check 2's list.
+- **`docs/ADOPTION.md`** — a four-week rollout, one action and one number per week, starting with
+  `/mango:challenge` on already-merged PRs; when not to use mango; an FAQ.
+- **`docs/COST.md`** — the measurement protocol and an **empty** table. It holds no figures: none have
+  been measured. Token counts come from the working doc's dispatch-only Cost ledger plus the host's
+  session figure, since mango does not measure the main loop. A one-line `COST:` summary format is
+  proposed there and is **not implemented**. `validate_root_readme_docs` fails a data row that carries
+  no run date, and an empty table that does not say it is empty. Both pages join the jargon scan.
+- **`docs/STABILITY.md`** — semver over the skill / config / counted-line API, a one-minor deprecation
+  notice before any removal, and batching related changes into one release. `main` stays the release
+  channel. Linked from the README and `CONTRIBUTING.md`.
+- **Issue templates** — `bug_report.yml`, and `field_report.yml` whose fields match the `docs/COST.md`
+  columns, so external runs can be added to that table. Blank issues are off.
+
 ## [1.19.0] — 2026-11-02
 
 **Minor: `/mango:challenge` — the challenger on any branch, outside the lifecycle.** Trying mango meant
