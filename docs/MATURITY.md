@@ -2,7 +2,9 @@
 
 The short version is in the [root README](../README.md#maturity): every release is gated by
 `validate.py` and the dispatch-free script suites, and mango has **no behavioural regression suite**
-— only a per-skill smoke guard. This page holds the record behind that summary. Which behaviours are
+— only a per-skill smoke guard. That guard reports that its fixtures passed just now, and nothing
+more: it does **not** detect cross-skill regressions (editing `design` and breaking `finalise` is not
+caught), and the `RETIRE:` counted line is uncovered. This page holds the record behind that summary. Which behaviours are
 **Experimental** is tracked only in
 [`plugins/mango/principles/maturity.md`](../plugins/mango/principles/maturity.md).
 

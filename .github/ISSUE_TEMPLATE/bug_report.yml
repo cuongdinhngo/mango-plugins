@@ -1,0 +1,30 @@
+name: Bug report
+description: mango did something wrong, or a doc did not match what happened.
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: mango version
+      description: The first line `/mango:doctor` prints (`mango <version> @ <base path>`).
+    validations:
+      required: true
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Where it happened
+      options: [challenge, quick, solve / a lifecycle phase, autorun, init / doctor, another skill]
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+      description: Paste the counted line or output involved. Remove project names, paths, ticket keys and secrets.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: The smallest ticket and config that shows it, with placeholders (`PROJ-123`, `src/<module>/…`).

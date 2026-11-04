@@ -69,11 +69,19 @@ A few terms recur throughout; here they are once.
 
 ## Getting set up
 
-**Prerequisites:** Claude Code, git, Python 3.7+ on `PATH` (the scripts are stdlib-only; CI runs the
-current Python 3), your project's test command, a tracker connection (`tracker.cli` or
-`tracker.read_mcp`) **or** local mode (`"tracker": { "mode": "local" }`, tickets as files in
-`tickets_dir`) — `doctor` reports ❌ with neither, and `solve` will not start while a ❌ remains — and
-your PR host's CLI named in `pr_host`.
+### Prerequisites
+
+- **Claude Code** with plugin support.
+- **git** — mango works on a branch and reviews the committed diff.
+- **Python 3.7 or newer** on `PATH`. mango's checker scripts use only the standard library, so there is
+  nothing to `pip install`. CI runs them on the current Python 3.
+- **A test command** for your project (for example `npm test` or `pytest -q`).
+- **A tracker connection, or local mode**: a CLI for tracker writes (`tracker.cli`) or a read-only
+  MCP server for ticket reads (`tracker.read_mcp`). With no tracker, set
+  `"tracker": { "mode": "local" }`: tickets are Markdown files in `tickets_dir`, mango makes no tracker
+  call, and `finalise` prints the tracker update for you to apply. `/mango:doctor` reports ❌ with
+  neither, and `/mango:solve` will not start while a ❌ remains.
+- **Your PR host's CLI** (for example `gh`), named in `pr_host`, for `finalise` to open the PR.
 
 | Skill | Use | Produces |
 |-------|-----|----------|
@@ -221,7 +229,8 @@ other, because the ticket-blind challenger is the *cheaper* seat (about 58k agai
 ~108k per round) and one flag covering both would lose the cheap one along with the expensive one.
 Waiving is a deliberate decision recorded as an argument rather than remembered as an instruction — and
 under `autorun` each seat's state is on **line one of `DISCLOSURE`, separately**, because a clean result
-read nine hours later is uninterpretable without knowing which eyes, if any, were open. Both seats
+read nine hours later is uninterpretable without knowing which eyes, if any, were open — a morning
+reader can tell "clean, nobody looked" from "clean, the blind reviewer looked". Both seats
 waived is **recorded, not refused**.
 
 **Budget.** A token limit hit mid-run leaves a half-finished branch nobody is awake to rescue, so
@@ -422,6 +431,44 @@ surfaces, `M` proven (any tier), `X` exclusions, **Gate 2 passes iff `N == M + X
 `review` emits `⚠ surfaces proven: k/N` and blocks. Under `TIER=lite` the re-run lightens to
 confirming proof presence — coverage stays mandatory.
 
+## What the artifacts look like
+
+`analysis` decomposes the ticket into a counted matrix, and the count is itself the gate — sections
+found MUST equal sections decomposed:
+
+```
+SECTIONS: 7 found (Context, Scope, AC, Non-goals, Risks, Rollout, Metrics) | 7 decomposed
+ROWS: C=2 R=7 G=3 AC=4
+```
+
+`review` fills a `k/N` on **every** matrix row and requires `k = N` to call the change clean, with
+each shortfall named as a human-approved exclusion rather than waved through. An aggregate total is
+deliberately not sufficient on its own — a "for each of N" requirement is checked item by item,
+because a passing total can hide an incomplete tail. Frontend surface coverage blocks with its count
+visible:
+
+```
+surfaces proven: 11/12
+```
+
+The ticket-blind `challenger` rebuilds the requirements from the raw ticket alone and returns a
+numbered table — every item **met** / **not met** / **can't tell**, each with a `path:line` — then a
+one-line summary:
+
+```
+1. AC-3  password reset invalidates the old token   met        src/auth/reset.ts:88
+2. R-5   audit log entry written on failure         met        src/audit/log.ts:22
+3. AC-4  rate limit applies to the reset endpoint   not met    —
+
+14 requirements: 13 met, 1 not met, 0 can't tell
+```
+
+That output is never compressed — the per-requirement verdict and its evidence must survive in full.
+On a clean verdict, review writes a `Reviewed at <sha>` marker into the working doc, so a later
+commit can't quietly inherit an old review.
+
+> These show the *shape* of the artifacts; exact fields depend on your project and ticket.
+
 ## Supporting skills
 
 Beyond the gated lifecycle, these skills set up, diagnose, build knowledge about, or describe a
@@ -463,7 +510,8 @@ Copy [`config/harness.example.json`](./config/harness.example.json) to your repo
 `.harness.json`, or start from [`config/harness.minimal.json`](./config/harness.minimal.json): the
 **Required** keys below plus `pr_host`, in local mode with no tracker. Replace each `REPLACE_ME` and
 create `tickets_dir`; `doctor` reports ❌ on a `REPLACE_ME` `test_command` and on a missing rule book
-until you do.
+until you do. Create the rule book file at `rulebook_path` — an empty file is enough to start
+(`doctor` warns it is a stub; it does not fail) — or run `/mango:init` to scaffold one.
 
 **Required**
 - `rulebook_path` — your engineering rule book; every phase grounds its rules here. May be a **file or

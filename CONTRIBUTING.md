@@ -131,7 +131,8 @@ For a fresh fork or a new marketplace of your own:
 
 ### `main` is the release channel
 
-**`main` is the release channel.** Once mango is listed in the community marketplace, the catalog pins a
+**`main` is the release channel.** What users may rely on between versions — semver, deprecation,
+batching — is in [`docs/STABILITY.md`](./docs/STABILITY.md). Once mango is listed in the community marketplace, the catalog pins a
 commit SHA and CI advances that pin on every push. Anything merged to `main` reaches users without
 further review. Merge only when `main` is in a shippable state. The nightly catalog sync delays when a
 commit *appears*; it is not a second review gate.
@@ -146,18 +147,18 @@ existed — *nothing reaches a user unproven* — is unchanged; only the place i
 
 ### Release checklist
 
-Every release touches four places. Only the first two are validator-enforced, so the last two are the
-ones that silently go stale — check them by hand:
+Every release touches four places. The first three are validator-enforced; the last is only partly
+enforced, so it is the one that silently goes stale — check it by hand:
 
 1. **`plugins/mango/.claude-plugin/plugin.json`** — bump `version` (semver; enforced).
 2. **`plugins/mango/CHANGELOG.md`** — add a `## [<version>]` entry. It ships *inside* the plugin,
    alongside `plugin.json` / `README.md`; `scripts/validate.py` fails if the entry is missing.
-3. **Root `README.md` version badge** — `![version](…/badge/version-<version>-blue)`. **Not**
-   enforced, and it is the only place the README states the *current* version, so nothing else
-   contradicts it when it drifts. (Other version numbers appear in `docs/MATURITY.md` — 1.16.0 for the
+3. **Root `README.md` version badge and pin example** — `![version](…/badge/version-<version>-blue)`
+   and `/plugin marketplace add cuongdinhngo/mango-plugins#v<version>` under *Pinning a version*.
+   Enforced since 1.19.1 (`validate_release_workflow` fails unless both match `plugin.json`); before
+   that the badge drifted silently. (Other version numbers appear in `docs/MATURITY.md` — 1.16.0 for the
    suite retirement, 1.14.0 in the API-stability note — but each names the release a past change
-   shipped in and is not a current-version claim. Do not bump those.) It has silently sat two versions
-   behind before.
+   shipped in and is not a current-version claim. Do not bump those.)
 4. **Root `README.md` → *Maturity*, and `docs/MATURITY.md`** — the README keeps the short summary;
    the field claims (usage, other hosts, API stability, newer surfaces) moved to `docs/MATURITY.md` in
    1.17.4. Partly enforced: `validate_readme_eval_claim` checks the guard's fixture count against

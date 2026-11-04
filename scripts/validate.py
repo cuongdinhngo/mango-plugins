@@ -59,7 +59,8 @@ SKILL_CONTRACTS = {
                   r"\*\.work\.md", r"MANGO WORKING DOC", r"PR body", r"gh pr view", r"nothing else",
                   r"git-isolation\.md", r"ref-based", r"in full", r"never compress",
                   r"CHALLENGER ONLY — advisory", r"not a mango review verdict", r"Run /mango:init",
-                  r"writes nothing", r"never satisfies a `review` criterion"],
+                  r"writes nothing", r"never satisfies a `review` criterion",
+                  r"no ticket read is configured", r"never read the ticket\s+through `config\.tracker\.cli`"],
     "review": [r"reviewer", r"challenger", r"not clean", r"coverage-gap", r"item-by-item", r"per-item", r"layer-match", r"Reviewed at", r"a11y", r"DESIGN\.md", r"touch-target", r"proof[ -]manifest", r"surfaces proven", r"conditional", r"verify-only", r"baseline", r"reuse", r"only the proof affected", r"main[ -]loop", r"re-?dispatch", r"changed scope", r"bookkeeping", r"exempt", r"carve-?out",
                r"ref-based", r"worktree", r"checkout",
                r"env-?parity|environment-equivalence", r"env-?fault|environment fault", r"untracked",
@@ -704,7 +705,8 @@ def operational_text_files():
             + sorted(plugin.glob("templates/*.md"))
             + sorted(plugin.glob("principles/*.md"))
             + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md",
-               ROOT / "CLAUDE.md", ROOT / "docs" / "MATURITY.md"])
+               ROOT / "CLAUDE.md", ROOT / "docs" / "MATURITY.md",
+               ROOT / "docs" / "ADOPTION.md", ROOT / "docs" / "COST.md", ROOT / "docs" / "STABILITY.md"])
 
 
 def validate_maturity_labels():
@@ -3052,12 +3054,28 @@ def validate_harness_minimal():
         check(key in example, f"harness-minimal: key '{key}' is not shipped in harness.example.json")
     check("harness.minimal.json" in str(example.get("//", "")),
           "harness-minimal: harness.example.json's header comment must point at harness.minimal.json")
+    # v1.19.1 — harness.example.json is grouped REQUIRED / RECOMMENDED / ADVANCED, and the REQUIRED
+    # group is exactly doctor check 2's list, so a reader can tell what to fill first.
+    keys = list(example)
+    marks = [k for k in keys if k.startswith("//== ")]
+    check([m.split(" ")[1] for m in marks] == ["REQUIRED", "RECOMMENDED", "ADVANCED"],
+          f"harness-minimal: harness.example.json must carry //== REQUIRED, RECOMMENDED, ADVANCED section markers in order, found {marks}")
+    if len(marks) == 3:
+        req = [k for k in keys[keys.index(marks[0]) + 1:keys.index(marks[1])] if not k.startswith("//")]
+        check(sorted(req) == sorted(required),
+              f"harness-minimal: harness.example.json's REQUIRED group must be exactly doctor check 2's keys {required}, found {req}")
     for rel in ("README.md", "plugins/mango/README.md"):
         try:
             text = (ROOT / rel).read_text(encoding="utf-8")
         except OSError:
             text = ""
         check("config/harness.minimal.json" in text, f"harness-minimal: {rel} must name config/harness.minimal.json")
+        # v1.19.1 — doctor check 3 fails on a missing rule book, so the hand-fill path must say to create one.
+        check(re.search(r"create the rule book file at `rulebook_path`", text, re.I) is not None,
+              f"harness-minimal: {rel} must tell a hand-filler to create the rule book at rulebook_path "
+              "(doctor check 3 fails when it does not exist)")
+    check("rule book file at rulebook_path" in str(minimal.get("//", "")),
+          "harness-minimal: harness.minimal.json's comment must say to create the rule book at rulebook_path")
 
 
 def validate_release_workflow():
@@ -3101,6 +3119,34 @@ def validate_release_workflow():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     check(re.search(r"/plugin marketplace add cuongdinhngo/mango-plugins#v\d+\.\d+\.\d+", readme) is not None,
           "release: root README must show pinning the marketplace by tag (`owner/repo#v<version>`)")
+    # v1.19.1 — a pin example copied verbatim must install the CURRENT version, not an older tag that
+    # lacks the newest skills; and the badge is the README's one current-version claim.
+    pins = re.findall(r"/plugin marketplace add cuongdinhngo/mango-plugins#v(\d+\.\d+\.\d+)", readme)
+    check(bool(pins) and all(v == version for v in pins),
+          f"release: every README pin example must name the current version v{version}, found {pins}")
+    check(f"version-{version}-blue" in readme,
+          f"release: root README version badge must read {version}")
+
+
+def validate_root_readme_docs():
+    """v1.19.1 — the root README stays one screen (120 lines or fewer) and routes to the adoption and
+    cost pages, which must exist. docs/COST.md holds measured rows only: a data row without a run date
+    is the fabricated-number shape this check refuses."""
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    n = len(readme.splitlines())
+    check(n <= 120, f"root-readme: README.md is {n} lines; keep it at 120 or fewer and move detail to the plugin README or docs/")
+    for rel in ("docs/ADOPTION.md", "docs/COST.md", "docs/STABILITY.md"):
+        check((ROOT / rel).exists(), f"root-readme: {rel} is missing")
+        check(rel in readme, f"root-readme: README.md must link {rel}")
+    cost = ROOT / "docs" / "COST.md"
+    if cost.exists():
+        rows = [l for l in cost.read_text(encoding="utf-8").splitlines()
+                if l.startswith("|") and not l.startswith("| Lane") and not set(l) <= set("|- ")]
+        for row in rows:
+            check(re.search(r"\d{4}-\d{2}-\d{2}\s*\|\s*$", row) is not None,
+                  f"root-readme: docs/COST.md row has no run date in its last column (measured rows only): {row[:80]}")
+        check(bool(rows) or "No measurements are recorded yet" in cost.read_text(encoding="utf-8"),
+              "root-readme: docs/COST.md with no rows must say plainly that no measurements are recorded yet")
 
 
 def validate_challenge_standalone():
@@ -3115,6 +3161,13 @@ def validate_challenge_standalone():
                     review) is not None,
           "challenge: review must scope its single challenger-dispatch claim to the lifecycle and name "
           "/mango:challenge as running outside it")
+    # v1.19.1 — the zero-config entry point leads the root README, and is introduced exactly once.
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").splitlines()
+    head = "\n".join(readme[:40])
+    check("/mango:challenge" in head,
+          "challenge: /mango:challenge must appear in the first 40 lines of the root README (Try it in 2 minutes)")
+    check(sum(line.count("/mango:challenge") for line in readme) == 1,
+          "challenge: the root README must introduce /mango:challenge exactly once")
 
 
 def validate_delegation_agents():
@@ -3338,6 +3391,7 @@ def main():
     validate_harness_minimal()
     validate_release_workflow()
     validate_challenge_standalone()
+    validate_root_readme_docs()
     validate_delegation_agents()
     validate_maturity_count()
     validate_doc_consistency()

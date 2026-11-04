@@ -27,7 +27,9 @@ challenger agent or a modified challenger brief.
    - **A KEY** → needs `${CLAUDE_PROJECT_DIR}/.harness.json`. Under `config.tracker.mode: "local"`,
      read `<config.tickets_dir>/<KEY>.md` (same separator rule). Otherwise read the ticket through
      `config.tracker.read_mcp` (a read only). No `.harness.json` → STOP: "pass a ticket file path, or
-     run `/mango:init` to look tickets up by KEY."
+     run `/mango:init` to look tickets up by KEY." Not local mode **and** no `config.tracker.read_mcp`
+     → STOP: "no ticket read is configured; pass the ticket as a file path." Never read the ticket
+     through `config.tracker.cli` — it is the write channel.
    - **Never** take the ticket from a PR body, a PR comment, a working doc, or a summary of the change.
 2. **Resolve the range.** Given → use it as passed. Absent → `<default>...HEAD`, where `<default>` is
    the branch `refs/remotes/origin/HEAD` points at, else `main`. HEAD **is** the default branch, or
