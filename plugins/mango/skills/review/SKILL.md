@@ -167,10 +167,14 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    green run green against code that is no longer the code, and every gate above it inherits that. A
    marker reading `provenance-unknown` (or absent) is **UNVERIFIED, never a pass**: say the provenance
    could not be established and re-run the claim on the tree under review rather than assuming it was
-   fine. The harness reads this axis for you:
+   fine. **The one exception is a block that declares `(pre-change)`** — the baseline, the blast-radius
+   trace, the fails-without run: it is accepted only when its SHA is the commit the branch was cut
+   from, which you pass as `--base`; naming any other tree it is refused like stale evidence. The
+   harness reads this axis for you:
 
    ```
-   python3 <mango>/scripts/check_lines.py check <work-doc> --phase review --tree $(git rev-parse HEAD)
+   python3 <mango>/scripts/check_lines.py check <work-doc> --phase review --tree $(git rev-parse HEAD) \
+       --base $(git merge-base HEAD <default branch>)
    ```
 
    **Its exit status IS the verdict** — `2` includes evidence from another tree, `3` includes evidence

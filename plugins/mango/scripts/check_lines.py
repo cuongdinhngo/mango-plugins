@@ -10,7 +10,7 @@ count comes from a parse this script performed.
     required : <r> required through <phase> | <m> MISSING
     gates    : <g> arithmetic gate condition(s) read | <b> BROKEN
     evidence : <n> empirical-output record(s) | <m> on the tree under review | <x> from ANOTHER tree
-               | <u> provenance-unknown            (only with --tree)
+               | <u> provenance-unknown | <p> pre-change on the base   (only with --tree)
     restated : <d> carried-forward restatement(s), each re-checked for contradiction
 
 Four checks, in order of value:
@@ -31,6 +31,16 @@ Four checks, in order of value:
      green suite from a stale tree satisfies all of them. This is the stale-review guard's rule pointed
      at a different artifact — not a second mechanism. A record with no marker is `provenance-unknown`:
      UNVERIFIED, on its own exit status, NEVER a pass.
+
+     PRE-CHANGE EVIDENCE is the one record that legitimately ran on another tree: analysis's
+     `BASELINE`, design's blast-radius trace and execute's fails-without-the-change run all run BEFORE
+     the change exists. Such a record declares its role — `Ran at <sha> (pre-change)` — and is
+     accepted ONLY when `--base` is given and <sha> IS that base: the production code the branch was
+     cut from (for the fails-without run: that code plus only the ticket's new proving tests). It is
+     counted on its own field and never as evidence on the tree under review. A pre-change record
+     with no `--base`, or naming any other SHA, is REFUSED exactly like stale evidence; an undeclared
+     record naming the base is stale too. The role cannot launder a tree — it binds to one SHA the
+     caller supplies.
 
 REPORT, NEVER REWRITE. This script says a line is wrong. It does not fix it, does not reformat it, and
 never opens the working doc for anything but reading. A script that edited would hide exactly the
@@ -56,7 +66,8 @@ judgement; what is checked here is the arithmetic that judgement produced.
 Subcommands
   check     <workdoc> [--phase 0..5|refine|analysis|design|execute|review|finalise]
                       [--tier lite|full] [--track backend|frontend|fullstack] [--epic]
-                      [--tree <sha of the tree under review>] [--size-budget <bytes>]
+                      [--tree <sha of the tree under review>] [--base <sha the branch was cut from>]
+                      [--size-budget <bytes>]
   grammars  print the canonical grammar of every counted line the plugin ships
 
 WHAT THIS CANNOT PREVENT, stated plainly: an agent quoting a passing verdict it never ran. No script can
@@ -783,7 +794,9 @@ def required_tokens(phase, tier, track, epic):
 # the command actually ran against — for a containerised suite, the tree the IMAGE WAS BUILT FROM, not
 # the checkout the agent is standing in. That distinction is the whole defect this axis exists for.
 EVIDENCE_MARKER_RE = re.compile(
-    r"Ran\s+at\s*:?\s*[`*]*\s*(?P<sha>[0-9a-fA-F]{7,40}|provenance-unknown)", re.IGNORECASE)
+    r"Ran\s+at\s*:?\s*[`*]*\s*(?P<sha>[0-9a-fA-F]{7,40}|provenance-unknown)[`*]*"
+    r"(?P<pre>\s*\(pre-change\))?", re.IGNORECASE)
+PRE_CHANGE = "pre-change"
 FENCE_RE = re.compile(r"^\s*(```+|~~~+)")
 PROVENANCE_UNKNOWN = "provenance-unknown"
 
@@ -820,29 +833,48 @@ def evidence_records(text):
                 "line": offset + start + 1,
                 "command": first.strip()[:70],
                 "sha": (m.group("sha").lower() if m else None),
+                "pre": bool(m and m.group("pre")),
             })
         i = j + 1
     return records
 
 
-def check_evidence(text, tree):
+def same_sha(a, b):
+    return bool(a and b) and (a == b[: len(a)] or b == a[: len(b)])
+
+
+def check_evidence(text, tree, base=None):
     """Verdict every empirical-output record against the tree under review.
 
     Returns (counted_line, details, has_stale, has_unknown). Reuses the stale-review guard's rule,
     pointed at a different artifact: evidence recorded against a tree that is not the one under review
-    is REFUSED, exactly as a review scoped to a superseded SHA is."""
+    is REFUSED, exactly as a review scoped to a superseded SHA is. The one exception is a record that
+    DECLARES itself pre-change and names exactly the `base` the caller supplies — counted on its own
+    field, never as evidence on the tree under review."""
     tree = (tree or "").strip().lower()
+    base = (base or "").strip().lower()
     records = evidence_records(text)
-    matching, stale, unknown, details = 0, 0, 0, []
+    matching, stale, unknown, pre, details = 0, 0, 0, 0, []
     for rec in records:
         sha = rec["sha"]
-        if sha is None or sha == PROVENANCE_UNKNOWN:
+        if rec["pre"] and sha not in (None, PROVENANCE_UNKNOWN):
+            if same_sha(sha, base):
+                pre += 1
+            else:
+                stale += 1
+                why = ("no --base was given, so the base it claims cannot be checked" if not base
+                       else f"it is NOT the base the branch was cut from ({base})")
+                details.append(
+                    f"    EVIDENCE: FAIL (line {rec['line']}) — `{rec['command']}` declares itself "
+                    f"{PRE_CHANGE} at {sha}, but {why}. Pre-change evidence binds to the base only; "
+                    f"this evidence is REFUSED.")
+        elif sha is None or sha == PROVENANCE_UNKNOWN:
             unknown += 1
             details.append(
                 f"    EVIDENCE: {PROVENANCE_UNKNOWN.upper()} (line {rec['line']}) — `{rec['command']}` "
                 f"carries no `Ran at <sha>` marker, so the tree that produced this output cannot be "
                 f"established. UNVERIFIED, never a pass.")
-        elif sha == tree[: len(sha)] or tree == sha[: len(tree)]:
+        elif same_sha(sha, tree):
             matching += 1
         else:
             stale += 1
@@ -851,7 +883,8 @@ def check_evidence(text, tree):
                 f"{sha}, which is NOT the tree under review ({tree}). A green suite from a tree that "
                 f"is no longer the code satisfies every gate above it; this evidence is REFUSED.")
     line = (f"  evidence : {len(records)} empirical-output record(s) | {matching} on the tree under "
-            f"review | {stale} from ANOTHER tree | {unknown} {PROVENANCE_UNKNOWN}")
+            f"review | {stale} from ANOTHER tree | {unknown} {PROVENANCE_UNKNOWN} | "
+            f"{pre} {PRE_CHANGE} on the base")
     return line, details, stale > 0, unknown > 0
 
 
@@ -890,7 +923,7 @@ def size_margin(text, budget):
 
 
 def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>", tree=None,
-              size_budget=None):
+              size_budget=None, base=None):
     """Verdict every counted line in one working doc. Returns (lines, exit_status)."""
     header = read_header(text)
     phase = phase or header["phase"]
@@ -958,7 +991,7 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
     # absent from the report entirely — it is not silently "clean", it simply was not asked.
     evidence_line, evidence_details, evidence_stale, evidence_unknown = "", [], False, False
     if tree:
-        evidence_line, evidence_details, evidence_stale, evidence_unknown = check_evidence(text, tree)
+        evidence_line, evidence_details, evidence_stale, evidence_unknown = check_evidence(text, tree, base)
     size_field, size_notes = size_margin(text, size_budget)
 
     npass = sum(1 for v in verdicts.values() if v == PASS)
@@ -1030,7 +1063,7 @@ def main(argv):
         return 1
     if not args or args[0].startswith("--"):
         print("check_lines: check <workdoc> [--phase P] [--tier T] [--track TR] [--epic] "
-              "[--tree SHA] [--size-budget BYTES]")
+              "[--tree SHA] [--base SHA] [--size-budget BYTES]")
         return 1
 
     path, phase = args[0], opt("--phase")
@@ -1051,7 +1084,7 @@ def main(argv):
               "UNVERIFIED, not clean — it never passes by default.")
         return 3
     lines, status = check_doc(text, phase=phase, tier=opt("--tier"), track=opt("--track"),
-                              epic="--epic" in args, path=path, tree=opt("--tree"),
+                              epic="--epic" in args, path=path, tree=opt("--tree"), base=opt("--base"),
                               size_budget=opt("--size-budget"))
     print("\n".join(lines))
     return status

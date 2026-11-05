@@ -297,7 +297,8 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
   suite ran in a container or another environment, that SHA is the tree the CONTAINER WAS BUILT FROM**,
   not the checkout you are standing in. If it cannot be established, write `Ran at provenance-unknown`
   — a third state like `could-not-run`, **never a pass**. A gate consuming this evidence refuses it
-  when the SHA is not the tree under review:
+  when the SHA is not the tree under review. The fails-without-the-change run is the one exception:
+  stamp it `Ran at <sha> (pre-change)` — the base's code plus only the new proving tests:
 
   Ran at `<sha | provenance-unknown>`
 

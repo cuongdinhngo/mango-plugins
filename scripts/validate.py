@@ -2747,6 +2747,13 @@ def validate_evidence_provenance():
               f"the axis is not run, and an axis that was not run is not clean")
         check(re.search(r"git rev-parse HEAD", body) is not None,
               f"evidence: {name} must name where the tree under review comes from (`git rev-parse HEAD`)")
+        check(re.search(r"--base \$\(git merge-base HEAD <default branch>\)", body) is not None,
+              f"evidence: {name} must pass `--base $(git merge-base HEAD <default branch>)` to "
+              f"check_lines.py — without it every honest `(pre-change)` record is refused (1.19.2)")
+    for name, body in (("analysis", skill_text("analysis")), ("design", skill_text("design")),
+                       ("execute", execute), ("templates/ticket.md", ticket)):
+        check("Ran at <sha> (pre-change)" in body,
+              f"evidence: {name} must stamp its pre-change evidence `Ran at <sha> (pre-change)`")
 
     src = (plugin / "scripts" / "check_lines.py").read_text(encoding="utf-8")
     check(re.search(r"EVIDENCE PROVENANCE", src) is not None,
@@ -2768,6 +2775,14 @@ def validate_evidence_provenance():
     sys.path.insert(0, str(plugin / "scripts"))
     import check_lines as cl                                   # noqa: PLC0415 - loaded on demand
     stamped = "Ran at `deadbee`\n\n```\n$ pytest -q\n1 passed\n```\n"
+    pre = "Ran at `deadbee` (pre-change)\n\n```\n$ pytest -q\n1 passed\n```\n"
+    _, _, stale, unknown = cl.check_evidence(pre, "0badc0de", base="deadbee1234")
+    check(not stale and not unknown,
+          "evidence: a `(pre-change)` record naming exactly the base must be accepted (1.19.2)")
+    for kw in ({"base": "0badc0de"}, {}):
+        _, _, stale, _ = cl.check_evidence(pre, "0badc0de", **kw)
+        check(stale, f"evidence: a `(pre-change)` record must be REFUSED unless it names the base "
+                     f"({kw or 'no --base'}) — the role never launders a tree")
     _, _, stale, unknown = cl.check_evidence(stamped, "deadbee1234")
     check(not stale and not unknown,
           "evidence: evidence whose SHA IS the tree under review must pass with no extra work (T14)")

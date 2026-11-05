@@ -1343,6 +1343,53 @@ class TestEvidenceProvenance(unittest.TestCase):
         self.assertEqual(status, 0, out)
         self.assertIn("1 on the tree under review", out)
 
+    # v1.19.2 — pre-change evidence. Found by the golden e2e: analysis's BASELINE, design's
+    # blast-radius trace and execute's fails-without run all run BEFORE the change, so under `--tree
+    # HEAD` every honest doc was refused at Gate 4. The role binds to exactly one caller-supplied SHA.
+
+    BASE = "f338bb6b75b"
+
+    def test_E2_pre_change_evidence_on_the_base_is_accepted_on_its_own_field(self):
+        block = ("Ran at `f338bb6` (pre-change)\n\n```\n$ pytest -q\n3 passed\n```\n\n"
+                 "Ran at `b7d5e29`\n\n```\n$ pytest -q\n7 passed\n```")
+        out, status = run(self._doc(block), tree=self.TREE, base=self.BASE)
+        self.assertEqual(status, 0, out)
+        self.assertIn("1 on the tree under review", out)
+        self.assertIn("1 pre-change on the base", out)
+        self.assertIn("0 from ANOTHER tree", out)
+
+    def test_E2_pre_change_evidence_is_never_counted_as_on_the_tree_under_review(self):
+        out, status = run(self._doc("Ran at `f338bb6` (pre-change)\n\n```\n$ pytest -q\nok\n```"),
+                          tree=self.TREE, base=self.BASE)
+        self.assertIn("0 on the tree under review", out)
+        self.assertIn("1 pre-change on the base", out)
+
+    def test_E2_pre_change_naming_another_tree_is_refused(self):
+        out, status = run(self._doc("Ran at `c40b7e1` (pre-change)\n\n```\n$ pytest -q\nok\n```"),
+                          tree=self.TREE, base=self.BASE)
+        self.assertEqual(status, 2, out)
+        self.assertIn("NOT the base the branch was cut from", out)
+        self.assertIn("0 pre-change on the base", out)
+
+    def test_E2_pre_change_without_a_base_is_refused_not_trusted(self):
+        out, status = run(self._doc("Ran at `f338bb6` (pre-change)\n\n```\n$ pytest -q\nok\n```"),
+                          tree=self.TREE)
+        self.assertEqual(status, 2, out)
+        self.assertIn("no --base was given", out)
+
+    def test_E2_an_undeclared_record_on_the_base_is_still_stale(self):
+        """The base is accepted only for a record that DECLARES the pre-change role."""
+        out, status = run(self._doc("Ran at `f338bb6`\n\n```\n$ pytest -q\nok\n```"),
+                          tree=self.TREE, base=self.BASE)
+        self.assertEqual(status, 2, out)
+        self.assertIn("1 from ANOTHER tree", out)
+
+    def test_E2_a_pre_change_role_does_not_rescue_an_unknown_tree(self):
+        out, status = run(self._doc("Ran at `provenance-unknown` (pre-change)\n\n```\n$ pytest -q\nok\n```"),
+                          tree=self.TREE, base=self.BASE)
+        self.assertEqual(status, 3, out)
+        self.assertIn("1 provenance-unknown", out)
+
 
 class TestSizeMargin(unittest.TestCase):
     """G — the size budget is surfaced BEFORE it bites. mango measures no ceiling of its own; the

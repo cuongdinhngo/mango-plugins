@@ -286,13 +286,15 @@ goes through `config.tracker.cli` — **never** an MCP.
 
     ```
     python3 <mango>/scripts/check_lines.py check <work-doc> --phase finalise \
-        --tree $(git rev-parse HEAD) [--size-budget <config.doc_size_budget>]
+        --tree $(git rev-parse HEAD) --base $(git merge-base HEAD <default branch>) \
+        [--size-budget <config.doc_size_budget>]
     ```
 
     **Pass `--tree` — it is the same guard as step 1, on a different artifact.** Step 1 refuses a
     review scoped to a superseded SHA; `--tree` refuses **test evidence** produced by a tree that is not
     the one under review, including a container built before the last edits landed. Evidence whose tree
-    cannot be established reads `provenance-unknown` and is **UNVERIFIED, never a pass**. Pass
+    cannot be established reads `provenance-unknown` and is **UNVERIFIED, never a pass**. `--base` is the
+    commit the branch was cut from — the only SHA a `(pre-change)` block may name. Pass
     `--size-budget` when `config.doc_size_budget` is set, so the working doc's remaining margin is
     surfaced **before** the ceiling bites; it never blocks and is omitted entirely when the key is unset.
 

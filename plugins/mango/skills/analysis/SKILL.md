@@ -194,7 +194,9 @@ count, and the requirements matrix.
    actual output and stamp the block **`Ran at <sha>`** — the SHA of the tree the command ran against,
    and for a containerised suite the tree the **container was built from**, not the checkout you are
    standing in. Unestablishable → `Ran at provenance-unknown`, never a pass. A later phase comparing
-   against a baseline captured from a different tree is comparing against something else.
+   against a baseline captured from a different tree is comparing against something else. The
+   baseline runs before the change exists, so stamp it **`Ran at <sha> (pre-change)`**: the branch is
+   cut from this tree, and later gates accept the record only when `<sha>` is that base.
 
    A clean checkout is not assumed green: a project's verification command can be **unsatisfiable on
    a fresh checkout** (a pre-existing/vendored failure, a flaky sub-pixel assertion). When

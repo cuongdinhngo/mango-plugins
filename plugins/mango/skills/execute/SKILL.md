@@ -128,6 +128,14 @@ grep / tests / lint via the Bash tool directly — never spawn a model for a one
    tree under review is **refused** at review: every gate trusts the test result handed to it, and
    nothing else asks which tree produced it.
 
+   **Pre-change evidence declares its role: `Ran at <sha> (pre-change)`.** A block that by design
+   ran before the change existed — analysis's `BASELINE`, design's blast-radius trace, and step 4's
+   run proving the test fails without the change — names the **commit the branch was cut from** and
+   appends `(pre-change)`. For the fails-without run, that is the base's code with **only the ticket's
+   new proving tests** added; run it there and stamp the base, never `provenance-unknown`. The role is
+   accepted only for that one SHA and is never counted as evidence on the tree under review: the
+   post-change runs still carry the reviewed tree's SHA. Never mark a post-change run `(pre-change)`.
+
    If the realized diff **materially exceeds** the
    approved change list or the declared `SCOPE` has crossed up a tier (S/M → L), do not absorb it —
    surface the *outgrew-its-ticket* nudge at the next gate (review) so the human can re-scope or

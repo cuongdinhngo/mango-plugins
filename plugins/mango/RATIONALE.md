@@ -393,3 +393,21 @@ defect of the kind that escaped is exactly the kind the challenger catches.
 **No policy refuses to run when both are waived.** That directive was proposed once, withdrawn after
 two field waivers, and is not re-introduced here: a directive waived twice is not a mechanism. The
 flags plus a `DISCLOSURE` line that records each seat separately are the mechanism.
+
+## check_lines — why pre-change evidence has its own role (v1.19.2)
+
+**Rule (in `check_lines.py`, `analysis`, `design`, `execute`, `review`, and the gate callers):** a block
+that ran before the change is stamped `Ran at <sha> (pre-change)` and is accepted only when `<sha>` is
+the `--base` the caller supplies.
+
+**Why.** The 1.14.0 evidence-provenance check was written against one incident, a container built
+before the last edits landed, and it refuses any block not run on the tree under review. Three blocks
+the lifecycle mandates are pre-change by definition, so the first unattended end-to-end run, which was
+otherwise correct (tests green, reviewer LGTM), stopped at Gate 4 on `2 from ANOTHER tree | 1
+provenance-unknown`. The agent had stamped the fails-without run `provenance-unknown`, honestly: the
+tree was the base plus uncommitted tests, and the shipped text gave it no truthful SHA to write.
+
+**Why not exempt Phase 1–2 instead.** An exemption by section would accept any SHA in those sections,
+including a stale one. The role binds to one SHA the caller computes from git, so the stale-tree
+incident 1.14.0 exists for is refused exactly as before. The role is also never counted as evidence on
+the tree under review, so it cannot stand in for the post-change run.

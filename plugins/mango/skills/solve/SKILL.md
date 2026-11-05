@@ -155,7 +155,8 @@ over the working doc — never your own reading of the line:
 
 ```
 python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished> \
-    --tree $(git rev-parse HEAD) [--size-budget <config.doc_size_budget>]
+    --tree $(git rev-parse HEAD) --base $(git merge-base HEAD <default branch>) \
+    [--size-budget <config.doc_size_budget>]
 ```
 
 **Its exit status IS the verdict.** `0` clean · `2` a line FAILED its canonical grammar, a required line
@@ -173,7 +174,9 @@ blocks the run and never reads as clean.
 
 **`--tree` names the tree under review**, so evidence a phase recorded against a different tree — a
 container built before the last edits landed — is refused rather than trusted. This is the
-stale-review guard's rule pointed at test evidence, not a second mechanism. **`--size-budget` is passed
+stale-review guard's rule pointed at test evidence, not a second mechanism. **`--base` names the commit
+the branch was cut from** (before the branch exists, `HEAD` itself): a block stamped `(pre-change)` is
+accepted only on that SHA, and nothing else is excused. **`--size-budget` is passed
 only when `config.doc_size_budget` is set**; it surfaces the working doc's remaining margin before the
 ceiling bites and never blocks.
 

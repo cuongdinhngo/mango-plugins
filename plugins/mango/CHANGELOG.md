@@ -5,6 +5,29 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.19.2] — 2026-11-04
+
+**Fix: pre-change evidence no longer stops every honest run at review.** Since 1.14.0, `check_lines.py
+--tree HEAD` refused every empirical-output block not run on the tree under review — including the
+three blocks the lifecycle *requires* to run before the change exists: analysis's `BASELINE`, design's
+blast-radius trace, and execute's fails-without-the-change run. An unattended `autorun` therefore could
+not close Gate 4 on a correctly written working doc. Found by the first live run of a golden end-to-end
+test on a generated sample project; neither the envelope suite nor the per-skill smoke guard exercises
+two phases together, so neither could see it.
+
+- **`Ran at <sha> (pre-change)`** — a block that by design ran before the change declares that role.
+  `check_lines.py` accepts it **only** when `--base <sha>` is given and the SHA is that base (the
+  commit the branch was cut from; for the fails-without run, that code plus only the new proving
+  tests). It is counted on a new trailing field of the `evidence :` line, `<p> pre-change on the base`,
+  and **never** as evidence on the tree under review.
+- **Nothing else is excused.** A `(pre-change)` block naming any other SHA, or checked without
+  `--base`, is refused exactly like stale evidence (exit 2). An undeclared block naming the base is
+  still stale. `(pre-change)` does not rescue `provenance-unknown` (exit 3). Post-change runs still
+  carry the reviewed tree's SHA.
+- `review`, `autorun`, `solve` and `finalise` pass `--base $(git merge-base HEAD <default branch>)`;
+  `analysis`, `design`, `execute` and the ticket template name the role. `validate.py` enforces both;
+  six envelope tests prove the role both ways.
+
 ## [1.19.1] — 2026-11-04
 
 **Patch: adoption fixes from a review of 1.19.0 — first-run stumbles, a one-screen README, and
