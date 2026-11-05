@@ -57,7 +57,8 @@ ALLOWED='Read Edit Write Glob Grep Agent Task TodoWrite Skill
 Bash(git:*) Bash(python3:*) Bash(python:*) Bash(gh:*) Bash(rtk:*) Bash(ls:*) Bash(cat:*) Bash(head:*)
 Bash(tail:*) Bash(wc:*) Bash(grep:*) Bash(sed:*) Bash(awk:*) Bash(find:*) Bash(mkdir:*) Bash(test:*)
 Bash(echo:*) Bash(printf:*) Bash(diff:*) Bash(cp:*) Bash(mv:*) Bash(touch:*) Bash(sort:*) Bash(cd:*)
-Bash(pwd:*) Bash(date:*) Bash(which:*) Bash(command:*) Bash(true:*) Bash(PYTHONPATH=*)'
+Bash(pwd:*) Bash(date:*) Bash(which:*) Bash(command:*) Bash(true:*) Bash(PYTHONPATH=*)
+Bash(printenv:*) Bash(tr:*) Bash(cut:*) Bash(uniq:*) Bash(basename:*) Bash(dirname:*) Bash(realpath:*) Bash(nl:*)'
 
 echo "== golden e2e: dispatch (mango $(python3 -c "import json;print(json.load(open('$PLUGIN/.claude-plugin/plugin.json'))['version'])") @ $(git -C "$TMP/mango" rev-parse --short HEAD)) =="
 START=$(date +%s)
