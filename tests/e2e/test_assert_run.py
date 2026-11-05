@@ -279,6 +279,16 @@ class AssertRunTest(unittest.TestCase):
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "the run left a DISCLOSURE")
 
+    def test_pipe_separated_challenger_summary_without_total_is_read(self):
+        base = good_run(self.root, summary="7 met | 0 not met | 0 can't tell")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertEqual(code, 0, out)
+
+    def test_pipe_separated_challenger_not_met_is_red(self):
+        base = good_run(self.root, summary="6 met | 1 not met | 0 can't tell")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, "challenger: every requirement met")
+
     def test_no_pr_is_red(self):
         base = good_run(self.root)
         (self.root / "pr-log.jsonl").unlink()

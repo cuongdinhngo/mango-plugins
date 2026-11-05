@@ -157,26 +157,33 @@ def main(argv):
             late = [p for p in changed(work, reviewed, head) if not is_bookkeeping(p)]
             check(not late, "nothing but bookkeeping changed after the review", f"{late}")
 
-    # 6. The checker, run HERE by the harness, passes the doc through finalise against the reviewed tree,
-    #    with the base the branch was cut from (the only SHA a `(pre-change)` record may name).
-    cl = [sys.executable, str(mango / "scripts" / "check_lines.py"), "check", str(work / WORK_DOC),
-          "--phase", "finalise", "--base", a.base]
-    if reviewed:
-        cl += ["--tree", reviewed]
+    # 6. The checker, run HERE by the harness, passes the doc through finalise with the base the branch
+    #    was cut from (the only SHA a `(pre-change)` record may name) and the tree under review. That
+    #    tree is the reviewed commit or the pushed head: finalise passes `git rev-parse HEAD`, and the
+    #    stale-review guard exempts bookkeeping commits after review, so a run may stamp either. Step 5
+    #    asserted only bookkeeping lies between them; the doc must pass in full against ONE of them.
+    trees = [t for t in dict.fromkeys([reviewed, head]) if t]
     with tempfile.TemporaryDirectory() as t:
         doc_file = Path(t) / "doc.md"
         doc_file.write_text(doc, encoding="utf-8")
-        cl[3] = str(doc_file)
-        p = subprocess.run(cl, capture_output=True, text=True)
+        for tree in trees:
+            p = subprocess.run([sys.executable, str(mango / "scripts" / "check_lines.py"), "check",
+                                str(doc_file), "--phase", "finalise", "--base", a.base, "--tree", tree],
+                               capture_output=True, text=True)
+            if p.returncode == 0:
+                break
     check(p.returncode == 0, "check_lines.py exits 0 on the final working doc",
           f"exit {p.returncode}: " + " | ".join(l.strip() for l in p.stdout.splitlines() if "FAIL" in l or "MISSING" in l or "BROKEN" in l)[:400])
 
     # 7. The challenger met every requirement it rebuilt, and rebuilt at least the four ACs.
     # The challenger's brief fixes the four numbers, not the words around them.
-    s = re.findall(r"(\d+)\s+requirements?\b[^\n\d]{0,40}?(\d+)\s+met\s*,\s*(\d+)\s+not met\s*,\s*(\d+)\s+can'?t tell",
-                   plain(section(doc, r"^## Phase 4")), re.I)
+    # The total is optional (a summary may give only the three counts); separators are `,` or `|`.
+    s = re.findall(r"(?:(\d+)\s+requirements?\b[^\n\d]{0,40}?)?(\d+)\s+met\s*[,|]\s*(\d+)\s+not met\s*[,|]\s*"
+                   r"(\d+)\s+can'?t tell", plain(section(doc, r"^## Phase 4")), re.I)
     if check(s, "Phase 4 carries the challenger's summary line"):
-        total, met, not_met, cant = map(int, s[-1])
+        total, met, not_met, cant = s[-1]
+        met, not_met, cant = int(met), int(not_met), int(cant)
+        total = int(total) if total else met + not_met + cant
         check(not_met == 0 and cant == 0 and met == total and total >= MIN_REQUIREMENTS,
               f"challenger: every requirement met (>= {MIN_REQUIREMENTS})",
               f"{total} requirements: {met} met, {not_met} not met, {cant} can't tell")
