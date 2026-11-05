@@ -96,6 +96,10 @@ def main(argv):
     work, origin, mango = root / "work", root / "origin.git", Path(a.mango).resolve()
 
     print("== golden e2e: artifacts ==")
+    # A kept sample re-judged from tests/e2e/.runs/ still names the deleted temp dir as its remote.
+    url, _ = git(work, "remote", "get-url", "origin")
+    if Path(url).resolve() != origin.resolve():
+        git(work, "remote", "set-url", "origin", str(origin))
 
     # 1. The shared default branch did not move: no merge, no direct push.
     main_sha, _ = git(origin, "rev-parse", "refs/heads/main")
