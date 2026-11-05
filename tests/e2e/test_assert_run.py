@@ -152,8 +152,8 @@ def good_run(root, summary="4 requirements: 4 met, 0 not met, 0 can't tell", pro
     (w / f"docs/tickets/{KEY}.work.md").write_text(doc, encoding="utf-8")
     (w / ".mango").mkdir()
     (w / f".mango/run-contract-{KEY}.txt").write_text("stub contract\n", encoding="utf-8")
-    git(w, "add", "-A")
-    git(w, "commit", "-q", "-m", "PROJ-901: working doc")
+    (w / f".mango/disclosure-{KEY}.md").write_text("- read me first\n", encoding="utf-8")
+    # The working doc and .mango/ stay LOCAL and untracked, as mango leaves them.
     git(w, "push", "-q", "origin", f"feat/{KEY}-min-length")
     env = dict(os.environ, MANGO_E2E_DIR=str(root))
     sh(w, str(root / "bin" / "gh"), "pr", "create", "--base", "main", "--head", f"feat/{KEY}-min-length", env=env)
@@ -207,11 +207,9 @@ class AssertRunTest(unittest.TestCase):
         doc_extra = DOC.replace("| `README.md` | Options |", "| `README.md` | Options |\n| `setup.cfg` | x |")
         base = good_run(self.root, extra={"setup.cfg": "[x]\n"})
         w = self.root / "work"
-        reviewed = git(w, "rev-parse", "HEAD~1")
+        reviewed = git(w, "rev-parse", "HEAD")
         (w / f"docs/tickets/{KEY}.work.md").write_text(
             doc_extra.format(summary="4 requirements: 4 met, 0 not met, 0 can't tell", reviewed=reviewed), encoding="utf-8")
-        git(w, "commit", "-q", "-am", "doc")
-        git(w, "push", "-q", "origin", f"feat/{KEY}-min-length")
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "diff stays inside the files the ticket can need")
 
@@ -249,13 +247,37 @@ class AssertRunTest(unittest.TestCase):
         base = good_run(self.root)
         line = "conditions: 3 declared | 3 re-run | 2 holding | 1 BROKEN | 0 UNBOUND | 0 could-not-run"
         code, out = judge(self.root, base, stub_mango(self.tmp, reconcile_line=line))
-        self.assertRed(out, code, "RECONCILE at close: every condition holds")
+        self.assertRed(out, code, "RECONCILE at close, after a simulated merge: every condition holds")
 
     def test_missing_phase_is_red(self):
         base = good_run(self.root, doc_override=DOC.replace("## Phase 3 — Execute", "## Execute").format(
             summary="4 requirements: 4 met, 0 not met, 0 can't tell", reviewed="0000000"))
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "working doc carries Phase 1-5 in order")
+
+    def test_embedded_working_doc_is_found(self):
+        """work_doc_mode auto on a local-file ticket appends the doc below the raw-ticket separator."""
+        base = good_run(self.root)
+        w = self.root / "work"
+        doc = (w / f"docs/tickets/{KEY}.work.md").read_text(encoding="utf-8")
+        (w / f"docs/tickets/{KEY}.work.md").unlink()
+        sep = "<!-- ===== MANGO WORKING DOC (below this line is NOT part of the raw ticket) ===== -->"
+        with open(w / f"docs/tickets/{KEY}.md", "a", encoding="utf-8") as f:
+            f.write("\n" + sep + "\n" + doc)
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertEqual(code, 0, out)
+
+    def test_no_working_doc_is_red(self):
+        base = good_run(self.root)
+        (self.root / "work" / f"docs/tickets/{KEY}.work.md").unlink()
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, "working doc exists")
+
+    def test_no_disclosure_is_red(self):
+        base = good_run(self.root)
+        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, "the run left its DISCLOSURE")
 
     def test_no_pr_is_red(self):
         base = good_run(self.root)

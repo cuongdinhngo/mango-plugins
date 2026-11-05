@@ -12,20 +12,22 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 | `make_sample.sh` | Writes the sample: a stdlib-Python word counter, a unittest suite, a 3-rule rule book, a local-mode `.harness.json`, ticket `PROJ-901` (4 ACs across 3 files), a bare repo as the remote, and a `gh` **test double** that logs PR calls and never contacts a server. |
 | `run.sh` | Clones this repo's HEAD, generates the sample, dispatches `/mango:autorun PROJ-901` with the two-action handover authorisation, records cost and wall-clock, then runs the judge. |
 | `assert_run.py` | The judge. Reads git state, the working doc, the PR log, and the output of `check_lines.py` and `reconcile.py` **run by the harness** — never the model's account. |
-| `test_assert_run.py` | Free self-test: a scripted correct run must be green, and each of 13 injected defects must turn its own assertion red. Runs in CI on every push. |
+| `test_assert_run.py` | Free self-test: a scripted correct run must be green (separate or embedded working doc), and each of 15 injected defects must turn its own assertion red. Runs in CI on every push. |
 
 ## What the judge asserts
 
 - `origin/main` did not move; exactly one feature branch was pushed and nothing is stranded locally.
 - The PR host saw exactly one PR opened and no merge, close or API write.
-- The working doc is on the pushed branch with Phase 1–5 in order.
+- The working doc exists with Phase 1–5 in order — a **local** artifact by mango's contract (never
+  committed), as `<KEY>.work.md` or below the separator in the ticket file — and `DISCLOSURE` was left.
 - `Reviewed at <sha>` names a commit on the branch, and only bookkeeping changed after it.
 - `check_lines.py check --phase finalise --tree <reviewed sha> --base <base>` exits `0` (`3`, not
   checkable, is red).
 - The challenger's summary: every requirement met, and at least the ticket's four.
 - Every changed project file is named in the approved design and is one the ticket can need.
 - The tests pass on the pushed head and **fail** against the base's source.
-- `RECONCILE --phase close`, re-run by the harness: every condition holds, floor included.
+- `RECONCILE --phase close`, re-run by the harness after a **simulated squash merge** (the local `main`
+  ref only; `TREE-COMPARISON` can hold only once merged): every condition holds, floor included.
 
 ## Running it
 

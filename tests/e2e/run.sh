@@ -75,6 +75,10 @@ WALL=$(( $(date +%s) - START ))
 cp "$SAMPLE/pr-log.jsonl" "$OUT/" 2>/dev/null || true
 cp "$SAMPLE/work/docs/tickets/PROJ-901.work.md" "$OUT/" 2>/dev/null || true
 cp -r "$SAMPLE/work/.mango" "$OUT/mango-run" 2>/dev/null || true
+# The whole sample (work tree, bare remote, PR log) so a run can be re-judged without re-dispatching:
+#   python3 tests/e2e/assert_run.py --dir <OUT>/sample --base "$(cat <OUT>/base.txt)" --mango plugins/mango
+cp -a "$SAMPLE" "$OUT/sample" 2>/dev/null || true
+echo "$BASE" >"$OUT/base.txt"
 
 COST="$(python3 - "$OUT/result.json" <<'EOF'
 import json, sys

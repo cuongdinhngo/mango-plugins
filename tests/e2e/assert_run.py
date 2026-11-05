@@ -18,6 +18,9 @@ from pathlib import Path
 
 KEY = "PROJ-901"
 WORK_DOC = f"docs/tickets/{KEY}.work.md"
+TICKET = f"docs/tickets/{KEY}.md"
+SEPARATOR = "<!-- ===== MANGO WORKING DOC (below this line is NOT part of the raw ticket) ===== -->"
+DISCLOSURE = f".mango/disclosure-{KEY}.md"
 CONTRACT = f".mango/run-contract-{KEY}.txt"
 TEST_CMD = ["python3", "-m", "unittest", "discover", "-s", "tests", "-t", "."]
 # Paths a run may touch that are bookkeeping, not the change: the working doc and ticket folder, the
@@ -68,6 +71,15 @@ def section(doc, start, stop=r"^## "):
     return rest[: n.start()] if n else rest
 
 
+def working_doc(work):
+    separate = work / WORK_DOC
+    if separate.exists():
+        return separate.read_text(encoding="utf-8")
+    ticket = work / TICKET
+    text = ticket.read_text(encoding="utf-8") if ticket.exists() else ""
+    return text.split(SEPARATOR, 1)[1] if SEPARATOR in text else ""
+
+
 def run_tests(tree):
     return subprocess.run(TEST_CMD, cwd=tree, capture_output=True, text=True).returncode
 
@@ -108,10 +120,15 @@ def main(argv):
     check(not forbidden, "no merge / close / API write attempted on the PR host",
           "; ".join(" ".join(e["args"]) for e in forbidden))
 
-    # 4. The working doc exists, on the pushed branch, with every phase in order.
-    doc, rc = git(work, "show", f"{head}:{WORK_DOC}", ok_codes=(0, 128))
-    if not check(rc == 0 and doc, f"working doc {WORK_DOC} is on the pushed branch"):
+    # 4. The working doc exists with every phase in order. It is a LOCAL artifact by mango's contract
+    #    (never committed; DISCLOSURE says so), placed per work_doc_mode: a separate <KEY>.work.md, or
+    #    embedded in the local ticket file below the raw-ticket separator.
+    doc = working_doc(work)
+    if not check(doc, f"working doc exists ({WORK_DOC}, or {TICKET} below the separator)"):
         return finish()
+    disclosure = work / DISCLOSURE
+    check(disclosure.exists() and disclosure.read_text(encoding="utf-8").strip(),
+          f"the run left its DISCLOSURE at {DISCLOSURE}")
     positions = [doc.find(f"## Phase {n}") for n in range(1, 6)]
     check(all(p >= 0 for p in positions) and positions == sorted(positions),
           "working doc carries Phase 1-5 in order", f"positions {positions}")
@@ -172,9 +189,15 @@ def main(argv):
         finally:
             git(work, "worktree", "remove", "--force", str(tree))
 
-    # 10. RECONCILE, re-run by the harness at close: every floor condition holds.
+    # 10. RECONCILE, re-run by the harness at close, after a SIMULATED squash merge: every condition
+    #     holds. TREE-COMPARISON (`git diff --quiet <base> <branch>`) can only hold once the PR is
+    #     merged, so the harness moves the local `main` ref to a squash of the branch — refs only, the
+    #     checkout and origin are untouched, and origin main was asserted unchanged above.
     contract = work / CONTRACT
     if check(contract.exists(), f"the RUN CONTRACT exists at {CONTRACT}"):
+        tree_sha, _ = git(work, "rev-parse", f"{head}^{{tree}}")
+        squash, _ = git(work, "commit-tree", tree_sha, "-p", "refs/heads/main", "-m", "e2e: simulated squash merge")
+        git(work, "update-ref", "refs/heads/main", squash)
         p = subprocess.run([sys.executable, str(mango / "scripts" / "reconcile.py"), "run", str(contract),
                             "--phase", "close", "--repo", str(work)], capture_output=True, text=True)
         c = re.search(r"conditions:\s*(\d+) declared \| (\d+) re-run \| (\d+) holding \| (\d+) BROKEN \| "
@@ -182,7 +205,7 @@ def main(argv):
         if check(c, "RECONCILE prints its conditions line", p.stdout[-300:] + p.stderr[-300:]):
             d, _, h, q, u, cnr = map(int, c.groups())
             check(q == 0 and u == 0 and cnr == 0 and h == d and d >= 3,
-                  "RECONCILE at close: every condition holds (floor included)",
+                  "RECONCILE at close, after a simulated merge: every condition holds (floor included)",
                   f"{d} declared, {h} holding, {q} BROKEN, {u} UNBOUND, {cnr} could-not-run")
 
     return finish()
