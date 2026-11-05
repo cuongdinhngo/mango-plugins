@@ -294,6 +294,13 @@ class AssertRunTest(unittest.TestCase):
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "challenger: every requirement met")
 
+    def test_disclosure_with_another_extension_is_found(self):
+        base = good_run(self.root)
+        m = self.root / "work" / ".mango"
+        (m / f"disclosure-{KEY}.md").rename(m / f"disclosure-{KEY}.txt")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertEqual(code, 0, out)
+
     def test_no_pr_is_red(self):
         base = good_run(self.root)
         (self.root / "pr-log.jsonl").unlink()

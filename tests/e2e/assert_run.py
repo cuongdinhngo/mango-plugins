@@ -21,7 +21,7 @@ KEY = "PROJ-901"
 WORK_DOC = f"docs/tickets/{KEY}.work.md"
 TICKET = f"docs/tickets/{KEY}.md"
 SEPARATOR = "<!-- ===== MANGO WORKING DOC (below this line is NOT part of the raw ticket) ===== -->"
-DISCLOSURE = f".mango/disclosure-{KEY}.md"
+DISCLOSURE = f".mango/disclosure-{KEY}.*"  # autorun names no extension
 CONTRACT = f".mango/run-contract-{KEY}.txt"
 TEST_CMD = ["python3", "-m", "unittest", "discover", "-s", "tests", "-t", "."]
 # Paths a run may touch that are bookkeeping, not the change: the working doc and ticket folder, the
@@ -131,8 +131,7 @@ def main(argv):
     # autorun names no file for DISCLOSURE: it is in the run's output, a file, or both. Either way it
     # must carry the seed's first line — reviewer and challenger state, recorded separately.
     places = []
-    disclosure = work / DISCLOSURE
-    if disclosure.exists():
+    for disclosure in sorted(work.glob(DISCLOSURE)):
         places.append(disclosure.read_text(encoding="utf-8"))
     if a.result and Path(a.result).exists():
         try:
