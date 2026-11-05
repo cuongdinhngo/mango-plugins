@@ -127,9 +127,10 @@ def main(argv):
             late = [p for p in changed(work, reviewed, head) if not is_bookkeeping(p)]
             check(not late, "nothing but bookkeeping changed after the review", f"{late}")
 
-    # 6. The checker, run HERE by the harness, passes the doc through finalise against the reviewed tree.
+    # 6. The checker, run HERE by the harness, passes the doc through finalise against the reviewed tree,
+    #    with the base the branch was cut from (the only SHA a `(pre-change)` record may name).
     cl = [sys.executable, str(mango / "scripts" / "check_lines.py"), "check", str(work / WORK_DOC),
-          "--phase", "finalise"]
+          "--phase", "finalise", "--base", a.base]
     if reviewed:
         cl += ["--tree", reviewed]
     with tempfile.TemporaryDirectory() as t:

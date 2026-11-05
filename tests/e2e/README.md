@@ -20,7 +20,8 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 - The PR host saw exactly one PR opened and no merge, close or API write.
 - The working doc is on the pushed branch with Phase 1–5 in order.
 - `Reviewed at <sha>` names a commit on the branch, and only bookkeeping changed after it.
-- `check_lines.py check --phase finalise --tree <reviewed sha>` exits `0` (`3`, not checkable, is red).
+- `check_lines.py check --phase finalise --tree <reviewed sha> --base <base>` exits `0` (`3`, not
+  checkable, is red).
 - The challenger's summary: every requirement met, and at least the ticket's four.
 - Every changed project file is named in the approved design and is one the ticket can need.
 - The tests pass on the pushed head and **fail** against the base's source.
