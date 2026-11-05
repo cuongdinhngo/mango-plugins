@@ -182,8 +182,9 @@ def main(argv):
     # The challenger's brief fixes the four numbers, not the words around them.
     # The challenger's brief names three counts and no grammar, so only the counts are matched: the
     # total is optional and any short non-digit separator (`,` `|` `/` `;` `·`) is accepted.
-    s = re.findall(r"(?:(\d+)\s+requirements?\b[^\n\d]{0,40}?)?(\d+)\s+met\b[^\n\d]{0,6}?(\d+)\s+not met\b"
-                   r"[^\n\d]{0,6}?(\d+)\s+can'?t tell", plain(section(doc, r"^## Phase 4")), re.I)
+    # `7 met`, `7/7 … met` and `7 requirements: 7 met` all name the same count.
+    s = re.findall(r"(?:(\d+)\s+requirements?\b[^\n\d]{0,40}?)?(\d+)(?:/\d+)?[^\n\d]{0,40}?\bmet\b[^\n\d]{0,6}?"
+                   r"(\d+)\s+not met\b[^\n\d]{0,6}?(\d+)\s+can'?t tell", plain(section(doc, r"^## Phase 4")), re.I)
     if check(s, "Phase 4 carries the challenger's summary line"):
         total, met, not_met, cant = s[-1]
         met, not_met, cant = int(met), int(not_met), int(cant)
