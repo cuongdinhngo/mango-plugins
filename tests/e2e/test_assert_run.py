@@ -152,7 +152,7 @@ def good_run(root, summary="4 requirements: 4 met, 0 not met, 0 can't tell", pro
     (w / f"docs/tickets/{KEY}.work.md").write_text(doc, encoding="utf-8")
     (w / ".mango").mkdir()
     (w / f".mango/run-contract-{KEY}.txt").write_text("stub contract\n", encoding="utf-8")
-    (w / f".mango/disclosure-{KEY}.md").write_text("- read me first\n", encoding="utf-8")
+    (w / f".mango/disclosure-{KEY}.md").write_text("DISCLOSURE\n1a. REVIEWER: ON\n1b. CHALLENGER: ON\n", encoding="utf-8")
     # The working doc and .mango/ stay LOCAL and untracked, as mango leaves them.
     git(w, "push", "-q", "origin", f"feat/{KEY}-min-length")
     env = dict(os.environ, MANGO_E2E_DIR=str(root))
@@ -277,7 +277,7 @@ class AssertRunTest(unittest.TestCase):
         base = good_run(self.root)
         (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
         code, out = judge(self.root, base, stub_mango(self.tmp))
-        self.assertRed(out, code, "the run left its DISCLOSURE")
+        self.assertRed(out, code, "the run left a DISCLOSURE")
 
     def test_no_pr_is_red(self):
         base = good_run(self.root)

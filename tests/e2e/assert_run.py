@@ -10,6 +10,7 @@ exits 1 if any failed. Stdlib only.
 """
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -89,6 +90,7 @@ def main(argv):
     ap.add_argument("--dir", required=True)
     ap.add_argument("--base", required=True)
     ap.add_argument("--mango", required=True)
+    ap.add_argument("--result", help="the dispatch's JSON result (its final output), if kept")
     a = ap.parse_args(argv)
     root = Path(a.dir).resolve()
     work, origin, mango = root / "work", root / "origin.git", Path(a.mango).resolve()
@@ -126,9 +128,20 @@ def main(argv):
     doc = working_doc(work)
     if not check(doc, f"working doc exists ({WORK_DOC}, or {TICKET} below the separator)"):
         return finish()
+    # autorun names no file for DISCLOSURE: it is in the run's output, a file, or both. Either way it
+    # must carry the seed's first line — reviewer and challenger state, recorded separately.
+    places = []
     disclosure = work / DISCLOSURE
-    check(disclosure.exists() and disclosure.read_text(encoding="utf-8").strip(),
-          f"the run left its DISCLOSURE at {DISCLOSURE}")
+    if disclosure.exists():
+        places.append(disclosure.read_text(encoding="utf-8"))
+    if a.result and Path(a.result).exists():
+        try:
+            places.append(str(json.loads(Path(a.result).read_text(encoding="utf-8")).get("result", "")))
+        except ValueError:
+            pass
+    check(any("DISCLOSURE" in t.upper() and re.search(r"REVIEWER\s*:", t) and re.search(r"CHALLENGER\s*:", t)
+              for t in places),
+          "the run left a DISCLOSURE carrying the reviewer and challenger state (file or final output)")
     positions = [doc.find(f"## Phase {n}") for n in range(1, 6)]
     check(all(p >= 0 for p in positions) and positions == sorted(positions),
           "working doc carries Phase 1-5 in order", f"positions {positions}")
@@ -159,7 +172,8 @@ def main(argv):
           f"exit {p.returncode}: " + " | ".join(l.strip() for l in p.stdout.splitlines() if "FAIL" in l or "MISSING" in l or "BROKEN" in l)[:400])
 
     # 7. The challenger met every requirement it rebuilt, and rebuilt at least the four ACs.
-    s = re.findall(r"(\d+)\s+requirements?\s*:\s*(\d+)\s+met\s*,\s*(\d+)\s+not met\s*,\s*(\d+)\s+can'?t tell",
+    # The challenger's brief fixes the four numbers, not the words around them.
+    s = re.findall(r"(\d+)\s+requirements?\b[^\n\d]{0,40}?(\d+)\s+met\s*,\s*(\d+)\s+not met\s*,\s*(\d+)\s+can'?t tell",
                    plain(section(doc, r"^## Phase 4")), re.I)
     if check(s, "Phase 4 carries the challenger's summary line"):
         total, met, not_met, cant = map(int, s[-1])
@@ -191,15 +205,19 @@ def main(argv):
 
     # 10. RECONCILE, re-run by the harness at close, after a SIMULATED squash merge: every condition
     #     holds. TREE-COMPARISON (`git diff --quiet <base> <branch>`) can only hold once the PR is
-    #     merged, so the harness moves the local `main` ref to a squash of the branch — refs only, the
+    #     merged, so the harness moves `main` and `origin/main` IN THE WORK REPO to a squash of the branch — refs only, the
     #     checkout and origin are untouched, and origin main was asserted unchanged above.
     contract = work / CONTRACT
     if check(contract.exists(), f"the RUN CONTRACT exists at {CONTRACT}"):
         tree_sha, _ = git(work, "rev-parse", f"{head}^{{tree}}")
         squash, _ = git(work, "commit-tree", tree_sha, "-p", "refs/heads/main", "-m", "e2e: simulated squash merge")
         git(work, "update-ref", "refs/heads/main", squash)
+        git(work, "update-ref", "refs/remotes/origin/main", squash)  # a contract may compare either ref
         p = subprocess.run([sys.executable, str(mango / "scripts" / "reconcile.py"), "run", str(contract),
-                            "--phase", "close", "--repo", str(work)], capture_output=True, text=True)
+                            "--phase", "close", "--repo", str(work)], capture_output=True, text=True,
+                           # the same PR-host test double the dispatched session had
+                           env=dict(os.environ, PATH=f"{root / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
+                                    MANGO_E2E_DIR=str(root)))
         c = re.search(r"conditions:\s*(\d+) declared \| (\d+) re-run \| (\d+) holding \| (\d+) BROKEN \| "
                       r"(\d+) UNBOUND \| (\d+) could-not-run", p.stdout)
         if check(c, "RECONCILE prints its conditions line", p.stdout[-300:] + p.stderr[-300:]):

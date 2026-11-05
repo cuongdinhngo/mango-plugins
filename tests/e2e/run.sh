@@ -95,7 +95,7 @@ EOF
 echo "dispatch exit $DISPATCH_EXIT · wall ${WALL}s · $COST"
 
 set +e
-python3 "$HERE/assert_run.py" --dir "$SAMPLE" --base "$BASE" --mango "$PLUGIN" | tee "$OUT/assertions.txt"
+python3 "$HERE/assert_run.py" --dir "$SAMPLE" --base "$BASE" --mango "$PLUGIN" --result "$OUT/result.json" | tee "$OUT/assertions.txt"
 VERDICT=${PIPESTATUS[0]}
 set -e
 
