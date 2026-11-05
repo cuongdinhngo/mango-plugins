@@ -177,9 +177,10 @@ def main(argv):
 
     # 7. The challenger met every requirement it rebuilt, and rebuilt at least the four ACs.
     # The challenger's brief fixes the four numbers, not the words around them.
-    # The total is optional (a summary may give only the three counts); separators are `,` or `|`.
-    s = re.findall(r"(?:(\d+)\s+requirements?\b[^\n\d]{0,40}?)?(\d+)\s+met\s*[,|]\s*(\d+)\s+not met\s*[,|]\s*"
-                   r"(\d+)\s+can'?t tell", plain(section(doc, r"^## Phase 4")), re.I)
+    # The challenger's brief names three counts and no grammar, so only the counts are matched: the
+    # total is optional and any short non-digit separator (`,` `|` `/` `;` `·`) is accepted.
+    s = re.findall(r"(?:(\d+)\s+requirements?\b[^\n\d]{0,40}?)?(\d+)\s+met\b[^\n\d]{0,6}?(\d+)\s+not met\b"
+                   r"[^\n\d]{0,6}?(\d+)\s+can'?t tell", plain(section(doc, r"^## Phase 4")), re.I)
     if check(s, "Phase 4 carries the challenger's summary line"):
         total, met, not_met, cant = s[-1]
         met, not_met, cant = int(met), int(not_met), int(cant)
