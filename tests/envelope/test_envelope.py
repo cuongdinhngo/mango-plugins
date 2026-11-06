@@ -61,12 +61,12 @@ DEFAULTS = dict(
     pr_check="gh pr view 1 --json state",
     tree_derive="git rev-parse main",
     tree_value="deadbee (exit 0)",
-    tree_check="git diff --quiet main feat/PROJ-1-x -- .",
-    head_check=(
-        "git rev-parse --verify feat/PROJ-1-x >/dev/null 2>&1 && "
-        "git rev-parse --verify origin/feat/PROJ-1-x >/dev/null 2>&1 && "
-        'test "$(git rev-parse feat/PROJ-1-x)" = "$(git rev-parse origin/feat/PROJ-1-x)"'
-    ),
+    # v1.21.0 — the two generated floor checks, exactly as `run_contract.py write` renders them
+    # (TREE-COMPARISON bound at Gate 2 to the approved change list).
+    tree_check=rc.tree_check("main", "feat/PROJ-1-x", "origin", "a.txt"),
+    head_check=rc.head_check("feat/PROJ-1-x", "origin"),
+    base="main@deadbee",
+    branch="feat/PROJ-1-x",
 )
 
 
@@ -89,8 +89,8 @@ def contract(extra_conditions="", floor=True, **overrides):
         "  plugin-version: 1.11.0\n"
         "  plugin-path: /plugins/mango\n"
         "  repo: /repo\n"
-        "  base: main\n"
-        "  branch: feat/PROJ-1-x\n"
+        f"  base: {fields['base']}\n"
+        f"  branch: {fields['branch']}\n"
         "  remote: origin\n"
         "  merge-strategy: squash-or-rebase (recent first-parent topology)\n"
         f"  reviewer: {overrides.get('reviewer', 'on')}\n"
@@ -431,8 +431,12 @@ class TestExplicitShellAndCouldNotRun(unittest.TestCase):
             lines, status = reconcile.reconcile(text, "close", repo=self.tmp)
         joined = "\n".join(lines)
         self.assertIn("0 holding", joined)
-        self.assertIn("3 could-not-run", joined)
+        # v1.21.0 — at close TREE-COMPARISON is pending-merge (not run), so two could not run.
+        self.assertIn("2 could-not-run | 1 pending-merge", joined)
         self.assertIn("COULD NOT RUN", joined)
+        with mock.patch.object(rc.shutil, "which", return_value=None):
+            lines, _ = reconcile.reconcile(text, "post-merge", repo=self.tmp)
+        self.assertIn("3 could-not-run | 0 pending-merge", "\n".join(lines))
 
     def test_T9_could_not_run_at_t0_strikes_the_run(self):
         """A precondition that cannot be verified is not a green light: at t0 a COULD-NOT-RUN strikes
@@ -448,8 +452,8 @@ class TestExplicitShellAndCouldNotRun(unittest.TestCase):
         with mock.patch.object(rc.shutil, "which", return_value=None):
             lines, status = reconcile.reconcile(text, "close", repo=self.tmp)
         joined = "\n".join(lines)
-        self.assertIn("3 could-not-run", joined)
-        self.assertNotIn("3 holding", joined)
+        self.assertIn("2 could-not-run | 1 pending-merge", joined)
+        self.assertIn("0 holding", joined)
         self.assertEqual(status, 0)
 
 
@@ -521,8 +525,218 @@ class TestGitFloorConditions(unittest.TestCase):
         lines, status = reconcile.reconcile(text, "close", repo=repo)
         joined = "\n".join(lines)
         self.assertEqual(status, 0)
-        self.assertIn("3 BROKEN", joined)
+        self.assertIn("2 BROKEN", joined)
+        self.assertIn("1 pending-merge", joined)
         self.assertIn("READ THIS FIRST", joined)
+        lines, status = reconcile.reconcile(text, "post-merge", repo=repo)
+        self.assertIn("3 BROKEN", "\n".join(lines))
+
+
+# ------------------------------------------- v1.21.0 — the generated floor and the post-merge phase
+
+
+class TestGeneratedFloor(unittest.TestCase):
+    """v1.21.0 — TREE-COMPARISON and LOCAL-HEAD-PUSHED are rendered by `run_contract.py write` from the
+    header; any other spelling is refused. Twelve golden-e2e contracts carried two meanings under the
+    one TREE-COMPARISON id: 4 compared the base to the branch (BROKEN at every pre-merge close), 8
+    compared the remote branch to the local one (a false HOLDING on a correction pushed after merge)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def spec(self, **floor):
+        conds = [{"id": "PR-EXISTS", "statement": "the PR exists and its state is readable",
+                  "origin": "floor", "derived-by": rc.AGENT_CLAIM, "value": "x", "check": "gh pr view 1"},
+                 {"id": "TREE-COMPARISON", **floor.get("tree", {})},
+                 {"id": "LOCAL-HEAD-PUSHED", **floor.get("head", {})}]
+        return {"key": "PROJ-1", "started": "t", "plugin-version": "1.21.0", "plugin-path": "/p",
+                "repo": self.tmp, "base": floor.get("base", "main"), "branch": "feat/PROJ-1-x",
+                "remote": "origin", "merge-strategy": "squash", "reviewer": "on", "challenger": "on",
+                "handover-authorisation": "push feat/PROJ-1-x, open the PR; nothing else",
+                "call-ceiling": "unknown", "per-call-estimate": "unknown", "ceiling-source": "none",
+                "token-budget": "unmeasured", "conditions": conds}
+
+    def test_write_renders_both_checks_and_derives_base(self):
+        new_repo(self.tmp)
+        sha = git(self.tmp, "rev-parse", "main").stdout.strip()
+        text = rc.write(self.spec(), repo=self.tmp)
+        self.assertIn(f"base: main@{sha}", text)
+        self.assertIn("check: " + rc.tree_check("main", "feat/PROJ-1-x", "origin"), text)
+        self.assertIn("check: " + rc.head_check("feat/PROJ-1-x", "origin"), text)
+        self.assertIn("statement: " + rc.FLOOR["TREE-COMPARISON"], text)
+        rc.validate(text, "t0")
+        bound = rc.bind(text, {"CHANGED_PATHS": "a.txt src/b.py"}, "gate2")
+        self.assertIn("-- a.txt src/b.py", bound)
+
+    def test_write_refuses_an_authored_tree_check(self):
+        """The observed false-green form, remote branch against local branch, is refused at write."""
+        new_repo(self.tmp)
+        authored = "git diff --quiet origin/feat/PROJ-1-x feat/PROJ-1-x -- UNBOUND ${CHANGED_PATHS}"
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.write(self.spec(tree={"check": authored}), repo=self.tmp)
+        self.assertTrue(any("GENERATED" in r for r in ctx.exception.reasons))
+
+    def test_write_refuses_an_authored_head_check(self):
+        new_repo(self.tmp)
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.write(self.spec(head={"check": HEAD_MAIN_CHECK}), repo=self.tmp)
+        self.assertTrue(any("GENERATED" in r for r in ctx.exception.reasons))
+
+    def test_write_refuses_a_base_sha_the_repo_contradicts(self):
+        new_repo(self.tmp)
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.write(self.spec(base="main@0000000"), repo=self.tmp)
+        self.assertTrue(any("the repo says" in r for r in ctx.exception.reasons))
+
+    def test_write_refuses_a_base_that_does_not_resolve(self):
+        new_repo(self.tmp)
+        with self.assertRaises(rc.ContractError):
+            rc.write(self.spec(base="trunk"), repo=self.tmp)
+
+    def test_validate_refuses_each_observed_free_form_base(self):
+        for base in ("main", "f9272be", "main @ f9272be", "main@not-a-sha"):
+            with self.assertRaises(rc.ContractError, msg=base) as ctx:
+                rc.validate(contract(base=base), "t0")
+            self.assertTrue(any("<branch>@<sha>" in r for r in ctx.exception.reasons), base)
+
+    def test_validate_refuses_both_observed_authored_tree_forms(self):
+        for chk in ("git diff --quiet main feat/PROJ-1-x -- a.txt",
+                    "git diff --quiet origin/feat/PROJ-1-x feat/PROJ-1-x -- a.txt",
+                    "git diff --quiet origin/main origin/feat/PROJ-1-x -- src tests; true"):
+            with self.assertRaises(rc.ContractError, msg=chk) as ctx:
+                rc.validate(contract(tree_check=chk), "t0")
+            self.assertTrue(any("TREE-COMPARISON" in r and "GENERATED" in r
+                                for r in ctx.exception.reasons), chk)
+
+    def test_validate_refuses_a_head_check_in_another_spelling(self):
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.validate(contract(head_check=DEFAULTS_HEAD_OLD), "t0")
+        self.assertTrue(any("LOCAL-HEAD-PUSHED" in r and "GENERATED" in r
+                            for r in ctx.exception.reasons))
+
+    def test_validate_refuses_a_branch_that_is_not_a_plain_ref(self):
+        with self.assertRaises(rc.ContractError) as ctx:
+            rc.validate(contract(branch="feat/x;rm"), "t0")
+        self.assertTrue(any("plain ref name" in r for r in ctx.exception.reasons))
+
+    def test_the_unbound_path_list_is_refused_past_gate2(self):
+        text = contract(tree_check=rc.tree_check("main", "feat/PROJ-1-x", "origin"))
+        rc.validate(text, "t0")
+        with self.assertRaises(rc.ContractError):
+            rc.validate(text, "gate2")
+
+
+DEFAULTS_HEAD_OLD = (
+    "git rev-parse --verify feat/PROJ-1-x >/dev/null 2>&1 && "
+    "git rev-parse --verify origin/feat/PROJ-1-x >/dev/null 2>&1 && "
+    'test "$(git rev-parse feat/PROJ-1-x)" = "$(git rev-parse origin/feat/PROJ-1-x)"'
+)
+
+
+class TestPendingMergeAndPostMerge(unittest.TestCase):
+    """v1.21.0 — TREE-COMPARISON has meaning only once merged. At close it is counted `pending-merge`
+    (never holding, never run); `--phase post-merge` runs it."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _pushed_branch(self):
+        """origin (bare) + a clone whose feature branch is pushed, not yet merged."""
+        bare = os.path.join(self.tmp, "origin.git")
+        seed = new_repo(os.path.join(self.tmp, "seed"))
+        subprocess.run(["git", "clone", "-q", "--bare", seed, bare], capture_output=True)
+        work = os.path.join(self.tmp, "work")
+        subprocess.run(["git", "clone", "-q", bare, work], capture_output=True)
+        git(work, "checkout", "-q", "-b", "feat/PROJ-1-x")
+        Path(work, "a.txt").write_text("one\ntwo\n", encoding="utf-8")
+        git(work, "commit", "-qam", "work")
+        git(work, "push", "-q", "origin", "feat/PROJ-1-x")
+        return bare, work
+
+    def _squash_merge_on_origin(self, bare):
+        """The human's squash merge, done in a separate clone and pushed to main."""
+        other = os.path.join(self.tmp, "merger")
+        subprocess.run(["git", "clone", "-q", bare, other], capture_output=True)
+        git(other, "merge", "-q", "--squash", "origin/feat/PROJ-1-x")
+        git(other, "commit", "-qm", "squash: work (#1)")
+        git(other, "push", "-q", "origin", "main")
+
+    def _text(self):
+        return contract(pr_check="true")
+
+    def test_close_counts_tree_comparison_pending_never_holding(self):
+        bare, work = self._pushed_branch()
+        lines, status = reconcile.reconcile(self._text(), "close", repo=work)
+        joined = "\n".join(lines)
+        self.assertEqual(status, 0)
+        self.assertIn("2 holding | 0 BROKEN | 0 UNBOUND | 0 could-not-run | 1 pending-merge", joined)
+        self.assertIn("TREE-COMPARISON: PENDING-MERGE", joined)
+        self.assertIn("--phase post-merge", joined)
+        self.assertNotIn("READ THIS FIRST", joined)
+
+    def test_the_correct_form_run_before_the_merge_is_broken_by_construction(self):
+        """Why it is not run at close: before the merge the base cannot carry the PR."""
+        bare, work = self._pushed_branch()
+        lines, _ = reconcile.reconcile(self._text(), "post-merge", repo=work)
+        self.assertIn("TREE-COMPARISON: BROKEN", "\n".join(lines))
+
+    def test_post_merge_after_a_clean_squash_holds(self):
+        bare, work = self._pushed_branch()
+        self._squash_merge_on_origin(bare)
+        git(work, "fetch", "-q", "origin")
+        lines, status = reconcile.reconcile(self._text(), "post-merge", repo=work)
+        joined = "\n".join(lines)
+        self.assertIn("3 holding | 0 BROKEN | 0 UNBOUND | 0 could-not-run | 0 pending-merge", joined)
+
+    def test_post_merge_a_correction_pushed_after_the_merge_is_BROKEN(self):
+        """The incident TREE-COMPARISON exists for — and the refused remote-vs-local form HOLDS on it."""
+        bare, work = self._pushed_branch()
+        self._squash_merge_on_origin(bare)
+        Path(work, "a.txt").write_text("one\ntwo\nthree\n", encoding="utf-8")
+        git(work, "commit", "-qam", "correction after merge")
+        git(work, "push", "-q", "origin", "feat/PROJ-1-x")
+        git(work, "fetch", "-q", "origin")
+        lines, _ = reconcile.reconcile(self._text(), "post-merge", repo=work)
+        joined = "\n".join(lines)
+        self.assertIn("TREE-COMPARISON: BROKEN", joined)
+        self.assertIn("READ THIS FIRST", joined)
+        false_green = {"id": "T", "fields": {
+            "check": "git diff --quiet refs/remotes/origin/feat/PROJ-1-x refs/heads/feat/PROJ-1-x -- a.txt"}}
+        self.assertEqual(reconcile.evaluate(false_green, repo=work)[0], reconcile.HOLDING)
+
+    def test_an_unbound_tree_comparison_at_close_is_unbound_not_pending(self):
+        text = contract(tree_check=rc.tree_check("main", "feat/PROJ-1-x", "origin"), pr_check="false")
+        lines, _ = reconcile.reconcile(text, "close", repo=self.tmp)
+        self.assertIn("1 UNBOUND | 0 could-not-run | 0 pending-merge", "\n".join(lines))
+
+    def test_t0_is_unchanged_the_generated_floor_starts_the_run(self):
+        repo = new_repo(os.path.join(self.tmp, "r"))
+        text = contract(tree_check=rc.tree_check("main", "feat/PROJ-1-x", "origin"), pr_check="false")
+        lines, status = reconcile.reconcile(text, "t0", repo=repo)
+        self.assertEqual(status, 0, "\n".join(lines))
+        self.assertIn("0 holding", "\n".join(lines))
+
+    def test_an_unknown_phase_is_refused(self):
+        with self.assertRaises(ValueError):
+            reconcile.reconcile(self._text(), "after", repo=self.tmp)
+        path = os.path.join(self.tmp, "c.txt")
+        Path(path).write_text(self._text(), encoding="utf-8")
+        out = subprocess.run([sys.executable, str(SCRIPTS / "reconcile.py"), "run", path,
+                              "--phase", "after"], capture_output=True, encoding="utf-8")
+        self.assertEqual(out.returncode, 1)
+        self.assertIn("unknown phase", out.stdout)
+
+    def test_the_disclosure_names_the_post_merge_command(self):
+        seed = rc.disclosure_seed(*rc.parse(self._text()), contract_path=".mango/c.txt")
+        self.assertIn("POST-MERGE: TREE-COMPARISON is NOT verified by this run", seed)
+        self.assertIn("reconcile.py run .mango/c.txt --phase post-merge", seed)
+        self.assertIn("git fetch origin", seed)
 
 
 # --------------------------------------------------------------------------- T7 merge strategy
@@ -807,6 +1021,7 @@ class TestWriteDerivesValues(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_every_derivable_value_is_derived_by_running_its_command(self):
+        new_repo(self.tmp)
         spec = {
             "key": "PROJ-1", "started": "t", "plugin-version": "1.11.0", "plugin-path": "/p",
             "repo": self.tmp, "base": "main", "branch": "feat/PROJ-1-x", "remote": "origin",
@@ -820,12 +1035,10 @@ class TestWriteDerivesValues(unittest.TestCase):
                  "check": "gh pr view 1"},
                 {"id": "TREE-COMPARISON",
                  "statement": "no commit landed on the branch beyond what the PR carries",
-                 "origin": "floor", "derived-by": "echo deadbee", "value": "",
-                 "check": "git diff --quiet main feat/PROJ-1-x -- ."},
+                 "origin": "floor", "derived-by": "echo deadbee", "value": ""},
                 {"id": "LOCAL-HEAD-PUSHED",
                  "statement": "nothing is stranded on this machine: local head == the remote's",
-                 "origin": "floor", "derived-by": rc.AGENT_CLAIM, "value": "the agent says so",
-                 "check": HEAD_MAIN_CHECK},
+                 "origin": "floor", "derived-by": rc.AGENT_CLAIM, "value": "the agent says so"},
             ],
         }
         text = rc.write(spec, repo=self.tmp)

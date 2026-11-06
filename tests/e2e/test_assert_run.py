@@ -118,10 +118,12 @@ def git(cwd, *args):
                           text=True).stdout.strip()
 
 
-def stub_mango(root, check_exit=0, reconcile_line="conditions: 3 declared | 3 re-run | 3 holding | 0 BROKEN | 0 UNBOUND | 0 could-not-run"):
+def stub_mango(root, check_exit=0, validate_exit=0,
+               reconcile_line="conditions: 3 declared | 3 re-run | 3 holding | 0 BROKEN | 0 UNBOUND | 0 could-not-run | 0 pending-merge"):
     m = root / "mango" / "scripts"
     m.mkdir(parents=True)
     (m / "check_lines.py").write_text(f"import sys\nsys.exit({check_exit})\n", encoding="utf-8")
+    (m / "run_contract.py").write_text(f"import sys\nsys.exit({validate_exit})\n", encoding="utf-8")
     (m / "reconcile.py").write_text(f"print('RECONCILE')\nprint('  {reconcile_line}')\n", encoding="utf-8")
     return root / "mango"
 
@@ -245,9 +247,20 @@ class AssertRunTest(unittest.TestCase):
 
     def test_reconcile_broken_is_red(self):
         base = good_run(self.root)
-        line = "conditions: 3 declared | 3 re-run | 2 holding | 1 BROKEN | 0 UNBOUND | 0 could-not-run"
+        line = "conditions: 3 declared | 3 re-run | 2 holding | 1 BROKEN | 0 UNBOUND | 0 could-not-run | 0 pending-merge"
         code, out = judge(self.root, base, stub_mango(self.tmp, reconcile_line=line))
-        self.assertRed(out, code, "RECONCILE at close, after a simulated merge: every condition holds")
+        self.assertRed(out, code, "RECONCILE at post-merge, after a simulated merge: every condition holds")
+
+    def test_reconcile_pending_merge_at_post_merge_is_red(self):
+        base = good_run(self.root)
+        line = "conditions: 3 declared | 2 re-run | 2 holding | 0 BROKEN | 0 UNBOUND | 0 could-not-run | 1 pending-merge"
+        code, out = judge(self.root, base, stub_mango(self.tmp, reconcile_line=line))
+        self.assertRed(out, code, "RECONCILE at post-merge, after a simulated merge: every condition holds")
+
+    def test_a_contract_that_does_not_validate_at_close_is_red(self):
+        base = good_run(self.root)
+        code, out = judge(self.root, base, stub_mango(self.tmp, validate_exit=2))
+        self.assertRed(out, code, "the RUN CONTRACT validates at close")
 
     def test_missing_phase_is_red(self):
         base = good_run(self.root, doc_override=DOC.replace("## Phase 3 — Execute", "## Execute").format(

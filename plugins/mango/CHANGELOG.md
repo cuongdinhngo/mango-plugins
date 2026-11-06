@@ -5,6 +5,54 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.21.0] — 2026-11-06
+
+**`TREE-COMPARISON` is generated, and waits for the merge.** Golden e2e findings #1 and #5 (#20).
+
+- **The problem, measured.** In the 12 RUN CONTRACTs kept from golden e2e runs of one ticket, the floor
+  condition's `check` meant one of two things:
+  - **4 compared the base to the branch.** That is the condition's intended meaning (envelope test T5),
+    but before the merge it is BROKEN by construction, so every correct `autorun` closed on `q > 0`.
+  - **8 compared the remote branch to the local one.** That holds at close, but it repeats
+    `LOCAL-HEAD-PUSHED`, and it HOLDS on a correction pushed after the merge, the incident the condition
+    exists for. That is a false green.
+  - Every one of the 12 passed the old contract checks, which looked only for `git diff --quiet` and
+    refused a grep or an ancestry predicate. The path list took 4 shapes and the `base` header 5.
+- **A — the floor checks are generated.**
+  - `run_contract.py write` renders `TREE-COMPARISON` as
+    `git diff --quiet <remote>/<base-branch> <remote>/<branch> -- UNBOUND ${CHANGED_PATHS}`. It renders
+    `LOCAL-HEAD-PUSHED` as a `rev-parse --verify` comparison of `refs/heads/<branch>` with
+    `refs/remotes/<remote>/<branch>`.
+  - A spec or contract carrying any other spelling is **refused** (exit 2), never silently corrected.
+  - `base` is now `<branch>@<sha>`, its sha derived by `git rev-parse`. A supplied sha the repo
+    contradicts is refused. `branch` and `remote` must be plain ref names, because they reach a shell.
+  - `CHANGED_PATHS` is bound at Gate 2 to the approved change list, plain path tokens only.
+  - The grep and ancestry refusals are kept.
+- **B — `pending-merge` and `--phase post-merge`.**
+  - The RECONCILE line gains a seventh axis: `… | <c> could-not-run | <w> pending-merge`.
+  - At `close`, `TREE-COMPARISON` is not run and is counted `pending-merge`: never holding, and never
+    reported as verified.
+  - `--phase post-merge` runs every condition. A BROKEN there prints READ THIS FIRST; a ref that did
+    not resolve (a remote branch deleted at merge and pruned) is named as unverified.
+  - An unknown phase is refused. `t0` is unchanged.
+  - The DISCLOSURE seed adds a `POST-MERGE` line carrying the exact command (`git fetch <remote>`, then
+    `reconcile.py run <contract> --phase post-merge`). `autorun` puts it in the PR body and does not
+    run it itself.
+- **The golden e2e judge** now requires the contract to validate at close and re-runs RECONCILE at
+  `post-merge` after its simulated squash. Every condition must hold, with none `pending-merge`.
+- **Incompatible with older contracts.** A ≤ 1.20.0 contract carries an authored check and a free-form
+  `base`, so 1.21.0 refuses it. This matters only for a run that spans a plugin upgrade, and the
+  contract's `plugin-version` names the cause.
+- **Tests and enforcement:**
+  - `validate.py` enforces each item above.
+  - Envelope tests:
+    - render and refuse;
+    - every observed free-form `base` and both observed tree forms;
+    - pending-merge at close, and post-merge HOLDING after a squash;
+    - post-merge BROKEN on a correction pushed after merge, with the refused form shown HOLDING on that
+      same correction;
+    - t0 unchanged, and the disclosure line.
+
 ## [1.20.0] — 2026-11-06
 
 **Two gate contracts the golden e2e found unstable.** Both were found across repeated unattended runs of

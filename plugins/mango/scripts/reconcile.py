@@ -6,19 +6,29 @@ Stdlib only, no network, and it MUTATES NOTHING. Reads a RUN CONTRACT, executes 
 status this script observed.
 
   RECONCILE
-    conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run
+    conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run | <w> pending-merge
 
 `could-not-run` is a THIRD state, distinct from HOLDING and BROKEN: the check's named shell was not on
 PATH, so the check did not run at all. A check that cannot run must never report holding — a false
 green exactly where nothing was verified — and it is not BROKEN either, because nothing observed the
 predicate fail. It is UNVERIFIED, and is counted on its own axis.
 
+`pending-merge` is a FOURTH state of the same kind: TREE-COMPARISON (the remote's base against the
+remote's branch) has meaning only once the PR is merged, and an unattended run always closes BEFORE the
+merge. Run at close it is BROKEN by construction on every correct run — a routine BROKEN that trains the
+reader to skip the line meant to be read first. So at close it is NOT run and is counted
+`pending-merge`: never HOLDING, never BROKEN, UNVERIFIED until `--phase post-merge` runs it.
+
 Phases
   --phase t0     before any work exists. Every BOUND condition should be in its FAILING state against
                  the real world. One that reports HOLDING here is describing something other than this
                  run's work — it is struck, and the run does not start.
   --phase close  after the last push. `q > 0` does not block a merge in this version; it means READ
-                 THIS FIRST.
+                 THIS FIRST. TREE-COMPARISON is counted `pending-merge`, not run.
+  --phase post-merge
+                 after the human merged the PR and fetched. Runs EVERY condition, TREE-COMPARISON
+                 included: a BROKEN here means a commit landed on the branch beyond what the merge
+                 carried, or something is stranded on this machine.
 
 RETIRED in v1.14.0: `--prove`, the forced-case positive control. Across three field runs EVERY
 condition reported FORCE-UNPROVEN: the `force-broken` / `force-holding` cases of the shipped floor are
@@ -33,7 +43,7 @@ The `t0` run is KEPT and unchanged — it is the part that earned its claim: eve
 observed in its FAILING state against the real world before any work exists, in about two seconds.
 
 Subcommands
-  run             <contract> --phase t0|close [--repo DIR]
+  run             <contract> --phase t0|close|post-merge [--repo DIR]
   merge-strategy  --repo DIR [--base main]
 
 Exit codes: 0 ok · 2 the contract does not parse, or a t0 condition reports HOLDING · 1 usage/IO.
@@ -49,6 +59,10 @@ HOLDING = "HOLDING"
 BROKEN = "BROKEN"
 UNBOUND = "UNBOUND"
 COULD_NOT_RUN = "COULD-NOT-RUN"
+PENDING_MERGE = "PENDING-MERGE"
+PHASES = ("t0", "close", "post-merge")
+# The floor condition whose meaning begins at the merge.
+POST_MERGE_ONLY = "TREE-COMPARISON"
 
 
 def evaluate(cond, repo=None):
@@ -67,14 +81,23 @@ def evaluate(cond, repo=None):
 
 def reconcile(text, phase, repo=None):
     """Run every condition and return (lines, exit_status)."""
+    if phase not in PHASES:
+        raise ValueError(f"unknown phase '{phase}' — one of {', '.join(PHASES)}")
     header, conditions = parse(text)
     declared = len(conditions)
-    rerun = holding = broken = unbound = could_not_run = 0
+    rerun = holding = broken = unbound = could_not_run = pending = 0
     strikes = []
     details = []
     for cond in conditions:
-        state, output = evaluate(cond, repo=repo)
-        if state == UNBOUND:
+        if (phase == "close" and cond["id"] == POST_MERGE_ONLY
+                and cond["fields"].get("origin") == "floor"
+                and not UNBOUND_RE.search(cond["fields"].get("check", ""))):
+            state, output = PENDING_MERGE, "not run before the merge — run --phase post-merge after it"
+        else:
+            state, output = evaluate(cond, repo=repo)
+        if state == PENDING_MERGE:
+            pending += 1
+        elif state == UNBOUND:
             unbound += 1
         elif state == COULD_NOT_RUN:
             could_not_run += 1
@@ -99,7 +122,8 @@ def reconcile(text, phase, repo=None):
     lines = [
         "RECONCILE",
         f"  conditions: {declared} declared | {rerun} re-run | {holding} holding | "
-        f"{broken} BROKEN | {unbound} UNBOUND | {could_not_run} could-not-run",
+        f"{broken} BROKEN | {unbound} UNBOUND | {could_not_run} could-not-run | "
+        f"{pending} pending-merge",
         f"  phase     : {phase} | reviewer: {header.get('reviewer')} | "
         f"challenger: {header.get('challenger')} | branch: {header.get('branch')}",
     ]
@@ -110,7 +134,20 @@ def reconcile(text, phase, repo=None):
             "  READ THIS FIRST: a BROKEN condition describes the state of the world after the last "
             "push. It does not block the merge — this version stops at the PR and the human merges."
         )
-    if phase == "close" and could_not_run > 0:
+    if phase == "post-merge" and broken > 0:
+        lines.append(
+            "  READ THIS FIRST: a BROKEN condition after the merge — a commit landed on the branch beyond "
+            "what the merge carried, or something is stranded on this machine. A detail line reading "
+            "'unknown revision' / 'bad revision' means a ref did not resolve (e.g. the remote branch was "
+            "deleted at merge and pruned by the fetch): the condition is unverified, not shown broken."
+        )
+    if phase == "close" and pending > 0:
+        remote = header.get("remote", "origin")
+        lines.append(
+            f"  PENDING MERGE: {pending} condition(s) not verified by this run — never holding. After "
+            f"merging: git fetch {remote} && reconcile.py run <contract> --phase post-merge"
+        )
+    if phase in ("close", "post-merge") and could_not_run > 0:
         lines.append(
             f"  COULD NOT RUN: {could_not_run} condition(s) — the named shell was unavailable, so "
             "these are UNVERIFIED, not holding. A check that cannot run never reports holding; treat "
@@ -171,7 +208,11 @@ def main(argv):
                       "reported FORCE-UNPROVEN on every condition across three field runs and is gone. "
                       "Re-run without it; the t0 run is unchanged.")
                 return 1
-            lines, status = reconcile(text, opt("--phase", "close"), repo=opt("--repo"))
+            phase = opt("--phase", "close")
+            if phase not in PHASES:
+                print(f"reconcile: unknown phase '{phase}' — one of {', '.join(PHASES)}")
+                return 1
+            lines, status = reconcile(text, phase, repo=opt("--repo"))
             print("\n".join(lines))
             return status
         if cmd == "merge-strategy":

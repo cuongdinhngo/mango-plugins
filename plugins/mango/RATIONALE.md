@@ -434,3 +434,42 @@ bookkeeping as not stale. The evidence check, given `HEAD`, treated the evidence
 commit as coming from another tree. In the e2e runs, a lesson committed at finalise was enough to set one
 rule against the other, and runs resolved the conflict in two different ways. The guard runs first and
 proves the bookkeeping-only premise, so the reviewed commit is the one tree the evidence must match.
+
+## autorun — why the floor checks are generated and the tree comparison waits for the merge (v1.21.0)
+
+**Rule (`plugins/mango/scripts/run_contract.py`, `reconcile.py`, `skills/autorun/SKILL.md`):**
+`TREE-COMPARISON` and `LOCAL-HEAD-PUSHED` are rendered by the script from the header, and any other
+spelling is refused. At close, `TREE-COMPARISON` is counted `pending-merge`, and it runs at
+`--phase post-merge`.
+
+**History.** The floor shipped the statement and left the command to the agent, checked only for
+`git diff --quiet` and the absence of a grep or an ancestry predicate. Across 12 golden e2e contracts
+for one ticket, the agent wrote two different conditions under the one id:
+
+- **Base against branch** (4 contracts). This is the meaning envelope test T5 asserts. It is BROKEN at
+  every pre-merge close, because the base cannot carry an unmerged PR. So every correct run reported
+  `q > 0` and "READ THIS FIRST" on a line nobody could act on.
+- **Remote branch against local branch** (8 contracts). It held at close, but it repeats
+  `LOCAL-HEAD-PUSHED`, and it holds on a correction pushed after the merge. That is the incident the
+  condition was written for, so the run reported a false green.
+
+Both passed every contract check. The e2e break-tests had already shown that skill text alone does not
+fix what the model writes, so the command moved into the script.
+
+**Why `pending-merge` rather than running it at close.** The condition has meaning only after the
+merge, and an unattended run ends before it. Run at close, a correct check gives a routine BROKEN, which
+trains the reader to skip the line meant to be read first. Detecting the merge was rejected twice over:
+reading the PR host's state is host-specific and rests on an agent-authored `PR-EXISTS` command, and
+ancestry or path heuristics are the false-red under squash this condition already refuses. So the check
+moves to the phase where it means something. No check is removed: before this change nothing prescribed
+re-running it after the merge, and an unrun post-merge check now shows as `w > 0` instead of being
+hidden.
+
+**Known limits.**
+
+- The path list is the approved change list, so a post-merge correction outside it is not seen. The
+  whole tree was rejected, because another PR landing on the base before the morning check turns it
+  BROKEN.
+- If the merge deleted the remote branch and the fetch pruned it, `post-merge` reads BROKEN with an
+  unresolved ref. The output names that case as unverified, not shown broken.
+

@@ -215,28 +215,34 @@ def main(argv):
         finally:
             git(work, "worktree", "remove", "--force", str(tree))
 
-    # 10. RECONCILE, re-run by the harness at close, after a SIMULATED squash merge: every condition
-    #     holds. TREE-COMPARISON (`git diff --quiet <base> <branch>`) can only hold once the PR is
-    #     merged, so the harness moves `main` and `origin/main` IN THE WORK REPO to a squash of the branch — refs only, the
-    #     checkout and origin are untouched, and origin main was asserted unchanged above.
+    # 10. RECONCILE, re-run by the harness at POST-MERGE, after a SIMULATED squash merge: every
+    #     condition holds. TREE-COMPARISON (generated: `git diff --quiet origin/<base> origin/<branch>`)
+    #     has meaning only once the PR is merged, so the harness moves `main` and `origin/main` IN THE
+    #     WORK REPO to a squash of the branch — refs only, the checkout and origin are untouched, and
+    #     origin main was asserted unchanged above. The contract must first validate at close: the
+    #     generated floor checks are refused in any other spelling.
     contract = work / CONTRACT
     if check(contract.exists(), f"the RUN CONTRACT exists at {CONTRACT}"):
+        v = subprocess.run([sys.executable, str(mango / "scripts" / "run_contract.py"), "validate",
+                            str(contract), "--phase", "close"], capture_output=True, text=True)
+        check(v.returncode == 0, "the RUN CONTRACT validates at close (generated floor, nothing UNBOUND)",
+              (v.stdout + v.stderr)[-400:])
         tree_sha, _ = git(work, "rev-parse", f"{head}^{{tree}}")
         squash, _ = git(work, "commit-tree", tree_sha, "-p", "refs/heads/main", "-m", "e2e: simulated squash merge")
         git(work, "update-ref", "refs/heads/main", squash)
         git(work, "update-ref", "refs/remotes/origin/main", squash)  # a contract may compare either ref
         p = subprocess.run([sys.executable, str(mango / "scripts" / "reconcile.py"), "run", str(contract),
-                            "--phase", "close", "--repo", str(work)], capture_output=True, text=True,
+                            "--phase", "post-merge", "--repo", str(work)], capture_output=True, text=True,
                            # the same PR-host test double the dispatched session had
                            env=dict(os.environ, PATH=f"{root / 'bin'}{os.pathsep}{os.environ.get('PATH', '')}",
                                     MANGO_E2E_DIR=str(root)))
         c = re.search(r"conditions:\s*(\d+) declared \| (\d+) re-run \| (\d+) holding \| (\d+) BROKEN \| "
-                      r"(\d+) UNBOUND \| (\d+) could-not-run", p.stdout)
+                      r"(\d+) UNBOUND \| (\d+) could-not-run \| (\d+) pending-merge", p.stdout)
         if check(c, "RECONCILE prints its conditions line", p.stdout[-300:] + p.stderr[-300:]):
-            d, _, h, q, u, cnr = map(int, c.groups())
-            check(q == 0 and u == 0 and cnr == 0 and h == d and d >= 3,
-                  "RECONCILE at close, after a simulated merge: every condition holds (floor included)",
-                  f"{d} declared, {h} holding, {q} BROKEN, {u} UNBOUND, {cnr} could-not-run")
+            d, _, h, q, u, cnr, w = map(int, c.groups())
+            check(q == 0 and u == 0 and cnr == 0 and w == 0 and h == d and d >= 3,
+                  "RECONCILE at post-merge, after a simulated merge: every condition holds (floor included)",
+                  f"{d} declared, {h} holding, {q} BROKEN, {u} UNBOUND, {cnr} could-not-run, {w} pending-merge")
 
     return finish()
 
