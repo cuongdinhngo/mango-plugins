@@ -3235,8 +3235,8 @@ def validate_golden_e2e():
           "golden-e2e: run.sh must report every tool call the allowlist denied (tests/e2e/denials.py), "
           "subagents included")
     check(re.search(r"bypassPermissions|dangerously-skip-permissions", run) is None
-          and "--permission-mode acceptEdits" in run and "--allowedTools" in run,
-          "golden-e2e: run.sh must dispatch under acceptEdits and an allowlist, never with permissions bypassed")
+          and "--permission-mode auto" in run and "--allowedTools" in run,
+          "golden-e2e: run.sh must dispatch under auto mode and an allowlist, never with permissions bypassed")
     check('--add-dir "$TMP"' in run,
           "golden-e2e: run.sh must give the dispatch its own temp tree (--add-dir \"$TMP\"), where the plugin clone lives")
     sample = (e2e / "make_sample.sh").read_text(encoding="utf-8") if (e2e / "make_sample.sh").exists() else ""

@@ -72,7 +72,7 @@ set +e
 ( cd "$SAMPLE/work" \
   && env -u GH_TOKEN -u GITHUB_TOKEN PATH="$SAMPLE/bin:$PATH" MANGO_E2E_DIR="$SAMPLE" TMPDIR="$TMP/tmp" \
      timeout "${MANGO_E2E_TIMEOUT:-5400}" claude -p --plugin-dir "$PLUGIN" --output-format json \
-       --permission-mode acceptEdits --add-dir "$TMP" --allowedTools $ALLOWED --max-turns "${MANGO_E2E_MAX_TURNS:-400}" \
+       --permission-mode auto --add-dir "$TMP" --allowedTools $ALLOWED --max-turns "${MANGO_E2E_MAX_TURNS:-400}" \
        "$PROMPT" </dev/null >"$OUT/result.json" 2>"$OUT/stderr.txt" )
 DISPATCH_EXIT=$?
 set -e
