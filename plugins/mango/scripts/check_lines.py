@@ -333,6 +333,34 @@ GRAMMARS = {
         "required_at": "analysis", "lite_required": True,
         "emitter": "analysis, quick",
     },
+    "CHALLENGER VERDICT": {
+        # v1.20.0 — review transcribes the challenger's per-requirement table into this line. The
+        # challenger's own brief fixes three counts and no grammar, and review's "clean" rests on them,
+        # so until now the decision that matters most at Gate 4 was prose. The challenger is unchanged.
+        "canonical": "CHALLENGER VERDICT: <n> requirement(s) rebuilt | <m> met | <x> not met | <u> can't tell | "
+                     "<g> not-met covered by a recorded exclusion",
+        "segments": [
+            seg("n", pl("requirement") + r" rebuilt", "<n> requirement(s) rebuilt"),
+            seg("m", r"met", "<m> met"),
+            seg("x", r"not met", "<x> not met"),
+            seg("u", r"can't tell", "<u> can't tell"),
+            seg("g", r"not-met covered by a recorded exclusion",
+                "<g> not-met covered by a recorded exclusion"),
+        ],
+        "rules": [
+            (lambda c: c["n"] == c["m"] + c["x"] + c["u"],
+             "n != m + x + u — every rebuilt requirement is judged met, not met, or can't tell"),
+            (lambda c: c["g"] <= c["x"], "g > x — more exclusions claimed than requirements not met"),
+            (lambda c: c["n"] > 0, "n = 0 — a challenger that rebuilt no requirement checked nothing"),
+        ],
+        "gates": [
+            (lambda c: c["m"] + c["g"] == c["n"],
+             "m + g != n — a requirement not met (outside a recorded exclusion) or can't tell BLOCKS "
+             "clean (review step 9)"),
+        ],
+        "required_at": "review", "waived_by": r"CHALLENGER:\s*OFF\s*\(--no-challenger\)",
+        "emitter": "review",
+    },
     "HANDLES": {
         "canonical": "HANDLES: <h> recalled | <t> traced (command + result) | "
                      "<x> does not apply (reason) | <u> unanswered",
@@ -758,7 +786,7 @@ def read_header(text):
     return out
 
 
-def required_tokens(phase, tier, track, epic):
+def required_tokens(phase, tier, track, epic, body=""):
     """The lines this doc was required to emit, through `phase`. None when the phase is undeclared.
 
     Keyed on the doc's own lane so the check is never a tax: a `TIER: lite` doc is held only to the two
@@ -780,6 +808,8 @@ def required_tokens(phase, tier, track, epic):
             continue
         if spec.get("frontend_only") and (track or "backend") == "backend":
             continue
+        if spec.get("waived_by") and re.search(spec["waived_by"], body):
+            continue        # a seat waived by its recorded flag emits no line for that seat
         out.append(token)
     return out
 
@@ -973,7 +1003,7 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
             verdicts[key] = PASS
             details.append(f"    {key}: {PASS} (line {em['line']})")
 
-    required = required_tokens(phase, tier, track, epic)
+    required = required_tokens(phase, tier, track, epic, text)
     missing = [t for t in (required or []) if t not in verdicts]
 
     notes = []

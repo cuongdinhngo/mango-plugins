@@ -2750,6 +2750,12 @@ def validate_evidence_provenance():
         check(re.search(r"--base \$\(git merge-base HEAD <default branch>\)", body) is not None,
               f"evidence: {name} must pass `--base $(git merge-base HEAD <default branch>)` to "
               f"check_lines.py — without it every honest `(pre-change)` record is refused (1.19.2)")
+    check("--tree <the Reviewed at SHA>" in skill_text("finalise"),
+          "evidence: finalise must pass `--tree <the Reviewed at SHA>` — after a bookkeeping commit HEAD "
+          "is not the tree that was reviewed, and its evidence must not turn stale (1.20.0)")
+    for name in ("autorun", "solve"):
+        check(re.search(r"from finalise on\s+the `Reviewed at` SHA", skill_text(name)) is not None,
+              f"evidence: {name} must name the `Reviewed at` SHA as the tree under review from finalise on")
     for name, body in (("analysis", skill_text("analysis")), ("design", skill_text("design")),
                        ("execute", execute), ("templates/ticket.md", ticket)):
         check("Ran at <sha> (pre-change)" in body,

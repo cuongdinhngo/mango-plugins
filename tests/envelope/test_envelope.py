@@ -862,6 +862,8 @@ CLEAN_LINES = {
     "CLARIFICATION": "CLARIFICATION: 0 raised | 0 self-resolved (cited) | 0 for human decision",
     "RULE SECTIONS": "RULE SECTIONS: 0 applicable — 0 by change-type | 0 by recalled handle — none",
     "HANDLES": "HANDLES: 0 recalled | 0 traced | 0 does not apply | 0 unanswered",
+    "CHALLENGER VERDICT": "CHALLENGER VERDICT: 4 requirement(s) rebuilt | 4 met | 0 not met | 0 can't tell | "
+                 "0 not-met covered by a recorded exclusion",
     "EXCLUSIONS": "EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring | "
                   "0 with an overdue predecessor | 0 input-shape-dependent AC(s) | "
                   "0 proven on a real corpus",
@@ -899,6 +901,58 @@ def run(text, **kw):
 
 
 class TestCheckLinesTeeth(unittest.TestCase):
+    # v1.20.0 — the challenger's verdict as a counted line.
+    def test_CHALLENGE_a_clean_challenger_line_passes(self):
+        out, status = run(workdoc(phase="review"))
+        self.assertEqual(status, 0, out)
+        self.assertIn("CHALLENGER VERDICT: PASS", out)
+
+    def test_CHALLENGE_counts_that_do_not_sum_fail(self):
+        out, status = run(workdoc(phase="review", replace={"CHALLENGER VERDICT":
+            "CHALLENGER VERDICT: 5 requirement(s) rebuilt | 4 met | 0 not met | 0 can't tell | "
+            "0 not-met covered by a recorded exclusion"}))
+        self.assertEqual(status, 2, out)
+        self.assertIn("n != m + x + u", out)
+
+    def test_CHALLENGE_an_unmet_requirement_blocks_clean(self):
+        out, status = run(workdoc(phase="review", replace={"CHALLENGER VERDICT":
+            "CHALLENGER VERDICT: 4 requirement(s) rebuilt | 3 met | 1 not met | 0 can't tell | "
+            "0 not-met covered by a recorded exclusion"}))
+        self.assertEqual(status, 2, out)
+        self.assertIn("BLOCKS clean", out)
+
+    def test_CHALLENGE_cant_tell_blocks_clean(self):
+        out, status = run(workdoc(phase="review", replace={"CHALLENGER VERDICT":
+            "CHALLENGER VERDICT: 4 requirement(s) rebuilt | 3 met | 0 not met | 1 can't tell | "
+            "0 not-met covered by a recorded exclusion"}))
+        self.assertEqual(status, 2, out)
+
+    def test_CHALLENGE_a_not_met_inside_a_recorded_exclusion_does_not_block(self):
+        out, status = run(workdoc(phase="review", replace={"CHALLENGER VERDICT":
+            "CHALLENGER VERDICT: 4 requirement(s) rebuilt | 3 met | 1 not met | 0 can't tell | "
+            "1 not-met covered by a recorded exclusion"}))
+        self.assertNotIn("BLOCKS clean", out)
+
+    def test_CHALLENGE_zero_requirements_is_not_a_pass(self):
+        out, status = run(workdoc(phase="review", replace={"CHALLENGER VERDICT":
+            "CHALLENGER VERDICT: 0 requirement(s) rebuilt | 0 met | 0 not met | 0 can't tell | "
+            "0 not-met covered by a recorded exclusion"}))
+        self.assertEqual(status, 2, out)
+
+    def test_CHALLENGE_missing_at_review_is_MISSING(self):
+        out, status = run(workdoc(phase="review", drop=("CHALLENGER VERDICT",)))
+        self.assertEqual(status, 2, out)
+        self.assertIn("CHALLENGER VERDICT", out.split("MISSING")[-1])
+
+    def test_CHALLENGE_is_not_required_when_the_seat_was_waived_by_its_flag(self):
+        out, status = run(workdoc(phase="review", drop=("CHALLENGER VERDICT",),
+                                  extra="- CHALLENGER: OFF (--no-challenger)"))
+        self.assertEqual(status, 0, out)
+
+    def test_CHALLENGE_is_not_required_before_review_or_in_the_lite_lane(self):
+        self.assertEqual(run(workdoc(phase="execute", drop=("CHALLENGER VERDICT",)))[1], 0)
+        self.assertNotIn("CHALLENGER VERDICT", cl.required_tokens("finalise", "lite", "backend", False))
+
     def test_CL_T1_a_claims_line_whose_type_counts_do_not_sum_to_c_fails(self):
         """The decisive cheap check: the line disagrees with itself. No grammar debate needed."""
         out, status = run(workdoc(replace={

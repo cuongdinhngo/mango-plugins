@@ -319,7 +319,8 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 
 - reviewer verdict (BLOCK / CHANGES REQUESTED [/ conditional LGTM] / LGTM):
 - Re-review path (if round 1 was CHANGES REQUESTED): full / **verify-only** (round 1 was a conditional LGTM → **main-loop, no re-dispatch**: confirm findings 1–N landed + re-run only the affected proof + regression scan; challenger re-derivation NOT repeated; re-dispatch a reviewer/challenger ONLY if a fix changed scope):
-- challenger (ticket-blind) result:
+- challenger (ticket-blind) result — its numbered table, then the counted line:
+  `CHALLENGER VERDICT: <n> requirement(s) rebuilt | <m> met | <x> not met | <u> can't tell | <g> not-met covered by a recorded exclusion`
 - security agent (if any):
 - Scope reconciliation (files outside list / reformatting):
 - Regression on Phase-1 callers:

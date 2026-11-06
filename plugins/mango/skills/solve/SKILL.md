@@ -155,7 +155,7 @@ over the working doc — never your own reading of the line:
 
 ```
 python3 <mango>/scripts/check_lines.py check <work-doc> --phase <the phase just finished> \
-    --tree $(git rev-parse HEAD) --base $(git merge-base HEAD <default branch>) \
+    --tree <tree under review> --base $(git merge-base HEAD <default branch>) \
     [--size-budget <config.doc_size_budget>]
 ```
 
@@ -172,7 +172,8 @@ passed. **If the script itself cannot run** (no `python3`, the path unresolvable
 against its shipped grammar, and **do not claim to have checked** — the checker's own absence never
 blocks the run and never reads as clean.
 
-**`--tree` names the tree under review**, so evidence a phase recorded against a different tree — a
+**`--tree` names the tree under review**: `$(git rev-parse HEAD)` through review, and from finalise on
+the `Reviewed at` SHA — finalise's stale-review guard has proven only bookkeeping lies after it. So evidence a phase recorded against a different tree — a
 container built before the last edits landed — is refused rather than trusted. This is the
 stale-review guard's rule pointed at test evidence, not a second mechanism. **`--base` names the commit
 the branch was cut from** (before the branch exists, `HEAD` itself): a block stamped `(pre-change)` is
