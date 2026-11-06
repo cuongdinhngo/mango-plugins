@@ -286,7 +286,7 @@ goes through `config.tracker.cli` — **never** an MCP.
 
     ```
     python3 <mango>/scripts/check_lines.py check <work-doc> --phase finalise \
-        --tree $(git rev-parse HEAD) --base $(git merge-base HEAD <default branch>) \
+        --tree <the Reviewed at SHA> --base $(git merge-base HEAD <default branch>) \
         [--size-budget <config.doc_size_budget>]
     ```
 
@@ -304,3 +304,6 @@ goes through `config.tracker.cli` — **never** an MCP.
     script's counted lines; never restate them and never re-type a line it rejected. **If the script
     cannot run**, say so, record `check-lines: could-not-run` in the gate's unverified list, and **do not
     claim to have checked** — its absence never blocks the gate and never reads as clean.
+
+    **`--tree` is the `Reviewed at` SHA, not `git rev-parse HEAD`:** step 1 proved only bookkeeping
+    lies after it, so a lesson committed after review never turns its evidence stale.

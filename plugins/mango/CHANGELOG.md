@@ -5,6 +5,37 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.20.0] — 2026-11-06
+
+**Two gate contracts the golden e2e found unstable.** Both were found across repeated unattended runs of
+the same ticket. Each run was correct, but the artifact a gate rests on came out in a different shape.
+
+- **`CHALLENGER VERDICT:`, a new counted line emitted by `review`.**
+  - Grammar: `CHALLENGER VERDICT: <n> requirement(s) rebuilt | <m> met | <x> not met | <u> can't tell |
+    <g> not-met covered by a recorded exclusion`.
+  - Why: review's "clean" rests on the challenger finding every requirement met. The challenger's brief
+    fixes three counts and no grammar, so across five runs the same verdict appeared as
+    `7 requirements reconstructed — 7 met, …`, `7 met | 0 not met | …`, `7 met / 0 not met / …` and
+    `7/7 … met, …`.
+  - Review now counts the rows of the challenger's numbered table into this line. `check_lines.py`
+    checks `n = m + x + u`, `g ≤ x` and `n > 0`, and the gate requires `m + g = n`. A requirement not
+    met, or can't tell, outside a recorded exclusion fails the gate with exit 2.
+  - When it is required: at review, in the full lane only. It is not required when the doc records
+    `CHALLENGER: OFF (--no-challenger)`, so a recorded waiver stays the only way to omit it.
+  - **The challenger agent is unchanged**; only review's transcription is new.
+- **From finalise on, the tree under review is the `Reviewed at` SHA.**
+  - `finalise`, and the `autorun` and `solve` gate callers, previously passed `--tree $(git rev-parse
+    HEAD)`. So a lesson committed after review made every evidence block recorded at the reviewed
+    commit "from ANOTHER tree". One run re-ran its suite just to satisfy the checker; another ran the
+    checker before committing.
+  - Finalise's step 1, the stale-review guard, already proves that only bookkeeping lies between the
+    reviewed commit and `HEAD`. That commit is therefore the tree under review, and finalise now passes
+    it.
+  - Still one tree, checked strictly. Through review, `--tree` stays `$(git rev-parse HEAD)`.
+- `validate.py` enforces both. Nine envelope tests cover the new line both ways: pass, sum mismatch,
+  not met, can't tell, excluded not-met, zero requirements, missing at review, the waiver, and not
+  required before review or in the lite lane.
+
 ## [1.19.2] — 2026-11-04
 
 **Fix: pre-change evidence no longer stops every honest run at review.** Since 1.14.0, `check_lines.py

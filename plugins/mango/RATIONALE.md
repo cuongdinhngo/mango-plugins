@@ -411,3 +411,26 @@ tree was the base plus uncommitted tests, and the shipped text gave it no truthf
 including a stale one. The role binds to one SHA the caller computes from git, so the stale-tree
 incident 1.14.0 exists for is refused exactly as before. The role is also never counted as evidence on
 the tree under review, so it cannot stand in for the post-change run.
+
+## review — why the challenger's verdict became a counted line (v1.20.0)
+
+**Rule (in `review` and `check_lines.py`):** review counts the challenger's table into `CHALLENGER
+VERDICT:`, and Gate 4 does not close unless `m + g = n`.
+
+**Why.** "Counted artifacts bind": a decision counts only as a falsifiable, gate-blocking artifact.
+The most consequential input to review's clean verdict, whether an independent reader found every
+requirement met, was prose in a shape the challenger chose each time. Across five golden e2e runs of the
+same ticket it took four shapes. A gate that has to parse prose is guessing at it. The challenger's brief
+was left alone, because that brief is the independent seat; the transcription belongs to review, which
+already owns the clean decision.
+
+## finalise — why the reviewed commit is the tree under review (v1.20.0)
+
+**Rule (in `finalise`, `autorun`, `solve`):** from finalise on, `check_lines.py --tree` is the `Reviewed
+at` SHA.
+
+**Why.** Two shipped rules disagreed. The stale-review guard treats commits after review that touch only
+bookkeeping as not stale. The evidence check, given `HEAD`, treated the evidence recorded at the reviewed
+commit as coming from another tree. In the e2e runs, a lesson committed at finalise was enough to set one
+rule against the other, and runs resolved the conflict in two different ways. The guard runs first and
+proves the bookkeeping-only premise, so the reviewed commit is the one tree the evidence must match.

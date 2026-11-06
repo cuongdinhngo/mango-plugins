@@ -133,6 +133,15 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    `path:line`. This is a procedural guarantee backed by the path/separator separation (the
    orchestrator withholds the working doc and re-derives from the raw ticket), not a cryptographic
    one — state that honestly if asked.
+
+   **Transcribe its verdict into the counted line** — count the rows of its numbered table, never
+   restate its prose summary:
+
+   `CHALLENGER VERDICT: <n> requirement(s) rebuilt | <m> met | <x> not met | <u> can't tell | <g> not-met covered by a recorded exclusion`
+
+   `<g>` counts only the not-met rows that match a **recorded, human-approved coverage-gap
+   exclusion** (step 9). The harness reads it: `n = m + x + u`, and clean needs `m + g = n`. Under
+   `--no-challenger` emit no line; `CHALLENGER: OFF (--no-challenger)` is the record instead.
 3. **Optional project security agent.** If the project defines one, run it on the diff.
 4. **Reconcile scope vs the approved list — on BOTH axes.** Scope discipline is measured on the
    **file set** AND on **conformance to the approved design behaviour** — a clean file diff does not
@@ -193,7 +202,7 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    - reviewer reports no Critical — **under `--no-reviewer` this criterion is not satisfied, it is
      ABSENT:** report the verdict as `clean (challenger only — REVIEWER: OFF)` and never as a criterion
      met. With **both** flags set, report `clean (nobody looked — REVIEWER: OFF, CHALLENGER: OFF)`;
-   - challenger finds every item met — **except** a challenger "not met" that corresponds to a
+   - challenger finds every item met (`CHALLENGER VERDICT:` with `m + g = n`) — **except** a challenger "not met" that corresponds to a
      **recorded, human-approved coverage-gap exclusion** (from design's verification plan / the
      working doc's *Coverage-gap exclusions* slot) does **not** block clean: it is a known proof-tier
      mismatch, not an unmet requirement. An *unrecorded* gap still blocks. **Under
