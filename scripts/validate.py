@@ -2210,6 +2210,46 @@ def validate_envelope_scripts():
           "envelope (D): a could-not-run at t0 must strike the run — a precondition that cannot be "
           "verified is not a green light")
 
+    # v1.21.0 — the floor checks are GENERATED, and TREE-COMPARISON waits for the merge. Twelve
+    # golden-e2e contracts authored TREE-COMPARISON two ways under one id: base-vs-branch (BROKEN at
+    # every pre-merge close) and remote-vs-local (a false HOLDING on a correction pushed after merge).
+    check(re.search(r"def tree_check\(", rc) is not None and re.search(r"def head_check\(", rc) is not None,
+          "envelope (1.21.0): run_contract must render TREE-COMPARISON and LOCAL-HEAD-PUSHED itself")
+    check(re.search(r"check_generated\(header, conditions\)", rc) is not None,
+          "envelope (1.21.0): validate must refuse a floor check that is not the generated one")
+    check(re.search(r"GENERATED, not authored", rc) is not None,
+          "envelope (1.21.0): an authored floor check must be refused with a named reason, never "
+          "silently corrected")
+    check(re.search(r"BASE_RE = re\.compile", rc) is not None and re.search(r"def derive_base\(", rc) is not None,
+          "envelope (1.21.0): `base` must carry the `<branch>@<sha>` grammar, its sha derived by command")
+    check(re.search(r'\{remote\}/\{base_branch\} \{remote\}/\{branch\}', rc) is not None,
+          "envelope (1.21.0): TREE-COMPARISON compares the REMOTE's base to the REMOTE's branch — the "
+          "remote-vs-local form is a false HOLDING on a correction pushed after merge")
+    check(re.search(r'\{pending\} pending-merge', rec) is not None,
+          "envelope (1.21.0): the RECONCILE conditions line must count pending-merge on its own axis")
+    check(re.search(r'PHASES = \("t0", "close", "post-merge"\)', rec) is not None,
+          "envelope (1.21.0): reconcile must carry the post-merge phase, and refuse an unknown phase")
+    check(re.search(r'phase == "close" and cond\["id"\] == POST_MERGE_ONLY', rec) is not None
+          and re.search(r'POST_MERGE_ONLY = "TREE-COMPARISON"', rec) is not None,
+          "envelope (1.21.0): at close TREE-COMPARISON must be counted pending-merge, never run as a "
+          "routine BROKEN and never reported holding")
+    check(re.search(r"POST-MERGE: TREE-COMPARISON is NOT verified", rc) is not None,
+          "envelope (1.21.0): the DISCLOSURE seed must name the post-merge command")
+    autorun = skill_text("autorun")
+    check(re.search(r"<w> pending-merge", autorun) is not None,
+          "autorun (1.21.0): the RECONCILE counted line must carry the pending-merge axis")
+    check(re.search(r"no `check:` in the spec", autorun) is not None
+          and re.search(r"Never\s+re-type a generated check", autorun) is not None,
+          "autorun (1.21.0): the floor's TREE-COMPARISON and LOCAL-HEAD-PUSHED checks are generated — "
+          "the skill must forbid authoring them")
+    check(re.search(r"CHANGED_PATHS=", autorun) is not None,
+          "autorun (1.21.0): Gate 2 must bind CHANGED_PATHS to the approved change list")
+    check(re.search(r"do not run\s+`--phase post-merge` yourself", autorun) is not None,
+          "autorun (1.21.0): the post-merge check is the human's, after the human's merge")
+    judge = (ROOT / "tests" / "e2e" / "assert_run.py").read_text(encoding="utf-8")
+    check(re.search(r'"--phase", "post-merge"', judge) is not None,
+          "e2e (1.21.0): the judge must re-run RECONCILE at post-merge after its simulated squash")
+
 
 def validate_exclusion_expiry():
     """v1.12.0 (A) — a coverage-gap exclusion is debt with a deadline, never a permanent waiver.

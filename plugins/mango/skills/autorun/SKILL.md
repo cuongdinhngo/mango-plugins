@@ -82,19 +82,28 @@ python3 <mango>/scripts/run_contract.py validate .mango/run-contract-<KEY>.txt -
 
   ```
   python3 <mango>/scripts/run_contract.py bind <contract> TEST_CMD="<the proving test>" \
-      --phase gate2 --out <contract>
+      CHANGED_PATHS="<the approved change list, space-separated>" --phase gate2 --out <contract>
   ```
+
+  `CHANGED_PATHS` is the floor's `TREE-COMPARISON` path list: bind it to exactly the paths in the
+  design's approved change list, plain path tokens, nothing else.
 
   The bind pass **re-validates and refuses any surviving `UNBOUND`**.
 
 ### The fixed floor — three conditions you may not author
 
-The script ships them and refuses a contract that drops, renames, or re-origins any of them:
+The script ships them and refuses a contract that drops, renames, or re-origins any of them. **Write
+`base` in the spec as the default branch's name; the script derives `<branch>@<sha>`.** **Give
+`TREE-COMPARISON` and `LOCAL-HEAD-PUSHED` no `check:` in the spec — the script generates both from
+`base`, `branch` and `remote`**, and refuses a spec or contract carrying any other spelling. Never
+re-type a generated check.
 
 1. **`PR-EXISTS`** — the PR exists and its state is readable. It carries a real command; `RECONCILE`
    runs it, and your word that the PR exists is not the condition.
-2. **`TREE-COMPARISON`** — a **tree** comparison, never a content grep:
-   `git diff --quiet <base> <branch> -- <paths>`. A grep looks for content named at t0, and a
+2. **`TREE-COMPARISON`** — a **tree** comparison, never a content grep, generated as
+   `git diff --quiet <remote>/<base-branch> <remote>/<branch> -- ${CHANGED_PATHS}`. It has meaning only
+   once the PR is merged: **`RECONCILE` at close counts it `pending-merge` and does not run it**; it runs
+   at `--phase post-merge`. A grep looks for content named at t0, and a
    post-merge correction is unnamed then, so a grep returns `HOLDING` on precisely the incident this
    catches. An **ancestry predicate** (`git merge-base --is-ancestor`) is a false-red under a squash
    merge and is refused at contract time.
@@ -295,7 +304,7 @@ output — transcribe the counted line the script printed:
 
 ```
 RECONCILE
-  conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run
+  conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run | <w> pending-merge
 ```
 
 **The forced-case positive control is retired** — `--prove`, its `proven` line, and the
@@ -312,6 +321,12 @@ line with `c > 0` at close means those floor conditions were **not verified**, n
 **`q > 0` does not block a merge** — this version stops at the PR and the human merges. It means **read
 this first**.
 
+**`pending-merge` is a fourth state**: at close `TREE-COMPARISON` is **not run** and is counted
+`pending-merge` — **never holding**, and never reported as verified. Transcribe it as printed, put the
+post-merge command the seed carries (`git fetch <remote>`, then
+`reconcile.py run <contract> --phase post-merge`) in the PR body and in `DISCLOSURE`, and **do not run
+`--phase post-merge` yourself** — the merge is the human's, so is the check after it.
+
 ## Step 6 — DISCLOSURE
 
 Seed it from the contract, then append:
@@ -321,7 +336,8 @@ python3 <mango>/scripts/run_contract.py disclosure-seed <contract>
 ```
 
 The seed carries line one — **the reviewer's state and the challenger's state, recorded separately** —
-every unchecked agent claim from the contract, and the budget line. Append to it everything mango already produces as raw material: coverage-gap
+every unchecked agent claim from the contract, the budget line, and the **post-merge** line naming the
+command that verifies `TREE-COMPARISON` after the merge. Append to it everything mango already produces as raw material: coverage-gap
 exclusions, every `unmeasured` ledger cell, baseline exclusions, recorded design deviations, unexercised
 paths, every degradation taken from the ladder, which review step ran, and every outward action deferred
 to the morning.

@@ -12,7 +12,7 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 | `make_sample.sh` | Writes the sample: a stdlib-Python word counter, a unittest suite, a 3-rule rule book, a local-mode `.harness.json`, ticket `PROJ-901` (4 ACs across 3 files), a bare repo as the remote, and a `gh` **test double** that logs PR calls and never contacts a server. |
 | `run.sh` | Clones this repo's HEAD, generates the sample, dispatches `/mango:autorun PROJ-901` with the two-action handover authorisation, records cost and wall-clock, then runs the judge. |
 | `assert_run.py` | The judge. Reads git state, the working doc, the PR log, and the output of `check_lines.py` and `reconcile.py` **run by the harness** — never the model's account. |
-| `test_assert_run.py` | Free self-test: a scripted correct run must be green (separate or embedded working doc), and each of 15 injected defects must turn its own assertion red. Runs in CI on every push. |
+| `test_assert_run.py` | Free self-test: a scripted correct run must be green (separate or embedded working doc), and each injected defect must turn its own assertion red. Runs in CI on every push. |
 
 ## What the judge asserts
 
@@ -26,8 +26,11 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 - The challenger's summary: every requirement met, and at least the ticket's four.
 - Every changed project file is named in the approved design and is one the ticket can need.
 - The tests pass on the pushed head and **fail** against the base's source.
-- `RECONCILE --phase close`, re-run by the harness after a **simulated squash merge** (the local `main`
-  ref only; `TREE-COMPARISON` can hold only once merged): every condition holds, floor included.
+- The RUN CONTRACT validates at close: the generated floor checks are in their one spelling and nothing
+  is left `UNBOUND`.
+- `RECONCILE --phase post-merge`, re-run by the harness after a **simulated squash merge** (the work
+  repo's `main` and `origin/main` refs only; `TREE-COMPARISON` has meaning only once merged): every
+  condition holds, floor included, and none is `pending-merge`.
 
 ## Running it
 
