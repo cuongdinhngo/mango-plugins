@@ -38,7 +38,9 @@ bash tests/e2e/run.sh --local             # costs tokens; commit first (it clone
 
 CI runs the dispatch weekly and on demand (`.github/workflows/e2e.yml`), never on push, and writes each
 run's cost to the job summary. Outside CI, `run.sh` refuses to start without `--local`: the dispatched
-session edits files and runs git and Python inside the sandbox without asking.
+session edits files and runs git and Python inside the sandbox without asking. The session's `TMPDIR` is the
+run's own temp dir. A hard-coded `/tmp` path still escapes it, so `run.sh` lists any new `/tmp` entry
+in `.runs/<id>/tmp-new.txt` and warns; it does not judge them, since other processes write `/tmp` too.
 
 ## What it does not prove
 
