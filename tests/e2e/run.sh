@@ -61,16 +61,23 @@ Bash(pwd:*) Bash(date:*) Bash(which:*) Bash(command:*) Bash(true:*) Bash(PYTHONP
 Bash(printenv:*) Bash(tr:*) Bash(cut:*) Bash(uniq:*) Bash(basename:*) Bash(dirname:*) Bash(realpath:*) Bash(nl:*)'
 
 echo "== golden e2e: dispatch (mango $(python3 -c "import json;print(json.load(open('$PLUGIN/.claude-plugin/plugin.json'))['version'])") @ $(git -C "$TMP/mango" rev-parse --short HEAD)) =="
+# The run's own temp dir: the sample's tests and any tempfile the session makes land here, not in the
+# shared /tmp. A hard-coded /tmp path bypasses it, so /tmp is listed before and after and any new
+# entry is reported (not judged: other processes write /tmp too).
+mkdir -p "$TMP/tmp"
+ls -A /tmp | sort >"$TMP/tmp-before.txt"
 START=$(date +%s)
 set +e
 ( cd "$SAMPLE/work" \
-  && env -u GH_TOKEN -u GITHUB_TOKEN PATH="$SAMPLE/bin:$PATH" MANGO_E2E_DIR="$SAMPLE" \
+  && env -u GH_TOKEN -u GITHUB_TOKEN PATH="$SAMPLE/bin:$PATH" MANGO_E2E_DIR="$SAMPLE" TMPDIR="$TMP/tmp" \
      timeout "${MANGO_E2E_TIMEOUT:-5400}" claude -p --plugin-dir "$PLUGIN" --output-format json \
        --permission-mode acceptEdits --allowedTools $ALLOWED --max-turns "${MANGO_E2E_MAX_TURNS:-400}" \
        "$PROMPT" </dev/null >"$OUT/result.json" 2>"$OUT/stderr.txt" )
 DISPATCH_EXIT=$?
 set -e
 WALL=$(( $(date +%s) - START ))
+ls -A /tmp | sort | comm -13 "$TMP/tmp-before.txt" - >"$OUT/tmp-new.txt"
+[ -s "$OUT/tmp-new.txt" ] && echo "e2e: WARNING — new entries in /tmp during the run (listed in $OUT/tmp-new.txt):" && sed 's/^/  /' "$OUT/tmp-new.txt"
 
 cp "$SAMPLE/pr-log.jsonl" "$OUT/" 2>/dev/null || true
 cp "$SAMPLE/work/docs/tickets/PROJ-901.work.md" "$OUT/" 2>/dev/null || true
