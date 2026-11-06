@@ -331,5 +331,59 @@ class AssertRunTest(unittest.TestCase):
         self.assertRed(out, code, "exactly one PR opened through pr_host")
 
 
+class DenialsReport(unittest.TestCase):
+    """denials.py reads the main and every subagent transcript, and lists only permission refusals."""
+
+    def setUp(self):
+        import json
+        self.json = json
+        self.tmp = Path(tempfile.mkdtemp())
+        self.sess = "s-1"
+        self.proj = self.tmp / "projects" / "-tmp-x-sample-work"
+        (self.proj / self.sess / "subagents").mkdir(parents=True)
+        self.result = self.tmp / "result.json"
+        self.result.write_text(json.dumps({"session_id": self.sess, "permission_denials": []}))
+
+    def transcript(self, path, prompt, calls):
+        rows = [{"type": "user", "message": {"content": prompt}}]
+        for i, (cmd, body, err) in enumerate(calls):
+            rows.append({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": f"t{i}", "name": "Bash", "input": {"command": cmd}}]}})
+            rows.append({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": f"t{i}", "content": body, "is_error": err}]}})
+        path.write_text("\n".join(self.json.dumps(r) for r in rows))
+
+    def report(self):
+        return subprocess.run([sys.executable, str(HERE / "denials.py"), str(self.result),
+                               "--projects", str(self.tmp / "projects")],
+                              capture_output=True, text=True).stdout
+
+    def test_subagent_and_main_refusals_are_listed_and_failures_are_not(self):
+        self.transcript(self.proj / f"{self.sess}.jsonl", "/mango:autorun PROJ-901", [
+            ("git status", "On branch main", False),
+            ("python3 -m unittest", "Exit code 1\nFAILED", True),
+            ("cd w && git log", "This command changes directory before running a version-control command", True)])
+        self.transcript(self.proj / self.sess / "subagents" / "agent-a.jsonl",
+                        "You are the ticket-blind challenger.", [
+            ("export PYTHONPATH=src; python3 -m wordcount.cli x", "Permission to use Bash has been denied.", True)])
+        out = self.report()
+        self.assertIn("main: Bash: cd w && git log", out)
+        self.assertIn("You are the ticket-blind challenger.: Bash: export PYTHONPATH=src", out)
+        self.assertNotIn("unittest", out)
+        self.assertNotIn("git status", out)
+
+    def test_no_refusal_prints_nothing(self):
+        self.transcript(self.proj / f"{self.sess}.jsonl", "/mango:autorun PROJ-901",
+                        [("git status", "On branch main", False)])
+        self.assertEqual(self.report(), "")
+
+    def test_missing_transcript_falls_back_to_result_json_and_says_so(self):
+        self.result.write_text(self.json.dumps({"session_id": "gone", "permission_denials": [
+            {"tool_name": "Bash", "tool_input": {"command": "rm -rf x"}}]}))
+        out = self.report()
+        self.assertIn("main: Bash: rm -rf x", out)
+        self.assertIn("subagents not read", out)
+
+
 if __name__ == "__main__":
     unittest.main()

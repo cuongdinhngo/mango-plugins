@@ -44,6 +44,11 @@ run's cost to the job summary. Outside CI, `run.sh` refuses to start without `--
 session edits files and runs git and Python inside the sandbox without asking. The session's `TMPDIR` is the
 run's own temp dir. A hard-coded `/tmp` path still escapes it, so `run.sh` lists any new `/tmp` entry
 in `.runs/<id>/tmp-new.txt` and warns; it does not judge them, since other processes write `/tmp` too.
+The dispatch runs under `acceptEdits` and an allowlist, never with permissions bypassed. `--add-dir`
+gives it the run's temp tree, where the plugin clone lives. After the dispatch, `denials.py` lists
+every tool call the allowlist refused in `.runs/<id>/denials.txt` and warns. It reads the main
+transcript and each subagent's, because `result.json` carries only the main session's denials. A
+denied challenger judges by reading only. The list is reported, not judged.
 
 ## What it does not prove
 
