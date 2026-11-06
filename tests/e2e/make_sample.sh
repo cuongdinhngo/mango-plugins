@@ -209,9 +209,24 @@ cat >"$DIR/bin/gh" <<'EOF'
 import json, os, sys
 log = os.path.join(os.environ["MANGO_E2E_DIR"], "pr-log.jsonl")
 args = sys.argv[1:]
+def body():
+    # The PR body as the host would hold it, so the judge reads what the morning reader reads.
+    for flag in ("--body-file", "-F"):
+        if flag in args and args.index(flag) + 1 < len(args):
+            try:
+                return open(args[args.index(flag) + 1], encoding="utf-8").read()
+            except OSError:
+                return None
+    for flag in ("--body", "-b"):
+        if flag in args and args.index(flag) + 1 < len(args):
+            return args[args.index(flag) + 1]
+    return None
 def record(kind):
+    event = {"kind": kind, "args": args, "cwd": os.getcwd()}
+    if kind == "create":
+        event["body"] = body()
     with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"kind": kind, "args": args, "cwd": os.getcwd()}) + "\n")
+        f.write(json.dumps(event) + "\n")
 def created():
     try:
         return [json.loads(l) for l in open(log, encoding="utf-8") if '"kind": "create"' in l]

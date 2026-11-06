@@ -58,7 +58,8 @@ Bash(git:*) Bash(python3:*) Bash(python:*) Bash(gh:*) Bash(rtk:*) Bash(ls:*) Bas
 Bash(tail:*) Bash(wc:*) Bash(grep:*) Bash(sed:*) Bash(awk:*) Bash(find:*) Bash(mkdir:*) Bash(test:*)
 Bash(echo:*) Bash(printf:*) Bash(diff:*) Bash(cp:*) Bash(mv:*) Bash(touch:*) Bash(sort:*) Bash(cd:*)
 Bash(pwd:*) Bash(date:*) Bash(which:*) Bash(command:*) Bash(true:*) Bash(PYTHONPATH=*)
-Bash(printenv:*) Bash(tr:*) Bash(cut:*) Bash(uniq:*) Bash(basename:*) Bash(dirname:*) Bash(realpath:*) Bash(nl:*)'
+Bash(printenv:*) Bash(tr:*) Bash(cut:*) Bash(uniq:*) Bash(basename:*) Bash(dirname:*) Bash(realpath:*) Bash(nl:*)
+Bash(export:*) Bash(mktemp:*)'
 
 echo "== golden e2e: dispatch (mango $(python3 -c "import json;print(json.load(open('$PLUGIN/.claude-plugin/plugin.json'))['version'])") @ $(git -C "$TMP/mango" rev-parse --short HEAD)) =="
 # The run's own temp dir: the sample's tests and any tempfile the session makes land here, not in the
@@ -71,13 +72,17 @@ set +e
 ( cd "$SAMPLE/work" \
   && env -u GH_TOKEN -u GITHUB_TOKEN PATH="$SAMPLE/bin:$PATH" MANGO_E2E_DIR="$SAMPLE" TMPDIR="$TMP/tmp" \
      timeout "${MANGO_E2E_TIMEOUT:-5400}" claude -p --plugin-dir "$PLUGIN" --output-format json \
-       --permission-mode acceptEdits --allowedTools $ALLOWED --max-turns "${MANGO_E2E_MAX_TURNS:-400}" \
+       --permission-mode auto --add-dir "$TMP" --allowedTools $ALLOWED --max-turns "${MANGO_E2E_MAX_TURNS:-400}" \
        "$PROMPT" </dev/null >"$OUT/result.json" 2>"$OUT/stderr.txt" )
 DISPATCH_EXIT=$?
 set -e
 WALL=$(( $(date +%s) - START ))
 ls -A /tmp | sort | comm -13 "$TMP/tmp-before.txt" - >"$OUT/tmp-new.txt"
 [ -s "$OUT/tmp-new.txt" ] && echo "e2e: WARNING — new entries in /tmp during the run (listed in $OUT/tmp-new.txt):" && sed 's/^/  /' "$OUT/tmp-new.txt"
+# Every tool call the allowlist denied, in the main session and in each subagent (the challenger's
+# denials do not reach result.json). Reported, not judged: a denied challenger judges by reading only.
+python3 "$HERE/denials.py" "$OUT/result.json" >"$OUT/denials.txt" 2>&1 || true
+[ -s "$OUT/denials.txt" ] && echo "e2e: WARNING — tool calls denied during the run (listed in $OUT/denials.txt):" && sed 's/^/  /' "$OUT/denials.txt"
 
 cp "$SAMPLE/pr-log.jsonl" "$OUT/" 2>/dev/null || true
 cp "$SAMPLE/work/docs/tickets/PROJ-901.work.md" "$OUT/" 2>/dev/null || true

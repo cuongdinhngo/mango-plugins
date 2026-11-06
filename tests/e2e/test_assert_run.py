@@ -162,6 +162,16 @@ def good_run(root, summary="4 requirements: 4 met, 0 not met, 0 can't tell", pro
     return base
 
 
+def open_pr_with_body(root, body):
+    """Replace the logged PR with one whose body is read from --body-file, as autorun opens it."""
+    (root / "pr-log.jsonl").unlink()
+    f = root / "pr-body.md"
+    f.write_text(body, encoding="utf-8")
+    env = dict(os.environ, MANGO_E2E_DIR=str(root))
+    sh(root / "work", str(root / "bin" / "gh"), "pr", "create", "--base", "main", "--head",
+       f"feat/{KEY}-min-length", "--body-file", str(f), env=env)
+
+
 def judge(root, base, mango):
     p = subprocess.run([sys.executable, str(HERE / "assert_run.py"), "--dir", str(root), "--base", base,
                         "--mango", str(mango)], capture_output=True, text=True)
@@ -292,6 +302,20 @@ class AssertRunTest(unittest.TestCase):
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "the run left a DISCLOSURE")
 
+    def test_disclosure_in_the_pr_body_only_is_found(self):
+        base = good_run(self.root)
+        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        open_pr_with_body(self.root, "## DISCLOSURE\n1a. REVIEWER: ON\n1b. CHALLENGER: ON\n")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertEqual(code, 0, out)
+
+    def test_pr_body_without_the_seats_is_red(self):
+        base = good_run(self.root)
+        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        open_pr_with_body(self.root, "## DISCLOSURE\nthe reviewer and the challenger both ran\n")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, "the run left a DISCLOSURE")
+
     def test_pipe_separated_challenger_summary_without_total_is_read(self):
         base = good_run(self.root, summary="7 met | 0 not met | 0 can't tell")
         code, out = judge(self.root, base, stub_mango(self.tmp))
@@ -329,6 +353,60 @@ class AssertRunTest(unittest.TestCase):
         (self.root / "pr-log.jsonl").unlink()
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "exactly one PR opened through pr_host")
+
+
+class DenialsReport(unittest.TestCase):
+    """denials.py reads the main and every subagent transcript, and lists only permission refusals."""
+
+    def setUp(self):
+        import json
+        self.json = json
+        self.tmp = Path(tempfile.mkdtemp())
+        self.sess = "s-1"
+        self.proj = self.tmp / "projects" / "-tmp-x-sample-work"
+        (self.proj / self.sess / "subagents").mkdir(parents=True)
+        self.result = self.tmp / "result.json"
+        self.result.write_text(json.dumps({"session_id": self.sess, "permission_denials": []}))
+
+    def transcript(self, path, prompt, calls):
+        rows = [{"type": "user", "message": {"content": prompt}}]
+        for i, (cmd, body, err) in enumerate(calls):
+            rows.append({"type": "assistant", "message": {"content": [
+                {"type": "tool_use", "id": f"t{i}", "name": "Bash", "input": {"command": cmd}}]}})
+            rows.append({"type": "user", "message": {"content": [
+                {"type": "tool_result", "tool_use_id": f"t{i}", "content": body, "is_error": err}]}})
+        path.write_text("\n".join(self.json.dumps(r) for r in rows))
+
+    def report(self):
+        return subprocess.run([sys.executable, str(HERE / "denials.py"), str(self.result),
+                               "--projects", str(self.tmp / "projects")],
+                              capture_output=True, text=True).stdout
+
+    def test_subagent_and_main_refusals_are_listed_and_failures_are_not(self):
+        self.transcript(self.proj / f"{self.sess}.jsonl", "/mango:autorun PROJ-901", [
+            ("git status", "On branch main", False),
+            ("python3 -m unittest", "Exit code 1\nFAILED", True),
+            ("cd w && git log", "This command changes directory before running a version-control command", True)])
+        self.transcript(self.proj / self.sess / "subagents" / "agent-a.jsonl",
+                        "You are the ticket-blind challenger.", [
+            ("export PYTHONPATH=src; python3 -m wordcount.cli x", "Permission to use Bash has been denied.", True)])
+        out = self.report()
+        self.assertIn("main: Bash: cd w && git log", out)
+        self.assertIn("You are the ticket-blind challenger.: Bash: export PYTHONPATH=src", out)
+        self.assertNotIn("unittest", out)
+        self.assertNotIn("git status", out)
+
+    def test_no_refusal_prints_nothing(self):
+        self.transcript(self.proj / f"{self.sess}.jsonl", "/mango:autorun PROJ-901",
+                        [("git status", "On branch main", False)])
+        self.assertEqual(self.report(), "")
+
+    def test_missing_transcript_falls_back_to_result_json_and_says_so(self):
+        self.result.write_text(self.json.dumps({"session_id": "gone", "permission_denials": [
+            {"tool_name": "Bash", "tool_input": {"command": "rm -rf x"}}]}))
+        out = self.report()
+        self.assertIn("main: Bash: rm -rf x", out)
+        self.assertIn("subagents not read", out)
 
 
 if __name__ == "__main__":

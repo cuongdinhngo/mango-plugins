@@ -19,7 +19,9 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 - `origin/main` did not move; exactly one feature branch was pushed and nothing is stranded locally.
 - The PR host saw exactly one PR opened and no merge, close or API write.
 - The working doc exists with Phase 1–5 in order — a **local** artifact by mango's contract (never
-  committed), as `<KEY>.work.md` or below the separator in the ticket file — and `DISCLOSURE` was left.
+  committed), as `<KEY>.work.md` or below the separator in the ticket file — and `DISCLOSURE` was left,
+  carrying the reviewer's and the challenger's state: in `.mango/`, in the PR body (the `gh` double
+  records the body it was given) or in the final output.
 - `Reviewed at <sha>` names a commit on the branch, and only bookkeeping changed after it.
 - `check_lines.py check --phase finalise --tree <reviewed sha> --base <base>` exits `0` (`3`, not
   checkable, is red).
@@ -44,6 +46,11 @@ run's cost to the job summary. Outside CI, `run.sh` refuses to start without `--
 session edits files and runs git and Python inside the sandbox without asking. The session's `TMPDIR` is the
 run's own temp dir. A hard-coded `/tmp` path still escapes it, so `run.sh` lists any new `/tmp` entry
 in `.runs/<id>/tmp-new.txt` and warns; it does not judge them, since other processes write `/tmp` too.
+The dispatch runs under `auto` mode and an allowlist, never with permissions bypassed: the allowlist passes the listed commands, and the auto-mode classifier judges each other call. `--add-dir`
+gives it the run's temp tree, where the plugin clone lives. After the dispatch, `denials.py` lists
+every tool call the allowlist refused in `.runs/<id>/denials.txt` and warns. It reads the main
+transcript and each subagent's, because `result.json` carries only the main session's denials. A
+denied challenger judges by reading only. The list is reported, not judged.
 
 ## What it does not prove
 

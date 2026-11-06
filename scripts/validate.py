@@ -3231,6 +3231,14 @@ def validate_golden_e2e():
           "golden-e2e: run.sh must refuse to start outside CI without --local")
     check('PATH="$SAMPLE/bin:$PATH"' in run and "-u GH_TOKEN" in run and "-u GITHUB_TOKEN" in run,
           "golden-e2e: run.sh must put the gh test double first on PATH and drop GitHub tokens")
+    check((e2e / "denials.py").exists() and 'python3 "$HERE/denials.py"' in run,
+          "golden-e2e: run.sh must report every tool call the allowlist denied (tests/e2e/denials.py), "
+          "subagents included")
+    check(re.search(r"bypassPermissions|dangerously-skip-permissions", run) is None
+          and "--permission-mode auto" in run and "--allowedTools" in run,
+          "golden-e2e: run.sh must dispatch under auto mode and an allowlist, never with permissions bypassed")
+    check('--add-dir "$TMP"' in run,
+          "golden-e2e: run.sh must give the dispatch its own temp tree (--add-dir \"$TMP\"), where the plugin clone lives")
     sample = (e2e / "make_sample.sh").read_text(encoding="utf-8") if (e2e / "make_sample.sh").exists() else ""
     check("never contacts any server" in sample and "--bare" in sample,
           "golden-e2e: make_sample.sh must use a local bare remote and a gh test double")
