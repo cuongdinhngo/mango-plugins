@@ -4,7 +4,9 @@ The short version is in the [root README](../README.md#maturity): every release 
 `validate.py` and the dispatch-free script suites, and mango has **no behavioural regression suite**
 — only a per-skill smoke guard. That guard reports that its fixtures passed just now, and nothing
 more: it does **not** detect cross-skill regressions (editing `design` and breaking `finalise` is not
-caught), and the `RETIRE:` counted line is uncovered. This page holds the record behind that summary. Which behaviours are
+caught), and the `RETIRE:` counted line is uncovered. The [golden e2e](../tests/e2e/) runs one ticket
+through `autorun` weekly and catches a cross-skill regression only when it breaks that run (record
+below). This page holds the record behind that summary. Which behaviours are
 **Experimental** is tracked only in
 [`plugins/mango/principles/maturity.md`](../plugins/mango/principles/maturity.md).
 
@@ -75,3 +77,25 @@ review criterion or a gate.
 **Releases are tagged** from 1.18.2 on: every version bump that reaches `main` gets a `v<version>` tag
 and a GitHub Release carrying its CHANGELOG entry, so a version can be pinned. Earlier versions are not
 tagged.
+
+**The golden e2e (added after 1.19.2).** One unattended `/mango:autorun` on a generated sample project,
+judged on artifacts by a harness-side judge (`tests/e2e/`). What it has shown so far, from the runs on
+2026-11-04 to 2026-11-06 (each about $4.7–5.5 and 8–11 minutes, read from the dispatch's own result):
+
+- **It found one real cross-skill regression on its first run.** Under 1.19.1, the evidence-provenance
+  check refused the pre-change evidence that `analysis`, `design` and `execute` are required to record,
+  so `autorun` stopped at Gate 4 on a correct working doc. Fixed in 1.19.2. Neither the envelope suite
+  nor the smoke guard could see it: each exercises one phase.
+- **After the fix: 3 consecutive fresh runs green** (22/22 assertions each) at one commit, with no
+  judge change between them. The five runs between the fix and those were red only on the judge's own
+  assumptions (where the working doc lives, the DISCLOSURE's file name, the wording of the
+  challenger's summary). Each was corrected over wording or location, never outcome, and re-judged
+  from the kept sample.
+- **Break-tests.** Shipping the 1.19.1 checker under the 1.19.2 skill text turned it red for the right
+  reason: the gate refused the evidence, so nothing was pushed and no PR was opened. Two breaks of the
+  skill text only (dropping `--base` from the gate commands, then restoring the whole 1.19.1 skill
+  text) stayed **green**: the model read the contract from the checker's own docstring and error
+  output and complied anyway. So the e2e catches a regression the run cannot route around, not every
+  edit that removes an instruction.
+- **Not covered:** one ticket, one stack, one lane. The challenger's Bash was denied by the run's tool
+  allowlist in every run, so its verdicts were by reading only.

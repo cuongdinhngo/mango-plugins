@@ -1,0 +1,41 @@
+name: golden-e2e
+
+# One unattended /mango:autorun on a generated sample project, judged on artifacts (tests/e2e/).
+# It costs tokens — one full lifecycle with subagents — so it runs weekly and on demand, never on push.
+# The cost of each run is written to the job summary.
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Configure git identity for the sample project
+        run: |
+          git config --global user.name "mango e2e"
+          git config --global user.email "e2e@example.invalid"
+
+      - name: Golden e2e
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: bash tests/e2e/run.sh
+
+      - name: Keep the run's artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-e2e
+          path: tests/e2e/.runs/

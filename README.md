@@ -100,9 +100,9 @@ unattended with `/mango:autorun` — no gate removed, no auto-merge. Details in 
 
 **Every release is gated by `validate.py` and the dispatch-free script suites**, run in CI on every
 push. **mango has no behavioural regression suite.** It has a per-skill smoke guard of 8 fixtures, run
-when a skill is edited: it does **not** detect cross-skill regressions, and the `RETIRE:` counted line
-is uncovered. Experimental behaviours: [`principles/maturity.md`](./plugins/mango/principles/maturity.md)
-· detail: [`docs/MATURITY.md`](./docs/MATURITY.md) · cost: [`docs/COST.md`](./docs/COST.md).
+when a skill is edited, which does **not** detect cross-skill regressions, and a weekly
+[golden e2e](./tests/e2e/) of one ticket through `autorun`, which catches one only when it breaks that
+run. `RETIRE:` is uncovered. [Experimental](./plugins/mango/principles/maturity.md) · [detail](./docs/MATURITY.md) · [cost](./docs/COST.md).
 
 ## Update and pin
 
