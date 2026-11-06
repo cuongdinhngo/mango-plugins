@@ -132,9 +132,10 @@ def main(argv):
     doc = working_doc(work)
     if not check(doc, f"working doc exists ({WORK_DOC}, or {TICKET} below the separator)"):
         return finish()
-    # autorun names no file for DISCLOSURE: it is in the run's output, a file, or both. Either way it
-    # must carry the seed's first line — reviewer and challenger state, recorded separately.
-    places = []
+    # autorun names no file for DISCLOSURE: it is in the run's output, a file, the PR body, or more
+    # than one. Wherever it is, it must carry the seed's first line — reviewer and challenger state,
+    # recorded separately.
+    places = [str(e.get("body") or "") for e in creates]
     for disclosure in sorted(work.glob(DISCLOSURE)):
         places.append(disclosure.read_text(encoding="utf-8"))
     if a.result and Path(a.result).exists():
@@ -144,7 +145,7 @@ def main(argv):
             pass
     check(any("DISCLOSURE" in t.upper() and re.search(r"REVIEWER\s*:", t) and re.search(r"CHALLENGER\s*:", t)
               for t in places),
-          "the run left a DISCLOSURE carrying the reviewer and challenger state (file or final output)")
+          "the run left a DISCLOSURE carrying the reviewer and challenger state (file, PR body or final output)")
     positions = [doc.find(f"## Phase {n}") for n in range(1, 6)]
     check(all(p >= 0 for p in positions) and positions == sorted(positions),
           "working doc carries Phase 1-5 in order", f"positions {positions}")

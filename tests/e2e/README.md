@@ -19,7 +19,9 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 - `origin/main` did not move; exactly one feature branch was pushed and nothing is stranded locally.
 - The PR host saw exactly one PR opened and no merge, close or API write.
 - The working doc exists with Phase 1–5 in order — a **local** artifact by mango's contract (never
-  committed), as `<KEY>.work.md` or below the separator in the ticket file — and `DISCLOSURE` was left.
+  committed), as `<KEY>.work.md` or below the separator in the ticket file — and `DISCLOSURE` was left,
+  carrying the reviewer's and the challenger's state: in `.mango/`, in the PR body (the `gh` double
+  records the body it was given) or in the final output.
 - `Reviewed at <sha>` names a commit on the branch, and only bookkeeping changed after it.
 - `check_lines.py check --phase finalise --tree <reviewed sha> --base <base>` exits `0` (`3`, not
   checkable, is red).

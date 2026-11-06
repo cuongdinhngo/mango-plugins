@@ -162,6 +162,16 @@ def good_run(root, summary="4 requirements: 4 met, 0 not met, 0 can't tell", pro
     return base
 
 
+def open_pr_with_body(root, body):
+    """Replace the logged PR with one whose body is read from --body-file, as autorun opens it."""
+    (root / "pr-log.jsonl").unlink()
+    f = root / "pr-body.md"
+    f.write_text(body, encoding="utf-8")
+    env = dict(os.environ, MANGO_E2E_DIR=str(root))
+    sh(root / "work", str(root / "bin" / "gh"), "pr", "create", "--base", "main", "--head",
+       f"feat/{KEY}-min-length", "--body-file", str(f), env=env)
+
+
 def judge(root, base, mango):
     p = subprocess.run([sys.executable, str(HERE / "assert_run.py"), "--dir", str(root), "--base", base,
                         "--mango", str(mango)], capture_output=True, text=True)
@@ -289,6 +299,20 @@ class AssertRunTest(unittest.TestCase):
     def test_no_disclosure_is_red(self):
         base = good_run(self.root)
         (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, "the run left a DISCLOSURE")
+
+    def test_disclosure_in_the_pr_body_only_is_found(self):
+        base = good_run(self.root)
+        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        open_pr_with_body(self.root, "## DISCLOSURE\n1a. REVIEWER: ON\n1b. CHALLENGER: ON\n")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertEqual(code, 0, out)
+
+    def test_pr_body_without_the_seats_is_red(self):
+        base = good_run(self.root)
+        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        open_pr_with_body(self.root, "## DISCLOSURE\nthe reviewer and the challenger both ran\n")
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "the run left a DISCLOSURE")
 
