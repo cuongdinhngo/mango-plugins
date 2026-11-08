@@ -1,4 +1,4 @@
-<!-- TEMPLATE: Working-doc status card · Planned (phase 1) · PRINTED by `mango_state.py card <doc>` (read-only; it never
+<!-- TEMPLATE: Working-doc status card · Planned (phase 2) · PRINTED by `mango_state.py card <doc>` (read-only; it never
      writes the doc). Finalise pastes it at the top of the PR body; a human may paste it anywhere.
      12 rows maximum. A row whose data the doc does not carry prints `not-checkable`, never a guess,
      never "⏳" and never "none". Omit a row only when it does not apply (UI rows on a backend track).

@@ -1,17 +1,17 @@
 # mango roadmap — phases 0 to 4
 
-> **In 30 seconds.** mango is Level 2 for the full lane today. Five phases take it to honest
-> machine-readable gates, measured proof, a status card a human reads first, and a PR check that
-> verifies consistency and binding — with docs that stop growing. A phase ends when its exit criteria
-> hold, not on a date; the next starts right away. Each phase ships as a release.
+> **In 30 seconds.** mango is Level 2 for the full lane today. Five phases take it to measured proof
+> first, then honest machine-readable gates, a status card a human reads first, and a PR check that
+> verifies consistency and binding — with docs and runtime text that stop growing. A phase ends when its
+> exit criteria hold, not on a date. Each phase ships as a release.
 
 ## Positioning
 
 *mango is the verification layer for AI-assisted delivery.* Your agent and your host's native
 commands (`/plan`, `/code-review`, `/security-review`, `/verify`, `/run`) do the work. mango
 independently checks the work against the ticket, holds the gates a human approved, binds every piece
-of evidence to a commit, and says plainly what it could not verify. It records native commands as
-evidence; it never replaces them.
+of evidence to a commit, and says plainly what it could not verify. It never replaces native commands;
+recording their output as evidence is Planned (phase 3).
 
 ## Where we are (1.21.0)
 
@@ -28,21 +28,33 @@ Gaps the phases close:
 2. "Fails without the change" is measured in e2e but not in real projects.
 3. No one-glance view of a ticket; what was *not* verified lives outside the working doc.
 4. Nothing outside the session checks the verdict's consistency and binding.
-5. Text keeps growing: plugin README 654 lines, working-doc template 4,278 words, skills 37,158 words.
+5. Text keeps growing: plugin README 654 lines, working-doc template 4,278 words, skills 37,158 words;
+   one full run loads 34,377 words (`scripts/measure_runtime.py`).
+6. The whole 430-line template is copied into every working doc — under `work_doc_mode: embed`, into
+   the ticket file itself — epic and frontend sections included when they do not apply.
 
 ## Phases
 
 | Phase | Goal | Starts when | Done when |
 |---|---|---|---|
 | **0** | Publish; stop doc growth; split the plugin README | now | budget ledger in CI; plugin README ≤ 120 lines with no `validate.py` scan narrowed |
-| **1** | Honest gate records; status card | Phase 0 done | e2e doc's gate history rebuilt by script, with no `by human` line; card printed into the PR body |
-| **2** | Measured proof; profiles; render binding | Phase 1 done (`GATE` and `PROTOCOL: v0.2` exist) | `PROOF` on the latest green e2e doc reports `3 proven`; v0.2 docs run `standard` |
+| **1** | Measured proof | Phase 0 done | `PROOF` on the latest green e2e doc reports `3 proven`; a doc not declaring `PROTOCOL: v0.2` gets no new axis; the local data script prints aggregate rows only |
+| **2** | Honest gate records; status card; profiles; a lighter template | Phase 1 done **and** ≥ 3 real tickets recorded as aggregate rows under the data rules | e2e doc's gate history rebuilt by script, with no `by human` line; card printed into the PR body; v0.2 docs run `standard`; `ticket.md` words lower than 4,278 with the smoke guard green |
 | **3** | Enforcement (observe) and a PR check | Phase 2 done **and** the A-00 decision taken | hook reports out-of-phase writes; CI check passes a valid PR and fails a moved branch, labelled "consistency and binding" |
 | **4** | Measure and decide | Phase 3 done **and** the real-ticket data threshold met | cost and calibration rows; decisions on protocol v1.0 and the Later list |
 
 Rules: one phase at a time on the main line; independent tasks of the next phase may start early if
-they touch nothing the current phase changes. Real-ticket data collection runs from Phase 1 onward.
-Between phases, the docs get one independent review against the code.
+they touch nothing the current phase changes. Real-ticket data collection runs from Phase 1 onward,
+under the data rules below. Between phases, the docs get one independent review against the code.
+
+### Standing rules (every phase)
+- **Runtime cost.** A PR that changes runtime text reports `scripts/measure_runtime.py` before and after.
+- **One working doc.** A new protocol item is a one-line counted line in an existing section, or a file
+  under `.mango/`, or printed and never written — never a new section or a second embedded document.
+- **Real-project data.** It stays in the project. A local script prints aggregate rows only (counts,
+  tokens, minutes, dates, lane, scope — no key, path, name or text); a human reads them before any row
+  reaches this public repo. Calibration keeps counts; each `not met` item stays in the project's
+  working doc. No real ticket becomes a fixture, renamed or not.
 
 ### Phase 0 — Publish, and stop doc growth
 - `PROTOCOL.md`, `ROADMAP.md`, `WRITING.md`, templates; README states the position.
@@ -50,22 +62,26 @@ Between phases, the docs get one independent review against the code.
 - Plugin README split into how-to, concept and generated reference pages; jargon, one-grammar and
   doc-consistency scans extended to `docs/**`.
 
-### Phase 1 — Honest gate records
-- Smoke-guard fixtures for `solve`, `quick`, `breakdown`, `doctor` first (uncovered today).
-- `GATE` line with decisions by human, by phase and by autorun; replaces gate rows in the Decision log.
-- The Disclosure gets a fixed path; `mango_state.py card` prints the status card from the doc and the
-  Disclosure; finalise pastes it in the PR.
-- Standalone challenge emits a verdict line under its own name, so it can never satisfy review.
-
-### Phase 2 — Measured proof
+### Phase 1 — Measured proof
+- `PROTOCOL: v0.2` read from the working doc; a doc without it keeps today's behaviour (`legacy`).
 - `PROOF` from the design's proving-test command on base source + head tests, then on head; classified
   by failure kind, with regression guards for refactors; reuses the e2e logic; unittest and pytest
   presets; timeout and opt-out per project.
-- Profiles `standard` and `strict` for v0.2 docs; `legacy` for everything older.
-- UI render proofs bound to commit, viewport and artifact hash.
+- The local, aggregate-only data script for real tickets.
+
+### Phase 2 — Honest gate records, status card, a lighter template
+- Smoke-guard fixtures for `solve`, `quick`, `breakdown`, `doctor` first (uncovered today).
+- `GATE` line with decisions by human, by phase and by autorun; replaces gate rows in the Decision log.
+- The Disclosure gets a fixed path; `mango_state.py card` prints the status card from the doc and the
+  Disclosure; finalise pastes it in the PR. Standalone challenge gets a verdict line of its own.
+- Profiles `standard` and `strict`; UI render proofs bound to commit, viewport and artifact hash.
+- `ticket.md`: epic and frontend sections added only when the path or track applies; instruction
+  comments moved to the skill that fills them; its header agrees with `embed` placement.
 - Spike: what Claude Code hooks can observe and block, including the Windows interpreter.
 
 ### Phase 3 — Observe, then attest
+- Decision first (A-00): whether the working doc and attestation go on the PR branch, and where, for
+  both a separate `<KEY>.work.md` and a doc embedded in the ticket file.
 - Hook guard in `observe` mode; the active-ticket pointer records key, doc and time; stale pointers
   reported by `doctor`.
 - Attestation bundling `check_lines`, stale-guard and `reconcile` results; deterministic CI check that
@@ -73,8 +89,8 @@ Between phases, the docs get one independent review against the code.
 - Stretch: UI state coverage (`STATES`).
 
 ### Phase 4 — Measure and decide
-- Challenger calibration and real-ticket cost from the data collected since Phase 1
-  (≥ 3 tickets per lane, ≥ 20 adjudicated `not met` items).
+- Challenger calibration and real-ticket cost from the aggregate rows collected since Phase 1
+  (≥ 3 tickets per lane, ≥ 20 adjudicated `not met` items, counts only).
 - Decide: protocol v1.0 now or after another cycle; which Later items start.
 
 ## Measures
@@ -86,7 +102,8 @@ Between phases, the docs get one independent review against the code.
 | Status card in PR body | no | every finalise |
 | PR check without a model | none | documented, scope stated in its name |
 | Plugin README | 654 lines | ≤ 120 |
-| Working-doc template | 4,278 words | does not grow (ratchet); reduction is a Later item |
+| Working-doc template | 4,278 words | lower, measured by `--update-budgets` |
+| Runtime words per full run | 34,377 | reported on every runtime PR; no more than +10% |
 | e2e cost per run | $3–5.5 | no more than +20% |
 | e2e working doc size | 363 lines | no more than +25% |
 
@@ -94,7 +111,7 @@ Between phases, the docs get one independent review against the code.
 
 | Item | Starts when |
 |---|---|
-| Shrink the working-doc template and skills | the status card ships, and a script defines "words loaded per full run" |
+| Shrink the skills | the lighter template has shipped and real-ticket rows show where words are spent |
 | Hook guard `enforce` mode | `observe` shows a low false-alarm rate on real tickets |
 | FE ↔ BE contract check | a fullstack pilot project with a contract command |
 | Visual diff (same-run baselines) | `sitemap` gives all reachable surfaces and the app runs on two trees in CI |
