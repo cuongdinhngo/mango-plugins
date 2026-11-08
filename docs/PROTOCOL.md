@@ -3,7 +3,7 @@
 > **In 30 seconds.** Gates closed by a named actor, claims as counted lines a script checks, a
 > verifier independent of the producer, and *not checked* never read as *passed*. Your agent and host
 > commands do the work; this is how mango shows it matches the ticket — and says what it could not show.
-> **Status:** formalises `1.21.0`; **Planned** parts name their roadmap phase in [`ROADMAP.md`](./ROADMAP.md).
+> **Status:** formalises `1.21.1`; **Planned** parts name their roadmap phase in [`ROADMAP.md`](./ROADMAP.md).
 > MUST / SHOULD / MAY per RFC 2119.
 
 ## 1. Trust properties
@@ -81,7 +81,7 @@ under autorun, checker exit 3 on a v0.2 doc leaves the gate open and goes to the
 | **Counted line** | One canonical grammar per line; no line without a parser. Registry: `check_lines.py grammars`. | Implemented |
 | **Evidence record** | Every output a gate relies on carries `Ran at <sha>`; `(pre-change)` blocks are bound to the base. Render proofs add `viewport <w>x<h>` and `artifact sha256:<…> <path>`. | Implemented; render binding Planned (phase 2) |
 | **Review marker** | `Reviewed at <sha>` + reviewed files; finalise refuses a PR if HEAD moved beyond them. | Implemented |
-| **Run contract, Reconcile, Disclosure** | Unattended-run conditions, their checked states, and what was not verified. Today the run contract is `.mango/run-contract-<KEY>.txt` and the skill names no Disclosure path; both move into the working doc. | Implemented; move Planned (phase 2) |
+| **Run contract, Reconcile, Disclosure** | Unattended-run conditions, their checked states, and what was not verified. The Disclosure is written in the PR body and the working doc, never a file. The run contract is `.mango/run-contract-<KEY>.txt` (the folder ignores itself; the post-merge `RECONCILE` prints `DONE` and its removal command); it moves into the working doc. | Implemented; contract move Planned (phase 2) |
 | **Status card** | ≤ 12 rows **printed** by the harness from the working doc (its Disclosure included); never written into the doc; pasted at the top of the PR body. A row without data prints `not-checkable`. Attended vs unattended is read from the presence of a run contract in the doc. | Planned (phase 2) |
 | **Attestation** | Per-ticket JSON bundling the results of `check_lines`, the stale-review guard and `reconcile`, with digests; no committed file unless §4.1's decision makes one. | Planned (phase 3) |
 
@@ -197,4 +197,4 @@ grammar the registry already has.
 | Version | Plugin | Change |
 |---|---|---|
 | v0.1 | 1.21.0 | First draft. |
-| v0.1 rev 2–4 | 1.21.0 | Two rounds of independent review: gates pass by phase; conformance per lane; exit codes per script; PROOF by failure kind with regression guards; `legacy` profile; printed status card reading a fixed Disclosure path; attestation recomputed vs carried; one place per grammar. Rev 4: measured proof is phase 1, gate records phase 2. |
+| v0.1 rev 2–4 | 1.21.1 | Two rounds of independent review: gates pass by phase; conformance per lane; exit codes per script; PROOF by failure kind with regression guards; `legacy` profile; printed status card reading the doc; attestation recomputed vs carried; one place per grammar. Rev 4: measured proof is phase 1, gate records phase 2. |

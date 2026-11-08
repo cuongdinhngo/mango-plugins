@@ -13,7 +13,7 @@ independently checks the work against the ticket, holds the gates a human approv
 of evidence to a commit, and says plainly what it could not verify. It never replaces native commands;
 recording their output as evidence is Planned (phase 3).
 
-## Where we are (1.21.0)
+## Where we are (1.21.1)
 
 - First-run path fixed: minimal config, tracker local mode, one-screen README, `/mango:challenge`.
 - `CHALLENGER VERDICT` is a counted line; evidence is bound to the reviewed commit; `(pre-change)`
@@ -21,6 +21,7 @@ recording their output as evidence is Planned (phase 3).
 - Weekly e2e `autorun` judged on artifacts: $3–5.5 and ≤ 10 minutes per run; findings #1 and #5 of
   its first runs fixed in 1.21.0.
 - Frontend track: falsifiable rubric, universal-surface coverage, proof tier ladder.
+- `autorun` leaves one file, the run contract, and `RECONCILE` says when it can go (1.21.1).
 
 Gaps the phases close:
 
@@ -74,8 +75,8 @@ under the data rules below. Between phases, the docs get one independent review 
 ### Phase 2 — Honest gate records, status card, a lighter template
 - Smoke-guard fixtures for `solve`, `quick`, `breakdown`, `doctor` first (uncovered today).
 - `GATE` line with decisions by human, by phase and by autorun; replaces gate rows in the Decision log.
-- `autorun`'s run contract and Disclosure move from `.mango/` files into the working doc, and its spec
-  file is removed after use; `mango_state.py card` prints the status card from the doc; finalise
+- `autorun`'s run contract moves from `.mango/` into the working doc (since 1.21.1 the Disclosure is
+  already in the PR body and the doc, the spec is scratch, and `.mango/` ignores itself); `mango_state.py card` prints the status card from the doc; finalise
   pastes it in the PR. Standalone challenge gets a verdict line of its own.
 - Profiles `standard` and `strict`; UI render proofs bound to commit, viewport and artifact hash.
 - `ticket.md`: epic and frontend sections added only when the path or track applies; instruction
