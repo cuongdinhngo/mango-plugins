@@ -530,3 +530,11 @@ hidden.
 - USD, `cost_tier` and model were dropped from the table because the approved field list does not name
   them; USD is derivable from session tokens and the published rate when a median is written.
 
+## run_contract — why the DISCLOSURE seed states configuration, not outcome (v1.23.1)
+
+- The seed is written at t0, before any phase. Anything it says about a seat can only be what the
+  contract configured. "The reviewer ran" was a claim about the future written as a fact; on a run
+  that stopped at Gate 1 it was false, and DISCLOSURE is the artifact the morning reader trusts most
+  because nothing else covers what it covers. The 1.23.0 golden e2e caught it only because the agent
+  noticed and corrected the line.
+

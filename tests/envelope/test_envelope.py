@@ -995,10 +995,16 @@ class TestDisclosureSeed(unittest.TestCase):
         self.assertIn("CHALLENGER: OFF", challenger_line)
         self.assertIn("not evidence of independence", challenger_line + seed)
 
-    def test_T11_the_default_records_both_seats_as_having_run(self):
+    def test_T11_the_default_records_both_seats_as_enabled_never_as_having_run(self):
+        """1.23.1 — the seed is written before any phase runs. An e2e run that stopped at Gate 1 carried
+        `the reviewer ran` in its DISCLOSURE although no review happened: the seed may state the
+        configuration only, never an outcome."""
         seed = rc.disclosure_seed(*rc.parse(contract())).splitlines()
         self.assertIn("REVIEWER: ON", seed[1])
         self.assertIn("CHALLENGER: ON", seed[2])
+        for line in seed[1:3]:
+            self.assertIn("enabled for this run", line)
+            self.assertNotRegex(line, r"(reviewer|challenger) ran\.")
 
     def test_T15_no_reviewer_alone_leaves_the_challenger_recorded_as_ON(self):
         """v1.14.0 F / T15 — the two seats are separate decisions. A morning reader must be able to
@@ -2066,6 +2072,17 @@ class TestProof(unittest.TestCase):
         self.assertNotIn("tests.test_x.X.test_d", results, "a test with no readable status is never a pass")
         self.assertEqual(failed, {})
 
+    def test_verbose_goes_after_discover_never_before_it(self):
+        """1.23.1 — an e2e run's design named `unittest discover -s tests -t .`; `-v` inserted before
+        `discover` made unittest reject `-s` and the proof `could-not-run`."""
+        argv, why = proof.plan_command("python3 -m unittest discover -s tests -t .")
+        self.assertIsNone(why)
+        self.assertEqual(argv[argv.index("unittest") + 1:argv.index("unittest") + 3], ["discover", "-v"])
+        argv, _ = proof.plan_command("python3 -m unittest tests.test_x")
+        self.assertEqual(argv[argv.index("unittest") + 1], "-v")
+        argv, _ = proof.plan_command("python3 -m unittest discover -v -s tests")
+        self.assertEqual(argv.count("-v"), 1)
+
     def test_the_proving_command_and_guards_are_read_from_phase_2_only(self):
         doc = ("- **Proving test**: `python3 -m unittest wrong`\n\n## Phase 2 — Design\n\n"
                "- **Proving test** (fails pre-change):\n  `python3 -m unittest right`\n"
@@ -2201,6 +2218,22 @@ class TestTicketStats(unittest.TestCase):
         out, status = self.cli(stats_doc(scope="S | M | L"), "--real", "1")
         self.assertIn("scope=unknown/3", out)
         self.assertEqual(status, 3)
+
+    def test_an_embedded_doc_is_read_below_the_separator_only(self):
+        """1.23.1 — under `work_doc_mode: embed` the ticket's own `## ` sections come first; the header
+        is below the separator. Both green e2e docs of 1.23.0 printed `lane=unknown scope=unknown`."""
+        ticket = ("# PROJ-1 — a ticket\n\n## Description\n\n- **SCOPE:** L\n- **TIER:** lite\n\n"
+                  "## Acceptance criteria\n\n- AC-1\n\n---\n\n"
+                  f"{ticket_stats.MANGO_SEPARATOR}\n\n")
+        out, status = self.cli(ticket + stats_doc(), "--real", "1")
+        self.assertIn("lane=full scope=M/3", out)
+        self.assertEqual(status, 0)
+
+    def test_the_backticked_header_shape_is_read(self):
+        doc = stats_doc().replace("- **SCOPE:** M\n- **TIER:** full\n", "`SCOPE: M` · `TIER: full`\n")
+        out, status = self.cli(doc, "--real", "1")
+        self.assertIn("lane=full scope=M/3", out)
+        self.assertEqual(status, 0)
 
     def test_the_row_form_matches_the_docs_cost_columns(self):
         out, _ = self.cli(stats_doc(), "--row", "--real", "1", "--mango", "1.23.0", "--minutes", "41")

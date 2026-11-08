@@ -38,8 +38,12 @@ carry (lane, scope, ledger, gates, not_met, date) was unreadable and is `unknown
 invalid option value, or an unreadable file.
 """
 
+import os
 import re
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from check_lines import MANGO_SEPARATOR, working_doc_body  # noqa: E402  the one reading of `embed`
 
 UNKNOWN = "unknown"
 
@@ -81,9 +85,10 @@ def section(secs, prefix):
 
 
 def header_value(header, label):
-    """The first word after `**<label>:**` in the header zone, or None."""
+    """The first word after `**<label>:**` (or in `` `<label>: x` ``) in the header zone, or None."""
     for line in header:
-        m = re.match(rf"\s*-\s*\*\*{label}:\*\*\s*([A-Za-z0-9.]+)", line)
+        m = (re.search(rf"\*\*{label}:\*\*\s*([A-Za-z0-9.]+)", line)
+             or re.search(rf"`{label}:\s*([A-Za-z0-9.]+)`", line))
         if m:
             rest = line[m.end():].lstrip()
             # The template's own placeholder (`S | M | L`) is not a value.
@@ -153,7 +158,12 @@ def read_date(status):
 
 def stats(text, lane=None, session_tokens=None, minutes=None, real=None, mango=None):
     """The row's fields (each a string matching FIELDS) and the doc-derived keys left unknown."""
-    secs = sections(text)
+    # Under `work_doc_mode: embed` the working doc is the part below the separator; the ticket's own
+    # `## ` sections above it are never read.
+    body = working_doc_body(text)[0]
+    if MANGO_SEPARATOR in text:
+        body = body.split("\n", 1)[-1]          # the separator line itself is not the header
+    secs = sections(body)
     header = secs[""]
     tier = header_value(header, "TIER")
     phase5 = section(secs, "Phase 5")
