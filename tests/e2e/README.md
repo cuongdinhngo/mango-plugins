@@ -20,8 +20,9 @@ deleted afterwards; nothing here is a repo to browse, and it is not linked from 
 - The PR host saw exactly one PR opened and no merge, close or API write.
 - The working doc exists with Phase 1–5 in order — a **local** artifact by mango's contract (never
   committed), as `<KEY>.work.md` or below the separator in the ticket file — and `DISCLOSURE` was left,
-  carrying the reviewer's and the challenger's state: in `.mango/`, in the PR body (the `gh` double
-  records the body it was given) or in the final output.
+  carrying the reviewer's and the challenger's state: in the PR body (the `gh` double records the body
+  it was given), the working doc or the final output — never as a file.
+- `.mango/` holds only its own `.gitignore` (`*`) and the run contract, and never shows in `git status`.
 - `Reviewed at <sha>` names a commit on the branch, and only bookkeeping changed after it.
 - `check_lines.py check --phase finalise --tree <reviewed sha> --base <base>` exits `0` (`3`, not
   checkable, is red).

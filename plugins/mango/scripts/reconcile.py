@@ -28,7 +28,9 @@ Phases
   --phase post-merge
                  after the human merged the PR and fetched. Runs EVERY condition, TREE-COMPARISON
                  included: a BROKEN here means a commit landed on the branch beyond what the merge
-                 carried, or something is stranded on this machine.
+                 carried, or something is stranded on this machine. When every declared condition
+                 holds, it prints `DONE` and the command that removes the contract: the contract has
+                 nothing left to check. It never removes the file itself.
 
 RETIRED in v1.14.0: `--prove`, the forced-case positive control. Across three field runs EVERY
 condition reported FORCE-UNPROVEN: the `force-broken` / `force-holding` cases of the shipped floor are
@@ -46,7 +48,8 @@ Subcommands
   run             <contract> --phase t0|close|post-merge [--repo DIR]
   merge-strategy  --repo DIR [--base main]
 
-Exit codes: 0 ok · 2 the contract does not parse, or a t0 condition reports HOLDING · 1 usage/IO.
+Exit codes: 0 ok · 2 the contract does not parse, or a t0 condition reports HOLDING or could-not-run ·
+1 usage/IO.
 """
 
 import sys
@@ -147,6 +150,11 @@ def reconcile(text, phase, repo=None):
             f"  PENDING MERGE: {pending} condition(s) not verified by this run — never holding. After "
             f"merging: git fetch {remote} && reconcile.py run <contract> --phase post-merge"
         )
+    if phase == "post-merge" and declared and holding == declared:
+        lines.append(
+            "  DONE: every condition holds after the merge — this contract has nothing left to check. "
+            "Remove it (mango never deletes it):"
+        )
     if phase in ("close", "post-merge") and could_not_run > 0:
         lines.append(
             f"  COULD NOT RUN: {could_not_run} condition(s) — the named shell was unavailable, so "
@@ -213,6 +221,8 @@ def main(argv):
                 print(f"reconcile: unknown phase '{phase}' — one of {', '.join(PHASES)}")
                 return 1
             lines, status = reconcile(text, phase, repo=opt("--repo"))
+            if any(line.startswith("  DONE:") for line in lines):
+                lines.append(f"    rm {args[0]}")
             print("\n".join(lines))
             return status
         if cmd == "merge-strategy":

@@ -5,6 +5,27 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.21.1] — 2026-11-08
+
+**`autorun` leaves no stray files.** It now writes one file outside the change and the working doc —
+the run contract — and that file has an end of life.
+
+- **`.mango/` ignores itself.** `autorun` writes `.mango/.gitignore` containing `*`, so the folder never
+  shows in `git status`. It never edits the project's `.gitignore` or `.git/info/exclude`.
+- **The spec is scratch.** `spec-<KEY>.json` is written to a `mktemp -d` directory outside the repo and
+  removed after `run_contract.py write`.
+- **DISCLOSURE is never a file.** It goes at the top of the PR body and under the working doc's
+  `## Phase 5` heading.
+- **The contract's end of life.** `reconcile.py run <contract> --phase post-merge` prints `DONE` and
+  the `rm` command when every declared condition holds. It never deletes the file itself.
+- **The golden e2e judges it.** `assert_run.py` is red when `.mango/` holds anything but its `.gitignore`
+  and the run contract, when the folder shows in `git status`, or when DISCLOSURE is missing from the PR
+  body, the working doc and the final output.
+- **Skill text.** The retired forced-case control and the `--tree` paragraph in `autorun` lose their
+  history sentences (kept here and in `RATIONALE.md`), so the skill stays under its word budget.
+- **Upgrading.** Folders left by earlier runs are not touched. After each merged ticket's post-merge
+  check, remove its files: `rm .mango/run-contract-<KEY>.txt .mango/disclosure-<KEY>.* .mango/spec-<KEY>.json`.
+
 ## [1.21.0] — 2026-11-06
 
 **`TREE-COMPARISON` is generated, and waits for the merge.** Golden e2e findings #1 and #5 (#20).

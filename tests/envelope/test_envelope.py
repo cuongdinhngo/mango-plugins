@@ -693,6 +693,27 @@ class TestPendingMergeAndPostMerge(unittest.TestCase):
         lines, status = reconcile.reconcile(self._text(), "post-merge", repo=work)
         joined = "\n".join(lines)
         self.assertIn("3 holding | 0 BROKEN | 0 UNBOUND | 0 could-not-run | 0 pending-merge", joined)
+        self.assertIn("DONE: every condition holds after the merge", joined)
+
+    def test_post_merge_done_prints_the_removal_command_and_deletes_nothing(self):
+        """1.21.1 — the contract's end of life: the script says it may go, the human removes it."""
+        bare, work = self._pushed_branch()
+        self._squash_merge_on_origin(bare)
+        git(work, "fetch", "-q", "origin")
+        path = os.path.join(self.tmp, "run-contract-PROJ-1.txt")
+        Path(path).write_text(self._text(), encoding="utf-8")
+        out = subprocess.run([sys.executable, str(SCRIPTS / "reconcile.py"), "run", path,
+                              "--phase", "post-merge", "--repo", work], capture_output=True, encoding="utf-8")
+        self.assertEqual(out.returncode, 0, out.stdout)
+        self.assertIn(f"    rm {path}", out.stdout)
+        self.assertTrue(os.path.exists(path), "reconcile must never delete the contract itself")
+
+    def test_no_done_line_unless_every_condition_holds(self):
+        bare, work = self._pushed_branch()
+        lines, _ = reconcile.reconcile(self._text(), "post-merge", repo=work)   # not merged: BROKEN
+        self.assertNotIn("DONE:", "\n".join(lines))
+        lines, _ = reconcile.reconcile(self._text(), "close", repo=work)
+        self.assertNotIn("DONE:", "\n".join(lines))
 
     def test_post_merge_a_correction_pushed_after_the_merge_is_BROKEN(self):
         """The incident TREE-COMPARISON exists for — and the refused remote-vs-local form HOLDS on it."""
