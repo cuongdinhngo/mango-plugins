@@ -1482,6 +1482,61 @@ def excl(n=0, e=0, r=0, o=0, s=0, c=0):
             f"{s} input-shape-dependent AC(s) | {c} proven on a real corpus")
 
 
+class TestProtocolHeader(unittest.TestCase):
+    """`PROTOCOL:` opts a doc into a protocol version. A doc without it is legacy and its report does not
+    change; an unknown version is never read as legacy and never passed."""
+
+    @staticmethod
+    def declare(field):
+        return workdoc().replace("- **SCOPE:** S\n", f"- **SCOPE:** S\n{field}\n")
+
+    @staticmethod
+    def without_doc_line(out):
+        """The report minus its `doc` line, line numbers dropped (the field adds a header line)."""
+        return [re.sub(r"\(line \d+\)", "(line N)", line)
+                for line in out.splitlines() if not line.startswith("  doc      :")]
+
+    def test_a_doc_without_the_field_is_legacy_and_reports_no_protocol(self):
+        out, status = run(workdoc())
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("protocol", out.lower())
+        self.assertIsNone(cl.read_header(workdoc())["protocol"])
+
+    def test_a_declared_version_is_named_on_the_doc_line_and_changes_nothing_else(self):
+        legacy, _ = run(workdoc())
+        for field in ("- **PROTOCOL:** v0.2", "`PROTOCOL: v0.2` · `TIER: full`"):
+            out, status = run(self.declare(field))
+            self.assertEqual(status, 0, out)
+            doc_line = next(line for line in out.splitlines() if line.startswith("  doc      :"))
+            self.assertTrue(doc_line.endswith("| protocol: v0.2"), doc_line)
+            self.assertEqual(self.without_doc_line(out), self.without_doc_line(legacy))
+
+    def test_an_unknown_version_is_not_checkable_never_legacy_or_a_pass(self):
+        out, status = run(self.declare("- **PROTOCOL:** v9"))
+        self.assertEqual(status, 3, out)
+        self.assertIn("| protocol: v9", out)
+        self.assertIn("NOT-CHECKABLE: the doc declares `PROTOCOL: v9`", out)
+
+    def test_an_unknown_version_does_not_hide_a_failure(self):
+        out, status = run(self.declare("- **PROTOCOL:** v9").replace("`PREMISE:", "`PREMISES:"))
+        self.assertEqual(status, 2, out)
+
+    def test_a_template_placeholder_is_not_a_declaration(self):
+        self.assertIsNone(cl.read_header(self.declare("- **PROTOCOL:** <v0.2 | omit>"))["protocol"])
+
+    def test_the_field_in_the_raw_ticket_above_the_embed_separator_is_ignored(self):
+        raw = ("# 101 — a raw ticket\n\n- **PROTOCOL:** v0.2\n\n"
+               f"<!-- ===== {cl.MANGO_SEPARATOR} ===== -->\n" + workdoc())
+        out, status = run(raw)
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("protocol", out.lower())
+
+    def test_the_field_is_never_reported_as_a_counted_line(self):
+        out, _ = run(self.declare("`PROTOCOL: v0.2` · `TIER: full`"))
+        self.assertIn("0 not-checkable", out)
+        self.assertNotIn("PROTOCOL:", out)
+
+
 class TestFixtureProvenance(unittest.TestCase):
     """A — an AC whose correctness depends on the SHAPE OF REAL INPUT may not close on authored
     fixtures alone. Four field cases, four real-data defects, four green fixture suites: the fixture is

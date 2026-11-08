@@ -76,6 +76,12 @@ doc's byte length and a content digest, so a quoted verdict belongs to one speci
 verdict quoted against a doc that has since changed is detectable. Beyond that it is a disclosure
 obligation on the caller, not a guarantee.
 
+PROTOCOL VERSION. A doc opts into a protocol version with a header field, `- **PROTOCOL:** v0.2` or
+`` `PROTOCOL: v0.2` ``. A doc that declares none is `legacy`: its report is byte-for-byte what it was
+before the field existed, and no axis added for a later version ever applies to it. A declared version
+is named on the `doc` line. A value this script does not know is NOT-CHECKABLE (exit 3), never read as
+legacy and never as a pass.
+
 SIZE MARGIN (--size-budget only). The `doc` line already carries the doc's byte length; given the
 project's ceiling it also carries the margin, and warns from 80%. mango measures no ceiling of its own
 — the project supplies it. It NEVER blocks: a budget is the project's rule, and this is a surfacing
@@ -83,7 +89,7 @@ before it bites rather than a discovery after.
 
 Exit codes: 0 clean · 2 a FAIL, a MISSING, a BROKEN gate condition, or evidence from another tree ·
 3 nothing failed but something was NOT CHECKABLE (an unknown counted line, an undeclared phase, an
-unreadable doc, evidence whose tree cannot be established) · 1 usage.
+unreadable doc, evidence whose tree cannot be established, an unknown protocol version) · 1 usage.
 """
 
 import hashlib
@@ -99,6 +105,9 @@ NUM = r"(?:\d{1,3}(?:,\d{3})+|\d+)"
 ANN = r"(?:\s*\([^()]*\))?"
 
 MANGO_SEPARATOR = "MANGO WORKING DOC (below this line is NOT part of the raw ticket)"
+
+# The protocol versions a doc may declare in its `PROTOCOL:` header field. No declaration is `legacy`.
+PROTOCOL_VERSIONS = ("v0.1", "v0.2")
 
 
 def pl(word, suffix="s"):
@@ -761,9 +770,9 @@ def broken_gates(token, counts):
 
 
 def read_header(text):
-    """Read the doc's own declared phase / TIER / TRACK. Absent -> None, never a guess."""
+    """Read the doc's own declared phase / TIER / TRACK / PROTOCOL. Absent -> None, never a guess."""
     body, _ = working_doc_body(text)
-    out = {"phase": None, "tier": None, "track": None, "epic": False}
+    out = {"phase": None, "tier": None, "track": None, "epic": False, "protocol": None}
     m = re.search(r"\*\*(?:Current phase|Phase)\s*:?\*\*\s*:?\s*([^\n·|]+)", body)
     if m:
         raw = m.group(1).strip().strip("*").lower()
@@ -781,6 +790,11 @@ def read_header(text):
             if m:
                 out[key] = m.group(1).strip().lower()
                 break
+    for pattern in (r"\*\*PROTOCOL:?\*\*:?[ \t]*([^\s`*<]+)", r"`PROTOCOL:[ \t]*([^\s`]+)`"):
+        m = re.search(pattern, body)
+        if m:
+            out["protocol"] = m.group(1).strip()
+            break
     if re.search(r"INPUT KIND:\s*epic|\bepic path\b", body, re.IGNORECASE):
         out["epic"] = True
     return out
@@ -960,6 +974,8 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
     tier = tier or header["tier"]
     track = track or header["track"]
     epic = epic or header["epic"]
+    protocol = header["protocol"]
+    protocol_known = protocol is None or protocol in PROTOCOL_VERSIONS
 
     emissions = find_emissions(text)
     by_token = {}
@@ -1037,7 +1053,8 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
         f"  gates    : {gate_read} arithmetic gate condition(s) read | {len(gate_broken)} BROKEN",
         f"  restated : {restated} carried-forward restatement(s), each re-checked for contradiction",
         f"  doc      : {path} | {doc_fingerprint(text)} | phase: {phase or 'UNKNOWN'} | "
-        f"TIER: {tier or 'unstated'} | TRACK: {track or 'unstated'}{size_field}",
+        f"TIER: {tier or 'unstated'} | TRACK: {track or 'unstated'}{size_field}"
+        + (f" | protocol: {protocol}" if protocol else ""),
     ]
     if evidence_line:
         lines.insert(4, evidence_line)      # between `gates` and `restated`, as the docstring shows
@@ -1055,11 +1072,16 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
         lines.append(
             "    NOT-CHECKABLE: the doc does not declare its phase, so the missing-when-required axis "
             "did not run. That axis is UNVERIFIED, not clean — declare the phase or pass --phase.")
+    if not protocol_known:
+        lines.append(
+            f"    NOT-CHECKABLE: the doc declares `PROTOCOL: {protocol}`, a version this script does not "
+            f"know (known: {', '.join(PROTOCOL_VERSIONS)}). It is not read as legacy and not passed — "
+            f"declare a known version, or remove the field for legacy behaviour.")
     if pending:
         lines.append(f"    pending (not yet required at {phase}): {', '.join(pending)}")
     if nfail or missing or gate_broken or evidence_stale:
         status = 2
-    elif nnc or required is None or evidence_unknown:
+    elif nnc or required is None or evidence_unknown or not protocol_known:
         status = 3
     else:
         status = 0

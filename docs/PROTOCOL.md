@@ -77,7 +77,7 @@ under autorun, checker exit 3 on a v0.2 doc leaves the gate open and goes to the
 | Artifact | Rule | Status |
 |---|---|---|
 | **Raw ticket** | Never edited by the producer; the verifier reads only the text above the working-doc separator. | Implemented |
-| **Working doc** | One per ticket, one file (a separate `<KEY>.work.md`, or under `embed` below the raw-ticket separator of a local ticket file); the single source of truth, and where everything mango generates for the ticket goes unless config or the ticket asks for a file; declares `TIER`, `TRACK`, and (Planned) `PROTOCOL`, `PROFILE`. Whether it is committed to the PR branch is **undecided** — see §4.1. | Implemented |
+| **Working doc** | One per ticket, one file (a separate `<KEY>.work.md`, or under `embed` below the raw-ticket separator of a local ticket file); the single source of truth, and where everything mango generates for the ticket goes unless config or the ticket asks for a file; declares `TIER`, `TRACK`, `PROTOCOL` (read; no axis is tied to a version yet), and (Planned) `PROFILE`. Whether it is committed to the PR branch is **undecided** — see §4.1. | Implemented |
 | **Counted line** | One canonical grammar per line; no line without a parser. Registry: `check_lines.py grammars`. | Implemented |
 | **Evidence record** | Every output a gate relies on carries `Ran at <sha>`; `(pre-change)` blocks are bound to the base. Render proofs add `viewport <w>x<h>` and `artifact sha256:<…> <path>`. | Implemented; render binding Planned (phase 2) |
 | **Review marker** | `Reviewed at <sha>` + reviewed files; finalise refuses a PR if HEAD moved beyond them. | Implemented |

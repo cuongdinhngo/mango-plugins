@@ -5,6 +5,14 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [Unreleased]
+
+- **`check_lines` reads the `PROTOCOL:` header field** (`- **PROTOCOL:** v0.2` or `` `PROTOCOL: v0.2` ``)
+  and names a declared version on its `doc` line. A doc without the field is `legacy`: its report is
+  unchanged, and no axis added for v0.2 will apply to it. An unknown version is NOT-CHECKABLE (exit 3),
+  never read as legacy. No axis depends on the version yet, and the ticket template does not declare
+  one yet: both arrive with `PROOF`.
+
 ## [1.21.1] — 2026-11-08
 
 **`autorun` leaves no stray files.** It now writes one file outside the change and the working doc —
