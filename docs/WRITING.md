@@ -52,7 +52,7 @@ one-grammar, doc consistency) must cover the page the text moves to.
 | **Roadmap** | What happens next, and when is it done? | [`roadmap.md`](./templates/roadmap.md) | 150 lines |
 | **Skill** (runtime) | What does the model do in this phase? | [`skill.md`](./templates/skill.md) | 2,000 words for a new skill; existing skills ratchet (below) |
 | **Agent, principle, plugin template** (runtime) | — | — | ratchet only: never grows without a recorded reason |
-| **Working-doc status card** | Where is this ticket right now? | [`status-card.md`](./templates/status-card.md) | 12 rows, printed by the harness (Planned, phase 1), never hand-written |
+| **Working-doc status card** | Where is this ticket right now? | [`status-card.md`](./templates/status-card.md) | 12 rows, printed by the harness (Planned, phase 2), never hand-written |
 
 ## The ratchet for existing text
 
