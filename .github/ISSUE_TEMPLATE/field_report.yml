@@ -1,58 +1,19 @@
 name: Field report
-description: You ran mango on a real ticket. Its columns match docs/COST.md, so reports can be added to that table.
+description: You ran mango on a real ticket. Paste the aggregate row ticket_stats.py prints, so it can be added to docs/COST.md.
 labels: [field-report]
 body:
   - type: markdown
     attributes:
-      value: Report measured figures only. Write `unknown` for anything you did not measure. Anonymise project names, paths and ticket keys.
-  - type: dropdown
-    id: lane
-    attributes:
-      label: Lane
-      options: [quick, full (solve), autorun, challenge only]
-    validations:
-      required: true
+      value: |
+        Run `python3 <mango>/scripts/ticket_stats.py <workdoc> --row` in your project (see docs/COST.md). The row holds counts, tokens, minutes, a lane, a scope letter, a version and a date only. Read it before you paste it. Do not paste your ticket, its working doc, paths, keys or names.
   - type: input
-    id: ticket
+    id: row
     attributes:
-      label: Ticket (S/M/L, files touched)
-      placeholder: "M, 3 files"
-    validations:
-      required: true
-  - type: input
-    id: stack
-    attributes:
-      label: Stack (generic, e.g. "typed backend + SQL")
-  - type: input
-    id: dispatch_tokens
-    attributes:
-      label: Dispatch tokens (Cost ledger total, plus count of unmeasured cells)
-      placeholder: "unknown"
-  - type: input
-    id: session_tokens
-    attributes:
-      label: Session tokens (the host's own figure) and USD, with the rate used
-      placeholder: "unknown"
-  - type: input
-    id: wall
-    attributes:
-      label: Wall-clock
-  - type: input
-    id: gates
-    attributes:
-      label: Gates approved (including any sent back)
-  - type: input
-    id: not_met
-    attributes:
-      label: Challenger `not met` items that were real defects, as real / raised
-      placeholder: "1 / 2"
-  - type: input
-    id: meta
-    attributes:
-      label: cost_tier, mango version, model, date (YYYY-MM-DD)
+      label: The row ticket_stats.py --row printed
+      placeholder: "| full | M/3 | 2 | 62021 | 0 | unknown | 41 | 2 | 1/2 | 1.23.0 | 2026-11-06 |"
     validations:
       required: true
   - type: textarea
     id: friction
     attributes:
-      label: What got in the way
+      label: What got in the way (optional; no project details)

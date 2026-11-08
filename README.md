@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.22.0-blue)
+![version](https://img.shields.io/badge/version-1.23.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -104,7 +104,7 @@ Every push to `main` ships; every version bump is tagged `v<version>` with a
 ```
 /plugin marketplace update mango-plugins                    # update to the latest
 /plugin install mango@mango-plugins
-/plugin marketplace add cuongdinhngo/mango-plugins#v1.22.0  # or pin a tag (current shown; any works)
+/plugin marketplace add cuongdinhngo/mango-plugins#v1.23.0  # or pin a tag (current shown; any works)
 ```
 
 ## Contributing and license

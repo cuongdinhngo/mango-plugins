@@ -3212,6 +3212,31 @@ def validate_root_readme_docs():
                   f"root-readme: docs/COST.md row has no run date in its last column (measured rows only): {row[:80]}")
         check(bool(rows) or "No measurements are recorded yet" in cost.read_text(encoding="utf-8"),
               "root-readme: docs/COST.md with no rows must say plainly that no measurements are recorded yet")
+        validate_cost_rows(cost.read_text(encoding="utf-8"))
+
+
+def validate_cost_rows(text):
+    """1.23.0 — a docs/COST.md row is aggregate-only: exactly ticket_stats.py's FIELDS as columns, and
+    every cell in its field's shape (a number, a fixed word, a version, a date). A ticket key, a path, a
+    name or any prose in a cell is refused, so real-project data cannot ride a row into this repo."""
+    sys.path.insert(0, str(ROOT / "plugins" / "mango" / "scripts"))
+    try:
+        import ticket_stats as ts                               # noqa: PLC0415 - loaded on demand
+    except ImportError as exc:                                  # pragma: no cover - import guard
+        check(False, f"cost: cannot import ticket_stats.py ({exc})")
+        return
+    heads = [head for _, head, _ in ts.FIELDS]
+    tables = [l for l in text.splitlines() if l.startswith("|") and not set(l) <= set("|-: ")]
+    check(bool(tables) and [c.strip() for c in tables[0].strip("|").split("|")] == heads,
+          f"cost: docs/COST.md's table header must be exactly ticket_stats.py's columns: {' | '.join(heads)}")
+    for row in tables[1:]:
+        cells = [c.strip() for c in row.strip("|").split("|")]
+        check(len(cells) == len(ts.FIELDS),
+              f"cost: docs/COST.md row has {len(cells)} cells, not {len(ts.FIELDS)} (aggregate fields only)")
+        for (key, _, _), cell in zip(ts.FIELDS, cells):
+            check(ts.PATTERNS[key].match(cell) is not None,
+                  f"cost: docs/COST.md cell for {key} is outside its shape {ts.PATTERNS[key].pattern} — "
+                  "aggregate fields only, paste the row ticket_stats.py --row prints")
 
 
 BUDGET_LEDGER = ROOT / "docs" / "budgets.json"
