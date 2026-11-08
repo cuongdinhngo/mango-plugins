@@ -3360,6 +3360,96 @@ def validate_doc_budgets():
           "budget: scripts/measure_runtime.py must measure every file of its full-run definition")
 
 
+PROTOCOL_NON_LINE_WORDS = {"BROKEN", "HOLDING", "MISSING", "LGTM", "UNVERIFIED"}
+
+
+def protocol_problems(text, grammars, not_counted):
+    """docs/PROTOCOL.md against the counted-line registry. Pure: returns failure messages.
+
+    (1) every ALL-CAPS backtick name is a registered grammar, a documented non-counted label, a verdict
+        state word, or sits in Planned text (its own line, or the nearest heading / bold lead above it,
+        says Planned);
+    (2) the page never spells out the grammar of a token the registry already has — one fact, one place;
+    (3) the version table has a row for the version and revision in the page's title, whose plugin
+        cell is the version the 30-second box says the protocol formalises."""
+    problems = []
+    lines = text.splitlines()
+    context = ""
+    for line in lines:
+        if line.startswith("#") or line.startswith("**"):
+            context = line
+        planned = "Planned" in line or "Planned" in context
+        for name in re.findall(r"`([A-Z][A-Z0-9 -]*[A-Z0-9])`", line):
+            if name in grammars or name in not_counted or name in PROTOCOL_NON_LINE_WORDS or planned:
+                continue
+            problems.append(f"protocol: docs/PROTOCOL.md names `{name}`, which check_lines.py has no grammar "
+                            "for, and the text does not mark it Planned")
+    for token in grammars:
+        spelled = re.compile(rf"(^|`)\s*{re.escape(token)}:\s*[^`]*<[a-zA-Z]")
+        for line in lines:
+            cells = [c.strip() for c in re.split(r"(?<!\\)\|", line.strip().strip("|"))] if line.startswith("|") else []
+            in_table = bool(cells) and cells[0] == f"`{token}`" and any(
+                re.search(r"`[^`]*<[a-zA-Z]", c) for c in cells[1:])
+            if spelled.search(line) or in_table:
+                problems.append(f"protocol: docs/PROTOCOL.md spells out the grammar of `{token}`, which "
+                                "check_lines.py already registers — keep its name, identity and clean condition "
+                                "and link the generated reference instead")
+                break
+    head = re.search(r"^# .*\b(v\d+\.\d+)\b.*?(?:revision (\d+))?\)?\s*$", text, re.MULTILINE)
+    formalises = re.search(r"formalises `(\d+\.\d+\.\d+)`", text)
+    if not head or not formalises:
+        problems.append("protocol: docs/PROTOCOL.md's title must name its version (`v0.x`, optional "
+                        "`revision N`) and its 30-second box the plugin version it formalises")
+        return problems
+    version, revision = head.group(1), int(head.group(2) or 1)
+    found = False
+    for line in lines:
+        m = re.match(rf"^\|\s*{re.escape(version)}(?: rev (\d+)(?:[–-](\d+))?)?\s*\|\s*([^|]+?)\s*\|", line)
+        if not m:
+            continue
+        low = int(m.group(1) or 1)
+        high = int(m.group(2) or low)
+        if low <= revision <= high and m.group(3) == formalises.group(1):
+            found = True
+    if not found:
+        problems.append(f"protocol: docs/PROTOCOL.md's version table has no row for {version} revision "
+                        f"{revision} at plugin {formalises.group(1)}")
+    return problems
+
+
+def validate_protocol_grammar():
+    """docs/PROTOCOL.md §8 — a grammar lives in one place. The page names counted lines; check_lines.py
+    owns their grammar. Registry names come from importing check_lines, never from parsing its text."""
+    path = ROOT / "docs" / "PROTOCOL.md"
+    if not check(path.exists(), "protocol: docs/PROTOCOL.md is missing"):
+        return
+    sys.path.insert(0, str(ROOT / "plugins" / "mango" / "scripts"))
+    try:
+        import check_lines as cl                               # noqa: PLC0415 - loaded on demand
+    except Exception as exc:                                   # noqa: BLE001 - report, never crash
+        check(False, f"protocol: cannot import check_lines.py ({exc})")
+        return
+    grammars, not_counted = set(cl.GRAMMARS), set(cl.NOT_COUNTED)
+
+    head = "# P — v0.1 (Draft, revision 2)\n> formalises `1.0.0`\n"
+    table = "| v0.1 | 1.0.0 | a |\n| v0.1 rev 2 | 1.0.0 | b |\n"
+    check(protocol_problems(head + "`CLARIFICATION` counts.\n" + table, grammars, not_counted) == [],
+          "protocol: a page naming a registered line, with a matching version row, must pass")
+    check(len(protocol_problems(head + "`CLARIFICATIONS` counts.\n" + table, grammars, not_counted)) == 1,
+          "protocol: a renamed counted line must fail")
+    check(protocol_problems(head + "**X — Planned.** `NEWLINE` lines.\n" + table, grammars, not_counted) == [],
+          "protocol: a name in Planned text may be unregistered")
+    check(len(protocol_problems(head + "`CLARIFICATION: <M> raised`\n" + table, grammars, not_counted)) == 1,
+          "protocol: a copied grammar of a registered line must fail")
+    check(len(protocol_problems(head + "| `CLARIFICATION` | `<M> raised` |\n" + table, grammars, not_counted)) == 1,
+          "protocol: a registered grammar in a table row must fail")
+    check(len(protocol_problems(head.replace("revision 2", "revision 3") + table, grammars, not_counted)) == 1,
+          "protocol: a title revision with no version-table row must fail")
+
+    for problem in protocol_problems(path.read_text(encoding="utf-8"), grammars, not_counted):
+        check(False, problem)
+
+
 def validate_golden_e2e():
     """The golden e2e (tests/e2e/) dispatches a full unattended lifecycle, so its cost guard is
     structural: the workflow runs on a schedule and on demand, never on push or pull_request; the run
@@ -3643,6 +3733,7 @@ def main():
     validate_challenge_standalone()
     validate_root_readme_docs()
     validate_doc_budgets()
+    validate_protocol_grammar()
     validate_golden_e2e()
     validate_delegation_agents()
     validate_maturity_count()

@@ -191,7 +191,7 @@ verifier or closes a gate. (**Planned, phase 3.**)
 [`STABILITY.md`](./STABILITY.md). **One fact, one place:** a grammar is written here only while it is
 Planned. The PR that implements it moves the grammar into `check_lines.py` and leaves here only the
 line's name, its identity and its clean condition, with a link to the generated
-`reference/lines.md` (Planned, phase 0). Planned (phase 0): `validate.py` fails if this page still spells out a
+`reference/lines.md` (Planned, phase 0). `validate.py` fails if this page still spells out a
 grammar the registry already has.
 
 | Version | Plugin | Change |
