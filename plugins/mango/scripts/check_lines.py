@@ -76,7 +76,8 @@ doc's byte length and a content digest, so a quoted verdict belongs to one speci
 verdict quoted against a doc that has since changed is detectable. Beyond that it is a disclosure
 obligation on the caller, not a guarantee.
 
-PROTOCOL VERSION. A doc opts into a protocol version with a header field, `- **PROTOCOL:** v0.2` or
+PROTOCOL VERSION. A doc opts into a protocol version with a field in its header (before the first
+`## ` section), `- **PROTOCOL:** v0.2` or
 `` `PROTOCOL: v0.2` ``. A doc that declares none is `legacy`: its report is byte-for-byte what it was
 before the field existed, and no axis added for a later version ever applies to it. A declared version
 is named on the `doc` line. A value this script does not know is NOT-CHECKABLE (exit 3), never read as
@@ -572,6 +573,32 @@ GRAMMARS = {
         "required_at": None,          # codify is opt-in, not a lifecycle phase
         "emitter": "codify",
     },
+    "PROOF": {
+        "canonical": "PROOF: <n> proving test(s) | <p> proven | <r> regression-guard | <z> green@base | "
+                     "<e> env-fault@base | <g> not green@head | <f> flaky | <c> could-not-run",
+        "segments": [
+            seg("n", r"proving " + pl("test"), "<n> proving test(s)"),
+            seg("p", r"proven", "<p> proven"),
+            seg("r", r"regression-guard", "<r> regression-guard"),
+            seg("z", r"green@base", "<z> green@base"),
+            seg("e", r"env-fault@base", "<e> env-fault@base"),
+            seg("g", r"not green@head", "<g> not green@head"),
+            seg("f", r"flaky", "<f> flaky"),
+            seg("c", r"could-not-run", "<c> could-not-run"),
+        ],
+        "rules": [
+            (lambda c: c["n"] == c["p"] + c["r"] + c["z"] + c["e"] + c["g"] + c["f"] + c["c"],
+             "n != p + r + z + e + g + f + c — every proving test has exactly one result"),
+        ],
+        "gates": [
+            (lambda c: c["n"] >= 1, "n = 0 — no proving test ran, so nothing is proven: BLOCKS Gate 4"),
+            (lambda c: c["z"] == 0, "z > 0 — a proof that passes at base proves nothing: BLOCKS Gate 4"),
+            (lambda c: c["g"] == 0, "g > 0 — a proving test is not green at head: BLOCKS Gate 4"),
+        ],
+        "required_at": "review", "protocol": "v0.2",
+        "waived_by": r"PROOF waived \(verification\.proof\.enabled: false\)",
+        "emitter": "review (proof.py)",
+    },
     "LEDGER TOTAL": {
         "canonical": "LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>",
         "segments": [
@@ -790,8 +817,11 @@ def read_header(text):
             if m:
                 out[key] = m.group(1).strip().lower()
                 break
+    # Read from the header only — the lines before the first `## ` section — so prose quoting the
+    # field later in the doc (a recalled lesson, a pasted note) never declares a version.
+    head = re.split(r"^## ", body, maxsplit=1, flags=re.M)[0]
     for pattern in (r"\*\*PROTOCOL:?\*\*:?[ \t]*([^\s`*<]+)", r"`PROTOCOL:[ \t]*([^\s`]+)`"):
-        m = re.search(pattern, body)
+        m = re.search(pattern, head)
         if m:
             out["protocol"] = m.group(1).strip()
             break
@@ -800,7 +830,7 @@ def read_header(text):
     return out
 
 
-def required_tokens(phase, tier, track, epic, body=""):
+def required_tokens(phase, tier, track, epic, body="", protocol=None):
     """The lines this doc was required to emit, through `phase`. None when the phase is undeclared.
 
     Keyed on the doc's own lane so the check is never a tax: a `TIER: lite` doc is held only to the two
@@ -822,6 +852,8 @@ def required_tokens(phase, tier, track, epic, body=""):
             continue
         if spec.get("frontend_only") and (track or "backend") == "backend":
             continue
+        if spec.get("protocol") and spec["protocol"] != protocol:
+            continue        # a line a later protocol version added: required only of a doc declaring it
         if spec.get("waived_by") and re.search(spec["waived_by"], body):
             continue        # a seat waived by its recorded flag emits no line for that seat
         out.append(token)
@@ -1019,7 +1051,7 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
             verdicts[key] = PASS
             details.append(f"    {key}: {PASS} (line {em['line']})")
 
-    required = required_tokens(phase, tier, track, epic, text)
+    required = required_tokens(phase, tier, track, epic, text, protocol)
     missing = [t for t in (required or []) if t not in verdicts]
 
     notes = []
@@ -1031,7 +1063,8 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
                      "only for a universal/app-wide requirement, a judgement this script does not make.")
 
     pending = sorted(t for t, s in GRAMMARS.items()
-                     if t not in verdicts and s.get("required_at") and t not in (required or []))
+                     if t not in verdicts and s.get("required_at") and t not in (required or [])
+                     and s.get("protocol") in (None, protocol))
 
     # The evidence axis runs ONLY when the caller names the tree under review. Without it the axis is
     # absent from the report entirely — it is not silently "clean", it simply was not asked.
@@ -1106,6 +1139,8 @@ def main(argv):
         for token in sorted(GRAMMARS):
             spec = GRAMMARS[token]
             at = spec.get("required_at") or ("epic path" if spec.get("epic_required") else "conditional")
+            if spec.get("protocol"):
+                at += f" (docs declaring PROTOCOL: {spec['protocol']})"
             print(f"  {token}\n    emitted by : {spec['emitter']}\n    required at: {at}\n"
                   f"    canonical  : {spec['canonical']}")
         return 0

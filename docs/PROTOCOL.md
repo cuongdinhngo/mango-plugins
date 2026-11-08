@@ -1,10 +1,9 @@
-# The mango protocol — v0.1 (Draft, revision 4)
+# The mango protocol — v0.1 (Draft, revision 5)
 
 > **In 30 seconds.** Gates closed by a named actor, claims as counted lines a script checks, a
 > verifier independent of the producer, and *not checked* never read as *passed*. Your agent and host
 > commands do the work; this is how mango shows it matches the ticket — and says what it could not show.
-> **Status:** formalises `1.21.1`; **Planned** parts name their roadmap phase in [`ROADMAP.md`](./ROADMAP.md).
-> MUST / SHOULD / MAY per RFC 2119.
+> **Status:** formalises `1.22.0`; **Planned** parts name their phase in [`ROADMAP.md`](./ROADMAP.md); RFC 2119.
 
 ## 1. Trust properties
 
@@ -77,7 +76,7 @@ under autorun, checker exit 3 on a v0.2 doc leaves the gate open and goes to the
 | Artifact | Rule | Status |
 |---|---|---|
 | **Raw ticket** | Never edited by the producer; the verifier reads only the text above the working-doc separator. | Implemented |
-| **Working doc** | One per ticket, one file (a separate `<KEY>.work.md`, or under `embed` below the raw-ticket separator of a local ticket file); the single source of truth, and where everything mango generates for the ticket goes unless config or the ticket asks for a file; declares `TIER`, `TRACK`, `PROTOCOL` (read; no axis is tied to a version yet), and (Planned) `PROFILE`. Whether it is committed to the PR branch is **undecided** — see §4.1. | Implemented |
+| **Working doc** | One per ticket, one file (a separate `<KEY>.work.md`, or under `embed` below the raw-ticket separator of a local ticket file); the single source of truth, and where everything mango generates for the ticket goes unless config or the ticket asks for a file; declares `TIER`, `TRACK`, `PROTOCOL` (`v0.2` requires `PROOF`), and (Planned) `PROFILE`. Whether it is committed to the PR branch is **undecided** — see §4.1. | Implemented |
 | **Counted line** | One canonical grammar per line; no line without a parser. Registry: `check_lines.py grammars`. | Implemented |
 | **Evidence record** | Every output a gate relies on carries `Ran at <sha>`; `(pre-change)` blocks are bound to the base. Render proofs add `viewport <w>x<h>` and `artifact sha256:<…> <path>`. | Implemented; render binding Planned (phase 2) |
 | **Review marker** | `Reviewed at <sha>` + reviewed files; finalise refuses a PR if HEAD moved beyond them. | Implemented |
@@ -113,21 +112,20 @@ that has not opted into v0.2: upgrading never turns a passing doc into a failing
 
 mango bundles no test runner; with no project command a check is `could-not-run` — disclosed.
 
-### 5.2 Verification lines — Planned (`PROOF` phase 1, `VERIFY` phase 2, `STATES` phase 3)
+### 5.2 Verification lines — `PROOF` Implemented; `VERIFY` Planned (phase 2), `STATES` (phase 3)
 
-Each line has an **identity** (the numbers must add up, or the line is written wrong) and a **clean
-condition** (what G4 needs).
+Each line has an **identity** (the numbers must add up) and a **clean condition** (what G4 needs).
 
 | Line | Grammar | Identity | Clean when |
 |---|---|---|---|
 | `VERIFY` | `profile <p> \| <r> required \| <d> done \| <x> failed \| <w> waived \| <c> could-not-run \| <f> flaky` | `r = d+x+w+c+f` | `x = 0` |
-| `PROOF` | `<n> proving test(s) \| <p> proven \| <r> regression-guard \| <z> green@base \| <e> env-fault@base \| <g> not green@head \| <f> flaky \| <c> could-not-run` | `n = p+r+z+e+g+f+c` | `z = 0`, `g = 0`; at strict also `e = 0`, `c = 0` |
+| `PROOF` | [registry](./reference/lines.md) | `n = p+r+z+e+g+f+c` | `n ≥ 1`, `z = 0`, `g = 0`; at strict also `e = 0`, `c = 0` |
 | `STATES` | `<n> required \| <p> proven \| <m> missing \| <x> excluded` | `n = p+m+x` | `m = 0` |
 
 **Proof.** The harness runs the design's **proving-test command** twice: on the base source with the
-head's tests (the setup execute already uses for its `(pre-change)` block), then on the reviewed
-commit. Classification is **by the kind of failure, never by how many tests fail** — at base every
-new proving test is expected to fail:
+head's tests (the setup execute already uses for its `(pre-change)` block), then on the reviewed commit.
+Classification is **by the kind of failure, never by how many tests fail** — at base every new proving
+test is expected to fail:
 
 | First run (base source + head tests) | Second run (head) | Result |
 |---|---|---|
@@ -135,11 +133,13 @@ new proving test is expected to fail:
 | collection error, connection error, or an import of something present in **both** trees | — | `env-fault@base` |
 | passes, and the design declared the test a **regression guard** (approved at G2) | passes | `regression-guard` — expected, never blocks |
 | passes, and the design declared it as proof | — | `green@base` — proves nothing, blocks |
-| — | fails | `not green@head` |
-| fails once, passes on one re-run | — | `flaky` |
+| — | fails, errors or skips | `not green@head` |
+| — | fails once, passes on one re-run | `flaky` |
 
-Refactor, docs and config tickets use regression guards. *Open:* in compiled languages a new API breaks
-the build at base; until a second e2e sample proves a rule, such tests are `env-fault@base`, disclosed.
+Refactor, docs and config tickets use regression guards, declared at G2. `proof.py` (required at review of
+a v0.2 doc) reads `unittest` only; another runner is `could-not-run` until a recorded sample proves how to
+read it. `verification.proof.enabled: false` records a waiver line. *Open:* in compiled languages a new
+API breaks the build at base; such tests are `env-fault@base`, disclosed.
 
 ### 5.3 UI verification
 
@@ -189,12 +189,12 @@ verifier or closes a gate. (**Planned, phase 3.**)
 
 `v0.x` is Draft and may change meaning between minors. `v1.0` freezes it under
 [`STABILITY.md`](./STABILITY.md). **One fact, one place:** a grammar is written here only while it is
-Planned. The PR that implements it moves the grammar into `check_lines.py` and leaves here only the
-line's name, its identity and its clean condition, with a link to the generated
-`reference/lines.md` (Planned, phase 0). `validate.py` fails if this page still spells out a
-grammar the registry already has.
+Planned; the PR that implements it moves it into `check_lines.py` and leaves here the line's name,
+identity and clean condition, linking the generated `reference/lines.md`. `validate.py` fails if this
+page still spells out a grammar the registry already has.
 
 | Version | Plugin | Change |
 |---|---|---|
 | v0.1 | 1.21.0 | First draft. |
+| v0.1 rev 5 | 1.22.0 | `PROTOCOL:` read from the doc header; `PROOF` implemented, required of v0.2 docs. |
 | v0.1 rev 2–4 | 1.21.1 | Two rounds of independent review: gates pass by phase; conformance per lane; exit codes per script; PROOF by failure kind with regression guards; `legacy` profile; printed status card reading the doc; attestation recomputed vs carried; one place per grammar. Rev 4: measured proof is phase 1, gate records phase 2. |

@@ -60,6 +60,8 @@ def lines_page():
     for token in sorted(cl.GRAMMARS):
         spec = cl.GRAMMARS[token]
         at = spec.get("required_at") or ("epic path" if spec.get("epic_required") else "conditional")
+        if spec.get("protocol"):
+            at += f" (`PROTOCOL: {spec['protocol']}` docs)"
         rows.append(f"| `{token}` | {cell(spec['emitter'])} | {cell(at)} | `{cell(spec['canonical'])}` |")
     page = (HEADER + "# Counted lines reference\n\n"
             "> **In 30 seconds.** Every counted line mango ships, with its one canonical grammar. Look up, don't\n"
