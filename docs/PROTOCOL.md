@@ -77,13 +77,13 @@ under autorun, checker exit 3 on a v0.2 doc leaves the gate open and goes to the
 | Artifact | Rule | Status |
 |---|---|---|
 | **Raw ticket** | Never edited by the producer; the verifier reads only the text above the working-doc separator. | Implemented |
-| **Working doc** | One per ticket, one file (a separate `<KEY>.work.md`, or under `embed` below the raw-ticket separator of a local ticket file); the single source of truth; declares `TIER`, `TRACK`, and (Planned) `PROTOCOL`, `PROFILE`. Whether it is committed to the PR branch is **undecided** — see §4.1. | Implemented |
+| **Working doc** | One per ticket, one file (a separate `<KEY>.work.md`, or under `embed` below the raw-ticket separator of a local ticket file); the single source of truth, and where everything mango generates for the ticket goes unless config or the ticket asks for a file; declares `TIER`, `TRACK`, and (Planned) `PROTOCOL`, `PROFILE`. Whether it is committed to the PR branch is **undecided** — see §4.1. | Implemented |
 | **Counted line** | One canonical grammar per line; no line without a parser. Registry: `check_lines.py grammars`. | Implemented |
 | **Evidence record** | Every output a gate relies on carries `Ran at <sha>`; `(pre-change)` blocks are bound to the base. Render proofs add `viewport <w>x<h>` and `artifact sha256:<…> <path>`. | Implemented; render binding Planned (phase 2) |
 | **Review marker** | `Reviewed at <sha>` + reviewed files; finalise refuses a PR if HEAD moved beyond them. | Implemented |
-| **Run contract, Reconcile, Disclosure** | Unattended-run conditions, their checked states, and what was not verified. The Disclosure gets a fixed path, `.mango/disclosure-<KEY>.txt` (today the skill names none). | Implemented; fixed path Planned (phase 2) |
-| **Status card** | ≤ 12 rows **printed** by the harness from the working doc **and the Disclosure**; never written into the doc; pasted at the top of the PR body. A row without data prints `not-checkable`. Attended vs unattended is read from the presence of `.mango/run-contract-<KEY>.txt`. | Planned (phase 2) |
-| **Attestation** | Per-ticket JSON bundling the results of `check_lines`, the stale-review guard and `reconcile`, with digests. | Planned (phase 3) |
+| **Run contract, Reconcile, Disclosure** | Unattended-run conditions, their checked states, and what was not verified. Today the run contract is `.mango/run-contract-<KEY>.txt` and the skill names no Disclosure path; both move into the working doc. | Implemented; move Planned (phase 2) |
+| **Status card** | ≤ 12 rows **printed** by the harness from the working doc (its Disclosure included); never written into the doc; pasted at the top of the PR body. A row without data prints `not-checkable`. Attended vs unattended is read from the presence of a run contract in the doc. | Planned (phase 2) |
+| **Attestation** | Per-ticket JSON bundling the results of `check_lines`, the stale-review guard and `reconcile`, with digests; no committed file unless §4.1's decision makes one. | Planned (phase 3) |
 
 ### 4.1 What a pull request can prove — Planned (phase 3)
 

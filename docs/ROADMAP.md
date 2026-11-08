@@ -49,8 +49,10 @@ under the data rules below. Between phases, the docs get one independent review 
 
 ### Standing rules (every phase)
 - **Runtime cost.** A PR that changes runtime text reports `scripts/measure_runtime.py` before and after.
-- **One working doc.** A new protocol item is a one-line counted line in an existing section, or a file
-  under `.mango/`, or printed and never written — never a new section or a second embedded document.
+- **Few generated files.** What mango produces for a ticket goes into its working doc — under `embed`,
+  only into the ticket's mango section below the separator — or is printed and never written. A
+  separate project file only when the project's config or the ticket asks for one: a generated file
+  nobody keeps current goes stale and misleads. A new protocol item is one line in an existing section.
 - **Real-project data.** It stays in the project. A local script prints aggregate rows only (counts,
   tokens, minutes, dates, lane, scope — no key, path, name or text); a human reads them before any row
   reaches this public repo. Calibration keeps counts; each `not met` item stays in the project's
@@ -72,8 +74,9 @@ under the data rules below. Between phases, the docs get one independent review 
 ### Phase 2 — Honest gate records, status card, a lighter template
 - Smoke-guard fixtures for `solve`, `quick`, `breakdown`, `doctor` first (uncovered today).
 - `GATE` line with decisions by human, by phase and by autorun; replaces gate rows in the Decision log.
-- The Disclosure gets a fixed path; `mango_state.py card` prints the status card from the doc and the
-  Disclosure; finalise pastes it in the PR. Standalone challenge gets a verdict line of its own.
+- `autorun`'s run contract and Disclosure move from `.mango/` files into the working doc, and its spec
+  file is removed after use; `mango_state.py card` prints the status card from the doc; finalise
+  pastes it in the PR. Standalone challenge gets a verdict line of its own.
 - Profiles `standard` and `strict`; UI render proofs bound to commit, viewport and artifact hash.
 - `ticket.md`: epic and frontend sections added only when the path or track applies; instruction
   comments moved to the skill that fills them; its header agrees with `embed` placement.
@@ -82,9 +85,10 @@ under the data rules below. Between phases, the docs get one independent review 
 ### Phase 3 — Observe, then attest
 - Decision first (A-00): whether the working doc and attestation go on the PR branch, and where, for
   both a separate `<KEY>.work.md` and a doc embedded in the ticket file.
-- Hook guard in `observe` mode; the active-ticket pointer records key, doc and time; stale pointers
-  reported by `doctor`.
-- Attestation bundling `check_lines`, stale-guard and `reconcile` results; deterministic CI check that
+- Hook guard in `observe` mode: warnings are printed, not logged to a file; the active-ticket pointer
+  (key, doc, time) is runtime state, never committed; stale pointers reported by `doctor`.
+- Attestation bundling `check_lines`, stale-guard and `reconcile` results — no committed file unless
+  A-00 decides one; deterministic CI check that
   names the profile in its title and reports lite-lane PRs as `neutral — no verifier`.
 - Stretch: UI state coverage (`STATES`).
 

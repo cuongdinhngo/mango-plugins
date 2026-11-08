@@ -2,8 +2,8 @@
      writes the doc). Finalise pastes it at the top of the PR body; a human may paste it anywhere.
      12 rows maximum. A row whose data the doc does not carry prints `not-checkable`, never a guess,
      never "⏳" and never "none". Omit a row only when it does not apply (UI rows on a backend track).
-     attended/unattended = whether .mango/run-contract-<KEY>.txt exists. Not verified = the waived,
-     could-not-run, pending and unknown items of .mango/disclosure-<KEY>.txt and the doc — not status lines. -->
+     attended/unattended = whether the doc carries a run contract. Not verified = the waived,
+     could-not-run, pending and unknown items of the doc's Disclosure and other sections — not status lines. -->
 ## Status card
 <!-- mango:card (printed <ISO-8601 UTC> from <doc path> at sha256:<digest>; protocol <v0.2|undeclared>) -->
 | | |
