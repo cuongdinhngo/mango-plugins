@@ -704,9 +704,15 @@ def operational_text_files():
             + sorted(plugin.glob("agents/*.md"))
             + sorted(plugin.glob("templates/*.md"))
             + sorted(plugin.glob("principles/*.md"))
-            + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md",
-               ROOT / "CLAUDE.md", ROOT / "docs" / "MATURITY.md",
-               ROOT / "docs" / "ADOPTION.md", ROOT / "docs" / "COST.md", ROOT / "docs" / "STABILITY.md"])
+            + [plugin / "PRINCIPLES.md", plugin / "README.md", ROOT / "README.md", ROOT / "CLAUDE.md"]
+            + human_doc_pages())
+
+
+def human_doc_pages():
+    """Every human page under docs/ (docs/templates/ excluded: placeholders, not text). Text moved out of a
+    scanned README into docs/ stays scanned (docs/WRITING.md: a scan follows the text it covered)."""
+    return sorted(p for p in (ROOT / "docs").rglob("*.md")
+                  if not p.relative_to(ROOT / "docs").as_posix().startswith("templates/"))
 
 
 def validate_maturity_labels():
@@ -2375,7 +2381,7 @@ def counted_line_surface():
     plugin = ROOT / "plugins" / "mango"
     return (sorted(plugin.glob("skills/*/*.md")) + sorted(plugin.glob("templates/*.md"))
             + sorted(plugin.glob("principles/*.md")) + sorted(plugin.glob("agents/*.md"))
-            + [plugin / "PRINCIPLES.md", plugin / "README.md"])
+            + [plugin / "PRINCIPLES.md", plugin / "README.md"] + human_doc_pages())
 
 
 def validate_counted_line_checker():
@@ -3608,7 +3614,7 @@ def validate_maturity_count():
     words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
              "nine": 9, "ten": 10}
     plugin = ROOT / "plugins" / "mango"
-    for rel, end in (("principles/maturity.md", r"\nEverything else"), ("README.md", r"\nIn every case")):
+    for rel, end in (("principles/maturity.md", r"\nEverything else"),):
         text = (plugin / rel).read_text(encoding="utf-8")
         m = re.search(r"(\w+) behaviours are \**Experimental\**\s+today:(.*?)" + end, text, re.S)
         if not check(m is not None, f"maturity-count: {rel} must state how many behaviours are Experimental"):
@@ -3619,6 +3625,13 @@ def validate_maturity_count():
               f"maturity-count: {rel} says '{m.group(1)}' Experimental behaviours but lists {bullets}")
         check(re.search(r"delegation dispatch", m.group(2)) is not None,
               f"maturity-count: {rel} must list the delegation dispatch (implementer, explorer) as Experimental")
+    # D-04 — the plugin README no longer carries a copy of the list (one fact, one place): it must link the
+    # single source and must not restate a count a second list could contradict.
+    readme = (plugin / "README.md").read_text(encoding="utf-8")
+    check("principles/maturity.md" in readme,
+          "maturity-count: the plugin README must link principles/maturity.md, the single source of the labels")
+    check(re.search(r"\w+ behaviours are \**Experimental\**\s+today", readme) is None,
+          "maturity-count: the plugin README must not restate the Experimental list; link principles/maturity.md")
 
 
 def validate_doc_consistency():
@@ -3655,7 +3668,13 @@ def validate_doc_consistency():
             f"doc-consistency: plugin README references /mango:{referenced} but no skills/{referenced}/ exists",
         )
 
-    # Every top-level config key in harness.example.json must be documented in the README.
+    # Every top-level config key in harness.example.json must be documented — in the generated
+    # docs/reference/config.md since D-04, which the plugin README links. The page is generated from the
+    # example, so the check also asserts it is current and that every key carries a `//<key>` note.
+    check("docs/reference/config.md" in readme_text,
+          "doc-consistency: the plugin README must link docs/reference/config.md")
+    ref = ROOT / "docs" / "reference" / "config.md"
+    ref_text = ref.read_text(encoding="utf-8") if ref.exists() else ""
     example = plugin / "config" / "harness.example.json"
     data = load_json(example)
     if isinstance(data, dict):
@@ -3663,9 +3682,16 @@ def validate_doc_consistency():
             if key.startswith("//"):
                 continue
             check(
-                key in readme_text,
-                f"doc-consistency: config key '{key}' in harness.example.json is not documented in the plugin README",
+                f"| `{key}` |" in ref_text,
+                f"doc-consistency: config key '{key}' in harness.example.json is not documented in docs/reference/config.md",
             )
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import gen_reference                                       # noqa: PLC0415 - loaded on demand
+    for name, (path, text, problems) in gen_reference.generate().items():
+        for problem in problems:
+            check(False, f"doc-consistency: {problem}")
+        check(not gen_reference.stale(path, text),
+              f"doc-consistency: {path.relative_to(ROOT).as_posix()} is stale — run `python3 scripts/gen_reference.py`")
 
 
 def main():

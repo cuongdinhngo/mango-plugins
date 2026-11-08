@@ -36,7 +36,7 @@ evidence, not vibes. Silence is never approval.
 
 No setup, nothing written: the ticket-blind challenger rebuilds the requirements from the ticket alone
 and marks each met / not met / can't tell, with a `path:line`. Advisory only; the gated workflow (*Quick
-start*) adds the [counted matrix](./plugins/mango/README.md#what-the-artifacts-look-like). The shape:
+start*) adds the [counted matrix](./docs/concepts/lifecycle.md#what-the-artifacts-look-like). The shape:
 
 ```
 1. AC-3  password reset invalidates the old token   met        src/auth/reset.ts:88
@@ -48,7 +48,7 @@ start*) adds the [counted matrix](./plugins/mango/README.md#what-the-artifacts-l
 
 ## Quick start
 
-Needs git, Python 3.7+, a test command, and a tracker or local mode ([prerequisites](./plugins/mango/README.md#prerequisites)):
+Needs git, Python 3.7+, a test command, and a tracker or local mode ([prerequisites](./docs/howto/set-up-a-project.md#prerequisites)):
 
 ```
 /mango:init          # detect your stack, write .harness.json, scaffold a starter rule book
@@ -59,7 +59,7 @@ Needs git, Python 3.7+, a test command, and a tracker or local mode ([prerequisi
 `init` marks every inferred value `UNVERIFIED` and writes **no secrets**. By hand: copy
 `<plugin>/config/harness.minimal.json` to `.harness.json`, replace each `REPLACE_ME`, create `tickets_dir`,
 and create the rule book file at `rulebook_path` — empty is fine (`doctor` warns it is a stub). Other keys
-are in `harness.example.json`. No rule book? [`/mango:codify`](./plugins/mango/README.md#getting-set-up)
+are in `harness.example.json`. No rule book? [`/mango:codify`](./docs/howto/set-up-a-project.md)
 counts your conventions and asks **you** to choose. Team rollout: [`docs/ADOPTION.md`](./docs/ADOPTION.md).
 
 ## The lifecycle
@@ -78,7 +78,7 @@ a **Gate 0** for an ambiguous ticket. Execute flows into review, which stops onl
 
 **Epics** take the epic path: `breakdown` into tickets, approved by you before any executes. **Run it:**
 `/mango:solve <KEY>`, any phase directly, or `/mango:quick <KEY>` for the lite lane; unattended with
-`/mango:autorun` — no gate removed, no auto-merge ([details](./plugins/mango/README.md#unattended-runs--mangoautorun)).
+`/mango:autorun` — no gate removed, no auto-merge ([details](./docs/concepts/unattended-runs.md)).
 Beyond the lifecycle: `init` · `doctor` · `codify` · `promote` · `version-check` · `budget`, the one-shot
 `challenge`, and opt-in maps `sitemap` and `db-map` — the [plugin README](./plugins/mango/README.md) has what each produces.
 
