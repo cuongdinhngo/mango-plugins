@@ -52,19 +52,21 @@ than this branch — is on the abort list below and STOPS the run. Silence is ne
 Before any phase runs, build the contract with `<mango>/scripts/run_contract.py`:
 
 ```
-python3 <mango>/scripts/run_contract.py write <spec.json> --repo <repo> > .mango/run-contract-<KEY>.txt
+mkdir -p .mango && printf '*\n' > .mango/.gitignore     # mango's local state: never tracked
+S=$(mktemp -d)                                         # the spec is scratch, outside the repo
+python3 <mango>/scripts/run_contract.py write $S/spec.json --repo <repo> > .mango/run-contract-<KEY>.txt
+rm -r "$S"
 python3 <mango>/scripts/run_contract.py validate .mango/run-contract-<KEY>.txt --phase t0
 ```
 
 **If it does not parse, the run does not start.** The script — not you — decides that.
 
+**Files.** The contract is the only file added outside the change and the working doc. Never edit
+`.gitignore` or `.git/info/exclude`, never overwrite an existing file; remove scratch files before the end.
+
 - **A condition declares a statement, an origin, a `derived-by`, a value and a runnable `check` — and
-  nothing else.** `force-broken` / `force-holding` are **retired**: they fed a forced-case positive
-  control that reported `FORCE-UNPROVEN` on every condition across three field runs, because the floor's
-  forced cases cannot mutate real state and genuinely forcing them would need destructive acts this run
-  may never perform. A contract still carrying either field is **rejected by the parser** — not
-  tolerated and quietly ignored, which would leave a field nothing consumes looking like a live
-  requirement.
+  nothing else.** `force-broken` / `force-holding` are **retired**; a contract carrying either is
+  **rejected by the parser**.
 - **Derive every derivable value with a command.** Put the command in `derived-by:` and let the script
   run it and record its real output. Anything you cannot derive is marked `agent-claim (unchecked)` and
   is carried into `DISCLOSURE`. **The contract's guarantee is *well-formed and internally consistent*,
@@ -173,9 +175,8 @@ against its shipped grammar, and **do not claim to have checked** — the checke
 blocks the run and never reads as clean.
 
 **`--tree` names the tree under review**: `$(git rev-parse HEAD)` through review, and from finalise on
-the `Reviewed at` SHA — finalise's stale-review guard has proven only bookkeeping lies after it. So a green suite produced by a different tree — a container
-built before the last edits landed — is refused instead of trusted by every gate above it. It is the
-stale-review guard's rule pointed at test evidence, not a second mechanism. **`--base` names the commit
+the `Reviewed at` SHA — finalise's stale-review guard has proven only bookkeeping lies after it.
+**`--base` names the commit
 the branch was cut from** (before the branch exists, `HEAD` itself): a block stamped `(pre-change)` is
 accepted only on that SHA, so the baseline and the fails-without run never stop an honest run, and
 nothing else is excused. **`--size-budget` is passed
@@ -307,11 +308,10 @@ RECONCILE
   conditions: <n> declared | <m> re-run | <p> holding | <q> BROKEN | <u> UNBOUND | <c> could-not-run | <w> pending-merge
 ```
 
-**The forced-case positive control is retired** — `--prove`, its `proven` line, and the
-`force-broken` / `force-holding` grammar fields are all gone. It is refused if passed. **The `t0` run is
-unchanged and is the part that earned its claim:** every bound condition observed in its failing state
-against the real world before any work exists. **Nothing in the remaining path mutates git state** — the
-only commands run are each condition's read-only `check`.
+**The forced-case positive control is retired** (it reported `FORCE-UNPROVEN` on every condition):
+`--prove` is refused if passed. **The `t0` run is the part that earned its claim:** every bound condition
+observed failing before any work exists. **Nothing in the remaining path mutates git state** — the only
+commands run are each condition's read-only `check`.
 
 **`could-not-run` is a third state**, distinct from `HOLDING` and `BROKEN`: the check's named shell
 (`bash`) was not on PATH, so the check did not run at all. **A check that cannot run never reports
@@ -325,7 +325,8 @@ this first**.
 `pending-merge` — **never holding**, and never reported as verified. Transcribe it as printed, put the
 post-merge command the seed carries (`git fetch <remote>`, then
 `reconcile.py run <contract> --phase post-merge`) in the PR body and in `DISCLOSURE`, and **do not run
-`--phase post-merge` yourself** — the merge is the human's, so is the check after it.
+`--phase post-merge` yourself** — the merge is the human's, so is the check after it. When every
+condition holds, that check prints `DONE` and the command that removes the contract.
 
 ## Step 6 — DISCLOSURE
 
@@ -335,7 +336,8 @@ Seed it from the contract, then append:
 python3 <mango>/scripts/run_contract.py disclosure-seed <contract>
 ```
 
-The seed carries line one — **the reviewer's state and the challenger's state, recorded separately** —
+**Write it at the top of the PR body and under the working doc's `## Phase 5` heading — never as a
+separate file.** The seed carries line one — **the reviewer's state and the challenger's state, recorded separately** —
 every unchecked agent claim from the contract, the budget line, and the **post-merge** line naming the
 command that verifies `TREE-COMPARISON` after the merge. Append to it everything mango already produces as raw material: coverage-gap
 exclusions, every `unmeasured` ledger cell, baseline exclusions, recorded design deviations, unexercised

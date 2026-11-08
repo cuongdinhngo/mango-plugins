@@ -21,7 +21,6 @@ KEY = "PROJ-901"
 WORK_DOC = f"docs/tickets/{KEY}.work.md"
 TICKET = f"docs/tickets/{KEY}.md"
 SEPARATOR = "<!-- ===== MANGO WORKING DOC (below this line is NOT part of the raw ticket) ===== -->"
-DISCLOSURE = f".mango/disclosure-{KEY}.*"  # autorun names no extension
 CONTRACT = f".mango/run-contract-{KEY}.txt"
 TEST_CMD = ["python3", "-m", "unittest", "discover", "-s", "tests", "-t", "."]
 # Paths a run may touch that are bookkeeping, not the change: the working doc and ticket folder, the
@@ -132,12 +131,10 @@ def main(argv):
     doc = working_doc(work)
     if not check(doc, f"working doc exists ({WORK_DOC}, or {TICKET} below the separator)"):
         return finish()
-    # autorun names no file for DISCLOSURE: it is in the run's output, a file, the PR body, or more
-    # than one. Wherever it is, it must carry the seed's first line — reviewer and challenger state,
+    # DISCLOSURE is never a file (1.21.1): it is in the PR body and the working doc, and in the run's
+    # output. Wherever it is, it must carry the seed's first line — reviewer and challenger state,
     # recorded separately.
-    places = [str(e.get("body") or "") for e in creates]
-    for disclosure in sorted(work.glob(DISCLOSURE)):
-        places.append(disclosure.read_text(encoding="utf-8"))
+    places = [str(e.get("body") or "") for e in creates] + [doc]
     if a.result and Path(a.result).exists():
         try:
             places.append(str(json.loads(Path(a.result).read_text(encoding="utf-8")).get("result", "")))
@@ -145,7 +142,18 @@ def main(argv):
             pass
     check(any("DISCLOSURE" in t.upper() and re.search(r"REVIEWER\s*:", t) and re.search(r"CHALLENGER\s*:", t)
               for t in places),
-          "the run left a DISCLOSURE carrying the reviewer and challenger state (file, PR body or final output)")
+          "the run left a DISCLOSURE carrying the reviewer and challenger state (PR body, working doc or final output)")
+    # 1.21.1 — no stray files: `.mango/` holds its own `.gitignore` (`*`) and the run contract, nothing
+    # else (no spec, no DISCLOSURE file), and so never shows in `git status`.
+    mango_dir = work / ".mango"
+    left = sorted(p.name for p in mango_dir.iterdir()) if mango_dir.is_dir() else []
+    check(left == [".gitignore", f"run-contract-{KEY}.txt"],
+          ".mango/ holds only its .gitignore and the run contract (no stray file)", ", ".join(left) or "absent")
+    ignore = mango_dir / ".gitignore"
+    check(ignore.is_file() and ignore.read_text(encoding="utf-8").strip() == "*",
+          ".mango/ ignores itself (its .gitignore is `*`)")
+    status, _ = git(work, "status", "--porcelain", "--untracked-files=all")
+    check(".mango/" not in status, ".mango/ never shows in git status", status[-300:])
     positions = [doc.find(f"## Phase {n}") for n in range(1, 6)]
     check(all(p >= 0 for p in positions) and positions == sorted(positions),
           "working doc carries Phase 1-5 in order", f"positions {positions}")
