@@ -54,7 +54,7 @@ one-grammar, doc consistency) must cover the page the text moves to.
 | **Agent, principle, plugin template** (runtime) | — | — | ratchet only: never grows without a recorded reason |
 | **Working-doc status card** | Where is this ticket right now? | [`status-card.md`](./templates/status-card.md) | 12 rows, printed by the harness (Planned, phase 1), never hand-written |
 
-## The ratchet for existing text — Planned (phase 0)
+## The ratchet for existing text
 
 Existing pages over budget are not rewritten in one go; they are **not allowed to grow**.
 
@@ -65,8 +65,9 @@ Existing pages over budget are not rewritten in one go; they are **not allowed t
 - `python3 scripts/validate.py --update-budgets` **only lowers** entries to the measured size, and
   removes an entry once its file is within budget. It never raises one. Sizes always come from this
   command, never from a number quoted in a doc.
-- The existing one-screen check on the root README is the first entry of this mechanism, not a
-  second rule.
+- The root README's one-screen limit is this mechanism's README budget, not a second rule.
+- A human doc of no other type is budgeted as a Concept page; `docs/reference/` is not budgeted.
+- Words loaded per full run are measured by `python3 scripts/measure_runtime.py`, which defines the run.
 - Raising an entry is allowed only in a PR whose description says why the text could not be moved or
   cut. It is a visible decision, never a silent one.
 

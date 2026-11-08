@@ -3190,12 +3190,10 @@ def validate_release_workflow():
 
 
 def validate_root_readme_docs():
-    """v1.19.1 — the root README stays one screen (120 lines or fewer) and routes to the adoption and
-    cost pages, which must exist. docs/COST.md holds measured rows only: a data row without a run date
-    is the fabricated-number shape this check refuses."""
+    """v1.19.1 — the root README routes to the adoption and cost pages, which must exist. docs/COST.md
+    holds measured rows only: a data row without a run date is the fabricated-number shape this check
+    refuses. Its one-screen limit (120 lines) is the README budget in validate_doc_budgets."""
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    n = len(readme.splitlines())
-    check(n <= 120, f"root-readme: README.md is {n} lines; keep it at 120 or fewer and move detail to the plugin README or docs/")
     for rel in ("docs/ADOPTION.md", "docs/COST.md", "docs/STABILITY.md"):
         check((ROOT / rel).exists(), f"root-readme: {rel} is missing")
         check(rel in readme, f"root-readme: README.md must link {rel}")
@@ -3208,6 +3206,158 @@ def validate_root_readme_docs():
                   f"root-readme: docs/COST.md row has no run date in its last column (measured rows only): {row[:80]}")
         check(bool(rows) or "No measurements are recorded yet" in cost.read_text(encoding="utf-8"),
               "root-readme: docs/COST.md with no rows must say plainly that no measurements are recorded yet")
+
+
+BUDGET_LEDGER = ROOT / "docs" / "budgets.json"
+BUDGET_EXEMPT_NAMES = {"CHANGELOG.md", "RATIONALE.md", "CLAUDE.md"}
+BUDGET_EXEMPT_PREFIXES = ("docs/templates/", "docs/reference/", "tests/eval/history/")
+
+
+def budget_targets():
+    """Every budgeted file → (unit, budget). budget None = ratchet only (never grows without an entry).
+    The classification is docs/WRITING.md's *Two kinds of text* and *Page types and budgets* table;
+    a human doc of no other type is budgeted as a Concept page."""
+    plugin = ROOT / "plugins" / "mango"
+    out = {}
+
+    def add(path, unit, budget):
+        rel = path.relative_to(ROOT).as_posix()
+        if (not path.is_file() or any(part.startswith(".") for part in Path(rel).parts)
+                or path.name in BUDGET_EXEMPT_NAMES or rel.startswith(BUDGET_EXEMPT_PREFIXES)):
+            return
+        out[rel] = (unit, budget)
+
+    human = [ROOT / "README.md", ROOT / "CONTRIBUTING.md", plugin / "README.md"]
+    human += sorted((ROOT / "docs").rglob("*.md")) + sorted((ROOT / "tests").rglob("README.md"))
+    for path in human:
+        rel = path.relative_to(ROOT).as_posix()
+        if path.name == "README.md":
+            budget = 120
+        elif rel == "docs/ROADMAP.md":
+            budget = 150
+        elif rel.startswith("docs/howto/"):
+            budget = 80
+        else:
+            budget = 200
+        add(path, "lines", budget)
+    for path in sorted((plugin / "skills").rglob("*.md")):
+        add(path, "words", 2000)
+    for path in (sorted((plugin / "agents").rglob("*.md")) + sorted((plugin / "principles").rglob("*.md"))
+                 + sorted((plugin / "templates").rglob("*.md")) + [plugin / "PRINCIPLES.md"]):
+        add(path, "words", None)
+    return out
+
+
+def budget_measure(rel, unit):
+    text = (ROOT / rel).read_text(encoding="utf-8")
+    return len(text.splitlines()) if unit == "lines" else len(text.split())
+
+
+def budget_problems(targets, sizes, ledger):
+    """Pure core of the ratchet: targets {rel: (unit, budget)}, sizes {rel: n}, ledger {unit: {rel: n}}.
+    Returns the list of failure messages (empty = within the ratchet)."""
+    problems = []
+    for rel, (unit, budget) in sorted(targets.items()):
+        size = sizes[rel]
+        entry = ledger.get(unit, {}).get(rel)
+        if entry is None:
+            if budget is None:
+                problems.append(f"budget: {rel} is ratchet-only runtime text with no entry in docs/budgets.json — "
+                                f"add `\"{rel}\": {size}` under `{unit}` by hand, with the reason in the PR")
+            elif size > budget:
+                problems.append(f"budget: {rel} is {size} {unit}; its page type allows {budget} — split it or move "
+                                "detail to another page (docs/WRITING.md)")
+            continue
+        if size > entry:
+            problems.append(f"budget: {rel} grew to {size} {unit}, beyond its recorded {entry} — cut it back; raising "
+                            "the entry needs a PR that says why the text could not be moved or cut")
+        elif size < entry:
+            problems.append(f"budget: {rel} is {size} {unit} but docs/budgets.json records {entry} — run "
+                            "`python3 scripts/validate.py --update-budgets` to lower it")
+        if budget is not None and size <= budget:
+            problems.append(f"budget: {rel} is within its {budget}-{unit} budget — run "
+                            "`python3 scripts/validate.py --update-budgets` to remove its entry")
+    for unit, entries in sorted(ledger.items()):
+        for rel in sorted(entries):
+            if targets.get(rel, (None,))[0] != unit:
+                problems.append(f"budget: docs/budgets.json names {rel} under `{unit}`, which is not a budgeted "
+                                f"file in that unit — run `python3 scripts/validate.py --update-budgets`")
+    return problems
+
+
+def budget_ledger_read():
+    data = load_json(BUDGET_LEDGER) if BUDGET_LEDGER.exists() else None
+    if not check(isinstance(data, dict), "budget: docs/budgets.json is missing or not a JSON object"):
+        return None
+    ledger = {unit: data.get(unit, {}) for unit in ("lines", "words")}
+    check(all(isinstance(v, dict) and all(isinstance(n, int) for n in v.values()) for v in ledger.values())
+          and set(data) <= {"_about", "lines", "words"},
+          "budget: docs/budgets.json holds `_about`, `lines` and `words` only, each a map of path → integer")
+    return ledger
+
+
+def update_budgets():
+    """`--update-budgets`: ONLY lowers entries to the measured size and removes entries that are within
+    budget or no longer budgeted. It never raises an entry and never adds one."""
+    ledger = budget_ledger_read()
+    if ledger is None:
+        return
+    targets = budget_targets()
+    data = json.loads(BUDGET_LEDGER.read_text(encoding="utf-8"))
+    for unit, entries in ledger.items():
+        kept = {}
+        for rel, entry in sorted(entries.items()):
+            if targets.get(rel, (None,))[0] != unit:
+                print(f"update-budgets: removed {rel} (not a budgeted file in {unit})")
+                continue
+            size, budget = budget_measure(rel, unit), targets[rel][1]
+            if budget is not None and size <= budget:
+                print(f"update-budgets: removed {rel} ({size} {unit}, within its {budget} budget)")
+                continue
+            if size < entry:
+                print(f"update-budgets: lowered {rel} {entry} → {size} {unit}")
+            kept[rel] = min(entry, size)
+        data[unit] = kept
+    BUDGET_LEDGER.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def validate_doc_budgets():
+    """docs/WRITING.md — every page has a size budget; a file over it is recorded in docs/budgets.json and
+    may not grow. The root README's one-screen limit is the first entry of this mechanism."""
+    # The core, on synthetic data: grow → fail, shrink without lowering → fail, over budget → fail.
+    t = {"a.md": ("lines", 120), "b.md": ("words", None)}
+    check(budget_problems(t, {"a.md": 130, "b.md": 10}, {"lines": {"a.md": 130}, "words": {"b.md": 10}}) == [],
+          "budget: the ratchet must pass a ledger that matches the measured sizes")
+    check(len(budget_problems(t, {"a.md": 131, "b.md": 10}, {"lines": {"a.md": 130}, "words": {"b.md": 10}})) == 1,
+          "budget: a recorded file that grows must fail")
+    check(len(budget_problems(t, {"a.md": 129, "b.md": 10}, {"lines": {"a.md": 130}, "words": {"b.md": 10}})) == 1,
+          "budget: a recorded file that shrinks without lowering its entry must fail")
+    check(len(budget_problems(t, {"a.md": 121, "b.md": 10}, {"words": {"b.md": 10}})) == 1,
+          "budget: a file not in the ledger over its type's budget must fail")
+    check(len(budget_problems(t, {"a.md": 100, "b.md": 10}, {})) == 1,
+          "budget: ratchet-only runtime text with no entry must fail")
+    check(len(budget_problems(t, {"a.md": 100, "b.md": 10}, {"words": {"b.md": 10, "gone.md": 5}})) == 1,
+          "budget: an entry for a file that is not budgeted must fail")
+
+    check(("README.md", ("lines", 120)) in budget_targets().items(),
+          "budget: the root README must keep its one-screen budget of 120 lines")
+    ledger = budget_ledger_read()
+    if ledger is None:
+        return
+    targets = budget_targets()
+    sizes = {rel: budget_measure(rel, unit) for rel, (unit, _) in targets.items()}
+    for problem in budget_problems(targets, sizes, ledger):
+        check(False, problem)
+
+    sys.path.insert(0, str(ROOT / "scripts"))
+    import measure_runtime                                     # noqa: PLC0415 - loaded on demand
+    try:
+        rows = measure_runtime.measure()
+    except FileNotFoundError as exc:
+        rows = []
+        check(False, f"budget: scripts/measure_runtime.py lists plugins/mango/{exc}, which does not exist")
+    check(len(rows) == len(measure_runtime.FULL_RUN) and all(n > 0 for _, n in rows),
+          "budget: scripts/measure_runtime.py must measure every file of its full-run definition")
 
 
 def validate_golden_e2e():
@@ -3429,6 +3579,8 @@ def validate_doc_consistency():
 
 
 def main():
+    if "--update-budgets" in sys.argv[1:]:
+        update_budgets()
     validate_all_json_parse()
     validate_marketplace()
     validate_plugin_manifests()
@@ -3490,6 +3642,7 @@ def main():
     validate_release_workflow()
     validate_challenge_standalone()
     validate_root_readme_docs()
+    validate_doc_budgets()
     validate_golden_e2e()
     validate_delegation_agents()
     validate_maturity_count()
