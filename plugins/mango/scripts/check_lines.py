@@ -319,12 +319,12 @@ GRAMMARS = {
     },
     "RULE SECTIONS": {
         "canonical": "RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — "
-                     "§<id> (<source>) ✅ / N/A (reason), …",
+                     "§<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …",
         "segments": [
             (rf"(?P<n>{NUM})\s+applicable\s*—\s*(?P<k>{NUM})\s+by change-type",
              "<n> applicable — <k> by change-type"),
             (rf"(?P<m>{NUM})\s+by recalled handle\s*—\s*(?P<list>.+)",
-             "<m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …"),
+             "<m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …"),
         ],
         "rules": [
             (lambda c: c["n"] == c["k"] + c["m"],

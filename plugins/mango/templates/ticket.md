@@ -174,12 +174,12 @@ major mounted state -->
 - **Rule-compliance section coverage** — applicable rulebook sections from **two sources, union**:
   **by change type** (migration/schema → DB-conventions mandatory; new UI surface → design-token/a11y
   mandatory; …) **and by a recalled handle** (a section carrying a `handle:` this run's `RECALL:` line
-  surfaced — 0 recalled handles adds 0 sections). Each is answered by **naming what in this change the
-  rule constrains** or `N/A because <reason>`; a bare `✅` with nothing named is not an answer, and an
+  surfaced — 0 recalled handles adds 0 sections). Each entry **names what in this change the rule
+  constrains**; a bare `✅` with nothing named is not an answer, and an
   applicable section left unanswered is a finding. A `PROVISIONAL` section is listed and answered but
   never gate-blocks as if it were codified:
 
-  `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …`
+  `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …`
 - Self-audit:
 - **Gate 1 status:** waiting on user / cleared
 

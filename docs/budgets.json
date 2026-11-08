@@ -20,7 +20,7 @@
     "plugins/mango/principles/maturity.md": 923,
     "plugins/mango/principles/refine.md": 917,
     "plugins/mango/principles/token-cost.md": 735,
-    "plugins/mango/skills/analysis/SKILL.md": 3621,
+    "plugins/mango/skills/analysis/SKILL.md": 3620,
     "plugins/mango/skills/autorun/SKILL.md": 3568,
     "plugins/mango/skills/design/SKILL.md": 3090,
     "plugins/mango/skills/execute/SKILL.md": 2338,
@@ -32,7 +32,7 @@
     "plugins/mango/templates/design-doc.md": 602,
     "plugins/mango/templates/frontend-rubric.md": 875,
     "plugins/mango/templates/pr.md": 236,
-    "plugins/mango/templates/ticket.md": 4273,
+    "plugins/mango/templates/ticket.md": 4272,
     "plugins/mango/templates/ui-proof-scaffold.md": 488
   }
 }

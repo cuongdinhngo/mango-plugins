@@ -5,6 +5,25 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.23.2] — 2026-11-08
+
+**The `RULE SECTIONS` shape no longer reads as a list split by ` / `.** The red 1.23.0 e2e run wrote
+its sections with ` / ` between them, copying `✅ / N/A (reason), …`, where ` / ` meant "or";
+`check_lines` counted one section against `3 applicable` and stopped the run at Gate 1 (fail-closed,
+not false-green).
+
+- **Changed (skill text — `analysis`, `quick`; template `ticket.md`):** the shape now shows two
+  entries, `§<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …`, and
+  states `Separate entries with `, ` only.` The `N/A because <reason>` form the prose already required
+  is now in the shape itself. `check_lines`'s canonical form, `validate.py`'s rule-first check and
+  `docs/reference/lines.md` follow it.
+- **Not changed:** the checker. ` / ` is still not a separator, so a line written that way still fails
+  the count — a new envelope test pins both the `, ` pass and the ` / ` fail.
+- **Size:** `analysis` 3621 → 3620 words, `ticket.md` 4273 → 4272 (a redundant clause cut in each).
+- **Smoke guard:** `multi-clause-want` (mapped to `analysis`) green, 57/57, fresh run. That fixture
+  does not emit a `RULE SECTIONS` line, so it shows the edit broke nothing it covers, not that agents
+  now write the line correctly; the golden e2e is that check. `quick` has no mapped fixture.
+
 ## [1.23.1] — 2026-11-08
 
 **Three defects the 1.23.0 golden e2e found** (3 runs on `1865fb1`: 2 green, 1 red; the red run is

@@ -26,6 +26,6 @@
 | `RECURRING-T2` | finalise | finalise | `RECURRING-T2: <n> type-2 claim(s) with seen ≥ 2 \| <d> routed to a destination \| <b> cannot promote (reason) \| <l> left in lessons_path` |
 | `REFINE` | refine | refine | `REFINE: <U> unresolved surfaced \| <a> want-decision asked \| <b> how-decision resolved+cited \| <s> ASSUMED \| skip: yes/no` |
 | `RETIRE` | promote | conditional | `RETIRE: <o> offered \| <a> retired on the human's answer \| <s> declined/unanswered \| records deleted: 0` |
-| `RULE SECTIONS` | analysis, quick | analysis | `RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …` |
+| `RULE SECTIONS` | analysis, quick | analysis | `RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …` |
 | `SECTIONS` | analysis | analysis | `SECTIONS: <n> found (names) \| <n> decomposed \| ROWS: C=.. R=.. G=.. AC=..` |
 | `SURFACES` | analysis | conditional | `SURFACES: <N> — <surface>, <surface>, …` |

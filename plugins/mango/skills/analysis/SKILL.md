@@ -248,9 +248,11 @@ count, and the requirements matrix.
     change that puts the section out of scope. A bare `✅` with nothing named behind it is **not an
     answer** — it is the same empty-tick failure a bare matrix `✅` on an unfalsifiable AC is (step 4),
     and it is a **finding at this step**. Emit the coverage as a counted artifact, **naming the source of
-    each section** so a reader can tell a change-type section from a handle-matched one:
+    each section**:
 
-    `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …`
+    `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …`
+
+    Separate entries with `, ` only.
 
     A rulebook section applicable by **either** source but **neither checked nor marked
     N/A-with-reason** is a **finding** — silently omitting an applicable section is exactly the miss

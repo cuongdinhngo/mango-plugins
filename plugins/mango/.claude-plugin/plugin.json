@@ -1,7 +1,7 @@
 {
   "name": "mango",
   "displayName": "Mango",
-  "version": "1.23.1",
+  "version": "1.23.2",
   "description": "Gated ticket workflow for Claude Code: refine, analysis, design, execute, review, finalise. Each phase emits checkable evidence and stops for your approval. Setup: /mango:init.",
   "author": {
     "name": "Cuong Ngo"

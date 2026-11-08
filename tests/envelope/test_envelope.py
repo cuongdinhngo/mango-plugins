@@ -1147,6 +1147,21 @@ def run(text, **kw):
 
 
 class TestCheckLinesTeeth(unittest.TestCase):
+    # v1.23.2 — the RULE SECTIONS shape shows `, ` between entries; ` / ` (the 1.23.0 e2e's red run,
+    # copying the old `✅ / N/A` shape) is not a separator and still fails the count.
+    RS = ("RULE SECTIONS: 3 applicable — 3 by change-type | 0 by recalled handle — "
+          "§R1 (change-type) ✅ docstring names the option{sep}§R2 (change-type) ✅ new tests fail "
+          "without it{sep}§R3 (change-type) N/A because no CLI option changes")
+
+    def test_RULE_SECTIONS_entries_split_by_comma_pass(self):
+        out, status = run(f"`{self.RS.format(sep=', ')}`\n")
+        self.assertIn("RULE SECTIONS: PASS", out)
+
+    def test_RULE_SECTIONS_entries_split_by_slash_fail_the_count(self):
+        out, status = run(f"`{self.RS.format(sep=' / ')}`\n")
+        self.assertIn("RULE SECTIONS: FAIL", out)
+        self.assertIn("does not match `<n> applicable`", out)
+
     # v1.20.0 — the challenger's verdict as a counted line.
     def test_CHALLENGE_a_clean_challenger_line_passes(self):
         out, status = run(workdoc(phase="review"))
