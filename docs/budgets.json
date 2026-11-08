@@ -1,0 +1,38 @@
+{
+  "_about": "Size ledger for docs/WRITING.md's ratchet: files over their page-type budget (and all ratchet-only runtime text), at their measured size — lines for human docs, words for runtime text. `python3 scripts/validate.py --update-budgets` only lowers or removes entries; raising one needs a PR that says why.",
+  "lines": {
+    "tests/eval/README.md": 135
+  },
+  "words": {
+    "plugins/mango/PRINCIPLES.md": 2653,
+    "plugins/mango/agents/challenger.md": 948,
+    "plugins/mango/agents/explorer.md": 242,
+    "plugins/mango/agents/extractor.md": 205,
+    "plugins/mango/agents/implementer.md": 704,
+    "plugins/mango/agents/onboarder.md": 173,
+    "plugins/mango/agents/reviewer-max.md": 958,
+    "plugins/mango/agents/reviewer.md": 951,
+    "plugins/mango/principles/authoring.md": 196,
+    "plugins/mango/principles/descriptive-normative.md": 228,
+    "plugins/mango/principles/frontend-track.md": 617,
+    "plugins/mango/principles/git-isolation.md": 364,
+    "plugins/mango/principles/learning-loop.md": 986,
+    "plugins/mango/principles/maturity.md": 929,
+    "plugins/mango/principles/refine.md": 917,
+    "plugins/mango/principles/token-cost.md": 735,
+    "plugins/mango/skills/analysis/SKILL.md": 3621,
+    "plugins/mango/skills/autorun/SKILL.md": 3568,
+    "plugins/mango/skills/design/SKILL.md": 3100,
+    "plugins/mango/skills/execute/SKILL.md": 2338,
+    "plugins/mango/skills/finalise/SKILL.md": 3628,
+    "plugins/mango/skills/refine/SKILL.md": 3480,
+    "plugins/mango/skills/review/SKILL.md": 3504,
+    "plugins/mango/skills/solve/SKILL.md": 2905,
+    "plugins/mango/templates/claim-record.md": 693,
+    "plugins/mango/templates/design-doc.md": 602,
+    "plugins/mango/templates/frontend-rubric.md": 875,
+    "plugins/mango/templates/pr.md": 236,
+    "plugins/mango/templates/ticket.md": 4278,
+    "plugins/mango/templates/ui-proof-scaffold.md": 488
+  }
+}
