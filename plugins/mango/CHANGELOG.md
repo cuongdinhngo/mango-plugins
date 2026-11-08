@@ -5,6 +5,28 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.23.0] — 2026-11-08
+
+**Aggregate rows from real tickets.** A script prints one row of counts from a working doc, in the
+project, so cost and challenger figures can leave a real project without its text.
+
+- **`scripts/ticket_stats.py <workdoc> [--row]`.** Read-only. Prints `COST: lane=… scope=…
+  dispatches=… dispatch_tokens=… unmeasured=… session_tokens=… minutes=… gates=… not_met=… mango=…
+  date=…`, or with `--row` the same fields as a `docs/COST.md` table row. Every field has a fixed shape
+  (a number, a fixed word, a version, a date) and is checked against it before printing, so no ticket
+  key, path, name or text from the doc can reach the output; no message quotes the doc.
+- **Read from the doc, never estimated.** Lane from `TIER` and a `DISCLOSURE` list under `## Phase 5`;
+  scope from `SCOPE` and the `Reviewed at` file list; dispatches, tokens and `unmeasured` cells from the
+  Cost ledger; gates from `Gate <n> status: cleared`; raised `not met` from the first `CHALLENGER
+  VERDICT`; the date from `Last updated:`. Session tokens, minutes, the mango version and how many
+  `not met` items were real are not in the doc: they come from `--session-tokens`, `--minutes`,
+  `--mango`, `--real`, or print `unknown`. Exit 3 when a field the doc should carry was not found.
+- **`docs/COST.md`.** The table's columns are now the script's fields. `validate.py` refuses a header
+  that differs from them, a row with another number of cells, and any cell outside its field's shape.
+  The USD, `cost_tier` and model columns are gone: they are outside the approved aggregate list. The
+  **Field report** issue template now asks for the printed row only.
+- **Runtime words unchanged.** No skill, agent, principle or template text changed.
+
 ## [1.22.0] — 2026-11-08
 
 **Measured proof.** For a working doc that declares `PROTOCOL: v0.2`, review no longer takes "fails

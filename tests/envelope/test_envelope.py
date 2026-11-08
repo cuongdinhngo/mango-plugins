@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Test suite for the plugin's harness scripts — RUN CONTRACT, RECONCILE, BUDGET, CHECK-LINES.
+"""Test suite for the plugin's harness scripts — RUN CONTRACT, RECONCILE, BUDGET, CHECK-LINES, PROOF,
+TICKET-STATS.
 
 The first three are the autorun envelope; CHECK-LINES (v1.13.0) verdicts the counted lines in a
 working doc. All four live in `plugins/mango/scripts/` and are gated by this one command.
@@ -32,6 +33,7 @@ sys.path.insert(0, str(SCRIPTS))
 import budget  # noqa: E402
 import reconcile  # noqa: E402
 import run_contract as rc  # noqa: E402
+import ticket_stats  # noqa: E402
 
 
 # --------------------------------------------------------------------------- helpers
@@ -2070,6 +2072,142 @@ class TestProof(unittest.TestCase):
                "- **Regression guards:** `A.test_a` · `B.test_b`\n\n## Phase 3\n")
         self.assertEqual(proof.proving_command(doc), "python3 -m unittest right")
         self.assertEqual(proof.regression_guards(doc), ["A.test_a", "B.test_b"])
+
+
+STATS_DOC = """# {key} — {title} (working doc)
+
+- **Ticket:** {key} · `{path}`
+- **SCOPE:** {scope}
+- **TIER:** {tier}
+- **PROTOCOL:** v0.2
+
+## Phase 1 — Analysis ✋ Gate 1
+
+- **Gate 1 status:** cleared
+
+## Phase 2 — Design ✋ Gate 2
+
+- **Gate 2 status:** {gate2}
+
+## Phase 4 — Review ✋ (stop only if not clean)
+
+{verdict}
+- **Reviewed at** `abc123` · reviewed files: `{path}`, `src/{name}/b.py`, `tests/test_{name}.py`
+
+## Phase 5 — Finalise ✋ final gate
+
+{phase5}
+
+## Cost ledger
+
+| Phase | Subagent / dispatch | Round | Tokens | Optimizer applied · est./measured saving |
+|-------|---------------------|-------|--------|------------------------------------------|
+| review | reviewer ({name}) | 1 | 31,516 | none |
+| review | challenger ({name}) | 1 | {tokens} | none |
+
+LEDGER TOTAL: 62021 · top cost driver: review/reviewer
+
+## Session status
+
+- **Last updated:** 2026-11-06 by {name}
+"""
+SENTINELS = ("ACME-4471", "Initech Payroll", "secret/billing/ledger.py", "jdoe")
+
+
+def stats_doc(**kw):
+    fields = dict(key="ACME-4471", title="Initech Payroll export", path="secret/billing/ledger.py",
+                  name="jdoe", scope="M", tier="full", gate2="cleared", tokens="30505",
+                  verdict="CHALLENGER VERDICT: 7 requirement(s) rebuilt | 5 met | 2 not met | 0 can't tell "
+                          "| 0 not-met covered by a recorded exclusion",
+                  phase5="- PR draft: `/tmp/pr-ACME-4471.md`")
+    fields.update(kw)
+    return STATS_DOC.format(**fields)
+
+
+class TestTicketStats(unittest.TestCase):
+    """One aggregate row from a working doc: every field has a fixed shape, so no key, path, name or
+    text from the doc can reach the output; a field the doc does not carry is `unknown`, never guessed."""
+
+    def cli(self, text, *args):
+        with tempfile.TemporaryDirectory() as tmp:
+            doc = Path(tmp) / "doc.md"
+            doc.write_text(text, encoding="utf-8")
+            before = doc.read_bytes()
+            out = subprocess.run([sys.executable, str(SCRIPTS / "ticket_stats.py"), str(doc), *args],
+                                 capture_output=True, text=True, encoding="utf-8")
+            self.assertEqual(doc.read_bytes(), before, "the script never writes the doc")
+        return out.stdout + out.stderr, out.returncode
+
+    def test_the_fields_are_exactly_the_approved_aggregate_list(self):
+        self.assertEqual([k for k, _, _ in ticket_stats.FIELDS],
+                         ["lane", "scope", "dispatches", "dispatch_tokens", "unmeasured", "session_tokens",
+                          "minutes", "gates", "not_met", "mango", "date"])
+
+    def test_a_full_doc_gives_one_row_read_from_its_records(self):
+        out, status = self.cli(stats_doc(), "--real", "1")
+        self.assertEqual(out.strip(), "COST: lane=full scope=M/3 dispatches=2 dispatch_tokens=62021 unmeasured=0 "
+                                      "session_tokens=unknown minutes=unknown gates=2 not_met=1/2 mango=unknown "
+                                      "date=2026-11-06")
+        self.assertEqual(status, 0)
+
+    def test_no_key_path_name_or_text_reaches_the_output(self):
+        poisoned = stats_doc(scope="ACME-4471", tier="jdoe", gate2="cleared by jdoe",
+                             tokens="secret/billing/ledger.py",
+                             verdict="CHALLENGER VERDICT: Initech Payroll | 2 not met",
+                             phase5="DISCLOSURE\n- ACME-4471 in secret/billing/ledger.py")
+        for args in ((), ("--row",)):
+            out, status = self.cli(poisoned, *args)
+            for word in SENTINELS:
+                self.assertNotIn(word, out)
+            self.assertEqual(status, 3)
+        row, _ = ticket_stats.stats(poisoned)
+        for key, _, _ in ticket_stats.FIELDS:
+            self.assertRegex(row[key], ticket_stats.PATTERNS[key])
+
+    def test_an_option_value_outside_its_shape_is_refused_and_not_echoed(self):
+        for opt in ("--mango", "--minutes", "--lane", "--session-tokens", "--real"):
+            out, status = self.cli(stats_doc(), opt, "ACME-4471")
+            self.assertEqual(status, 1)
+            self.assertNotIn("ACME-4471", out)
+
+    def test_real_not_met_is_a_human_judgement_never_inferred(self):
+        out, status = self.cli(stats_doc())
+        self.assertIn("not_met=unknown/2", out)
+        self.assertEqual(status, 3, "real/raised unread is not a fully read row")
+        self.assertEqual(self.cli(stats_doc(), "--real", "3")[1], 1, "real cannot exceed raised")
+        zero = stats_doc(verdict="CHALLENGER VERDICT: 7 requirement(s) rebuilt | 7 met | 0 not met | 0 can't tell "
+                                 "| 0 not-met covered by a recorded exclusion")
+        self.assertIn("not_met=0/0", self.cli(zero)[0])
+
+    def test_lane_comes_from_tier_and_the_phase_5_disclosure(self):
+        auto = stats_doc(phase5="DISCLOSURE\n- reviewer: ran · challenger: ran")
+        self.assertIn("lane=autorun", self.cli(auto, "--real", "1")[0])
+        lite = stats_doc(tier="lite", verdict="")
+        out, status = self.cli(lite)
+        self.assertIn("lane=quick", out)
+        self.assertIn("not_met=n/a", out)
+        self.assertEqual(status, 0)
+        self.assertIn("lane=autorun", self.cli(stats_doc(), "--lane", "autorun", "--real", "1")[0])
+
+    def test_unmeasured_cells_are_counted_and_an_unreadable_cell_is_not_summed(self):
+        out, status = self.cli(stats_doc(tokens="unmeasured (blocking retrieval)"), "--real", "1")
+        self.assertIn("dispatches=2 dispatch_tokens=31516 unmeasured=1", out)
+        self.assertEqual(status, 0)
+        out, status = self.cli(stats_doc(tokens=""), "--real", "1")
+        self.assertIn("dispatch_tokens=unknown", out)
+        self.assertEqual(status, 3)
+
+    def test_the_template_placeholder_is_not_a_scope(self):
+        out, status = self.cli(stats_doc(scope="S | M | L"), "--real", "1")
+        self.assertIn("scope=unknown/3", out)
+        self.assertEqual(status, 3)
+
+    def test_the_row_form_matches_the_docs_cost_columns(self):
+        out, _ = self.cli(stats_doc(), "--row", "--real", "1", "--mango", "1.23.0", "--minutes", "41")
+        cells = [c.strip() for c in out.strip().strip("|").split("|")]
+        self.assertEqual(len(cells), len(ticket_stats.FIELDS))
+        self.assertEqual(cells[-2:], ["1.23.0", "2026-11-06"])
+        self.assertIn("| Lane |", ticket_stats.header_row())
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

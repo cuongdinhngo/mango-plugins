@@ -515,3 +515,18 @@ hidden.
   - review keeps the two waiver flags separate because one waiver would lose the cheaper seat with the
     expensive one; a container's evidence names the tree the image was built from because an image
     built before the last edits makes a green run green against code that is no longer the code.
+
+## ticket_stats — why real-ticket figures leave a project as one fixed-shape row (v1.23.0)
+
+- Cost and challenger figures need real tickets, and real tickets belong to projects whose text must
+  not reach this public repo. Anonymising by hand (the previous protocol) relied on every reporter
+  catching every key, path and name; one miss leaks. A row whose every cell must match a number, a
+  fixed word, a version or a date cannot carry free text, whoever fills it in.
+- The script reads the doc where it lives and writes nothing: the data stays in the project, and a
+  human reads the row before it goes anywhere.
+- Figures the doc does not record (session tokens, minutes, version, which `not met` items were real)
+  are flags or `unknown`, never derived: an estimated cost would be the fabricated-number shape the
+  `docs/COST.md` date check already refuses.
+- USD, `cost_tier` and model were dropped from the table because the approved field list does not name
+  them; USD is derivable from session tokens and the published rate when a median is written.
+
