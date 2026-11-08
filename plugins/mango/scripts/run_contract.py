@@ -489,13 +489,15 @@ def disclosure_seed(header, conditions, contract_path="<contract>"):
             "OFF — waived by `--no-reviewer`. No rule-book-grounded review of the diff ran; "
             "a clean result below carries no reviewer finding because none was sought."
             if reviewer == "off" else
-            "ON — the rule-book-grounded reviewer ran."))
+            "ON — enabled for this run. Whether it ran is the review phase's record, not this line: a run "
+            "that stopped before review ran no reviewer."))
     out.append(
         "  1b. CHALLENGER: " + (
             "OFF — waived by `--no-challenger`. Nothing independent re-derived the requirements from "
             "the raw ticket. A clean result below is not evidence of independence."
             if challenger == "off" else
-            "ON — the ticket-blind challenger ran."))
+            "ON — enabled for this run. Whether it ran is the review phase's record, not this line: a run "
+            "that stopped before review ran no challenger."))
     if reviewer == "off" and challenger == "off":
         out.append(
             "      BOTH SEATS OFF — nothing but the author looked at this diff. This is recorded, "

@@ -5,6 +5,30 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.23.1] — 2026-11-08
+
+**Three defects the 1.23.0 golden e2e found** (3 runs on `1865fb1`: 2 green, 1 red; the red run is
+explained under *Not changed* below). Scripts only: no skill, agent, principle or template text changed.
+
+- **DISCLOSURE no longer claims a review ran.** `run_contract.py disclosure-seed` wrote `ON — the
+  rule-book-grounded reviewer ran` and `ON — the ticket-blind challenger ran` before any phase had
+  run. A run that stopped at Gate 1 carried both claims; the agent had to correct them by hand. Line
+  one now reads `ON — enabled for this run`, and states that whether the seat ran is the review phase's
+  record.
+- **`proof.py` reads a `unittest discover` command.** The unittest preset put `-v` before `discover`,
+  which unittest rejects (`unrecognized arguments: -s tests -t .`), so a design naming
+  `python3 -m unittest discover -s tests -t .` was `could-not-run`. `-v` now goes after `discover`.
+  The run disclosed it and measured with `--command`; nothing read clean.
+- **`ticket_stats.py` reads an embedded working doc.** Under `work_doc_mode: embed` the header sits
+  below the separator, after the ticket's own `## ` sections; both green runs printed `lane=unknown
+  scope=unknown` (exit 3). The script now reads below the separator, through `check_lines`'s own
+  reading of it, and also reads the backticked header shape (`` `TIER: full` ``).
+- **Not changed: the red run.** It wrote `RULE SECTIONS` with ` / ` between the sections;
+  `check_lines` counted one section against `3 applicable` and the gate stayed closed, so the run
+  stopped at Gate 1 with a correct account. The shape in `skills/analysis` reads `✅ / N/A (reason), …`,
+  where ` / ` means "or"; making that unambiguous is a skill edit and needs its smoke guard, so it is
+  left to its own change.
+
 ## [1.23.0] — 2026-11-08
 
 **Aggregate rows from real tickets.** A script prints one row of counts from a working doc, in the

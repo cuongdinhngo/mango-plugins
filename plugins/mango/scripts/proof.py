@@ -155,6 +155,9 @@ def plan_command(command):
     if "unittest" not in argv:
         return None, "no preset for this runner (unittest only)"
     i = argv.index("unittest")
+    # `discover` must be unittest's first argument, so `-v` goes after it, never before it.
+    if i + 1 < len(argv) and argv[i + 1] == "discover":
+        i += 1
     if "-v" not in argv[i + 1:] and "--verbose" not in argv[i + 1:]:
         argv = argv[: i + 1] + ["-v"] + argv[i + 1:]
     return argv, None
