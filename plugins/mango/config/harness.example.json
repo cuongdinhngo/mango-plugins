@@ -95,6 +95,11 @@
   "db_introspect_cmd": null,
   "//migrations_path": "OPTIONAL directory of migration files for /mango:db-map to derive the schema from when no live introspection command is available. Use this OR db_introspect_cmd.",
   "migrations_path": null,
+  "//verification": "OPTIONAL. How review measures the proving test on a working doc that declares PROTOCOL: v0.2.",
+  "verification": {
+    "//proof": "proof.py runs the design's proving-test command on the base source with the head's tests, then on the head, and classifies each test by the kind of failure. enabled: false records a waiver line instead (disclosed, never a pass). timeout_s bounds each run (default 300). test_paths are the globs naming test files to bring from the head (default tests/*, test/*, */tests/*, test_*.py, */test_*.py, *_test.py). Reads unittest only; another runner is could-not-run.",
+    "proof": { "enabled": true, "timeout_s": 300, "test_paths": ["tests/*"] }
+  },
   "//cause_taxonomy": "The categories analysis classifies a bug's root cause against.",
   "cause_taxonomy": [
     "logic",

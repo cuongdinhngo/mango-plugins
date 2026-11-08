@@ -11,13 +11,17 @@ destroys it; the live checkout is never touched.
 Run:  python3 tests/envelope/test_envelope.py
 """
 
+import io
+import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -1482,6 +1486,103 @@ def excl(n=0, e=0, r=0, o=0, s=0, c=0):
             f"{s} input-shape-dependent AC(s) | {c} proven on a real corpus")
 
 
+class TestProtocolHeader(unittest.TestCase):
+    """`PROTOCOL:` opts a doc into a protocol version. A doc without it is legacy and its report does not
+    change; an unknown version is never read as legacy and never passed."""
+
+    @staticmethod
+    def declare(field):
+        return workdoc().replace("- **SCOPE:** S\n", f"- **SCOPE:** S\n{field}\n")
+
+    @staticmethod
+    def without_doc_line(out):
+        """The report minus its `doc` line, line numbers dropped (the field adds a header line)."""
+        return [re.sub(r"\(line \d+\)", "(line N)", line)
+                for line in out.splitlines() if not line.startswith("  doc      :")]
+
+    def test_a_doc_without_the_field_is_legacy_and_reports_no_protocol(self):
+        out, status = run(workdoc())
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("protocol", out.lower())
+        self.assertIsNone(cl.read_header(workdoc())["protocol"])
+
+    def test_a_declared_version_is_named_on_the_doc_line_and_v0_1_changes_nothing_else(self):
+        legacy, _ = run(workdoc())
+        for field in ("- **PROTOCOL:** v0.1", "`PROTOCOL: v0.1` · `TIER: full`"):
+            out, status = run(self.declare(field))
+            self.assertEqual(status, 0, out)
+            doc_line = next(line for line in out.splitlines() if line.startswith("  doc      :"))
+            self.assertTrue(doc_line.endswith("| protocol: v0.1"), doc_line)
+            self.assertEqual(self.without_doc_line(out), self.without_doc_line(legacy))
+
+    def test_a_v0_2_doc_must_carry_proof_from_review_and_a_legacy_doc_never_sees_it(self):
+        out, status = run(self.declare("- **PROTOCOL:** v0.2"))
+        self.assertEqual(status, 2, out)
+        self.assertIn("MISSING PROOF: required through finalise", out)
+        early, _ = run(self.declare("- **PROTOCOL:** v0.2").replace("finalise", "design"))
+        self.assertIn("pending (not yet required at design): ", early)
+        self.assertIn("PROOF", early.split("pending (not yet required at design): ")[1])
+        for phase in ("design", "review", "finalise"):
+            legacy, _ = run(workdoc(phase=phase))
+            self.assertNotIn("PROOF", legacy, phase)
+
+    def test_a_v0_2_doc_is_clean_with_a_clean_proof_or_a_recorded_waiver(self):
+        line = ("`PROOF: 3 proving test(s) | 3 proven | 0 regression-guard | 0 green@base | "
+                "0 env-fault@base | 0 not green@head | 0 flaky | 0 could-not-run`")
+        for extra in (line, "PROOF waived (verification.proof.enabled: false)"):
+            out, status = run(self.declare("- **PROTOCOL:** v0.2").replace("## Session status",
+                                                                            extra + "\n\n## Session status"))
+            self.assertEqual(status, 0, out)
+
+    def test_proof_gates_block_on_a_green_base_a_red_head_or_no_test(self):
+        for line, gate in (
+                ("PROOF: 2 proving test(s) | 1 proven | 0 regression-guard | 1 green@base | "
+                 "0 env-fault@base | 0 not green@head | 0 flaky | 0 could-not-run", "z > 0"),
+                ("PROOF: 1 proving test(s) | 0 proven | 0 regression-guard | 0 green@base | "
+                 "0 env-fault@base | 1 not green@head | 0 flaky | 0 could-not-run", "g > 0"),
+                ("PROOF: 0 proving test(s) | 0 proven | 0 regression-guard | 0 green@base | "
+                 "0 env-fault@base | 0 not green@head | 0 flaky | 0 could-not-run", "n = 0")):
+            out, status = run(workdoc(extra=f"`{line}`"))
+            self.assertEqual(status, 2, out)
+            self.assertIn(f"GATE BROKEN PROOF", out)
+            self.assertIn(gate, out)
+        out, status = run(workdoc(extra="`PROOF: 3 proving test(s) | 3 proven | 0 regression-guard | "
+                                        "0 green@base | 0 env-fault@base | 0 not green@head | 0 flaky | "
+                                        "1 could-not-run`"))
+        self.assertEqual(status, 2, out)
+        self.assertIn("n != p + r + z + e + g + f + c", out)
+
+    def test_an_unknown_version_is_not_checkable_never_legacy_or_a_pass(self):
+        out, status = run(self.declare("- **PROTOCOL:** v9"))
+        self.assertEqual(status, 3, out)
+        self.assertIn("| protocol: v9", out)
+        self.assertIn("NOT-CHECKABLE: the doc declares `PROTOCOL: v9`", out)
+
+    def test_an_unknown_version_does_not_hide_a_failure(self):
+        out, status = run(self.declare("- **PROTOCOL:** v9").replace("`PREMISE:", "`PREMISES:"))
+        self.assertEqual(status, 2, out)
+
+    def test_a_template_placeholder_is_not_a_declaration(self):
+        self.assertIsNone(cl.read_header(self.declare("- **PROTOCOL:** <v0.2 | omit>"))["protocol"])
+
+    def test_the_field_in_the_raw_ticket_above_the_embed_separator_is_ignored(self):
+        raw = ("# 101 — a raw ticket\n\n- **PROTOCOL:** v0.2\n\n"
+               f"<!-- ===== {cl.MANGO_SEPARATOR} ===== -->\n" + workdoc())
+        out, status = run(raw)
+        self.assertEqual(status, 0, out)
+        self.assertNotIn("protocol", out.lower())
+
+    def test_the_field_quoted_below_the_header_declares_nothing(self):
+        doc = workdoc().replace("## Session status", "## Phase 1\n\nA lesson says to write "
+                                "`PROTOCOL: v0.2` in new docs.\n\n## Session status")
+        self.assertIsNone(cl.read_header(doc)["protocol"])
+
+    def test_the_field_is_never_reported_as_a_counted_line(self):
+        out, _ = run(self.declare("`PROTOCOL: v0.2` · `TIER: full`"))
+        self.assertIn("0 not-checkable", out)
+        self.assertNotIn("PROTOCOL:", out)
+
+
 class TestFixtureProvenance(unittest.TestCase):
     """A — an AC whose correctness depends on the SHAPE OF REAL INPUT may not close on authored
     fixtures alone. Four field cases, four real-data defects, four green fixture suites: the fixture is
@@ -1747,6 +1848,228 @@ class TestConsoleEncoding(unittest.TestCase):
                 self.assertTrue(any(ord(c) > 127 for c in proc.stdout),
                                 f"{name}'s usage text carries no non-ASCII, so this test proves nothing")
 
+
+# --------------------------------------------------------------------------- PROOF
+
+import proof  # noqa: E402
+
+PROOF_DOC = (
+    "# PROJ-1 — a ticket (working doc)\n\n## Phase 2 — Design\n\n"
+    "- **Proving test** (fails pre-change, passes post-change):\n  `{command}`\n"
+    "- **Regression guards:** {guards}\n\n## Phase 3 — Execute\n"
+)
+
+# The interpreter running this suite: on Windows `python3` may be the Store stub.
+PY = shlex.quote(sys.executable)
+BASE_PKG = "def old():\n    return 1\n"
+FLAKY_TEST = (
+    "import os, unittest, hashlib\n"
+    "class F(unittest.TestCase):\n"
+    "    def test_flaky(self):\n"
+    "        mark = os.path.join(os.environ['PROOF_MARKS'], hashlib.sha1(os.getcwd().encode()).hexdigest())\n"
+    "        if not os.path.exists(mark):\n"
+    "            open(mark, 'w').close()\n"
+    "            self.fail('first run in this tree')\n"
+)
+
+
+class TestProof(unittest.TestCase):
+    """The proving test runs at base (with head's tests) and at head; each test is classified by the
+    kind of failure. A green-at-base proof or a red head blocks; worktrees never outlive the run."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+        self.repo = self.tmp / "repo"
+        (self.repo / "pkg").mkdir(parents=True)
+        (self.repo / "tests").mkdir()
+        (self.repo / "pkg" / "__init__.py").write_text(BASE_PKG)
+        (self.repo / "tests" / "__init__.py").write_text("")
+        (self.repo / "tests" / "test_old.py").write_text(
+            "import unittest\nfrom pkg import old\n"
+            "class Old(unittest.TestCase):\n    def test_old(self):\n        self.assertEqual(old(), 1)\n")
+        self.git("init", "-q", "-b", "main")
+        self.git("add", "-A")
+        self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "base")
+        self.base = self.git("rev-parse", "HEAD").strip()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.repo), *args], capture_output=True, text=True,
+                              check=True).stdout
+
+    def commit_head(self, files):
+        for rel, text in files.items():
+            path = self.repo / rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text)
+        self.git("add", "-A")
+        self.git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "head")
+
+    def run_proof(self, command, guards="none", config=None):
+        doc = self.tmp / "PROJ-1.work.md"
+        doc.write_text(PROOF_DOC.format(command=command, guards=guards))
+        args = ["proof.py", "run", str(doc), "--base", self.base, "--repo", str(self.repo)]
+        if config is not None:
+            cfg = self.tmp / "harness.json"
+            cfg.write_text(json.dumps(config))
+            args += ["--config", str(cfg)]
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            status = proof.main(args)
+        out = buf.getvalue()
+        worktrees = self.git("worktree", "list").strip().splitlines()
+        self.assertEqual(len(worktrees), 1, f"a worktree outlived the run: {worktrees}")
+        self.assertEqual(self.git("status", "--porcelain"), "", "the checkout was modified")
+        return out, status
+
+    def counts(self, out):
+        m = re.search(r"^PROOF: .*$", out, re.M)
+        self.assertIsNotNone(m, out)
+        lines, _ = cl.check_doc(f"`{m.group(0)}`\n")
+        self.assertIn("PROOF: PASS", "\n".join(lines), "proof.py wrote a PROOF line its grammar refuses")
+        return {k: int(v) for v, k in re.findall(
+            r"(\d+) (proving test\(s\)|proven|regression-guard|green@base|env-fault@base|"
+            r"not green@head|flaky|could-not-run)", m.group(0))}
+
+    def test_a_test_red_at_base_and_green_at_head_is_proven(self):
+        self.commit_head({
+            "pkg/__init__.py": "def old(scale=1):\n    return scale\n",
+            "tests/test_new.py": "import sys, unittest\nfrom pkg import old\n"
+                                 "class New(unittest.TestCase):\n    def test_scale(self):\n"
+                                 "        print('noise', file=sys.stderr)\n        self.assertEqual(old(3), 3)\n",
+        })
+        out, status = self.run_proof(PY + " -m unittest tests.test_new.New.test_scale")
+        self.assertEqual(status, 0, out)
+        self.assertEqual(self.counts(out), {"proving test(s)": 1, "proven": 1, "regression-guard": 0,
+                                            "green@base": 0, "env-fault@base": 0, "not green@head": 0,
+                                            "flaky": 0, "could-not-run": 0})
+        self.assertIn("base ERROR TypeError", out)
+
+    def test_a_proof_green_at_base_proves_nothing_and_blocks(self):
+        self.commit_head({"pkg/__init__.py": BASE_PKG + "\ndef more():\n    return 2\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_old")
+        self.assertEqual(status, 2, out)
+        self.assertEqual(self.counts(out)["green@base"], 1)
+
+    def test_a_declared_regression_guard_green_at_base_is_expected_and_never_blocks(self):
+        self.commit_head({"pkg/__init__.py": "def old():\n    return 0 + 1\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_old", guards="`Old.test_old`")
+        self.assertEqual(status, 0, out)
+        self.assertEqual(self.counts(out)["regression-guard"], 1)
+
+    def test_an_import_of_a_symbol_or_module_the_diff_adds_is_proven(self):
+        self.commit_head({
+            "pkg/__init__.py": BASE_PKG + "\ndef newsym():\n    return 2\n",
+            "pkg/extra.py": "VALUE = 3\n",
+            "tests/test_sym.py": "import unittest\nfrom pkg import newsym\n"
+                                 "class S(unittest.TestCase):\n    def test_sym(self):\n"
+                                 "        self.assertEqual(newsym(), 2)\n",
+            "tests/test_mod.py": "import unittest\nfrom pkg.extra import VALUE\n"
+                                 "class M(unittest.TestCase):\n    def test_mod(self):\n"
+                                 "        self.assertEqual(VALUE, 3)\n",
+        })
+        out, status = self.run_proof(PY + " -m unittest tests.test_sym tests.test_mod")
+        self.assertEqual(status, 0, out)
+        self.assertEqual(self.counts(out)["proven"], 2, out)
+        self.assertIn("which the diff adds", out)
+
+    def test_an_import_of_something_the_diff_does_not_add_is_an_env_fault(self):
+        self.assertEqual(proof.import_verdict(str(self.repo), self.base, self.base,
+                                              ("symbol", "old", "pkg")), "both-trees")
+        self.assertEqual(proof.import_verdict(str(self.repo), self.base, self.base,
+                                              ("module", "not_installed_anywhere", None)), "unknown")
+        for exc, msg in (("ModuleNotFoundError", "No module named 'not_installed_anywhere'"),
+                         ("ImportError", "cannot import name 'old' from 'pkg' (/x/pkg/__init__.py)"),
+                         ("ConnectionRefusedError", "[Errno 111] Connection refused")):
+            field, _ = proof.classify("t.T.x", ("ERROR", exc, msg), ("ok", "", ""), None, [],
+                                      str(self.repo), self.base, self.base)
+            self.assertEqual(field, "env-fault@base", exc)
+
+    def test_a_head_that_is_not_green_blocks(self):
+        self.commit_head({"tests/test_new.py": "import unittest\nclass N(unittest.TestCase):\n"
+                                               "    def test_n(self):\n        self.assertEqual(1, 2)\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_new")
+        self.assertEqual(status, 2, out)
+        self.assertEqual(self.counts(out)["not green@head"], 1)
+
+    def test_a_test_module_that_does_not_import_at_head_is_not_green(self):
+        self.commit_head({"tests/test_new.py": "import unittest\nfrom pkg import missing\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_new")
+        self.assertEqual(status, 2, out)
+        self.assertEqual(self.counts(out)["not green@head"], 1)
+
+    def test_a_skipped_proof_at_head_is_not_green(self):
+        self.commit_head({"tests/test_new.py": "import unittest\nclass N(unittest.TestCase):\n"
+                                               "    @unittest.skip('later')\n"
+                                               "    def test_n(self):\n        pass\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_new")
+        self.assertEqual(status, 2, out)
+        self.assertEqual(self.counts(out)["not green@head"], 1)
+
+    def test_a_test_that_passes_on_one_rerun_at_head_is_flaky(self):
+        marks = self.tmp / "marks"
+        marks.mkdir()
+        self.commit_head({"tests/test_flaky.py": FLAKY_TEST})
+        with mock.patch.dict(os.environ, {"PROOF_MARKS": str(marks)}):
+            out, status = self.run_proof(PY + " -m unittest tests.test_flaky")
+        self.assertEqual(status, 3, out)
+        self.assertEqual(self.counts(out)["flaky"], 1)
+
+    def test_an_unsupported_runner_or_no_command_is_one_could_not_run_never_zero_tests(self):
+        self.commit_head({"pkg/__init__.py": "def old():\n    return 1  # head\n"})
+        for command in ("pytest tests", PY + " -m unittest tests && echo done"):
+            out, status = self.run_proof(command)
+            self.assertEqual(status, 3, out)
+            self.assertEqual(self.counts(out)["proving test(s)"], 1)
+            self.assertEqual(self.counts(out)["could-not-run"], 1)
+        doc = self.tmp / "empty.work.md"
+        doc.write_text("# PROJ-1\n\n## Phase 2 — Design\n\nno command here\n")
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            status = proof.main(["proof.py", "run", str(doc), "--base", self.base, "--repo", str(self.repo)])
+        self.assertEqual(status, 3, buf.getvalue())
+        self.assertIn("no proving-test command in Phase 2", buf.getvalue())
+
+    def test_a_timeout_leaves_the_tests_could_not_run_and_cleans_up(self):
+        before = set(Path(tempfile.gettempdir()).glob("mango-proof-*"))
+        self.commit_head({"tests/test_slow.py": "import time, unittest\nclass S(unittest.TestCase):\n"
+                                                "    def test_s(self):\n        time.sleep(5)\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_slow",
+                                     config={"verification": {"proof": {"timeout_s": 1}}})
+        self.assertEqual(status, 3, out)
+        self.assertEqual(self.counts(out)["could-not-run"], 1)
+        self.assertEqual(set(Path(tempfile.gettempdir()).glob("mango-proof-*")), before)
+
+    def test_enabled_false_is_waived_and_writes_no_proof_line(self):
+        self.commit_head({"pkg/__init__.py": "def old():\n    return 1  # head\n"})
+        out, status = self.run_proof(PY + " -m unittest tests.test_old",
+                                     config={"verification": {"proof": {"enabled": False}}})
+        self.assertEqual(status, 3)
+        self.assertEqual(out.strip(), proof.WAIVED)
+
+    def test_the_unittest_reader_handles_both_header_shapes_and_interleaved_output(self):
+        output = ("test_a (tests.test_x.X) ... ok\n"
+                  "test_b (tests.test_x.X.test_b) ... some printed text\nERROR\n"
+                  "test_c (tests.test_x.X.test_c)\nA docstring ... skipped 'why'\n"
+                  "test_d (tests.test_x.X.test_d) ... printed\n\n"
+                  "======================================================================\n"
+                  "ERROR: test_b (tests.test_x.X.test_b)\n------\nTraceback\nValueError: bad\n\n"
+                  "----------------------------------------------------------------------\nRan 4 tests\n")
+        results, failed = proof.parse_unittest(output)
+        self.assertEqual(results["tests.test_x.X.test_a"][0], "ok")
+        self.assertEqual(results["tests.test_x.X.test_b"], ("ERROR", "ValueError", "bad"))
+        self.assertEqual(results["tests.test_x.X.test_c"][0], "skipped")
+        self.assertNotIn("tests.test_x.X.test_d", results, "a test with no readable status is never a pass")
+        self.assertEqual(failed, {})
+
+    def test_the_proving_command_and_guards_are_read_from_phase_2_only(self):
+        doc = ("- **Proving test**: `python3 -m unittest wrong`\n\n## Phase 2 — Design\n\n"
+               "- **Proving test** (fails pre-change):\n  `python3 -m unittest right`\n"
+               "- **Regression guards:** `A.test_a` · `B.test_b`\n\n## Phase 3\n")
+        self.assertEqual(proof.proving_command(doc), "python3 -m unittest right")
+        self.assertEqual(proof.regression_guards(doc), ["A.test_a", "B.test_b"])
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

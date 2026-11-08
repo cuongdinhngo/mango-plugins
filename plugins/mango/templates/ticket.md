@@ -10,9 +10,10 @@ ticket + the diff, never this `.work.md`. -->
 - **Repo(s) / Porting:** <which config.repos are touched; porting order if shared>
 - **SCOPE:** S | M | L
 - **STRUCTURE:** native | synthesized  <!-- synthesized → freeform ticket; confirm reading at Gate 0 -->
-- **TRACK:** backend | frontend | fullstack  <!-- counted artifact from analysis; orthogonal to TIER; selects which gate set (frontend adds the a11y/token + M1–M10 rubric) -->
+- **TRACK:** backend | frontend | fullstack  <!-- counted artifact from analysis; orthogonal to TIER; frontend adds the M1–M10 rubric -->
 - **TIER:** lite | full  <!-- lite routes through /mango:quick; full = five-phase flow -->
-- **BASELINE:** green | red | flaky  <!-- analysis runs config.test_command once on the untouched checkout; if red/flaky, list the specific pre-existing failing items below. When baseline≠green the DoD is "prove the delta is green": no new failure, fix any claimed; a pre-existing failure outside the change is a recorded baseline exclusion, not a blocker and not a silent pass. review/finalise compare against THIS, never "all green". -->
+- **BASELINE:** green | red | flaky  <!-- analysis runs config.test_command once on the untouched checkout; if red/flaky, list the pre-existing failing items below. review/finalise compare against THIS, never "all green". -->
+- **PROTOCOL:** v0.2
   <!-- baseline exclusions (pre-existing failures outside this change): <list, or none> -->
 
 ---
@@ -37,7 +38,7 @@ injects a requirement or an AC, never adds a matrix row, never blocks a gate, ne
 | 1 |            |      |                                      |                                                   |
 
 <!-- skip: yes → U=0, record `refine skipped: 0 unresolved product-decisions` and hand to analysis; the REFINE + PREMISE + RECALL lines are the whole Phase-0 output. -->
-<!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles); breakdown re-ratification is Experimental, the rest Stable. -->
+<!-- INPUT KIND: ticket | epic. On epic → epic path (analysis(epic) → design(epic) → breakdown → N× ticket-lifecycles). -->
 
 **Settled wants (want-decision — from the user; become acceptance-criteria constraints analysis must honour).**
 Tie-breaker: a decision about the acceptance BAR itself (what counts as done / a threshold / a sourcing
@@ -72,7 +73,7 @@ Tripwire: never silent-settle over a prior human decision.
 **Exposure-checker** (ticket-blind `challenger`, **1 dispatch** — NOT a debate): any still-un-exposed
 decision it found (re-classified want-decision/how-decision above): none / <list>
 
-<!-- Split mixed input: an open brainstorm bundled with a targeted task is separated — refine refines only the targeted part. Record what was set aside: -->
+<!-- Mixed input: refine refines only the targeted task. Record what was set aside: -->
 
 ---
 
@@ -215,6 +216,7 @@ tool/API descriptions, config, migrations, downstream consumers) so a reviewer k
 
 - Rule compliance (vs rulebook_path / standards_path):
 - **Proving test** (fails pre-change, passes post-change; invocation via test_command):
+- **Regression guards:** none  <!-- or backticked ids of tests green at base by design -->
 
 **Verification plan** (one row per AC / at-risk requirement; the proof must sit at the layer where
 the requirement can fail — **Gate 2 may not pass with any ❌**):
@@ -324,6 +326,8 @@ inventory|, `M` = surfaces with a valid PASS (any tier), `X` = recorded EXCLUDED
 - security agent (if any):
 - Scope reconciliation (files outside list / reformatting):
 - Regression on Phase-1 callers:
+- Measured proof (from `proof.py`, never typed; or its waiver line):
+  `PROOF: <n> proving test(s) | <p> proven | <r> regression-guard | <z> green@base | <e> env-fault@base | <g> not green@head | <f> flaky | <c> could-not-run`
 - Proving test result + "would it fail without the change?" (judged vs the recorded `BASELINE`, not "all green": when baseline≠green the bar is delta-green — no new failure, claimed fixes landed; a pre-existing failure outside the change is a recorded baseline exclusion):
 - Layer-match re-confirmation (no AC closed clean on a layer-mismatched proof; any `❌` is upgraded or a recorded exclusion):
 - **Frontend rubric** (frontend track only — scored against `DESIGN.md`): Core (tokens / no hardcoded hex-px / semantic HTML / state-not-by-colour-alone / reduced-motion) + M1–M10 (viewport, no-h-scroll @breakpoints+320, reflow, touch-target, input-zoom, tap/hover parity, focus-visible, contrast, safe-area, pointer parity); M10 smell ran + dispatch-assert run-or-recorded-exclusion: n/a / pass / findings

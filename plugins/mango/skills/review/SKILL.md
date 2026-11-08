@@ -88,8 +88,7 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    **separate flags, each defaulting to its seat RUNNING**, and neither implies the other. They buy
    different things at different prices: the reviewer grounds findings in `config.rulebook_path` and
    costs roughly 108k per round; the ticket-blind challenger re-derives the requirements and costs
-   roughly 58k. Collapsing them into one waiver loses the **cheaper** seat together with the expensive
-   one. This is the **single** reviewer-dispatch decision in mango, exactly as step 2 is the single
+   roughly 58k. This is the **single** reviewer-dispatch decision in mango, exactly as step 2 is the single
    challenger-dispatch decision: `solve` and `autorun` route through both and build no parallel one.
    When the flag is set, state `REVIEWER: OFF (--no-reviewer)` in the review output, record it in the
    working doc beside the challenger's state, and — under `autorun` — carry it to **line one of
@@ -169,11 +168,9 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
    Every empirical-output block this ticket recorded (execute's sweep and proving test, analysis's
    `BASELINE`, and your own run above) carries a **`Ran at <sha>`** marker. Take the SHA of the tree
    under review — the `HEAD` you are reviewing — and **refuse any evidence whose marker is a different
-   tree**, routing that claim back to be re-run here. This is the **stale-review guard's own rule
-   pointed at a different artifact**, not a second mechanism: a review scoped to a superseded SHA is
-   refused, and so is a suite result produced by one. **Where the suite ran in a container, the marker
-   is the tree the container was BUILT FROM** — an image built before the last edits landed makes a
-   green run green against code that is no longer the code, and every gate above it inherits that. A
+   tree**, routing that claim back to be re-run here — the **stale-review guard's own rule
+   pointed at a different artifact**, not a second mechanism. **Where the suite ran in a container,
+   the marker is the tree the container was BUILT FROM.** A
    marker reading `provenance-unknown` (or absent) is **UNVERIFIED, never a pass**: say the provenance
    could not be established and re-run the claim on the tree under review rather than assuming it was
    fine. **The one exception is a block that declares `(pre-change)`** — the baseline, the blast-radius
@@ -188,6 +185,11 @@ concluding "no changes"*. An empty range is a reason to look harder, never a no-
 
    **Its exit status IS the verdict** — `2` includes evidence from another tree, `3` includes evidence
    whose tree could not be established. Quote the `evidence :` line it printed; do not restate it.
+6b. **Measured proof (`PROTOCOL: v0.2` docs).** Run
+   `python3 <mango>/scripts/proof.py run <work-doc> --base <the same base> --head $(git rev-parse HEAD)`
+   and paste its output verbatim under Phase 4, never a typed `PROOF:` line. Exit `2`
+   (`green@base` or `not green@head`) is **not clean**. Exit `3` is not a pass: disclose each
+   `env-fault@base`, `flaky` or `could-not-run` test, or the waiver line (autorun: in the DISCLOSURE).
 7. **Fill `Ph3/4 proven by`** (`k/N`) for every matrix row and universal-inventory item. For a
    counted **"for each of N"** requirement, verify **item-by-item** and fill the **per-item** rows of
    its inventory checklist — the gate is not clean until **every** item is confirmed (or each

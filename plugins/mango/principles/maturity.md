@@ -7,14 +7,11 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Eight behaviours are **Experimental** today:
+Nine behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
-  condition set a `RUN CONTRACT` should carry, and the call-count budget proxy. Its prediction is
-  falsifiable on one real overnight ticket: a ticket handed over at 23:00 reaches a PR by morning with
-  one human touch remaining — the merge — and `RECONCILE` reports the state of the world after the last
-  push without being asked. **Its safety boundaries are NOT Experimental** and never will be: no gate is
+  condition set a `RUN CONTRACT` should carry, and the call-count budget proxy. **Its safety boundaries are NOT Experimental**: no gate is
   removed, the review seat is never degraded away, there is no auto-merge, `j > 0` stops the run, and no
   outward action happens beyond the two the handover authorisation named.
 
@@ -22,7 +19,7 @@ Eight behaviours are **Experimental** today:
   by the harness rather than read by its author is Stable and is the point. What is Experimental is the
   registry's exact tolerance boundary — which spellings are inflection and which are a paraphrase — and
   the sum rules that are derived from an exhaustive partition rather than stated verbatim in a skill.
-  Both will move as more real working docs run through it. **Its safety boundaries are NOT
+  **Its safety boundaries are NOT
   Experimental**: it reports and never rewrites, `not-checkable` is never a pass, it ships no counted
   line of its own, and the checker's own absence never blocks a run and never reads as clean.
 
@@ -65,6 +62,11 @@ Eight behaviours are **Experimental** today:
   boundaries are NOT Experimental**: it dispatches the one shipped `challenger` brief unmodified, its
   payload is the raw ticket and the range and nothing else (never a PR body or a working doc), it
   writes nothing, and its output is labelled advisory and never satisfies a review criterion or a gate.
+
+- **measured proof (`PROOF`).** What is Experimental is how a failure's kind is read, which runners
+  have a preset (`unittest` only) and how regression guards are declared.
+  **Its safety boundaries are NOT Experimental**: a legacy doc is never held to it, and `could-not-run`,
+  `env-fault@base`, `flaky` and the waiver are disclosed, never a pass.
 
 Everything else on the ticket and epic paths is **Stable** — ticket-path classification (want-decision /
 how-decision), `ASSUMED` handling, the 1-dispatch exposure-checker, epic detection, the enumerated

@@ -41,4 +41,5 @@
 | `db_kind` | Advanced | `null` | OPTIONAL database kind (generic label, e.g. relational/document). Required, with one of db_introspect_cmd or migrations_path, to enable /mango:db-map. db-map is OFF by default. |
 | `db_introspect_cmd` | Advanced | `null` | OPTIONAL read-only introspection command for /mango:db-map to derive the schema map. Must never alter or migrate the schema. Use this OR migrations_path. |
 | `migrations_path` | Advanced | `null` | OPTIONAL directory of migration files for /mango:db-map to derive the schema from when no live introspection command is available. Use this OR db_introspect_cmd. |
+| `verification` | Advanced | object | OPTIONAL. How review measures the proving test on a working doc that declares PROTOCOL: v0.2. |
 | `cause_taxonomy` | Advanced | array | The categories analysis classifies a bug's root cause against. |

@@ -5,6 +5,38 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.22.0] — 2026-11-08
+
+**Measured proof.** For a working doc that declares `PROTOCOL: v0.2`, review no longer takes "fails
+without the change" on the author's word: a script runs the proving test twice and counts the result.
+
+- **`PROTOCOL:` header field.** `check_lines` reads `- **PROTOCOL:** v0.2` (or `` `PROTOCOL: v0.2` ``)
+  from the doc's header — before its first `## ` section, so a quoted mention never declares — and names
+  it on the `doc` line. A doc without the field is `legacy`: its report is unchanged, and `PROOF` is
+  never required of it. An unknown version is NOT-CHECKABLE (exit 3). `templates/ticket.md` now declares
+  `v0.2`, so new tickets opt in.
+- **`proof.py` and the `PROOF` line.** Run 1: the base source with the test files the branch added or
+  changed (`verification.proof.test_paths`). Run 2: the head; a test that does not pass is re-run once
+  there. Each test is classified by the kind of failure, never by how many fail: `proven`,
+  `regression-guard`, `green@base`, `env-fault@base` (an import of something the diff does not add, a
+  connection error), `not green@head` (failed, errored, skipped), `flaky`, `could-not-run`. Both runs
+  happen in throwaway worktrees, removed on every path out.
+- **Registered grammar and gates.** `PROOF: <n> proving test(s) | <p> proven | <r> regression-guard |
+  <z> green@base | <e> env-fault@base | <g> not green@head | <f> flaky | <c> could-not-run`, identity
+  `n = p+r+z+e+g+f+c`. Required at review of a v0.2 doc. Blocks Gate 4 when `z > 0`, `g > 0` or
+  `n = 0`. `PROOF waived (verification.proof.enabled: false)` waives the requirement and is disclosed.
+- **`design`** declares regression guards on a `**Regression guards:**` line (tests green at base by
+  design: refactor, docs, config); Gate 2 approves it. **`review`** step 6b runs `proof.py` and pastes
+  its output; exit 2 is not clean, exit 3 is disclosed.
+- **Presets.** `unittest` only (FAIL and ERROR are red; results read from `-v` output). pytest and every
+  other runner are `could-not-run` until a recorded sample proves how to read their output: no pytest
+  was available to record one.
+- **Config.** `verification.proof.enabled` (default true), `timeout_s` (default 300), `test_paths`.
+- **Maturity.** Measured proof is Experimental (`principles/maturity.md`).
+- **Words.** `design`, `review` and `templates/ticket.md` stay within their ledger: the additions are
+  paid for by sentences that restated a reason. `design` 3,100 → 3,090, `ticket.md` 4,278 → 4,273,
+  `principles/maturity.md` 929 → 923, `review` unchanged at 3,504.
+
 ## [1.21.1] — 2026-11-08
 
 **`autorun` leaves no stray files.** It now writes one file outside the change and the working doc —

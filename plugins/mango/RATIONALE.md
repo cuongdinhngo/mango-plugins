@@ -489,3 +489,29 @@ hidden.
 - `.mango/.gitignore` with `*` (the `.pytest_cache` pattern) keeps the folder out of `git status`
   without touching any file the project owns, and without writing inside `.git/`, where a run's edit was
   already refused once.
+
+## review — why the proving test is measured, not reported (v1.22.0)
+
+- "Fails without the change" was a block execute pasted and review read. Nothing re-ran it, so a proof
+  that passes at base — and so proves nothing — reached Gate 4 whenever the pasted block was wrong. The
+  golden e2e already re-ran it (base source + head tests, then head); `proof.py` ships that logic.
+- Classification is by the kind of failure, not by a share of failing tests: at base every new proving
+  test is expected to fail, so a ratio says nothing. What does say something is *why* a test fails at
+  base — a missing symbol the diff adds is proof; a missing dependency present in neither tree is the
+  environment.
+- Regression guards exist because refactor, docs and config tickets have nothing that can fail at base.
+  Declaring them at Gate 2 makes "green at base" an approved expectation instead of a silent pass.
+- `unittest` is the only preset because it is the only runner a recorded sample proves. A guessed pytest
+  parser that misread a result would be a false green; `could-not-run`, disclosed, is not.
+- `0 proving test(s)` blocks: every other field would be zero, and a line of zeros reads clean.
+- The version gate (`PROTOCOL: v0.2`) keeps every existing doc's report unchanged: upgrading mango never
+  turns a passing doc into a failing one.
+- Reasons removed from skill text to pay for the new directives (skills are directive-only):
+  - design's exclusion threshold is three because one AC class's coverage-gap exclusion was recorded on
+    three successive tickets and the deferred defect shipped on the third; the input-shape trigger is
+    narrow because a design demanding a corpus for every AC is a tax and gets turned off; a first,
+    well-formed exclusion is accepted because blocking it would make every genuine deferral a gate
+    failure.
+  - review keeps the two waiver flags separate because one waiver would lose the cheaper seat with the
+    expensive one; a container's evidence names the tree the image was built from because an image
+    built before the last edits makes a green run green against code that is no longer the code.

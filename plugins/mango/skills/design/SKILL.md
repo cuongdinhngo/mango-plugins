@@ -122,7 +122,7 @@ this phase.
    *balanced* does not. In practice the signals are that the AC concerns a **heuristic**, a
    **grouping** or bucketing, a **ranking** or ordering, a **summary**, or a **classification** —
    anything judged "sensible" rather than "equal to X". **Getting this trigger narrow matters more than
-   getting it broad:** a design that demands a corpus for every AC is a tax and will be turned off.
+   getting it broad.**
 
    **For an input-shape-dependent AC, `authored` is a layer-match `❌` and Gate 2 is blocked.** A
    fixture is part of the diff. A fixture shaped to the implementation makes the whole diff
@@ -191,9 +191,7 @@ this phase.
    **may not simply be recorded again**: it must either be **discharged** (the deferred check now runs,
    or the follow-up landed) **or escalated as a named open item the human answers**. Under `autorun` a
    named open item the human must answer is a clarification — it counts toward `j`, and `j > 0` stops
-   the run. **The threshold is three because that is where the evidence sits:** a coverage-gap exclusion
-   of one AC class was recorded on three successive tickets and the defect it deferred shipped on the
-   third — three is a measurement, not a taste. mango **records and surfaces; the human decides**
+   the run. The threshold of three is a measurement, not a taste. mango **records and surfaces; the human decides**
    whether an exclusion is discharged — there is no automatic discharge.
 
    **An overdue predecessor is surfaced, not silently carried.** When this ticket records an exclusion
@@ -219,13 +217,15 @@ this phase.
    **human** decides whether the overdue exclusion is discharged. `n = 0` closes the line with all zeros
    and adds **no** work: `EXCLUSIONS: 0 recorded | 0 with a checkable expiry | 0 recurring
    (class seen ≥ 3 → discharged/escalated) | 0 with an overdue predecessor | 0 input-shape-dependent AC(s) | 0 proven on a real corpus`. **A first exclusion of a class, with a checkable expiry, is legitimate and
-   common — accepted with no escalation and no extra step** (`r = 0`); blocking a first, well-formed
-   deferral would make every genuinely deferred check a gate failure.
+   common — accepted with no escalation and no extra step** (`r = 0`).
 7. **Proving test (at the matching layer).** With the risk layer classified (step 6), name the
    **proving test**: the specific assertion that **fails pre-change and passes post-change**,
    runnable via `config.test_command`, and **sitting at the risk layer** of the AC it proves. State
    the exact invocation. Gate 2 cannot pass without it; a proving test below its AC's risk layer is a
-   layer-match `❌` and blocks Gate 2 (see step 6).
+   layer-match `❌` and blocks Gate 2 (see step 6). **Declare each test's role** on a
+   `**Regression guards:**` line under it: the backticked ids of tests that pass at base by design (a
+   refactor, docs or config ticket), or `none`. Every other test the command runs is proof and must fail
+   at base. Gate 2 approves the declaration; review measures it (`PROOF`).
 8. **Rollback + porting plan.** State how to revert, and the porting plan across `config.repos` if
    the change touches shared code (which repos, in what order).
 9. **Confirm SCOPE.** Re-affirm or adjust `SCOPE: S|M|L` from analysis; if it grew, say why. If the

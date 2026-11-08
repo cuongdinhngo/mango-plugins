@@ -20,6 +20,7 @@
 | `PREMISE FALSIFIED` | refine, analysis | conditional | `PREMISE FALSIFIED: <n> referenced-as-existing source(s) missing — <ref> (<ticket line naming it>), …` |
 | `PROMOTE` | promote | conditional | `PROMOTE: <n> class(es) with recurrence >= 2 \| <p> candidate(s) proposed \| <e> already recorded (skipped) \| <b> blocked (reason) \| rules written: 0` |
 | `PROMOTION` | finalise | finalise | `PROMOTION: <p> proposed \| <k> human-ratified \| destinations: <path>, … \| mango files written: 0` |
+| `PROOF` | review (proof.py) | review (`PROTOCOL: v0.2` docs) | `PROOF: <n> proving test(s) \| <p> proven \| <r> regression-guard \| <z> green@base \| <e> env-fault@base \| <g> not green@head \| <f> flaky \| <c> could-not-run` |
 | `RECALL` | refine, analysis, quick | refine | `RECALL: <n> claim(s) surfaced \| <s> by symbol \| <h> by handle \| <a> by area \| <f> by finding \| <r> retired skipped — advisory (blocks nothing)` |
 | `RECURRENCE` | finalise | finalise | `RECURRENCE: <n> recurring \| <s> superseded (<r> retired) \| <p> promotion candidate(s)` |
 | `RECURRING-T2` | finalise | finalise | `RECURRING-T2: <n> type-2 claim(s) with seen ≥ 2 \| <d> routed to a destination \| <b> cannot promote (reason) \| <l> left in lessons_path` |
