@@ -54,7 +54,9 @@ model** — no delegation overhead (see `<mango>/PRINCIPLES.md`).
      `handle:` this run's `RECALL:` line surfaced. Answer each by **naming what in this change the rule
      constrains** or `N/A because <reason>` (a bare `✅` with nothing named is not an answer), and emit:
 
-     `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ / N/A (reason), …`
+     `RULE SECTIONS: <n> applicable — <k> by change-type | <m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …`
+
+     Separate entries with `, ` only.
 
    **Both lines close with zeros and add no step.** No `config.lessons_path` (or an empty one) → `RECALL:`
    with zeros, `<m> = 0` handle-matched sections, and the lane continues unchanged; a rule book that is

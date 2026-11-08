@@ -1759,7 +1759,7 @@ def validate_rule_first_recall():
     plugin = ROOT / "plugins" / "mango"
     a = (plugin / "skills" / "analysis" / "SKILL.md").read_text(encoding="utf-8")
     check(re.search(r"`RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle — "
-                    r"§<id> \(<source>\) ✅ / N/A \(reason\), …`", a) is not None,
+                    r"§<id> \(<source>\) ✅ <what it constrains>, §<id> \(<source>\) N/A because <reason>, …`", a) is not None,
           "rule-first: analysis's RULE SECTIONS line must count both sources and name the source of each "
           "section (a reader cannot otherwise tell a change-type section from a handle-matched one)")
     check(re.search(r"[Bb]y change TYPE", a) is not None
