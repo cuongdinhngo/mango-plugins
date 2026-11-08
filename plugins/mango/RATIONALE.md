@@ -473,3 +473,19 @@ hidden.
 - If the merge deleted the remote branch and the fetch pruned it, `post-merge` reads BROKEN with an
   unresolved ref. The output names that case as unverified, not shown broken.
 
+
+## autorun — why it leaves no stray files (v1.21.1)
+
+- The golden e2e runs show `.mango/` managed by nobody. The skill named only the run contract's path;
+  the agent improvised the rest, differently each run.
+  - One run added `.mango/` to `.git/info/exclude` itself. Another had that edit refused, so the folder
+    showed as untracked. The DISCLOSURE file's extension varied (`.txt`, `.md`), and one run overwrote a
+    file that already existed in `/tmp`.
+  - Every run left three files per ticket (run contract, DISCLOSURE, spec), and nothing removed them
+    after the merge. DISCLOSURE was a third copy: it was already in the PR body and the run's output.
+- Projects that use mango asked for fewer generated files: a file nobody keeps current goes stale and
+  misleads. So the one file that must outlive the run — the contract the post-merge check reads — gets
+  an end of life the script announces, and nothing else is written.
+- `.mango/.gitignore` with `*` (the `.pytest_cache` pattern) keeps the folder out of `git status`
+  without touching any file the project owns, and without writing inside `.git/`, where a run's edit was
+  already refused once.

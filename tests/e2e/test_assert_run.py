@@ -153,13 +153,19 @@ def good_run(root, summary="4 requirements: 4 met, 0 not met, 0 can't tell", pro
     doc = doc_override if doc_override is not None else DOC.format(summary=summary, reviewed=reviewed)
     (w / f"docs/tickets/{KEY}.work.md").write_text(doc, encoding="utf-8")
     (w / ".mango").mkdir()
+    (w / ".mango/.gitignore").write_text("*\n", encoding="utf-8")
     (w / f".mango/run-contract-{KEY}.txt").write_text("stub contract\n", encoding="utf-8")
-    (w / f".mango/disclosure-{KEY}.md").write_text("DISCLOSURE\n1a. REVIEWER: ON\n1b. CHALLENGER: ON\n", encoding="utf-8")
-    # The working doc and .mango/ stay LOCAL and untracked, as mango leaves them.
+    # The working doc stays LOCAL and untracked; .mango/ ignores itself. DISCLOSURE is in the PR body.
     git(w, "push", "-q", "origin", f"feat/{KEY}-min-length")
+    body = root / "pr-body.md"
+    body.write_text(DISCLOSURE_BODY, encoding="utf-8")
     env = dict(os.environ, MANGO_E2E_DIR=str(root))
-    sh(w, str(root / "bin" / "gh"), "pr", "create", "--base", "main", "--head", f"feat/{KEY}-min-length", env=env)
+    sh(w, str(root / "bin" / "gh"), "pr", "create", "--base", "main", "--head", f"feat/{KEY}-min-length",
+       "--body-file", str(body), env=env)
     return base
+
+
+DISCLOSURE_BODY = "## DISCLOSURE\n1a. REVIEWER: ON\n1b. CHALLENGER: ON\n"
 
 
 def open_pr_with_body(root, body):
@@ -298,20 +304,20 @@ class AssertRunTest(unittest.TestCase):
 
     def test_no_disclosure_is_red(self):
         base = good_run(self.root)
-        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
+        open_pr_with_body(self.root, "## Summary\nmin-length added\n")
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "the run left a DISCLOSURE")
 
-    def test_disclosure_in_the_pr_body_only_is_found(self):
+    def test_disclosure_in_the_working_doc_only_is_found(self):
         base = good_run(self.root)
-        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
-        open_pr_with_body(self.root, "## DISCLOSURE\n1a. REVIEWER: ON\n1b. CHALLENGER: ON\n")
+        open_pr_with_body(self.root, "## Summary\nmin-length added\n")
+        doc = self.root / "work" / f"docs/tickets/{KEY}.work.md"
+        doc.write_text(doc.read_text(encoding="utf-8") + "\n" + DISCLOSURE_BODY, encoding="utf-8")
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertEqual(code, 0, out)
 
     def test_pr_body_without_the_seats_is_red(self):
         base = good_run(self.root)
-        (self.root / "work" / f".mango/disclosure-{KEY}.md").unlink()
         open_pr_with_body(self.root, "## DISCLOSURE\nthe reviewer and the challenger both ran\n")
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "the run left a DISCLOSURE")
@@ -341,12 +347,25 @@ class AssertRunTest(unittest.TestCase):
         code, out = judge(self.root, base, stub_mango(self.tmp))
         self.assertRed(out, code, "challenger: every requirement met")
 
-    def test_disclosure_with_another_extension_is_found(self):
+    def test_a_disclosure_file_is_a_stray_file(self):
+        """1.21.1 — DISCLOSURE is never a file; one left in .mango/ is red."""
         base = good_run(self.root)
-        m = self.root / "work" / ".mango"
-        (m / f"disclosure-{KEY}.md").rename(m / f"disclosure-{KEY}.txt")
+        (self.root / "work" / f".mango/disclosure-{KEY}.md").write_text(DISCLOSURE_BODY, encoding="utf-8")
         code, out = judge(self.root, base, stub_mango(self.tmp))
-        self.assertEqual(code, 0, out)
+        self.assertRed(out, code, ".mango/ holds only its .gitignore and the run contract")
+
+    def test_a_leftover_spec_is_a_stray_file(self):
+        base = good_run(self.root)
+        (self.root / "work" / f".mango/spec-{KEY}.json").write_text("{}", encoding="utf-8")
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, ".mango/ holds only its .gitignore and the run contract")
+
+    def test_mango_dir_without_its_gitignore_is_red(self):
+        base = good_run(self.root)
+        (self.root / "work" / ".mango/.gitignore").unlink()
+        code, out = judge(self.root, base, stub_mango(self.tmp))
+        self.assertRed(out, code, ".mango/ ignores itself")
+        self.assertRed(out, code, ".mango/ never shows in git status")
 
     def test_no_pr_is_red(self):
         base = good_run(self.root)
