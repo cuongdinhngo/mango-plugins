@@ -1,11 +1,10 @@
 name: golden-e2e
 
 # One unattended /mango:autorun on a generated sample project, judged on artifacts (tests/e2e/).
-# It costs tokens — one full lifecycle with subagents — so it runs weekly and on demand, never on push.
+# It costs tokens — one full lifecycle with subagents — so it runs on demand only: never on push, never
+# on a schedule. It needs the ANTHROPIC_API_KEY repository secret (a runner has no login session).
 # The cost of each run is written to the job summary.
 on:
-  schedule:
-    - cron: "0 3 * * 1"
   workflow_dispatch:
 
 jobs:

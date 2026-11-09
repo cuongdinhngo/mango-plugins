@@ -42,8 +42,8 @@ python3 tests/e2e/test_assert_run.py      # free, deterministic — after editin
 bash tests/e2e/run.sh --local             # costs tokens; commit first (it clones HEAD)
 ```
 
-CI runs the dispatch weekly and on demand (`.github/workflows/e2e.yml`), never on push, and writes each
-run's cost to the job summary. Outside CI, `run.sh` refuses to start without `--local`: the dispatched
+CI runs the dispatch on demand only (`.github/workflows/e2e.yml`, needs the `ANTHROPIC_API_KEY` secret),
+never on push or on a schedule, and writes each run's cost to the job summary. Outside CI, `run.sh` refuses to start without `--local`: the dispatched
 session edits files and runs git and Python inside the sandbox without asking. The session's `TMPDIR` is the
 run's own temp dir. A hard-coded `/tmp` path still escapes it, so `run.sh` lists any new `/tmp` entry
 in `.runs/<id>/tmp-new.txt` and warns; it does not judge them, since other processes write `/tmp` too.

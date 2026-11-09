@@ -92,7 +92,7 @@ the work, and mango checks the result against the ticket. Recording their output
 
 **Every release is gated by `validate.py` and the dispatch-free script suites**, run in CI on every
 push. **mango has no behavioural regression suite.** It has a per-skill smoke guard of 8 fixtures, run
-when a skill is edited, which does **not** detect cross-skill regressions, and a weekly
+when a skill is edited, which does **not** detect cross-skill regressions, and an on-demand
 [golden e2e](./tests/e2e/) of one ticket through `autorun`, which catches one only when it breaks that
 run. `RETIRE:` is uncovered. [Experimental](./plugins/mango/principles/maturity.md) · [detail](./docs/MATURITY.md) · [cost](./docs/COST.md).
 

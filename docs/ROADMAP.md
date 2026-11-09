@@ -18,7 +18,7 @@ recording their output as evidence is Planned (phase 3).
 - First-run path fixed: minimal config, tracker local mode, one-screen README, `/mango:challenge`.
 - `CHALLENGER VERDICT` is a counted line; evidence is bound to the reviewed commit; `(pre-change)`
   proof blocks are bound to the base and measured in the e2e run.
-- Weekly e2e `autorun` judged on artifacts: $3–5.5 and ≤ 10 minutes per run; findings #1 and #5 of
+- On-demand e2e `autorun` judged on artifacts: $3–5.5 and ≤ 10 minutes per run; findings #1 and #5 of
   its first runs fixed in 1.21.0.
 - Frontend track: falsifiable rubric, universal-surface coverage, proof tier ladder.
 - `autorun` leaves one file, the run contract, and `RECONCILE` says when it can go (1.21.1).
