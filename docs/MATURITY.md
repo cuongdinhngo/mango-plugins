@@ -5,7 +5,7 @@ The short version is in the [root README](../README.md#maturity): every release 
 — only a per-skill smoke guard. That guard reports that its fixtures passed just now, and nothing
 more: it does **not** detect cross-skill regressions (editing `design` and breaking `finalise` is not
 caught), and the `RETIRE:` counted line is uncovered. The [golden e2e](../tests/e2e/) runs one ticket
-through `autorun` weekly and catches a cross-skill regression only when it breaks that run (record
+through `autorun` on demand and catches a cross-skill regression only when it breaks that run (record
 below). This page holds the record behind that summary. Which behaviours are
 **Experimental** is tracked only in
 [`plugins/mango/principles/maturity.md`](../plugins/mango/principles/maturity.md).

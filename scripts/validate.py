@@ -3483,7 +3483,7 @@ def validate_protocol_grammar():
 
 def validate_golden_e2e():
     """The golden e2e (tests/e2e/) dispatches a full unattended lifecycle, so its cost guard is
-    structural: the workflow runs on a schedule and on demand, never on push or pull_request; the run
+    structural: the workflow runs on demand only, never on a schedule, push or pull_request; the run
     refuses to start outside CI without --local; the PR host is a test double; and the free judge
     self-test runs in validate.yml so the judge cannot rot unnoticed."""
     e2e = ROOT / "tests" / "e2e"
@@ -3493,10 +3493,10 @@ def validate_golden_e2e():
     if check(wf.exists(), "golden-e2e: .github/workflows/e2e.yml is missing"):
         text = wf.read_text(encoding="utf-8")
         on = text[text.find("\non:"):text.find("\njobs:")]
-        check("schedule:" in on and "workflow_dispatch" in on,
-              "golden-e2e: e2e.yml must run on a schedule and on workflow_dispatch")
-        check(re.search(r"^\s+(push|pull_request)\s*:", on, re.M) is None,
-              "golden-e2e: e2e.yml must never run on push or pull_request (it costs tokens)")
+        check("workflow_dispatch" in on,
+              "golden-e2e: e2e.yml must run on workflow_dispatch")
+        check(re.search(r"^\s+(push|pull_request|schedule)\s*:", on, re.M) is None,
+              "golden-e2e: e2e.yml must never run on push, pull_request or a schedule (it costs tokens)")
     run = (e2e / "run.sh").read_text(encoding="utf-8") if (e2e / "run.sh").exists() else ""
     check('"${CI:-}" != "true"' in run and "--local" in run,
           "golden-e2e: run.sh must refuse to start outside CI without --local")
