@@ -5,6 +5,41 @@ All notable changes to the mango plugin are documented here. This project adhere
 (`plugins/mango/CHANGELOG.md`, alongside `plugin.json` / `README.md`) and is the **neutral source** an
 independent field retro reads for "what changed this version" — read it, not a prior retro.
 
+## [1.24.0] — 2026-11-10
+
+**The spec track (Track S, Experimental): three advisory skills before a ticket exists.** A spec is
+read by fresh reviewers and gets a counted verdict before any code. None of the three closes a gate,
+calls a lifecycle skill, or creates a ticket or an epic; the one link to the lifecycle is a
+`Spec: <path>` line a user may add to an epic or a ticket (Planned, S4).
+
+- **Added (skills):** `/mango:brainstorm` (idea → brief: one open question per turn, reviewer lenses
+  only after a readiness gate the user passes), `/mango:spec` (brief or notes → spec: one section at a
+  time, the user chooses every decision from at most three unranked options, the spec is compared with
+  its brief and never edited to match it), `/mango:spec-review` (one reviewer per lens in parallel; a
+  lens with no result line is retried once, then `not run`, never zero findings; resolve as CONTEST,
+  ESCALATE, PROPOSE FIX or DECLINE; the review record goes into the document itself, on the user's yes).
+- **Added (agent):** `spec-reviewer` — `tools: Read, Grep, Glob`, `omitClaudeMd: true`, Sonnet.
+  `validate.py` pins both host keys. The host behaviours it relies on were checked on Claude Code
+  2.1.321 against the docs and a reproducible throwaway plugin (`docs/spikes/spec-track-host.md`);
+  `omitClaudeMd` needs 2.1.271 or later and does not stop a subdirectory CLAUDE.md from attaching.
+- **Added (principle, templates):** `principles/spec-review.md` holds the lenses, severities, resolve
+  rules, `not run` and convergence once for all three skills; `templates/spec.md`, `templates/brief.md`.
+- **Added (counted lines):** `BRIEF`, `SPEC`, `DIVERGENCE`, `SPEC REVIEW`, parsed by `check_lines.py`
+  under the new `--phase brief | spec | spec-review`. A spec phase holds a document only to its own
+  lines, never to a lifecycle line. Ten envelope tests.
+- **Added (config, optional):** `specs_dir` (default `docs/specs/`), `spec_review.max_rounds` (default 3).
+- **Decided, not added:** no skill sets `disable-model-invocation`, like every other mango skill; a
+  narrow `description` limits unwanted auto-invocation, and the flag is reconsidered only if measured.
+  The spec track's grammars ship before Phase 2's `GATE` line rather than after it: no `GATE` change is
+  in flight, and the new grammars only add registry entries.
+- **Size:** the full-run words rise 34,360 → 34,373 (+13): one row in `PRINCIPLES.md`'s companion index,
+  which `validate.py` requires for every companion (ledger raised 2653 → 2666). `maturity.md` 923 → 979
+  for the new Experimental entry. The three skills total 1,756 words; nothing new loads in a full run.
+- **Smoke guard:** five new fixtures (`spec-review-not-run`, `spec-review-contest-evidence`,
+  `spec-zero-decision`, `spec-divergence`, `brainstorm-readiness-gate`); their 25 dispatch-free
+  self-tests pass. **The fixtures have not been dispatched yet** — each must pass 3× fresh before this
+  version merges.
+
 ## [1.23.2] — 2026-11-08
 
 **The `RULE SECTIONS` shape no longer reads as a list split by ` / `.** The red 1.23.0 e2e run wrote

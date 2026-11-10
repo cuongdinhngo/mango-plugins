@@ -2545,7 +2545,7 @@ def validate_counted_line_checker():
 # --- v1.16.0: the per-skill smoke guard ----------------------------------------------------------
 def validate_eval_guard():
     """v1.16.0 — the behavioural eval suite is retired. What replaces it is a per-skill smoke
-    guard (six fixtures at v1.16.0, seven since v1.17.0, eight since v1.19.0), and this is the check that keeps it real: each exists, run.sh dispatches
+    guard (six fixtures at v1.16.0, seven since v1.17.0, eight since v1.19.0, thirteen since Track S), and this is the check that keeps it real: each exists, run.sh dispatches
     it, and FIXTURE_SKILLS keys it to the skill it exercises — without that key the per-skill trigger
     cannot select it, which is the whole mechanism. A fixture that exists but is never dispatched is
     not coverage; a fixture that is dispatched but not mapped cannot be triggered by a skill edit.
@@ -2577,6 +2577,17 @@ def validate_eval_guard():
             "v1.19.0 — the existing challenger runs once outside the lifecycle with no .harness.json, "
             "on the raw ticket above the separator + the range; the PR body stays out, nothing is "
             "written, and the output is never a review verdict"),
+        # Track S (Experimental) — the spec track's safety boundaries, one fixture each.
+        "spec-review-not-run": ("spec-review",
+            "a lens with no LENS RESULT line is not run, never zero findings, and the round is not clean"),
+        "spec-review-contest-evidence": ("spec-review",
+            "'it is intentional' with nothing written is ESCALATE, and a finding's severity never changes"),
+        "spec-zero-decision": ("spec",
+            "a step left to the implementer's choice is a decision for the user; the spec is not ready"),
+        "spec-divergence": ("spec",
+            "a spec deciding against its brief is a contradiction the user settles; never auto-edited"),
+        "brainstorm-readiness-gate": ("brainstorm",
+            "no reviewer before the readiness gate; one question per turn"),
     }
     fixtures = ROOT / "tests" / "eval" / "fixtures"
     runsh = ROOT / "tests" / "eval" / "run.sh"

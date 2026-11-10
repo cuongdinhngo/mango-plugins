@@ -1,6 +1,6 @@
 # mango-plugins
 
-![version](https://img.shields.io/badge/version-1.23.2-blue)
+![version](https://img.shields.io/badge/version-1.24.0-blue)
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
@@ -91,7 +91,7 @@ the work, and mango checks the result against the ticket. Recording their output
 ## Maturity
 
 **Every release is gated by `validate.py` and the dispatch-free script suites**, run in CI on every
-push. **mango has no behavioural regression suite.** It has a per-skill smoke guard of 8 fixtures, run
+push. **mango has no behavioural regression suite.** It has a per-skill smoke guard of 13 fixtures, run
 when a skill is edited, which does **not** detect cross-skill regressions, and an on-demand
 [golden e2e](./tests/e2e/) of one ticket through `autorun`, which catches one only when it breaks that
 run. `RETIRE:` is uncovered. [Experimental](./plugins/mango/principles/maturity.md) · [detail](./docs/MATURITY.md) · [cost](./docs/COST.md).
@@ -104,7 +104,7 @@ Every push to `main` ships; every version bump is tagged `v<version>` with a
 ```
 /plugin marketplace update mango-plugins                    # update to the latest
 /plugin install mango@mango-plugins
-/plugin marketplace add cuongdinhngo/mango-plugins#v1.23.2  # or pin a tag (current shown; any works)
+/plugin marketplace add cuongdinhngo/mango-plugins#v1.24.0  # or pin a tag (current shown; any works)
 ```
 
 ## Contributing and license
