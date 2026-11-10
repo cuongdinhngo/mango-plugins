@@ -24,7 +24,8 @@ lifecycle phase** and closes no gate. `.harness.json` is **not required**; witho
 2. **Pick the lenses**: `comprehension`, `zoom-out`, `critic`, plus `readiness` when the document has an
    implementation section (a heading such as *Implementation* or *Implementation plan*).
 3. **Dispatch one `spec-reviewer` agent per lens, in parallel**, each with exactly: the document path,
-   the scope, the lens name, round `<k>`, and the files the document names. **Nothing else** — never the
+   the scope, the lens name, round `<k>`, the files the document names, and the absolute path of
+   `<mango>/principles/spec-review.md`. **Nothing else** — never the
    brief, this conversation, or the author's explanations.
 4. **A lens with no `LENS RESULT` line** → dispatch it once more; still none → `not run`.
 5. **Merge** findings across lenses on the main loop; drop exact duplicates, keep the higher severity.

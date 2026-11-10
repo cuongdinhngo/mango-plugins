@@ -863,6 +863,8 @@ RE_CHALLENGE_HARNESS_LINE='^[ *_`>-]*HARNESS[ *_`]*:[ *_`]*not[ *_]{1,4}needed'
 RE_CHALLENGE_KEPT_OUT_PR_BODY='^[ *_`>-]*KEPT[ *_]{1,4}OUT[ *_`]*:.*PR[ *_]{1,4}body'
 RE_CHALLENGE_KEPT_OUT_BELOW='^[ *_`>-]*KEPT[ *_]{1,4}OUT[ *_`]*:.*(below|under|working[ *_-]{1,4}doc|design[ *_]{1,4}notes|matrix)'
 RE_CHALLENGE_WRITES_LINE='^[ *_`>-]*WRITES[ *_`]*:[ *_`]*(nothing|none)([^a-z]|$)'
+# multi-clause-want: the unit the want is split into, however it is named (widened over wording).
+RE_MULTI_CLAUSE_UNIT='clause|behaviou?rs?|halves'
 # Track S decision lines (spec-review, spec, brainstorm). Same shape as challenge-standalone: each
 # token anchors on one fixed decision line, and the fixture's template opens with `<`, so an echoed
 # template matches no outcome. Each is proven both ways by the assertion-convention self-test.
@@ -963,7 +965,7 @@ banner "== multi-clause-want  (analysis — Gate 1) =="
 # injected single-row ✅ certification is FLAGGED (non-vacuous), not accepted.
 t="$(run_fixture multi-clause-want 'Run the mango analysis skill on this ticket. Decompose the ratified want-decision into the requirements matrix and the verification plan, state how many rows it produces and why, and judge the single-row certification shown in the ticket. Do not stop for my input.')"
 # Decision-level: the want-decision has TWO clauses and gets one row PER CLAUSE (outcome + reasoning).
-assert_all "multi-clause-want: two clauses → one row per clause" "$t" 'two|2[[:space:]*_]*(rows|clause)|per clause|each clause' 'clause'
+assert_all "multi-clause-want: two clauses → one row per clause" "$t" 'two|2[[:space:]*_]*(rows|clause)|per clause|each clause' "$RE_MULTI_CLAUSE_UNIT"
 assert_all "multi-clause-want: both clauses are named (placement + tappable)" "$t" 'placement|under the summary|position' 'tappable|tap|navigat|detail view'
 # Non-vacuous: the injected single-row certification is REJECTED / flagged as a finding.
 assert_all "multi-clause-want: the injected 1-row certification is flagged (non-vacuous)" "$t" 'single[ -]row|one row|R-1|certif' 'not acceptable|unacceptable|reject|finding|insufficient|blocks?|must .{0,16}split|cannot .{0,16}(stand|certif)|flag'
@@ -1354,6 +1356,18 @@ AC
 selftest_assertion "decision line: an echoed template passes no outcome (challenge-standalone)" \
   "$_ac/challenge-lines.correct" "$_ac/challenge-lines-template.wrong" \
   "$RE_CHALLENGE_HARNESS_LINE" "$RE_CHALLENGE_KEPT_OUT_PR_BODY" "$RE_CHALLENGE_WRITES_LINE"
+
+# multi-clause-want: the unit token was widened over wording ("two separate behaviours" names the same
+# split as "two clauses"); a single-row answer still misses.
+cat >"$_ac/multi-clause.correct" <<'AC'
+The want produces two matrix rows: it contains two separate behaviours joined by AND.
+AC
+cat >"$_ac/multi-clause.wrong" <<'AC'
+The want stays as one row; the single-row certification is accepted.
+AC
+selftest_assertion "multi-clause-want: the decomposition unit, widened over wording" \
+  "$_ac/multi-clause.correct" "$_ac/multi-clause.wrong" \
+  'two|2[[:space:]*_]*(rows|clause)|per clause|each clause' "$RE_MULTI_CLAUSE_UNIT"
 
 cat >"$_ac/spec-track.correct" <<'AC'
 - **NOT RUN:** critic (no LENS RESULT line, twice)

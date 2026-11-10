@@ -22,6 +22,12 @@ calls a lifecycle skill, or creates a ticket or an epic; the one link to the lif
   `validate.py` pins both host keys. The host behaviours it relies on were checked on Claude Code
   2.1.321 against the docs and a reproducible throwaway plugin (`docs/spikes/spec-track-host.md`);
   `omitClaudeMd` needs 2.1.271 or later and does not stop a subdirectory CLAUDE.md from attaching.
+- **Fixed before release (manual trial):** a real `/mango:spec-review` round on a sample spec found
+  that three of four reviewers could not locate `principles/spec-review.md` and one read a copy from
+  another checkout. The dispatch now passes the principle's absolute path, and `spec-reviewer` reads
+  only that path and never searches for a copy (agent 353 → 375 words, ledger raised). The round
+  itself caught the planted defect — a per-tenant purge over a shared directory — through all four
+  lenses.
 - **Added (principle, templates):** `principles/spec-review.md` holds the lenses, severities, resolve
   rules, `not run` and convergence once for all three skills; `templates/spec.md`, `templates/brief.md`.
 - **Added (counted lines):** `BRIEF`, `SPEC`, `DIVERGENCE`, `SPEC REVIEW`, parsed by `check_lines.py`
@@ -47,7 +53,10 @@ calls a lifecycle skill, or creates a ticket or an epic; the one link to the lif
 - **Smoke guard:** six new fixtures (`spec-review-not-run`, `spec-review-contest-evidence`,
   `spec-zero-decision`, `spec-divergence`, `brainstorm-readiness-gate`, `design-spec-evidence`); their
   30 dispatch-free self-tests pass. Each fixture passed 3× fresh (`--no-cache`, sequential; CLI 2.1.322, model
-  cli-default). That is a smoke guard, not a regression suite.
+  cli-default). That is a smoke guard, not a regression suite. The whole-guard run then failed one
+  wording token on `multi-clause-want` (the outcome was right: two rows, the single-row ✅ rejected, but
+  it said "two separate behaviours", not "clauses"); the token is widened to
+  `clause|behaviou?rs?|halves`, over wording only, with a self-test proving both ways.
 
 ## [1.23.2] — 2026-11-08
 

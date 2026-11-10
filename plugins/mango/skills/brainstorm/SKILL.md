@@ -28,7 +28,8 @@ creates a ticket or an epic. `.harness.json` is **not required**; without it, `s
    *review it with the lenses* or *clarify further*. **Dispatch nothing until the user chooses review.**
 4. **Dispatch one `spec-reviewer` per lens, in parallel**: `zoom-out`, `critic`, `ergonomics`. Each gets
    the hypothesis (written to the brief file first, at the path the user confirms — default
-   `<specs_dir>/<slug>.brief.md`) and the files it names; never this conversation. A lens with no
+   `<specs_dir>/<slug>.brief.md`), the files it names and the absolute path of
+   `<mango>/principles/spec-review.md`; never this conversation. A lens with no
    `LENS RESULT` line → dispatch it once more; still none → `not run`, named in the brief's *Analysis*.
 5. **Write the brief** from `<mango>/templates/brief.md`: merge and de-duplicate findings into
    *Analysis*, and fill goals, non-goals, alternatives weighed, decisions and open questions from the

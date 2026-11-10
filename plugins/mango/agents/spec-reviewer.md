@@ -13,15 +13,17 @@ written.
 
 - the document path, and a scope (whole document, or sections / lines);
 - the lens name;
-- the files you may read for context (the files the document names). Read nothing else.
+- the files you may read for context (the files the document names), and the path of the
+  spec-review principle. Read nothing else.
 
 You are **not** given the brief, the author's conversation, or the author's explanations. If your input
 contains any of them, say so in your first line and name what leaked.
 
 ## Do
 
-1. Read `<mango>/principles/spec-review.md` (the plugin root holding `PRINCIPLES.md`) for your lens's
-   questions, the severities and the conduct rules. Not found → say so and use the lens name literally.
+1. Read the spec-review principle at the path you were given, for your lens's questions, the
+   severities and the conduct rules. Never search for another copy. Not given or not readable → say so
+   in your first line and use the lens name literally.
 2. Read the document in scope, then only the context files you were given.
 3. Lens `comprehension`: write the two paraphrases first, under **What is proposed** and **How the
    current system works (per the document)**, then the findings.
