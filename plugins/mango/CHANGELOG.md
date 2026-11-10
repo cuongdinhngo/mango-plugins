@@ -56,7 +56,8 @@ calls a lifecycle skill, or creates a ticket or an epic; the one link to the lif
   cli-default). That is a smoke guard, not a regression suite. The whole-guard run then failed one
   wording token on `multi-clause-want` (the outcome was right: two rows, the single-row ✅ rejected, but
   it said "two separate behaviours", not "clauses"); the token is widened to
-  `clause|behaviou?rs?|halves`, over wording only, with a self-test proving both ways.
+  `clause|behaviou?rs?|halves`, over wording only, with a self-test proving both ways. The whole guard
+  then passed fresh: 14/14 fixtures, 148/148 assertions, at `3b16bec`.
 
 ## [1.23.2] — 2026-11-08
 

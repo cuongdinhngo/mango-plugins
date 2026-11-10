@@ -1,7 +1,7 @@
 {
   "_about": "Size ledger for docs/WRITING.md's ratchet: files over their page-type budget (and all ratchet-only runtime text), at their measured size — lines for human docs, words for runtime text. `python3 scripts/validate.py --update-budgets` only lowers or removes entries; raising one needs a PR that says why.",
   "lines": {
-    "tests/eval/README.md": 135
+    "tests/eval/README.md": 133
   },
   "words": {
     "plugins/mango/PRINCIPLES.md": 2666,

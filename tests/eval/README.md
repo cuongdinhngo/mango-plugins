@@ -100,12 +100,10 @@ bash tests/eval/run.sh --only '^__none__$'    # every self-test, zero dispatches
 
 ## Last full run of the guard
 
-**2026-10-20 — 7/7 fixtures green, 84/84 assertions, 0 failed.** Seven dispatches across eight workers
-in 92s, `--no-cache` (nothing reused, every fixture ran fresh), at commit `1073665`, CLI 2.1.304, model
-`cli-default`. That figure is 38 fixture assertions plus 46 dispatch-free self-tests.
-
-That run predates `challenge-standalone` (1.19.0) and Track S; each later fixture was proven alone, 3×
-fresh. The next milestone run of the whole guard replaces this entry.
+**2026-11-10 — 14/14 fixtures green, 148/148 assertions, 0 failed.** Fourteen dispatches across four
+workers in 112s, `--no-cache` (every fixture ran fresh), at commit `3b16bec`, CLI 2.1.322, model
+`cli-default`. That figure is 63 fixture assertions plus 85 dispatch-free self-tests. The run before it
+failed one wording token on `multi-clause-want`, widened over wording only (CHANGELOG 1.24.0).
 
 Recorded here because a result nobody stores is a result nobody has: earlier runs are in `git log` of this file.
 
