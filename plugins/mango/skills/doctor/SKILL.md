@@ -120,6 +120,10 @@ Then read `${CLAUDE_PROJECT_DIR}/.harness.json`. Run every check below and emit 
       `cannot promote: destination key unset` rather than routed").
     Never ❌: promotion is opt-in and off the lifecycle, and the lifecycle runs fully without it.
 
+11. **Host version — informational, never blocks.** Run `claude --version`. Below `2.1.271` → ⚠
+    ("`spec-reviewer` sets `omitClaudeMd`, which this host does not support: spec reviewers start with
+    CLAUDE.md loaded — update the host"). Cannot run or parse → ⚠ "host version not checkable".
+
 ## Output
 
 Print the checklist, then a one-line summary `DOCTOR: <p> pass | <w> warn | <f> fail`. If any ❌,

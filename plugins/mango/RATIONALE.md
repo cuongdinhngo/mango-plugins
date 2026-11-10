@@ -538,3 +538,23 @@ hidden.
   because nothing else covers what it covers. The 1.23.0 golden e2e caught it only because the agent
   noticed and corrected the line.
 
+
+## spec track — where it comes from, and what was left out (v1.24.0)
+
+- The flow (brainstorm → spec → review), one open question per turn, the readiness gate before any
+  reviewer, section-by-section drafting, the author choosing every architecture decision from unranked
+  options, the brief comparison, comprehension by paraphrase, the CONTEST / ESCALATE / PROPOSE FIX /
+  DECLINE resolve step, retry-once-then-`not run`, and the convergence classes are adapted from EGM
+  0.1.1 (commit `5382b17`, Apache-2.0). mango rewrote them in its own words; no persona or standard
+  text was copied.
+- Changed on the way in: three lenses by default instead of seven (cost); convergence is one clean
+  round after the last fix, at most three, instead of two clean rounds in a row, at most five — to be
+  re-measured in S5; `not run` became its own axis in a counted line, so a failed reviewer can never
+  read as zero findings.
+- Left out: the nested synthesizer agent (mango merges findings in the main loop), one report file per
+  stage (the review record lives in the spec), the anti-flattery block copied into every skill (one
+  principle file holds the conduct rules), multi-host support, and test scenarios labelled
+  deterministic that no runner executes — the false-green mango treats as the worst defect.
+- The link to the lifecycle is one data line, `Spec: <path>`, which `design` records as evidence.
+  The spec skills never call a lifecycle skill or create a ticket: a user may write a spec for an epic,
+  a ticket or neither, and coupling them would force one shape on every project.

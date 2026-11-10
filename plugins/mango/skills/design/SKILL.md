@@ -25,7 +25,11 @@ this phase.
 
 1. **Confirm Gate 1 cleared.** Read the working doc `<config.work_dir>/<KEY>.work.md`. The
    requirements matrix and AC table must be filled and `CLARIFICATION` `j = 0`. If not, return to
-   analysis.
+   analysis. **Spec link:** the ticket or its epic has a `Spec: <path>` line → read that spec as
+   context and write one **design evidence** record into Phase 2: `path`, `sha256` of the file now,
+   its last `SPEC REVIEW:` line verbatim (none → `no review`), `provenance: reported`. Show it at
+   Gate 2, naming any open Blocker or `not run` lens. It informs the gate; it never closes or passes it.
+   No `Spec:` line → skip this.
 2. **Approach + Rejected alternatives.** State the chosen approach in a few lines, then record at
    least one **Rejected alternative** and why (enforces principle 1's record of thought).
 3. **Assumptions.** List every assumption the approach leans on, each tagged `verified |

@@ -11,7 +11,8 @@
 commands (`/plan`, `/code-review`, `/security-review`, `/verify`, `/run`) do the work. mango
 independently checks the work against the ticket, holds the gates a human approved, binds every piece
 of evidence to a commit, and says plainly what it could not verify. It never replaces native commands;
-recording their output as evidence is Planned (phase 3).
+recording their output as evidence is Planned (phase 3). Verification starts before code: a spec is read by
+fresh reviewers and gets a counted verdict (Track S).
 
 ## Where we are (1.21.1)
 
@@ -97,6 +98,21 @@ under the data rules below. Between phases, the docs get one independent review 
 - Challenger calibration and real-ticket cost from the aggregate rows collected since Phase 1
   (≥ 3 tickets per lane, ≥ 20 adjudicated `not met` items, counts only).
 - Decide: protocol v1.0 now or after another cycle; which Later items start.
+
+## Track S — the spec track (pre-ticket, Experimental)
+
+Three advisory skills before a ticket: `brainstorm` (idea → brief), `spec` (brief → spec), `spec-review` (fresh
+read-only reviewers, counted verdict). No gate; S4 is the one lifecycle link. Runs **alongside Phase 2**; its
+grammars shipped in 1.24.0, ahead of Phase 2's `GATE`, as registry additions only. Lines and roles: [`PROTOCOL.md`](./PROTOCOL.md).
+
+| Phase | Goal | Starts when | Done when |
+|---|---|---|---|
+| **S0** | Spike and contract | now | [host spike](./spikes/spec-track-host.md) answered with sources; Planned entries in `PROTOCOL.md` and here |
+| **S1** | `spec-reviewer` agent + `/mango:spec-review` | S0 done | reviews a sample spec and a third-party design doc; a simulated failed lens gives `not run` and an unclean round |
+| **S2** | `/mango:spec` | S1 done | a sample brief yields a spec whose `SPEC` line is ready; `DIVERGENCE` catches a planted contradiction |
+| **S3** | `/mango:brainstorm` | S1 done (parallel to S2) | no dispatch before the readiness gate; brief carries `BRIEF`; `spec` reads the brief |
+| **S4** | One data link to the lifecycle | S2 done | an epic or ticket the user marks `Spec: <path>` gets design evidence at G2, never an auto-closed G2; no spec skill calls a lifecycle skill or creates a ticket |
+| **S5** | Measure | S1–S3 released | cost per skill; `not run` rate; rounds to convergence |
 
 ## Measures
 

@@ -1,9 +1,9 @@
-# The mango protocol — v0.1 (Draft, revision 5)
+# The mango protocol — v0.1 (Draft, revision 6)
 
 > **In 30 seconds.** Gates closed by a named actor, claims as counted lines a script checks, a
 > verifier independent of the producer, and *not checked* never read as *passed*. Your agent and host
 > commands do the work; this is how mango shows it matches the ticket — and says what it could not show.
-> **Status:** formalises `1.22.0`; **Planned** parts name their phase in [`ROADMAP.md`](./ROADMAP.md); RFC 2119.
+> **Status:** formalises `1.23.2`; **Planned** parts name their phase in [`ROADMAP.md`](./ROADMAP.md); RFC 2119.
 
 ## 1. Trust properties
 
@@ -18,12 +18,11 @@
 These hold **per lane** (§7): the lite lane has no verifier, and a run with a seat switched off is
 labelled. A verdict never claims a property its lane does not provide.
 
-**Threat model.** The protocol defends against a cooperative but fallible agent: one that
-over-claims, skips a requirement, proves the wrong thing, reuses a stale run or drifts outside its
-approved change. It does **not** defend against an agent deliberately editing files in its own
-workspace — shell access makes every v0.x artifact tamper-evident at best, never tamper-proof. The
-`check_lines` verdict carries a fingerprint of the document it judged, so a quote of it against a
-changed document is detectable; other verdict lines do not carry one yet.
+**Threat model.** The protocol defends against a cooperative but fallible agent: one that over-claims, skips a
+requirement, proves the wrong thing, reuses a stale run or drifts outside its approved change. It does **not**
+defend against an agent deliberately editing files in its own workspace — shell access makes every v0.x artifact
+tamper-evident at best, never tamper-proof. The `check_lines` verdict carries a fingerprint of the document it
+judged, so a quote of it against a changed document is detectable; other verdict lines do not carry one yet.
 
 ## 2. Roles
 
@@ -35,6 +34,7 @@ changed document is detectable; other verdict lines do not carry one yet.
 | **Reviewer** | `reviewer`, `reviewer-max` | no Write/Edit tool |
 | **Harness** | stdlib scripts | reports; never rewrites what it judges |
 | **Unattended runner** | `autorun` | closes a gate only on its artifact condition; never merges |
+| **Spec reviewer** (Experimental, Track S) | `spec-reviewer` | `Read, Grep, Glob` only; no CLAUDE.md at start (a subdirectory one still attaches); sees the document and the files it names, never the brief or the author's conversation |
 
 ## 3. Gates
 
@@ -52,8 +52,9 @@ changed document is detectable; other verdict lines do not carry one yet.
 Unattended conditions for G0–G3 are canonical in `skills/autorun/SKILL.md`; a condition naming an
 artifact that is not produced makes the gate non-closing.
 
-**Gate record — Planned (phase 2).** Each gate decision is one counted line, written on its own line
-(never inside a table — the line contains `|`):
+**Spec lane (pre-ticket) — Experimental (Track S).** `brainstorm` → `spec` → `spec-review`; advisory, no gate; lines in §5.2.
+
+**Gate record — Planned (phase 2).** Each gate decision is one counted line, on its own line (never in a table: it has `|`):
 
 ```
 GATE: <id> | <decision> | by <actor> | tree <sha|none> | at <UTC>[ | action <pr|tracker|lesson>][ | why <text>]
@@ -65,11 +66,11 @@ GATE: <id> | <decision> | by <actor> | tree <sha|none> | at <UTC>[ | action <pr|
 | `passed` | `phase` | G3; G4 when clean |
 | `auto-closed`, `stopped` | `autorun` | G0–G4 under autorun (`stopped` also for any non-closing gate) |
 
-Other pairings are contradictions. Only a gate's **final** decision is recorded (an unattended attempt
-that does not close writes nothing). State is **derived** from these lines; no hand-edited copy exists.
-`why` holds the reason, so `GATE` lines replace the Decision log's gate rows. A doc not declaring
-`PROTOCOL: v0.2` gets **no gate axis** — neither failure nor pass. **Not checkable means not closed:**
-under autorun, checker exit 3 on a v0.2 doc leaves the gate open and goes to the Disclosure.
+Other pairings are contradictions. Only a gate's **final** decision is recorded (an unattended attempt that does
+not close writes nothing). State is **derived** from these lines; no hand-edited copy exists. `why` holds the
+reason, so `GATE` lines replace the Decision log's gate rows. A doc not declaring `PROTOCOL: v0.2` gets **no
+gate axis** — neither failure nor pass. **Not checkable means not closed:** under autorun, checker exit 3 on a
+v0.2 doc leaves the gate open and goes to the Disclosure.
 
 ## 4. Artifacts
 
@@ -86,12 +87,11 @@ under autorun, checker exit 3 on a v0.2 doc leaves the gate open and goes to the
 
 ### 4.1 What a pull request can prove — Planned (phase 3)
 
-A check outside the session verifies **consistency** (`check_lines`) and **binding** (head vs
-`Reviewed at`, diff ⊆ change list, evidence SHAs). It cannot re-derive **judgement** (challenger and
-reviewer verdicts): those are *carried*, source named. Each attestation field is labelled `recomputed`
-or `carried`; a CI check says "consistency and binding verified; judgement carried", never
-"requirements verified". It needs the working doc and attestation on the PR branch at a path exempt
-from the stale guard — decided first.
+A check outside the session verifies **consistency** (`check_lines`) and **binding** (head vs `Reviewed at`,
+diff ⊆ change list, evidence SHAs). It cannot re-derive **judgement** (challenger and reviewer verdicts): those
+are *carried*, source named. Each attestation field is labelled `recomputed` or `carried`; a CI check says
+"consistency and binding verified; judgement carried", never "requirements verified". It needs the working doc
+and attestation on the PR branch at a path exempt from the stale guard — decided first.
 
 ## 5. Verification
 
@@ -108,24 +108,27 @@ no phase and no gate: the plan is approved at G2, its results decide G4.
 
 A check skipped by the profile is `waived` and shows in the status card, Disclosure and attestation.
 A CI check names the profile in its title and MAY require a minimum. No new line is required of a doc
-that has not opted into v0.2: upgrading never turns a passing doc into a failing one.
+that has not opted into v0.2: upgrading never turns a passing doc into a failing one. mango bundles no
+test runner; with no project command a check is `could-not-run` — disclosed.
 
-mango bundles no test runner; with no project command a check is `could-not-run` — disclosed.
+### 5.2 Verification lines — `PROOF`, spec lines (Track S) Implemented; `VERIFY` Planned (phase 2), `STATES` (phase 3)
 
-### 5.2 Verification lines — `PROOF` Implemented; `VERIFY` Planned (phase 2), `STATES` (phase 3)
-
-Each line has an **identity** (the numbers must add up) and a **clean condition** (what G4 needs).
+Each line has an **identity** (the numbers must add up) and a **clean condition** (what G4, or a spec hand-off, needs).
 
 | Line | Grammar | Identity | Clean when |
 |---|---|---|---|
 | `VERIFY` | `profile <p> \| <r> required \| <d> done \| <x> failed \| <w> waived \| <c> could-not-run \| <f> flaky` | `r = d+x+w+c+f` | `x = 0` |
 | `PROOF` | [registry](./reference/lines.md) | `n = p+r+z+e+g+f+c` | `n ≥ 1`, `z = 0`, `g = 0`; at strict also `e = 0`, `c = 0` |
 | `STATES` | `<n> required \| <p> proven \| <m> missing \| <x> excluded` | `n = p+m+x` | `m = 0` |
+| `BRIEF` | [registry](./reference/lines.md) | — | `g ≥ 1`; hand-off when `q = 0` or every question is carried into the spec |
+| `SPEC` | [registry](./reference/lines.md) | `h ≤ d`, `t ≤ c` | `o = 0`, `h = d`, `t = c` |
+| `DIVERGENCE` | [registry](./reference/lines.md) | `r ≤ c + a` | `r = c + a` |
+| `SPEC REVIEW` | [registry](./reference/lines.md) | `x ≤ l` | round clean: `x = b = m = e = 0`; converged: a clean round after the last fix |
 
-**Proof.** The harness runs the design's **proving-test command** twice: on the base source with the
-head's tests (the setup execute already uses for its `(pre-change)` block), then on the reviewed commit.
-Classification is **by the kind of failure, never by how many tests fail** — at base every new proving
-test is expected to fail:
+**Proof.** The harness runs the design's **proving-test command** twice: on the base source with the head's
+tests (the setup execute already uses for its `(pre-change)` block), then on the reviewed commit. Classification
+is **by the kind of failure, never by how many tests fail** — at base every new proving test is expected to
+fail:
 
 | First run (base source + head tests) | Second run (head) | Result |
 |---|---|---|
@@ -136,21 +139,18 @@ test is expected to fail:
 | — | fails, errors or skips | `not green@head` |
 | — | fails once, passes on one re-run | `flaky` |
 
-Refactor, docs and config tickets use regression guards, declared at G2. `proof.py` (required at review of
-a v0.2 doc) reads `unittest` only; another runner is `could-not-run` until a recorded sample proves how to
-read it. `verification.proof.enabled: false` records a waiver line. *Open:* in compiled languages a new
-API breaks the build at base; such tests are `env-fault@base`, disclosed.
+Refactor, docs and config tickets use regression guards, declared at G2. `proof.py` (required at review of a
+v0.2 doc) reads `unittest` only; another runner is `could-not-run` until a recorded sample proves how to read
+it. `verification.proof.enabled: false` records a waiver line. *Open:* in compiled languages a new API breaks
+the build at base; such tests are `env-fault@base`, disclosed.
 
 ### 5.3 UI verification
 
-The frontend track already has falsifiable rubric items scored against `DESIGN.md`, surface coverage
-for universal requirements (`SURFACES`, `N = M + X`), and the proof tier ladder (automated C1–C8 →
-recorded render → exclusion).
+Beyond what the [frontend track](./concepts/frontend-track.md) already checks (rubric, `SURFACES`, proof tiers):
 
 | Gap | Check | Status |
 |---|---|---|
 | Only the happy path built | **State coverage** — required states per component kind come from `DESIGN.md`; each affected surface proves or excludes each one | Planned (phase 3, stretch) |
-| Render proof reused from another commit | **Render binding** (§4) | Planned (phase 2) |
 | FE and BE disagree at the seam | **Contract** — the project's contract command for each endpoint the diff touches | Later |
 | A change leaked to other screens | **Visual diff** — base and head rendered in one run, no committed baselines | Later |
 | Console errors, failed requests | **Runtime health** — taken from the host's `/run`, `/verify` or browser tools as evidence, never re-implemented | Planned (phase 3) |
@@ -166,16 +166,18 @@ recorded render → exclusion).
 | new scripts | follow `check_lines.py` | exit code + axes |
 
 A harness reports and never rewrites. A **clean review** (G4) requires: no Critical reviewer finding;
-`CHALLENGER VERDICT` with `m + g = n`; no unresolved layer-match `❌`; no design-conformance drift;
-every matrix row `k = N` or excluded; for universal frontend requirements `N = M + X`; the proving test
-green against `BASELINE`; and (Planned) every verification line clean for the profile. A clean verdict
-with a seat switched off is **labelled** with the missing seat.
+`CHALLENGER VERDICT` with `m + g = n`; no unresolved layer-match `❌`; no design-conformance drift; every matrix
+row `k = N` or excluded; for universal frontend requirements `N = M + X`; the proving test green against
+`BASELINE`; and (Planned) every verification line clean for the profile. A clean verdict with a seat switched
+off is **labelled** with the missing seat.
 
 ## 7. Evidence from other tools and conformance
 
 A native command, scanner or CI job MAY be recorded as an evidence source (`source`, `tree`,
 `invocation`, `result`, `provenance`: `observed` | `reported`). It informs; it never replaces the
-verifier or closes a gate. (**Planned, phase 3.**)
+verifier or closes a gate. (**Planned, phase 3.**) **Design evidence (Experimental, Track S4):** a ticket naming
+`Spec: <path>` gets one such record at G2 — `path`, `sha256`, the spec's last `SPEC REVIEW` line (open
+Blocker/Major counts, lenses `not run`), `provenance: reported`. It informs G2, never closes it.
 
 | Level | Requires | Full lane, both seats | Lite lane / seat off |
 |---|---|---|---|
@@ -187,14 +189,12 @@ verifier or closes a gate. (**Planned, phase 3.**)
 
 ## 8. Versioning
 
-`v0.x` is Draft and may change meaning between minors. `v1.0` freezes it under
-[`STABILITY.md`](./STABILITY.md). **One fact, one place:** a grammar is written here only while it is
-Planned; the PR that implements it moves it into `check_lines.py` and leaves here the line's name,
-identity and clean condition, linking the generated `reference/lines.md`. `validate.py` fails if this
-page still spells out a grammar the registry already has.
+`v0.x` is Draft and may change meaning between minors. `v1.0` freezes it under [`STABILITY.md`](./STABILITY.md);
+earlier revisions: plugin CHANGELOG. **One fact, one place:** a grammar is written here only while it is
+Planned; the PR that implements it moves it into `check_lines.py` and leaves here the line's name, identity and
+clean condition, linking the generated `reference/lines.md`. `validate.py` fails if this page still spells out a
+grammar the registry already has.
 
 | Version | Plugin | Change |
 |---|---|---|
-| v0.1 | 1.21.0 | First draft. |
-| v0.1 rev 5 | 1.22.0 | `PROTOCOL:` read from the doc header; `PROOF` implemented, required of v0.2 docs. |
-| v0.1 rev 2–4 | 1.21.1 | Two rounds of independent review: gates pass by phase; conformance per lane; exit codes per script; PROOF by failure kind with regression guards; `legacy` profile; printed status card reading the doc; attestation recomputed vs carried; one place per grammar. Rev 4: measured proof is phase 1, gate records phase 2. |
+| v0.1 rev 6 | 1.23.2 | Spec lane (Track S, shipped Experimental in 1.24.0): spec reviewer, `BRIEF`, `SPEC`, `DIVERGENCE`, `SPEC REVIEW`, design evidence. |

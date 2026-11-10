@@ -8,9 +8,11 @@
 | Line | Emitted by | Required at | Canonical form |
 |---|---|---|---|
 | `BREAKDOWN` | breakdown | epic path | `BREAKDOWN: <N> tickets proposed \| <N> INVEST self-checks emitted (6 letters each) \| <f> tickets flagged for re-split` |
+| `BRIEF` | brainstorm | conditional | `BRIEF: <g> goal(s) \| <n> non-goal(s) \| <a> alternative(s) rejected \| <d> decision(s) \| <q> open question(s)` |
 | `CHALLENGER VERDICT` | review | review | `CHALLENGER VERDICT: <n> requirement(s) rebuilt \| <m> met \| <x> not met \| <u> can't tell \| <g> not-met covered by a recorded exclusion` |
 | `CLAIMS` | finalise, breakdown | finalise | `CLAIMS: <c> claim(s) from <e> lesson entr(ies) \| T1=<n> T2=<n> T3=<n> T4=<n> T5=<n> T6=<n> \| <u> unclassified` |
 | `CLARIFICATION` | analysis | analysis | `CLARIFICATION: <M> raised \| <k> self-resolved (cited) \| <j> for human decision` |
+| `DIVERGENCE` | spec | conditional | `DIVERGENCE: <c> contradiction(s) \| <a> addition(s) \| <r> resolved by human` |
 | `DRIFT` | codify | conditional | `DRIFT: <n> entries \| <m> tickets` |
 | `EXCLUSIONS` | design | design | `EXCLUSIONS: <n> recorded \| <e> with a checkable expiry \| <r> recurring (class seen ≥ 3 → discharged/escalated) \| <o> with an overdue predecessor \| <s> input-shape-dependent AC(s) \| <c> proven on a real corpus` |
 | `FALSIFY` | finalise | finalise | `FALSIFY: <c> candidate(s) checked \| <t> still-true (proceed) \| <f> falsified (BLOCKED) \| <u> not cheaply checkable (BLOCKED)` |
@@ -28,4 +30,6 @@
 | `RETIRE` | promote | conditional | `RETIRE: <o> offered \| <a> retired on the human's answer \| <s> declined/unanswered \| records deleted: 0` |
 | `RULE SECTIONS` | analysis, quick | analysis | `RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …` |
 | `SECTIONS` | analysis | analysis | `SECTIONS: <n> found (names) \| <n> decomposed \| ROWS: C=.. R=.. G=.. AC=..` |
+| `SPEC` | spec | conditional | `SPEC: <d> decision(s) \| <h> decided by human \| <o> open question(s) \| <c> CUJ(s) \| <t> CUJ(s) with a planned test \| <f> file(s) in boundary` |
+| `SPEC REVIEW` | spec-review | conditional | `SPEC REVIEW: round <k> \| <l> lens(es) \| <x> not run \| <b> blocker(s) open \| <m> major(s) open \| <s> settled \| <e> escalated open` |
 | `SURFACES` | analysis | conditional | `SURFACES: <N> — <surface>, <surface>, …` |
