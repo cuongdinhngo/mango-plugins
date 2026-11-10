@@ -120,9 +120,9 @@ Each line has an **identity** (the numbers must add up) and a **clean condition*
 | `VERIFY` | `profile <p> \| <r> required \| <d> done \| <x> failed \| <w> waived \| <c> could-not-run \| <f> flaky` | `r = d+x+w+c+f` | `x = 0` |
 | `PROOF` | [registry](./reference/lines.md) | `n = p+r+z+e+g+f+c` | `n ≥ 1`, `z = 0`, `g = 0`; at strict also `e = 0`, `c = 0` |
 | `STATES` | `<n> required \| <p> proven \| <m> missing \| <x> excluded` | `n = p+m+x` | `m = 0` |
-| `BRIEF` | `<g> goal(s) \| <n> non-goal(s) \| <a> alternative(s) rejected \| <d> decision(s) \| <q> open question(s)` | — | `g ≥ 1`; hand-off when `q = 0` or every question is carried into the spec |
-| `SPEC` | `<d> decision(s) \| <h> decided by human \| <o> open question(s) \| <c> CUJ(s) \| <t> CUJ(s) with a planned test \| <f> file(s) in boundary` | — | `o = 0`, `h = d`, `t = c` |
-| `DIVERGENCE` | `<c> contradiction(s) \| <a> addition(s) \| <r> resolved by human` | — | `r = c + a` |
+| `BRIEF` | [registry](./reference/lines.md) | — | `g ≥ 1`; hand-off when `q = 0` or every question is carried into the spec |
+| `SPEC` | [registry](./reference/lines.md) | `h ≤ d`, `t ≤ c` | `o = 0`, `h = d`, `t = c` |
+| `DIVERGENCE` | [registry](./reference/lines.md) | `r ≤ c + a` | `r = c + a` |
 | `SPEC REVIEW` | [registry](./reference/lines.md) | `x ≤ l` | round clean: `x = b = m = e = 0`; converged: a clean round after the last fix |
 
 **Proof.** The harness runs the design's **proving-test command** twice: on the base source with the head's

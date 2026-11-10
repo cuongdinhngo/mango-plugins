@@ -209,7 +209,7 @@ reaches the agent. Relocation changed **where** the text lives, never what it sa
 | `maturity.md` | `breakdown` | always, on the epic path |
 | `descriptive-normative.md` | `codify`, `sitemap`, `db-map` | always, when that skill runs |
 | `token-cost.md` | `budget` | always, when that skill runs |
-| `spec-review.md` | `spec-review` | always, when that skill runs |
+| `spec-review.md` | `brainstorm`, `spec`, `spec-review` | always, when that skill runs |
 | `frontend-track.md` | `analysis`, `design`, `execute`, `review` | when `config.track` includes frontend |
 | `authoring.md` | mango's **maintainer** (`CONTRIBUTING.md`) | when editing a mango skill — never on a ticket run |
 

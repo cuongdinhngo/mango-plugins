@@ -59,6 +59,14 @@ SKILL_CONTRACTS = {
                     r"Nothing else", r"never the\s+brief", r"ESCALATE first", r"one question per turn",
                     r"## Review record", r"--phase spec-review", r"exit status", r"never\s+read it as clean",
                     r"closes no gate", r"not a mango review verdict", r"max_rounds", r"not required"],
+    "spec": [r"templates/spec\.md", r"one section at a time", r"one question", r"no ranking and no default",
+             r"ask again", r"Zero|nothing left for the implementer", r"contradictions first",
+             r"Never edit the spec to match the brief", r"--phase spec\b", r"exit status",
+             r"never read it as\s+ready", r"Spec: <path>", r"never call a lifecycle skill", r"not required"],
+    "brainstorm": [r"one per turn", r"no ready-made options", r"Readiness gate", r"Dispatch nothing until",
+                   r"zoom-out", r"critic", r"ergonomics", r"in parallel", r"LENS RESULT", r"not run",
+                   r"templates/brief\.md", r"--phase brief", r"exit status", r"/mango:spec", r"path:line",
+                   r"not required"],
     "challenge": [r"agents/challenger\.md", r"never dispatch a second\s+challenger", r"not required",
                   r"\*\.work\.md", r"MANGO WORKING DOC", r"PR body", r"gh pr view", r"nothing else",
                   r"git-isolation\.md", r"ref-based", r"in full", r"never compress",
@@ -1486,7 +1494,7 @@ def validate_preload_split():
         "frontend-track.md": ["skills/analysis/SKILL.md", "skills/design/SKILL.md",
                               "skills/execute/SKILL.md", "skills/review/SKILL.md"],
         "token-cost.md": ["skills/budget/SKILL.md"],
-        "spec-review.md": ["skills/spec-review/SKILL.md"],
+        "spec-review.md": ["skills/spec-review/SKILL.md", "skills/spec/SKILL.md", "skills/brainstorm/SKILL.md"],
         "authoring.md": [],               # maintainer-only: its point of use is CONTRIBUTING.md
     }
     on_disk = {p.name for p in (plugin / "principles").glob("*.md")}
@@ -3563,7 +3571,7 @@ def validate_spec_reviewer():
     check("LENS RESULT: <lens> | completed | <b> blocker | <m> major | <n> nit" in body,
           "spec-reviewer: the brief must end with the fixed LENS RESULT line the skills detect `not run` by")
     principle = (ROOT / "plugins" / "mango" / "principles" / "spec-review.md").read_text(encoding="utf-8")
-    for skill in ("spec-review",):
+    for skill in ("spec-review", "spec", "brainstorm"):
         text = skill_text(skill)
         check("CONTEST" not in text or "principles/spec-review.md" in text,
               f"spec-reviewer: skills/{skill} must point at principles/spec-review.md for the resolve rules")

@@ -4,7 +4,7 @@
     "tests/eval/README.md": 135
   },
   "words": {
-    "plugins/mango/PRINCIPLES.md": 2664,
+    "plugins/mango/PRINCIPLES.md": 2666,
     "plugins/mango/agents/challenger.md": 948,
     "plugins/mango/agents/explorer.md": 242,
     "plugins/mango/agents/extractor.md": 205,
@@ -30,10 +30,12 @@
     "plugins/mango/skills/refine/SKILL.md": 3480,
     "plugins/mango/skills/review/SKILL.md": 3504,
     "plugins/mango/skills/solve/SKILL.md": 2905,
+    "plugins/mango/templates/brief.md": 140,
     "plugins/mango/templates/claim-record.md": 693,
     "plugins/mango/templates/design-doc.md": 602,
     "plugins/mango/templates/frontend-rubric.md": 875,
     "plugins/mango/templates/pr.md": 236,
+    "plugins/mango/templates/spec.md": 381,
     "plugins/mango/templates/ticket.md": 4272,
     "plugins/mango/templates/ui-proof-scaffold.md": 488
   }

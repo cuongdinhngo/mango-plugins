@@ -45,6 +45,8 @@ By hand: copy `config/harness.minimal.json` to `.harness.json`, replace each `RE
 | `/mango:autorun` | unattended | Same phases, gates closed on artifacts, stops at the PR; never merges. |
 | `/mango:breakdown` | epic path | Splits an epic into tickets with an INVEST self-check, behind a human gate. |
 | `/mango:challenge` | one-shot | Runs the ticket-blind challenger once on any branch; advisory, writes nothing. |
+| `/mango:brainstorm` | spec (pre-ticket) | Turns an idea into a brief: one question per turn, reviewer lenses only when you are ready. |
+| `/mango:spec` | spec (pre-ticket) | Writes a spec section by section; you choose every decision; checks it against the brief. |
 | `/mango:spec-review` | spec (pre-ticket) | Fresh read-only reviewers, one per lens, give a spec or design doc a counted verdict; advisory. |
 | `/mango:init` | setup | Detects the stack, writes `.harness.json` (guesses marked `UNVERIFIED`). |
 | `/mango:doctor` | setup | ✅/⚠/❌ health check with remediation; prints the running version first. |

@@ -1550,6 +1550,37 @@ class TestSpecLines(unittest.TestCase):
         self.assertEqual(status, 2, out)
         self.assertIn("MISSING SPEC REVIEW", out)
 
+    READY = ("SPEC: 2 decisions | 2 decided by human | 0 open questions | 3 CUJs | 3 CUJs with a planned test "
+             "| 4 files in boundary")
+    SETTLED = "DIVERGENCE: 1 contradiction | 1 addition | 2 resolved by human"
+
+    def spec_doc(self, spec=None, divergence=None):
+        return f"# A spec\n\n## Counted lines\n\n`{spec or self.READY}`\n\n`{divergence or self.SETTLED}`\n"
+
+    def test_a_ready_spec_passes_at_the_spec_phase(self):
+        out, status = run(self.spec_doc(), phase="spec")
+        self.assertEqual(status, 0, out)
+        self.assertIn("2 required through spec | 0 MISSING", out)
+
+    def test_a_spec_is_not_ready_with_an_open_question_an_undecided_choice_or_an_untested_cuj(self):
+        for old, new in (("0 open questions", "1 open question"), ("2 decided by human", "1 decided by human"),
+                         ("3 CUJs with a planned test", "2 CUJs with a planned test")):
+            out, status = run(self.spec_doc(spec=self.READY.replace(old, new)), phase="spec")
+            self.assertEqual(status, 2, out)
+            self.assertIn("GATE BROKEN SPEC", out)
+
+    def test_an_unsettled_divergence_is_not_ready(self):
+        out, status = run(self.spec_doc(divergence=self.SETTLED.replace("2 resolved", "1 resolved")), phase="spec")
+        self.assertEqual(status, 2, out)
+        self.assertIn("GATE BROKEN DIVERGENCE", out)
+
+    def test_a_brief_needs_a_goal(self):
+        line = "BRIEF: {g} goals | 1 non-goal | 2 alternatives rejected | 3 decisions | 1 open question"
+        out, status = run(f"`{line.format(g=2)}`\n", phase="brief")
+        self.assertEqual(status, 0, out)
+        out, status = run(f"`{line.format(g=0)}`\n", phase="brief")
+        self.assertEqual(status, 2, out)
+
     def test_the_cli_accepts_the_spec_phases(self):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "x.spec.md"

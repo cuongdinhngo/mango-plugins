@@ -603,6 +603,58 @@ GRAMMARS = {
         "waived_by": r"PROOF waived \(verification\.proof\.enabled: false\)",
         "emitter": "review (proof.py)",
     },
+    "BRIEF": {
+        "canonical": "BRIEF: <g> goal(s) | <n> non-goal(s) | <a> alternative(s) rejected | <d> decision(s) | "
+                     "<q> open question(s)",
+        "segments": [
+            seg("g", pl("goal"), "<g> goal(s)"),
+            seg("n", pl("non-goal"), "<n> non-goal(s)"),
+            seg("a", pl("alternative") + " rejected", "<a> alternative(s) rejected"),
+            seg("d", pl("decision"), "<d> decision(s)"),
+            seg("q", "open " + pl("question"), "<q> open question(s)"),
+        ],
+        "rules": [],
+        "gates": [(lambda c: c["g"] >= 1, "g = 0 — a brief with no goal is not ready to hand off")],
+        "required_at": None, "spec_phase": "brief",
+        "emitter": "brainstorm",
+    },
+    "SPEC": {
+        "canonical": "SPEC: <d> decision(s) | <h> decided by human | <o> open question(s) | <c> CUJ(s) | "
+                     "<t> CUJ(s) with a planned test | <f> file(s) in boundary",
+        "segments": [
+            seg("d", pl("decision"), "<d> decision(s)"),
+            seg("h", r"decided by human", "<h> decided by human"),
+            seg("o", "open " + pl("question"), "<o> open question(s)"),
+            seg("c", pl("CUJ"), "<c> CUJ(s)"),
+            seg("t", pl("CUJ") + " with a planned test", "<t> CUJ(s) with a planned test"),
+            seg("f", pl("file") + " in boundary", "<f> file(s) in boundary"),
+        ],
+        "rules": [
+            (lambda c: c["h"] <= c["d"], "h > d — more decisions made by a human than decisions listed"),
+            (lambda c: c["t"] <= c["c"], "t > c — more CUJs with a test than CUJs"),
+        ],
+        # Ready (templates/spec.md): nothing open, every decision the user's, every CUJ tested.
+        "gates": [
+            (lambda c: c["o"] == 0, "o > 0 — an open question; the spec is not ready"),
+            (lambda c: c["h"] == c["d"], "h != d — a decision the user did not make; the spec is not ready"),
+            (lambda c: c["t"] == c["c"], "t != c — a CUJ with no planned test; the spec is not ready"),
+        ],
+        "required_at": None, "spec_phase": "spec",
+        "emitter": "spec",
+    },
+    "DIVERGENCE": {
+        "canonical": "DIVERGENCE: <c> contradiction(s) | <a> addition(s) | <r> resolved by human",
+        "segments": [
+            seg("c", pl("contradiction"), "<c> contradiction(s)"),
+            seg("a", pl("addition"), "<a> addition(s)"),
+            seg("r", r"resolved by human", "<r> resolved by human"),
+        ],
+        "rules": [(lambda c: c["r"] <= c["c"] + c["a"], "r > c + a — more resolved than divergences found")],
+        "gates": [(lambda c: c["r"] == c["c"] + c["a"],
+                   "r != c + a — a divergence from the brief the user has not settled")],
+        "required_at": None, "spec_phase": "spec",
+        "emitter": "spec",
+    },
     "SPEC REVIEW": {
         "canonical": "SPEC REVIEW: round <k> | <l> lens(es) | <x> not run | <b> blocker(s) open | "
                      "<m> major(s) open | <s> settled | <e> escalated open",
