@@ -37,8 +37,8 @@ calls a lifecycle skill, or creates a ticket or an epic; the one link to the lif
   for the new Experimental entry. The three skills total 1,756 words; nothing new loads in a full run.
 - **Smoke guard:** five new fixtures (`spec-review-not-run`, `spec-review-contest-evidence`,
   `spec-zero-decision`, `spec-divergence`, `brainstorm-readiness-gate`); their 25 dispatch-free
-  self-tests pass. **The fixtures have not been dispatched yet** — each must pass 3× fresh before this
-  version merges.
+  self-tests pass. Each fixture passed 3× fresh (`--no-cache`, sequential; CLI 2.1.322, model
+  cli-default). That is a smoke guard, not a regression suite.
 
 ## [1.23.2] — 2026-11-08
 
