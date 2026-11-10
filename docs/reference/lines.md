@@ -28,4 +28,5 @@
 | `RETIRE` | promote | conditional | `RETIRE: <o> offered \| <a> retired on the human's answer \| <s> declined/unanswered \| records deleted: 0` |
 | `RULE SECTIONS` | analysis, quick | analysis | `RULE SECTIONS: <n> applicable — <k> by change-type \| <m> by recalled handle — §<id> (<source>) ✅ <what it constrains>, §<id> (<source>) N/A because <reason>, …` |
 | `SECTIONS` | analysis | analysis | `SECTIONS: <n> found (names) \| <n> decomposed \| ROWS: C=.. R=.. G=.. AC=..` |
+| `SPEC REVIEW` | spec-review | conditional | `SPEC REVIEW: round <k> \| <l> lens(es) \| <x> not run \| <b> blocker(s) open \| <m> major(s) open \| <s> settled \| <e> escalated open` |
 | `SURFACES` | analysis | conditional | `SURFACES: <N> — <surface>, <surface>, …` |

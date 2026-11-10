@@ -41,5 +41,7 @@
 | `db_kind` | Advanced | `null` | OPTIONAL database kind (generic label, e.g. relational/document). Required, with one of db_introspect_cmd or migrations_path, to enable /mango:db-map. db-map is OFF by default. |
 | `db_introspect_cmd` | Advanced | `null` | OPTIONAL read-only introspection command for /mango:db-map to derive the schema map. Must never alter or migrate the schema. Use this OR migrations_path. |
 | `migrations_path` | Advanced | `null` | OPTIONAL directory of migration files for /mango:db-map to derive the schema from when no live introspection command is available. Use this OR db_introspect_cmd. |
+| `specs_dir` | Advanced | `"docs/specs/"` | OPTIONAL directory where the spec track (/mango:brainstorm, /mango:spec) proposes to save briefs and specs (default docs/specs/). The user confirms each path before anything is written. |
+| `spec_review` | Advanced | object | OPTIONAL. /mango:spec-review stops after max_rounds review rounds, converged or not (default 3). |
 | `verification` | Advanced | object | OPTIONAL. How review measures the proving test on a working doc that declares PROTOCOL: v0.2. |
 | `cause_taxonomy` | Advanced | array | The categories analysis classifies a bug's root cause against. |

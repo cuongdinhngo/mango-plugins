@@ -111,7 +111,7 @@ grammars enter `check_lines.py` only after Phase 2's `GATE` PR merges. Lines and
 | **S1** | `spec-reviewer` agent + `/mango:spec-review` | S0 done | reviews a sample spec and a third-party design doc; a simulated failed lens gives `not run` and an unclean round |
 | **S2** | `/mango:spec` | S1 done | a sample brief yields a spec whose `SPEC` line is ready; `DIVERGENCE` catches a planted contradiction |
 | **S3** | `/mango:brainstorm` | S1 done (parallel to S2) | no dispatch before the readiness gate; brief carries `BRIEF`; `spec` reads the brief |
-| **S4** | Link to the lifecycle | S2 done | a ticket naming a spec gets design evidence at G2, never an auto-closed G2 |
+| **S4** | One data link to the lifecycle | S2 done | an epic or ticket the user marks `Spec: <path>` gets design evidence at G2, never an auto-closed G2; no spec skill calls a lifecycle skill or creates a ticket |
 | **S5** | Measure | S1–S3 released | cost per skill; `not run` rate; rounds to convergence |
 
 ## Measures

@@ -45,6 +45,7 @@ By hand: copy `config/harness.minimal.json` to `.harness.json`, replace each `RE
 | `/mango:autorun` | unattended | Same phases, gates closed on artifacts, stops at the PR; never merges. |
 | `/mango:breakdown` | epic path | Splits an epic into tickets with an INVEST self-check, behind a human gate. |
 | `/mango:challenge` | one-shot | Runs the ticket-blind challenger once on any branch; advisory, writes nothing. |
+| `/mango:spec-review` | spec (pre-ticket) | Fresh read-only reviewers, one per lens, give a spec or design doc a counted verdict; advisory. |
 | `/mango:init` | setup | Detects the stack, writes `.harness.json` (guesses marked `UNVERIFIED`). |
 | `/mango:doctor` | setup | ✅/⚠/❌ health check with remediation; prints the running version first. |
 | `/mango:codify` | rules (opt-in) | Counts conventions in use; **you** choose each standard; recorded provisional. |
@@ -67,6 +68,7 @@ returns raw evidence; it never decides.
 | `reviewer` | Rule-book / standards verdict on the diff (BLOCK / CHANGES REQUESTED / LGTM) | Sonnet |
 | `reviewer-max` | Same role, for high-stakes diffs under `cost_tier: max` | Opus |
 | `challenger` | Ticket-blind requirement reconstruction (met / not met / can't tell, with `path:line`) | Sonnet |
+| `spec-reviewer` | One lens over a spec or design doc; `Read, Grep, Glob` only, no CLAUDE.md at start | Sonnet |
 | `onboarder` | Wayfinding / orientation in an unfamiliar codebase | Sonnet |
 | `extractor` | Bulk read-and-extract across many files (gathers context; never concludes) | Haiku |
 

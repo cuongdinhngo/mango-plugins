@@ -95,6 +95,10 @@
   "db_introspect_cmd": null,
   "//migrations_path": "OPTIONAL directory of migration files for /mango:db-map to derive the schema from when no live introspection command is available. Use this OR db_introspect_cmd.",
   "migrations_path": null,
+  "//specs_dir": "OPTIONAL directory where the spec track (/mango:brainstorm, /mango:spec) proposes to save briefs and specs (default docs/specs/). The user confirms each path before anything is written.",
+  "specs_dir": "docs/specs/",
+  "//spec_review": "OPTIONAL. /mango:spec-review stops after max_rounds review rounds, converged or not (default 3).",
+  "spec_review": { "max_rounds": 3 },
   "//verification": "OPTIONAL. How review measures the proving test on a working doc that declares PROTOCOL: v0.2.",
   "verification": {
     "//proof": "proof.py runs the design's proving-test command on the base source with the head's tests, then on the head, and classifies each test by the kind of failure. enabled: false records a waiver line instead (disclosed, never a pass). timeout_s bounds each run (default 300). test_paths are the globs naming test files to bring from the head (default tests/*, test/*, */tests/*, test_*.py, */test_*.py, *_test.py). Reads unittest only; another runner is could-not-run.",

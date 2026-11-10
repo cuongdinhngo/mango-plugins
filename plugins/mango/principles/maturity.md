@@ -7,7 +7,7 @@ Every shipped behaviour carries an honest maturity level so a reader knows what 
 - **Experimental** — works and has been validated, but its exact shape may still change until further
   real-world use. Marked explicitly at the behaviour.
 
-Nine behaviours are **Experimental** today:
+Ten behaviours are **Experimental** today:
 
 - **the unattended lane (`autorun`) and its three envelope artifacts.** The gate conditions it closes on
   are the shipped ones and are Stable; what is Experimental is the unattended closing itself, the exact
@@ -67,6 +67,10 @@ Nine behaviours are **Experimental** today:
   have a preset (`unittest` only) and how regression guards are declared.
   **Its safety boundaries are NOT Experimental**: a legacy doc is never held to it, and `could-not-run`,
   `env-fault@base`, `flaky` and the waiver are disclosed, never a pass.
+- **the spec track (`brainstorm`, `spec`, `spec-review`).** Experimental: the lens set, the severities,
+  and convergence as one clean round after the last fix. **Not Experimental**: it closes no gate, a lens
+  `not run` is never zero findings, reviewers never see the brief or the author's conversation, and
+  nothing is written or fixed without the user's yes.
 
 Everything else on the ticket and epic paths is **Stable** — ticket-path classification (want-decision /
 how-decision), `ASSUMED` handling, the 1-dispatch exposure-checker, epic detection, the enumerated

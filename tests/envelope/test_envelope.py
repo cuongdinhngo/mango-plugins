@@ -1509,6 +1509,57 @@ def excl(n=0, e=0, r=0, o=0, s=0, c=0):
             f"{s} input-shape-dependent AC(s) | {c} proven on a real corpus")
 
 
+class TestSpecLines(unittest.TestCase):
+    """Track S — the spec track's lines. A spec phase holds a document only to its own lines, never to a
+    lifecycle line; a lens `not run` is never a clean round."""
+
+    @staticmethod
+    def review(line):
+        return f"# A spec\n\n## Review record\n\n| id | lens |\n|---|---|\n\n`{line}`\n"
+
+    CLEAN = ("SPEC REVIEW: round 2 | 3 lenses | 0 not run | 0 blockers open | 0 majors open | "
+             "4 settled | 0 escalated open")
+
+    def test_a_clean_round_passes_and_is_held_to_no_lifecycle_line(self):
+        out, status = run(self.review(self.CLEAN), phase="spec-review")
+        self.assertEqual(status, 0, out)
+        self.assertIn("1 required through spec-review | 0 MISSING", out)
+        self.assertIn("| 0 pending", out)
+        self.assertNotIn("pending (not yet required", out)
+
+    def test_a_lens_not_run_is_never_a_clean_round(self):
+        line = self.CLEAN.replace("0 not run", "1 not run")
+        out, status = run(self.review(line), phase="spec-review")
+        self.assertEqual(status, 2, out)
+        self.assertIn("GATE BROKEN SPEC REVIEW", out)
+
+    def test_open_blocker_major_or_escalate_breaks_the_round(self):
+        for old, new in (("0 blockers open", "1 blocker open"), ("0 majors open", "2 majors open"),
+                         ("0 escalated open", "1 escalated open")):
+            out, status = run(self.review(self.CLEAN.replace(old, new)), phase="spec-review")
+            self.assertEqual(status, 2, out)
+
+    def test_more_lenses_not_run_than_dispatched_is_a_contradiction(self):
+        line = self.CLEAN.replace("3 lenses", "1 lens").replace("0 not run", "2 not run")
+        out, status = run(self.review(line), phase="spec-review")
+        self.assertEqual(status, 2, out)
+        self.assertIn("x > l", out)
+
+    def test_a_missing_line_at_its_phase_is_missing(self):
+        out, status = run("# A spec\n\nNo review yet.\n", phase="spec-review")
+        self.assertEqual(status, 2, out)
+        self.assertIn("MISSING SPEC REVIEW", out)
+
+    def test_the_cli_accepts_the_spec_phases(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "x.spec.md"
+            path.write_text(self.review(self.CLEAN), encoding="utf-8")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                status = cl.main(["check_lines.py", "check", str(path), "--phase", "spec-review"])
+            self.assertEqual(status, 0, buf.getvalue())
+
+
 class TestProtocolHeader(unittest.TestCase):
     """`PROTOCOL:` opts a doc into a protocol version. A doc without it is legacy and its report does not
     change; an unknown version is never read as legacy and never passed."""

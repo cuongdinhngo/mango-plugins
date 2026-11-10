@@ -31,7 +31,7 @@ a throwaway plugin run with `claude -p --plugin-dir`.
 | 1, 1b | `spec-reviewer` ships `tools: Read, Grep, Glob` and `omitClaudeMd: true`; `validate.py` pins both. |
 | 1b min version | `doctor` warns when the host is older than **2.1.271**: the reviewer would then start with CLAUDE.md, so its *fresh context* claim does not hold. |
 | 2 | "No CLAUDE.md" means **at start only**. The reviewer brief names the files it may read; a nested CLAUDE.md it attaches is disclosed, not prevented. Never claim the reviewer saw no project instructions. |
-| 3 | 🧑 **Maintainer decides.** Proposal: `brainstorm` and `spec` set `disable-model-invocation: true` (manual entry only); `spec-review` stays model-invocable so `spec` can hand off to it. |
+| 3 | **Decided: no skill sets `disable-model-invocation`**, like every other mango skill. A narrow `description` limits unwanted auto-invocation; the flag is reconsidered only if S5 measures a need. |
 | 4a | Lens counts (3–4 per round) are far below the limit; no throttling needed. |
 | 4b | A lens is `not run` when its report has **no `LENS RESULT` line** — this covers the partial-output note, the API-error result and the turn limit alike. Retry once, then `not run`. There is no timeout to rely on. |
 

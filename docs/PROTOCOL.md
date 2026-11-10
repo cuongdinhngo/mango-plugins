@@ -123,7 +123,7 @@ Each line has an **identity** (the numbers must add up) and a **clean condition*
 | `BRIEF` | `<g> goal(s) \| <n> non-goal(s) \| <a> alternative(s) rejected \| <d> decision(s) \| <q> open question(s)` | — | `g ≥ 1`; hand-off when `q = 0` or every question is carried into the spec |
 | `SPEC` | `<d> decision(s) \| <h> decided by human \| <o> open question(s) \| <c> CUJ(s) \| <t> CUJ(s) with a planned test \| <f> file(s) in boundary` | — | `o = 0`, `h = d`, `t = c` |
 | `DIVERGENCE` | `<c> contradiction(s) \| <a> addition(s) \| <r> resolved by human` | — | `r = c + a` |
-| `SPEC REVIEW` | `round <k> \| <l> lens(es) \| <x> not run \| <b> blocker(s) open \| <m> major(s) open \| <s> settled \| <e> escalated open` | — | round clean: `x = b = m = e = 0`; converged: a clean round after the last fix |
+| `SPEC REVIEW` | [registry](./reference/lines.md) | `x ≤ l` | round clean: `x = b = m = e = 0`; converged: a clean round after the last fix |
 
 **Proof.** The harness runs the design's **proving-test command** twice: on the base source with the head's
 tests (the setup execute already uses for its `(pre-change)` block), then on the reviewed commit. Classification

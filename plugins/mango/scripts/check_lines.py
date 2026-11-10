@@ -64,7 +64,7 @@ invariants — are counted on the `gates` axis. What an AC's fixture provenance 
 judgement; what is checked here is the arithmetic that judgement produced.
 
 Subcommands
-  check     <workdoc> [--phase 0..5|refine|analysis|design|execute|review|finalise]
+  check     <workdoc> [--phase 0..5|refine|analysis|design|execute|review|finalise|brief|spec|spec-review]
                       [--tier lite|full] [--track backend|frontend|fullstack] [--epic]
                       [--tree <sha of the tree under review>] [--base <sha the branch was cut from>]
                       [--size-budget <bytes>]
@@ -128,6 +128,10 @@ PHASE_ALIASES = {
     "quick": "design", "lite": "design", "breakdown": "analysis", "solve": "finalise",
     "autorun": "finalise", "finalize": "finalise", "final": "finalise",
 }
+
+# The spec track (pre-ticket, advisory). Its documents are a brief, a spec, or any reviewed document —
+# never a working doc — so a spec phase requires only its own lines and holds the doc to no lifecycle line.
+SPEC_PHASES = ("brief", "spec", "spec-review")
 
 # ALL-CAPS labels the working doc and the envelope legitimately use that are NOT counted lines. Without
 # this, every `**TIER:** full` header field would be reported not-checkable and the report would be
@@ -599,6 +603,33 @@ GRAMMARS = {
         "waived_by": r"PROOF waived \(verification\.proof\.enabled: false\)",
         "emitter": "review (proof.py)",
     },
+    "SPEC REVIEW": {
+        "canonical": "SPEC REVIEW: round <k> | <l> lens(es) | <x> not run | <b> blocker(s) open | "
+                     "<m> major(s) open | <s> settled | <e> escalated open",
+        "segments": [
+            (rf"round\s+(?P<k>{NUM})", "round <k>"),
+            seg("l", r"lens(?:\(es\)|es)?", "<l> lens(es)"),
+            seg("x", r"not run", "<x> not run"),
+            seg("b", pl("blocker") + " open", "<b> blocker(s) open"),
+            seg("m", pl("major") + " open", "<m> major(s) open"),
+            seg("s", r"settled", "<s> settled"),
+            seg("e", r"escalated open", "<e> escalated open"),
+        ],
+        "rules": [
+            (lambda c: c["k"] >= 1, "round 0 — rounds count from 1"),
+            (lambda c: c["l"] >= 1, "l = 0 — a round with no lens reviewed nothing"),
+            (lambda c: c["x"] <= c["l"], "x > l — more lenses not run than were dispatched"),
+        ],
+        # A clean round (principles/spec-review.md): no lens `not run`, no open Blocker, Major or ESCALATE.
+        "gates": [
+            (lambda c: c["x"] == 0, "x > 0 — a lens `not run` is never zero findings; the round is not clean"),
+            (lambda c: c["b"] == 0, "b > 0 — an open Blocker; the round is not clean"),
+            (lambda c: c["m"] == 0, "m > 0 — an open Major; the round is not clean"),
+            (lambda c: c["e"] == 0, "e > 0 — an open ESCALATE waits for a human; the round is not clean"),
+        ],
+        "required_at": None, "spec_phase": "spec-review",
+        "emitter": "spec-review",
+    },
     "LEDGER TOTAL": {
         "canonical": "LEDGER TOTAL: <tokens> · top cost driver: <phase/subagent>",
         "segments": [
@@ -839,6 +870,8 @@ def required_tokens(phase, tier, track, epic, body="", protocol=None):
     """
     if phase is None:
         return None
+    if phase in SPEC_PHASES:
+        return [token for token, spec in GRAMMARS.items() if spec.get("spec_phase") == phase]
     reached, out = PHASES[: PHASES.index(phase) + 1], []
     for token, spec in GRAMMARS.items():
         if spec.get("epic_required"):
@@ -1062,9 +1095,10 @@ def check_doc(text, phase=None, tier=None, track=None, epic=False, path="<doc>",
         notes.append("    SURFACES: NOT-CHECKABLE — absent on a frontend/fullstack doc. It is required "
                      "only for a universal/app-wide requirement, a judgement this script does not make.")
 
-    pending = sorted(t for t, s in GRAMMARS.items()
-                     if t not in verdicts and s.get("required_at") and t not in (required or [])
-                     and s.get("protocol") in (None, protocol))
+    pending = [] if phase in SPEC_PHASES else sorted(
+        t for t, s in GRAMMARS.items()
+        if t not in verdicts and s.get("required_at") and t not in (required or [])
+        and s.get("protocol") in (None, protocol))
 
     # The evidence axis runs ONLY when the caller names the tree under review. Without it the axis is
     # absent from the report entirely — it is not silently "clean", it simply was not asked.
@@ -1138,7 +1172,8 @@ def main(argv):
         print("CANONICAL COUNTED-LINE GRAMMARS — one form per line, no variants")
         for token in sorted(GRAMMARS):
             spec = GRAMMARS[token]
-            at = spec.get("required_at") or ("epic path" if spec.get("epic_required") else "conditional")
+            at = spec.get("required_at") or (f"--phase {spec['spec_phase']}" if spec.get("spec_phase") else
+                                             "epic path" if spec.get("epic_required") else "conditional")
             if spec.get("protocol"):
                 at += f" (docs declaring PROTOCOL: {spec['protocol']})"
             print(f"  {token}\n    emitted by : {spec['emitter']}\n    required at: {at}\n"
@@ -1156,8 +1191,9 @@ def main(argv):
     path, phase = args[0], opt("--phase")
     if phase:
         phase = PHASE_ALIASES.get(phase.strip().lower(), phase.strip().lower())
-        if phase not in PHASES:
-            print(f"check_lines: unknown --phase (expected one of {', '.join(PHASES)} or 0-5)")
+        if phase not in PHASES and phase not in SPEC_PHASES:
+            print(f"check_lines: unknown --phase (expected one of {', '.join(PHASES + list(SPEC_PHASES))} "
+                  "or 0-5)")
             return 1
     try:
         with open(path, encoding="utf-8") as fh:

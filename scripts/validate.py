@@ -55,6 +55,10 @@ SKILL_CONTRACTS = {
     "execute": [r"verification sweep", r"reformat", r"stuck", r"design[ -]invalidat", r"token-first", r"pointer", r"render", r"proof[ -]manifest", r"ui-proof-scaffold", r"(per|each) clause", r"format[ -]scope", r"approved design", r"both axes", r"baseline", r"unchanged except", r"complete on disk",
                 r"commit(ted)? .{0,24}before .{0,20}review", r"ref-based", r"empty",
                 r"empirical output", r"verbatim", r"golden", r"docstring", r"interface contract"],
+    "spec-review": [r"spec-reviewer", r"in parallel", r"LENS RESULT", r"once more", r"not run",
+                    r"Nothing else", r"never the\s+brief", r"ESCALATE first", r"one question per turn",
+                    r"## Review record", r"--phase spec-review", r"exit status", r"never\s+read it as clean",
+                    r"closes no gate", r"not a mango review verdict", r"max_rounds", r"not required"],
     "challenge": [r"agents/challenger\.md", r"never dispatch a second\s+challenger", r"not required",
                   r"\*\.work\.md", r"MANGO WORKING DOC", r"PR body", r"gh pr view", r"nothing else",
                   r"git-isolation\.md", r"ref-based", r"in full", r"never compress",
@@ -101,7 +105,7 @@ SKILL_CONTRACTS = {
 
 # Critic agents whose output must never be terse-compressed. Each brief MUST carry the
 # Caveman-critic guardrail so a token optimizer cannot strip the evidence a gate relies on.
-CRITIC_AGENTS = ["reviewer", "reviewer-max", "challenger"]
+CRITIC_AGENTS = ["reviewer", "reviewer-max", "challenger", "spec-reviewer"]
 
 # Internal jargon banned from SHIPPED OPERATIONAL TEXT (the behavioural instruction surface a stranger
 # reads). Each entry is (regex, reason, flags). v1.7.5 Fix 1b: the v1.7.4 grep carried only the first two
@@ -1482,6 +1486,7 @@ def validate_preload_split():
         "frontend-track.md": ["skills/analysis/SKILL.md", "skills/design/SKILL.md",
                               "skills/execute/SKILL.md", "skills/review/SKILL.md"],
         "token-cost.md": ["skills/budget/SKILL.md"],
+        "spec-review.md": ["skills/spec-review/SKILL.md"],
         "authoring.md": [],               # maintainer-only: its point of use is CONTRIBUTING.md
     }
     on_disk = {p.name for p in (plugin / "principles").glob("*.md")}
@@ -3539,6 +3544,35 @@ def validate_challenge_standalone():
           "challenge: the root README must introduce /mango:challenge exactly once")
 
 
+def validate_spec_reviewer():
+    """Track S1 — the spec reviewer's fresh context is a host pin, not prose: a read-only allow-list with
+    no shell, and no CLAUDE.md at start (docs/spikes/spec-track-host.md). Removing either breaks the
+    independence the spec-review verdict claims."""
+    path = ROOT / "plugins" / "mango" / "agents" / "spec-reviewer.md"
+    if not check(path.exists(), "spec-reviewer: agents/spec-reviewer.md is missing"):
+        return
+    fm = parse_frontmatter(path)
+    tools = {t.strip() for t in fm.get("tools", "").split(",") if t.strip()}
+    check(tools == {"Read", "Grep", "Glob"},
+          f"spec-reviewer: `tools:` must be exactly Read, Grep, Glob (found {sorted(tools)}) — no Bash, no writer")
+    check(str(fm.get("omitClaudeMd", "")).strip().lower() == "true",
+          "spec-reviewer: `omitClaudeMd: true` must stay — the reviewer starts without CLAUDE.md")
+    check(bool(fm.get("model")) and "haiku" not in fm.get("model", "").lower(),
+          "spec-reviewer: must pin a non-Haiku `model:` (it carries judgment)")
+    body = path.read_text(encoding="utf-8")
+    check("LENS RESULT: <lens> | completed | <b> blocker | <m> major | <n> nit" in body,
+          "spec-reviewer: the brief must end with the fixed LENS RESULT line the skills detect `not run` by")
+    principle = (ROOT / "plugins" / "mango" / "principles" / "spec-review.md").read_text(encoding="utf-8")
+    for skill in ("spec-review",):
+        text = skill_text(skill)
+        check("CONTEST" not in text or "principles/spec-review.md" in text,
+              f"spec-reviewer: skills/{skill} must point at principles/spec-review.md for the resolve rules")
+        check("Never contest a comprehension finding" not in text,
+              f"spec-reviewer: skills/{skill} must not copy the resolve rules; they live in principles/spec-review.md")
+    check("Never contest a comprehension finding" in principle,
+          "spec-reviewer: principles/spec-review.md must keep the resolve rules")
+
+
 def validate_delegation_agents():
     """v1.17.0 — the two Sonnet rows of the delegation map (implement, explore) are a CHOICE OF AGENT,
     pinned by frontmatter, exactly as `review` picks `reviewer` vs `reviewer-max`. Before this they
@@ -3787,6 +3821,7 @@ def main():
     validate_protocol_grammar()
     validate_golden_e2e()
     validate_delegation_agents()
+    validate_spec_reviewer()
     validate_maturity_count()
     validate_doc_consistency()
 
