@@ -102,8 +102,8 @@ under the data rules below. Between phases, the docs get one independent review 
 ## Track S — the spec track (pre-ticket, Experimental)
 
 Three advisory skills before a ticket: `brainstorm` (idea → brief), `spec` (brief → spec), `spec-review` (fresh
-read-only reviewers, counted verdict). No gate, no lifecycle change until S4. Runs **alongside Phase 2**; its
-grammars enter `check_lines.py` only after Phase 2's `GATE` PR merges. Lines and roles: [`PROTOCOL.md`](./PROTOCOL.md).
+read-only reviewers, counted verdict). No gate; S4 is the one lifecycle link. Runs **alongside Phase 2**; its
+grammars shipped in 1.24.0, ahead of Phase 2's `GATE`, as registry additions only. Lines and roles: [`PROTOCOL.md`](./PROTOCOL.md).
 
 | Phase | Goal | Starts when | Done when |
 |---|---|---|---|

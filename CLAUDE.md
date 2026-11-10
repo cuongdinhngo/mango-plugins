@@ -19,10 +19,10 @@ project's `.harness.json`, so nothing here may assume a stack, a tracker, or a l
 | Cheap, always-on contract guard | `python3 scripts/validate.py` | after **every** edit; must print `OK` and be green before any push (CI runs it on push/PR) |
 | Harness script suite | `python3 tests/envelope/test_envelope.py` | after touching `plugins/mango/scripts/`; deterministic, free, no dispatch (CI runs it on push/PR on Linux **and** on Windows at the default console code page; the smoke guard runs it too) |
 | Per-skill smoke guard (costs tokens) | `bash tests/eval/run.sh --only '^(<fixture>\|…)$'` | on an edit under `skills/`, `agents/`, `principles/` or `templates/`: the fixtures mapped to the edited skill in `FIXTURE_SKILLS`, before merge. Anchor the selector |
-| Whole guard (optional) | `bash tests/eval/run.sh` | all thirteen fixtures, ~13 dispatches — at a milestone |
+| Whole guard (optional) | `bash tests/eval/run.sh` | all fourteen fixtures, ~14 dispatches — at a milestone |
 
 **mango has no behavioural regression suite.** The 126-job suite was retired in 1.16.0; what remains is
-the thirteen-fixture smoke guard. A green guard means *the selected fixtures passed just now* — it detects
+the fourteen-fixture smoke guard. A green guard means *the selected fixtures passed just now* — it detects
 no cross-skill regression and does not cover `RETIRE:`. Never call it "the eval is green".
 
 The guard dispatches concurrently, each worker in its own throwaway clone; the live checkout is never
@@ -84,7 +84,7 @@ version bump is tagged `v<version>` and released by `.github/workflows/release.y
   boundary, git isolation, maturity vocabulary, model delegation, the token-cost axis.
 - `CONTRIBUTING.md` — how to validate, the smoke-guard discipline, `main` as the release channel, and
   the **release checklist** (version bump → CHANGELOG entry → root README badge → the Maturity claims).
-- `tests/eval/README.md` — the thirteen fixtures and the skill each is mapped to, the assertion convention
+- `tests/eval/README.md` — the fourteen fixtures and the skill each is mapped to, the assertion convention
   (match the decision, be emphasis-agnostic, 3× fresh, widen over wording never over outcome), the last
   full run, and how the cache and dispatch-free self-tests work.
 - `plugins/mango/principles/maturity.md` — which behaviours are **Experimental** (the single source; a

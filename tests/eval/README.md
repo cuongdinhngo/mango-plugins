@@ -1,6 +1,6 @@
 # mango per-skill smoke guard
 
-**mango has no behavioural regression suite.** This directory holds a smoke guard: thirteen fixtures, run
+**mango has no behavioural regression suite.** This directory holds a smoke guard: fourteen fixtures, run
 when a skill is edited, answering one question —
 
 > *Does the skill I just edited still behave?*
@@ -8,7 +8,7 @@ when a skill is edited, answering one question —
 It does **not** answer *"is mango green?"*. Nothing here should be cited as though it did.
 
 ```bash
-bash tests/eval/run.sh                                        # all thirteen  (~13 dispatches)
+bash tests/eval/run.sh                                        # all fourteen  (~14 dispatches)
 bash tests/eval/run.sh --only '^(multi-clause-want)$'         # the fixtures for the skill you edited
 bash tests/eval/run.sh --workers 1                            # sequential — debugging one transcript
 bash tests/eval/run.sh --no-cache                             # full fresh run: nothing is reused
@@ -25,7 +25,7 @@ Written down here rather than left to be discovered later:
   either. `promote` emits it at the ratify step; the `promote` fixture kept below is the zero case,
   which by construction never reaches a ratify.
 
-## The thirteen
+## The fourteen
 
 | Fixture | Skill(s) | What it is for |
 |---|---|---|
@@ -41,11 +41,12 @@ Written down here rather than left to be discovered later:
 | `spec-zero-decision` | `spec` | **Track S.** A step left to the implementer's choice goes to the user and the spec is not ready. Anchors on `STEP 2:` and `READY:`. |
 | `spec-divergence` | `spec` | **Track S.** A spec deciding against its brief is a contradiction the user settles; the skill never edits the spec to match. Anchors on `DIVERGENCE FOUND:` and `SPEC EDITED BY THE SKILL:`. |
 | `brainstorm-readiness-gate` | `brainstorm` | **Track S.** Before the user chooses review, no reviewer is dispatched and the turn asks one question. Anchors on two count lines. |
+| `design-spec-evidence` | `design` | **Track S4.** A ticket's `Spec:` line becomes one design evidence record (path, `sha256`, the last `SPEC REVIEW:` line) shown at Gate 2; a spec review never closes Gate 2. Anchors on `SPEC EVIDENCE RECORDED:` and `GATE 2 CLOSED BY THE SPEC REVIEW:`. |
 | `challenge-standalone` | `challenge` | **Outside the lifecycle.** The existing `challenger` runs once with no `.harness.json`, on the raw ticket above the separator plus the range. The PR body offered as a shortcut stays out, nothing is written, and the output is labelled `CHALLENGER ONLY` — never a mango review verdict. Anchors on four decision lines (`HARNESS:`, `PAYLOAD:`, `KEPT OUT:`, `WRITES:`), with two `absent` controls: the PR body is never put into the payload, and no verdict is written to a working doc or tracker. |
 
 Every fixture is mapped in `FIXTURE_SKILLS` in `run.sh`. **That map is the trigger mechanism** — a
 fixture that is not mapped cannot be selected by a skill edit, and `validate.py`'s `eval-guard`
-validator fails if any of the thirteen loses its key.
+validator fails if any of the fourteen loses its key.
 
 ## Anchor every `--only` selector
 
@@ -103,9 +104,8 @@ bash tests/eval/run.sh --only '^__none__$'    # every self-test, zero dispatches
 in 92s, `--no-cache` (nothing reused, every fixture ran fresh), at commit `1073665`, CLI 2.1.304, model
 `cli-default`. That figure is 38 fixture assertions plus 46 dispatch-free self-tests.
 
-That run predates `challenge-standalone` (1.19.0), so **no full run of all thirteen exists yet**. The new
-fixture was proven alone: 3× fresh, `--no-cache`, sequential — 61/61 each run (7 fixture assertions plus
-54 dispatch-free self-tests). The next milestone run of the whole guard replaces this entry.
+That run predates `challenge-standalone` (1.19.0) and Track S; each later fixture was proven alone, 3×
+fresh. The next milestone run of the whole guard replaces this entry.
 
 Recorded here because a result nobody stores is a result nobody has: earlier runs are in `git log` of this file.
 

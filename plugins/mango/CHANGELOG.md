@@ -10,7 +10,7 @@ independent field retro reads for "what changed this version" — read it, not a
 **The spec track (Track S, Experimental): three advisory skills before a ticket exists.** A spec is
 read by fresh reviewers and gets a counted verdict before any code. None of the three closes a gate,
 calls a lifecycle skill, or creates a ticket or an epic; the one link to the lifecycle is a
-`Spec: <path>` line a user may add to an epic or a ticket (Planned, S4).
+`Spec: <path>` line a user may add to an epic or a ticket, which `design` reads (S4).
 
 - **Added (skills):** `/mango:brainstorm` (idea → brief: one open question per turn, reviewer lenses
   only after a readiness gate the user passes), `/mango:spec` (brief or notes → spec: one section at a
@@ -27,17 +27,26 @@ calls a lifecycle skill, or creates a ticket or an epic; the one link to the lif
 - **Added (counted lines):** `BRIEF`, `SPEC`, `DIVERGENCE`, `SPEC REVIEW`, parsed by `check_lines.py`
   under the new `--phase brief | spec | spec-review`. A spec phase holds a document only to its own
   lines, never to a lifecycle line. Ten envelope tests.
+- **Changed (`design`, S4):** a ticket or epic with a `Spec: <path>` line gets one design evidence
+  record in Phase 2 — path, `sha256`, the spec's last `SPEC REVIEW:` line, `provenance: reported` —
+  shown at Gate 2 with any open Blocker or `not run` lens. It informs Gate 2 and never closes it. No
+  `Spec:` line, no change. `analysis` is not touched and `spec` creates no ticket file: the plan's
+  wider S4 was cut so the spec skills stay independent of the lifecycle. `design` 3090 → 3164 words
+  (ledger raised): the record's fields are the behaviour, and no existing text covers them.
+- **Changed (`doctor`):** check 11, informational — a host below Claude Code 2.1.271 is a ⚠, since it
+  does not support the `omitClaudeMd` key `spec-reviewer` relies on.
 - **Added (config, optional):** `specs_dir` (default `docs/specs/`), `spec_review.max_rounds` (default 3).
 - **Decided, not added:** no skill sets `disable-model-invocation`, like every other mango skill; a
   narrow `description` limits unwanted auto-invocation, and the flag is reconsidered only if measured.
   The spec track's grammars ship before Phase 2's `GATE` line rather than after it: no `GATE` change is
   in flight, and the new grammars only add registry entries.
-- **Size:** the full-run words rise 34,360 → 34,373 (+13): one row in `PRINCIPLES.md`'s companion index,
-  which `validate.py` requires for every companion (ledger raised 2653 → 2666). `maturity.md` 923 → 979
+- **Size:** the full-run words rise 34,360 → 34,447 (+87): one row in `PRINCIPLES.md`'s companion index,
+  which `validate.py` requires for every companion (ledger raised 2653 → 2666, +13), and the `design`
+  spec link (+74). `maturity.md` 923 → 979
   for the new Experimental entry. The three skills total 1,756 words; nothing new loads in a full run.
-- **Smoke guard:** five new fixtures (`spec-review-not-run`, `spec-review-contest-evidence`,
-  `spec-zero-decision`, `spec-divergence`, `brainstorm-readiness-gate`); their 25 dispatch-free
-  self-tests pass. Each fixture passed 3× fresh (`--no-cache`, sequential; CLI 2.1.322, model
+- **Smoke guard:** six new fixtures (`spec-review-not-run`, `spec-review-contest-evidence`,
+  `spec-zero-decision`, `spec-divergence`, `brainstorm-readiness-gate`, `design-spec-evidence`); their
+  30 dispatch-free self-tests pass. Each fixture passed 3× fresh (`--no-cache`, sequential; CLI 2.1.322, model
   cli-default). That is a smoke guard, not a regression suite.
 
 ## [1.23.2] — 2026-11-08

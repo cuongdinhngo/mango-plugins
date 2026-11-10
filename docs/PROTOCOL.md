@@ -34,7 +34,7 @@ judged, so a quote of it against a changed document is detectable; other verdict
 | **Reviewer** | `reviewer`, `reviewer-max` | no Write/Edit tool |
 | **Harness** | stdlib scripts | reports; never rewrites what it judges |
 | **Unattended runner** | `autorun` | closes a gate only on its artifact condition; never merges |
-| **Spec reviewer** (Planned, Track S) | `spec-reviewer` | `Read, Grep, Glob` only; no CLAUDE.md at start (a subdirectory one still attaches); sees the document and the files it names, never the brief or the author's conversation |
+| **Spec reviewer** (Experimental, Track S) | `spec-reviewer` | `Read, Grep, Glob` only; no CLAUDE.md at start (a subdirectory one still attaches); sees the document and the files it names, never the brief or the author's conversation |
 
 ## 3. Gates
 
@@ -52,7 +52,7 @@ judged, so a quote of it against a changed document is detectable; other verdict
 Unattended conditions for G0–G3 are canonical in `skills/autorun/SKILL.md`; a condition naming an
 artifact that is not produced makes the gate non-closing.
 
-**Spec lane (pre-ticket) — Planned (Track S).** `brainstorm` → `spec` → `spec-review`; advisory, no gate; lines in §5.2.
+**Spec lane (pre-ticket) — Experimental (Track S).** `brainstorm` → `spec` → `spec-review`; advisory, no gate; lines in §5.2.
 
 **Gate record — Planned (phase 2).** Each gate decision is one counted line, on its own line (never in a table: it has `|`):
 
@@ -111,7 +111,7 @@ A CI check names the profile in its title and MAY require a minimum. No new line
 that has not opted into v0.2: upgrading never turns a passing doc into a failing one. mango bundles no
 test runner; with no project command a check is `could-not-run` — disclosed.
 
-### 5.2 Verification lines — `PROOF` Implemented; `VERIFY` Planned (phase 2), `STATES` (phase 3), spec lines (Track S)
+### 5.2 Verification lines — `PROOF`, spec lines (Track S) Implemented; `VERIFY` Planned (phase 2), `STATES` (phase 3)
 
 Each line has an **identity** (the numbers must add up) and a **clean condition** (what G4, or a spec hand-off, needs).
 
@@ -175,9 +175,9 @@ off is **labelled** with the missing seat.
 
 A native command, scanner or CI job MAY be recorded as an evidence source (`source`, `tree`,
 `invocation`, `result`, `provenance`: `observed` | `reported`). It informs; it never replaces the
-verifier or closes a gate. (**Planned, phase 3.**) **Design evidence (Planned, Track S4):** a ticket naming
-`Spec: <path>` gets one such record at G2 — `source` `mango:spec-review` or `egm:review`, `path`, `sha256`,
-convergence, open Blocker/Major counts, lenses `not run`, `provenance`. It informs G2, never closes it.
+verifier or closes a gate. (**Planned, phase 3.**) **Design evidence (Experimental, Track S4):** a ticket naming
+`Spec: <path>` gets one such record at G2 — `path`, `sha256`, the spec's last `SPEC REVIEW` line (open
+Blocker/Major counts, lenses `not run`), `provenance: reported`. It informs G2, never closes it.
 
 | Level | Requires | Full lane, both seats | Lite lane / seat off |
 |---|---|---|---|
@@ -197,4 +197,4 @@ grammar the registry already has.
 
 | Version | Plugin | Change |
 |---|---|---|
-| v0.1 rev 6 | 1.23.2 | Planned spec lane (Track S): spec reviewer, `BRIEF`, `SPEC`, `DIVERGENCE`, `SPEC REVIEW`, design evidence. |
+| v0.1 rev 6 | 1.23.2 | Spec lane (Track S, shipped Experimental in 1.24.0): spec reviewer, `BRIEF`, `SPEC`, `DIVERGENCE`, `SPEC REVIEW`, design evidence. |

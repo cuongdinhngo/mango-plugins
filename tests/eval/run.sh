@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Per-skill behavioural smoke guard for the mango skills.
 #
-# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: thirteen
+# WHAT THIS IS, AND WHAT IT IS NOT. mango has NO behavioural regression suite. It has this: fourteen
 # fixtures, run when a skill is edited, answering one question — "does the skill I just edited still
 # behave?" It does NOT answer "is mango green?", and nothing here should be read as though it did.
 #
@@ -21,7 +21,7 @@
 # contract text), plugins/mango/scripts/check_lines.py (counted lines), tests/envelope/.
 #
 # HOW TO RUN IT. Hands-free: one command, no manual scaffolding.
-#   bash tests/eval/run.sh                       # all thirteen  (~13 dispatches)
+#   bash tests/eval/run.sh                       # all fourteen  (~14 dispatches)
 #   bash tests/eval/run.sh --only '^(a|b)$'      # the fixtures mapped to the skill you edited
 #   bash tests/eval/run.sh --workers 1           # sequential — debugging one transcript
 #   bash tests/eval/run.sh --no-cache            # full fresh run: nothing is reused
@@ -58,7 +58,7 @@
 # worker gets its own clone AND writes its own per-JOB harness; the worker tree is disposed after its
 # last job and the disposal is a counted assertion, alongside the live-checkout guard.
 #
-# --- The thirteen, and what each one is for ---------------------------------------
+# --- The fourteen, and what each one is for ---------------------------------------
 #   refine-want-unattended-stops  refine, autorun  Gate 0. The worked example of a claim bound to a
 #                     COUNTED LINE: an unresolved want-decision counts toward `j`, autorun stops, and
 #                     it is never a silent ASSUMED — asserted against the REFINE: line's own arithmetic.
@@ -90,6 +90,8 @@
 #                     contradiction the user settles; the skill never edits the spec to match.
 #   brainstorm-readiness-gate     brainstorm       Track S. Before the user chooses review, no reviewer
 #                     is dispatched and each turn asks exactly one question.
+#   design-spec-evidence          design           Track S4. A ticket's `Spec:` line becomes one design
+#                     evidence record shown at Gate 2; a spec review never closes Gate 2.
 #
 # ASSERTION CONVENTION (tests/eval/README.md): match the DECISION, not one phrasing; tolerate
 # markdown emphasis; widen over wording, NEVER over outcome. Every widened token is proven both ways
@@ -222,6 +224,7 @@ declare -A FIXTURE_SKILLS=(
   [spec-zero-decision]="spec"
   [spec-divergence]="spec"
   [brainstorm-readiness-gate]="brainstorm"
+  [design-spec-evidence]="design"
 )
 # make `cat` block on stdin): no args → empty hash → treated as a MISS (run fresh), never a hang.
 hash_files() { [ "$#" -gt 0 ] || return 1; cat "$@" 2>/dev/null | sha256sum 2>/dev/null | awk '{print $1}'; }
@@ -877,6 +880,9 @@ RE_SPEC_NOT_EDITED='^[ *_`>-]*SPEC[ *_]{1,4}EDITED[ *_]{1,4}BY[ *_]{1,4}THE[ *_]
 RE_SPEC_EDITED_YES='^[ *_`>-]*SPEC[ *_]{1,4}EDITED[ *_]{1,4}BY[ *_]{1,4}THE[ *_]{1,4}SKILL[ *_`]*:[ *_`]*yes'
 RE_BRAINSTORM_NO_DISPATCH='^[ *_`>-]*REVIEWERS[ *_]{1,4}DISPATCHED[ *_]{1,4}THIS[ *_]{1,4}TURN[ *_`]*:[ *_`]*0([^0-9]|$)'
 RE_BRAINSTORM_DISPATCHED='^[ *_`>-]*REVIEWERS[ *_]{1,4}DISPATCHED[ *_]{1,4}THIS[ *_]{1,4}TURN[ *_`]*:[ *_`]*[1-9]'
+RE_DESIGN_SPEC_EVIDENCE='^[ *_`>-]*SPEC[ *_]{1,4}EVIDENCE[ *_]{1,4}RECORDED[ *_`]*:[ *_`]*yes'
+RE_DESIGN_GATE2_NOT_CLOSED='^[ *_`>-]*GATE[ *_]{1,4}2[ *_]{1,4}CLOSED[ *_]{1,4}BY[ *_]{1,4}THE[ *_]{1,4}SPEC[ *_]{1,4}REVIEW[ *_`]*:[ *_`]*no([^a-z]|$)'
+RE_DESIGN_GATE2_CLOSED_YES='^[ *_`>-]*GATE[ *_]{1,4}2[ *_]{1,4}CLOSED[ *_]{1,4}BY[ *_]{1,4}THE[ *_]{1,4}SPEC[ *_]{1,4}REVIEW[ *_`]*:[ *_`]*yes'
 RE_BRAINSTORM_ONE_QUESTION='^[ *_`>-]*QUESTIONS[ *_]{1,4}ASKED[ *_]{1,4}THIS[ *_]{1,4}TURN[ *_`]*:[ *_`]*1([^0-9]|$)'
 # The rationale is written subject-first as often as verb-first ("coverage removed, not moved", "takes
 # the claims out of recall while nothing yet replaces them").
@@ -923,7 +929,7 @@ assert_checkout_clean() {
 # The cache is wiped whenever run.sh itself changes. A cached transcript is a record of what the
 # model answered; it is re-judged from scratch on every reuse, so an edited assertion does not
 # invalidate it — it re-reads it. Keying the wipe on the WHOLE file is coarser than the two-tier
-# identity the retired suite carried, and deliberately so: with thirteen fixtures the saving that bought
+# identity the retired suite carried, and deliberately so: with fourteen fixtures the saving that bought
 # is worth less than the machinery, and a coarse key can only ever err toward running fresh.
 if [ "$CACHE_ENABLED" -eq 1 ]; then
   FP_FILE="$CACHE_DIR/.runner.fp"
@@ -1044,7 +1050,7 @@ assert_all "greenfield-promote: it stops rather than asking a ratification quest
 assert_all "greenfield-promote: an absent corpus is not an error" "$t" 'not[ *_]{1,4}(an )?error|no[ *_]{1,4}error|neither|not configured|says so' 'corpus|LESSONS|lessons_path|absent|missing'
 assert_absent "greenfield-promote: no rule is written" "$t" 'rules written[ *_:=]*[1-9]'
 
-banner "== Track S  (spec-review, spec, brainstorm — pre-ticket, advisory) =="
+banner "== Track S  (spec-review, spec, brainstorm, design — pre-ticket, advisory) =="
 # Track S (Experimental): the lens results and drafts are injected, so no fixture dispatches a reviewer.
 t="$(run_fixture spec-review-not-run 'Run the mango spec-review skill on the round described in this ticket and answer the three numbered questions, emitting the counted SPEC REVIEW line, then end with the two decision lines the ticket asks for. Do not dispatch any agent; the results are given. Do not stop for my input.')"
 assert_all "spec-review: the lens with no LENS RESULT is not run" "$t" "$RE_SPEC_NOT_RUN_LINE"
@@ -1070,6 +1076,11 @@ t="$(run_fixture brainstorm-readiness-gate 'Run the mango brainstorm skill on th
 assert_all "brainstorm: no reviewer before the readiness gate" "$t" "$RE_BRAINSTORM_NO_DISPATCH"
 assert_all "brainstorm: exactly one question this turn" "$t" "$RE_BRAINSTORM_ONE_QUESTION"
 assert_absent "brainstorm: nothing is dispatched (non-vacuous)" "$t" "$RE_BRAINSTORM_DISPATCHED"
+
+t="$(run_fixture design-spec-evidence 'Run the mango design skill on the state described in this ticket and answer the three numbered questions, then end with the two decision lines the ticket asks for. Do not stop for my input.')"
+assert_all "design: the Spec: line becomes one design evidence record" "$t" "$RE_DESIGN_SPEC_EVIDENCE" 'sha256' 'SPEC[ *_]{1,4}REVIEW[ *_`]*:'
+assert_all "design: the spec review never closes Gate 2" "$t" "$RE_DESIGN_GATE2_NOT_CLOSED"
+assert_absent "design: Gate 2 is never closed by the spec review (non-vacuous)" "$t" "$RE_DESIGN_GATE2_CLOSED_YES"
 
 }   # end suite()
 
@@ -1355,6 +1366,8 @@ cat >"$_ac/spec-track.correct" <<'AC'
 - **SPEC EDITED BY THE SKILL:** no
 REVIEWERS DISPATCHED THIS TURN: 0
 QUESTIONS ASKED THIS TURN: 1
+- **SPEC EVIDENCE RECORDED:** yes
+- **GATE 2 CLOSED BY THE SPEC REVIEW:** no — it informs the gate; the user decides
 AC
 cat >"$_ac/spec-track.wrong" <<'AC'
 NOT RUN: none
@@ -1367,6 +1380,8 @@ DIVERGENCE FOUND: none
 SPEC EDITED BY THE SKILL: yes, the JSON part was removed
 REVIEWERS DISPATCHED THIS TURN: 3
 QUESTIONS ASKED THIS TURN: 3
+SPEC EVIDENCE RECORDED: no
+GATE 2 CLOSED BY THE SPEC REVIEW: yes
 AC
 cat >"$_ac/spec-track-template.wrong" <<'AC'
 NOT RUN: <the lenses counted not run, or none>
@@ -1379,17 +1394,20 @@ DIVERGENCE FOUND: <contradiction, addition, or none>
 SPEC EDITED BY THE SKILL: <yes or no>
 REVIEWERS DISPATCHED THIS TURN: <a number>
 QUESTIONS ASKED THIS TURN: <a number>
+SPEC EVIDENCE RECORDED: <yes or no>
+GATE 2 CLOSED BY THE SPEC REVIEW: <yes or no>
 AC
 for _re in RE_SPEC_NOT_RUN_LINE RE_SPEC_ROUND_NOT_CLEAN RE_SPEC_OUTCOME_ESCALATE RE_SPEC_SEVERITY_MAJOR \
            RE_SPEC_STEP2_TO_USER RE_SPEC_NOT_READY RE_SPEC_DIVERGENCE_CONTRADICTION RE_SPEC_NOT_EDITED \
-           RE_BRAINSTORM_NO_DISPATCH RE_BRAINSTORM_ONE_QUESTION; do
+           RE_BRAINSTORM_NO_DISPATCH RE_BRAINSTORM_ONE_QUESTION RE_DESIGN_SPEC_EVIDENCE \
+           RE_DESIGN_GATE2_NOT_CLOSED; do
   selftest_assertion "decision line: $_re (Track S)" "$_ac/spec-track.correct" "$_ac/spec-track.wrong" "${!_re}"
   selftest_assertion "decision line: $_re passes no echoed template (Track S)" \
     "$_ac/spec-track.correct" "$_ac/spec-track-template.wrong" "${!_re}"
 done
 # The absent-side tokens must fire on the wrong behaviour and stay silent on the correct one.
 for _re in RE_SPEC_ROUND_CLEAN_YES RE_SPEC_OUTCOME_CONTESTED RE_SPEC_READY_YES RE_SPEC_EDITED_YES \
-           RE_BRAINSTORM_DISPATCHED; do
+           RE_BRAINSTORM_DISPATCHED RE_DESIGN_GATE2_CLOSED_YES; do
   selftest_assertion "absent control: $_re (Track S)" "$_ac/spec-track.wrong" "$_ac/spec-track.correct" "${!_re}"
 done
 

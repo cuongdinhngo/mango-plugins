@@ -61,7 +61,7 @@ or escalation disappear?"* If yes or unsure — **keep it**.
 ## Per-skill smoke guard
 
 mango has **no behavioural regression suite**; the 126-job suite was retired in 1.16.0. What remains is
-a per-skill smoke guard (`tests/eval/run.sh`): **thirteen fixtures**, one per behaviour so a red run is
+a per-skill smoke guard (`tests/eval/run.sh`): **fourteen fixtures**, one per behaviour so a red run is
 diagnosable, each mapped in `FIXTURE_SKILLS` to the skill it exercises. It drives the model over an
 injected ticket state and asserts the decision the skill is meant to make. The fixture list, the skill
 each covers and the last full run are in [`tests/eval/README.md`](./tests/eval/README.md) — the single
@@ -104,7 +104,7 @@ version bump. Select the fixtures mapped to the skill you edited, with an **anch
 
 ```bash
 bash tests/eval/run.sh --only '^(refine-want-unattended-stops)$'   # 1 dispatch, well under $1.50
-bash tests/eval/run.sh                                            # all thirteen, ~13 dispatches
+bash tests/eval/run.sh                                            # all fourteen, ~14 dispatches
 ```
 
 **Anchor the selector.** An unanchored `--only` once matched a scenario inside a fixture name and
