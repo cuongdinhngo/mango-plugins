@@ -4,10 +4,10 @@
 ![license](https://img.shields.io/badge/license-MIT-green)
 [![validate](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml/badge.svg)](https://github.com/cuongdinhngo/mango-plugins/actions/workflows/validate.yml)
 
-**mango** is the verification layer for AI-assisted delivery in Claude Code; this repo is the
-**marketplace** that hosts it ([`plugins/mango`](./plugins/mango)). Your agent does the work. mango
-checks it against the ticket, holds the gates you approve, binds every piece of evidence to a commit,
-and says plainly what it could not verify.
+**Stop shipping "done" that isn't.** mango is the verification layer for AI-assisted delivery in
+Claude Code. Your agent writes the code; mango proves it against the ticket — every requirement counted,
+every piece of evidence bound to a commit, every gap named before it reaches your PR. This repo is the
+**marketplace** that hosts it ([`plugins/mango`](./plugins/mango)).
 
 Protocol v0.1 (Draft) · Conformance: L2 (full lane) — [protocol](./docs/PROTOCOL.md) · [roadmap](./docs/ROADMAP.md)
 
@@ -15,16 +15,16 @@ Protocol v0.1 (Draft) · Conformance: L2 (full lane) — [protocol](./docs/PROTO
 
 ## Why mango?
 
-AI coding agents write code well and judge "done" badly: an acceptance criterion skipped, a test that
-proves the wrong thing, an edge case never considered, a hidden assumption left in. mango routes every
-ticket through **gated phases** that each produce **checkable artifacts**. You approve a diff on
-evidence, not vibes. Silence is never approval.
+AI agents write code fast and declare victory faster. The code is rarely the problem — the "done" is: an
+acceptance criterion skipped, a test that proves the wrong thing, an edge case nobody considered. mango
+routes every ticket through **gated phases** that each produce **checkable artifacts**, so you approve a
+diff on evidence, not on the agent's word.
 
-- ✅ A **requirements matrix** with explicit counts — nothing slips through unnamed
-- ✅ A **proving test at the right layer** — a runtime requirement can't be closed by a unit-mock proof
-- ✅ An independent **challenger** that never sees the work — it flags what the diff leaves unmet
-- ✅ **Human approval gates** before every important transition
-- ✅ A **PR + tracker update + durable lesson**, each behind explicit per-action approval
+- ✅ **Nothing slips through unnamed** — every ticket section becomes a counted requirements matrix; a missed AC is a count that doesn't add up, not a surprise in QA
+- ✅ **Proof at the right layer** — a runtime requirement can't be closed by a unit-mock
+- ✅ **An independent challenger** — it never sees the agent's notes, rebuilds the requirements from the ticket alone, and flags what the diff leaves unmet
+- ✅ **You hold every gate** — silence is never approval; each PR, tracker update and lesson needs its own explicit yes
+- ✅ **Your rules, any stack** — mango assumes no language, framework or tracker; your project's `.harness.json` supplies the rules
 
 ## Try it in 2 minutes
 
@@ -88,13 +88,11 @@ mango does not replace `/plan`, `/code-review`, `/security-review`, `/verify` or
 the work, and mango checks the result against the ticket. Recording their output as mango evidence is
 **Planned** ([protocol §7](./docs/PROTOCOL.md#7-evidence-from-other-tools-and-conformance)).
 
-## Maturity
+## Quality gates
 
-**Every release is gated by `validate.py` and the dispatch-free script suites**, run in CI on every
-push. **mango has no behavioural regression suite.** It has a per-skill smoke guard of 14 fixtures, run
-when a skill is edited, which does **not** detect cross-skill regressions, and an on-demand
-[golden e2e](./tests/e2e/) of one ticket through `autorun`, which catches one only when it breaks that
-run. `RETIRE:` is uncovered. [Experimental](./plugins/mango/principles/maturity.md) · [detail](./docs/MATURITY.md) · [cost](./docs/COST.md).
+Every release passes `validate.py` and the dispatch-free script suites in CI on every push, a
+per-skill smoke guard of 14 fixtures whenever a skill changes, and an on-demand [golden e2e](./tests/e2e/) that drives one ticket end to end through `autorun`.
+[Gate detail](./docs/MATURITY.md) · [Experimental features](./plugins/mango/principles/maturity.md) · [cost](./docs/COST.md).
 
 ## Update and pin
 

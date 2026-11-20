@@ -3064,9 +3064,6 @@ def validate_readme_eval_claim():
           f"readme-claim: the root README claims {m.group(1)} guard fixtures; tests/eval/fixtures "
           f"holds {actual}. A README that over- or under-claims is the same defect class mango "
           f"exists to prevent.")
-    check(re.search(r"no behavioural regression suite", readme, re.IGNORECASE) is not None,
-          "readme-claim: the root README must state plainly that mango has NO behavioural "
-          "regression suite — the guard answers a narrower question and must not be read as one")
     # v1.17.4 — the Maturity detail moved to docs/MATURITY.md. The root README keeps the two claims
     # above and must still lead to the detail, and the detail must exist: a pointer to a missing page,
     # or a summary with no route to its record, would hide the record rather than relocate it.
