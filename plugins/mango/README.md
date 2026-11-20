@@ -11,8 +11,8 @@ Trust comes from emitted, counted, gate-blocking artifacts — not prose. mango 
 descriptive and facilitates the normative, but **never authors the normative** — the rules stay your
 team's decision. No secrets ship: tokens live only in a gitignored `.env`.
 
-**mango is not install-and-go.** Installing the plugin gives you the machinery and no rules. Before the
-first ticket, set the project up: [Set up a project](../../docs/howto/set-up-a-project.md). Until
+**Your rules, set up once.** The plugin ships the machinery; your project supplies the rules. Before
+the first ticket, set the project up: [Set up a project](../../docs/howto/set-up-a-project.md). Until
 `.harness.json` exists, every skill stops and tells you to create one.
 
 ## Quickstart

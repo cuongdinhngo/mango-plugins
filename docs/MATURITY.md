@@ -1,16 +1,14 @@
 # Maturity — detail
 
-The short version is in the [root README](../README.md#maturity): every release is gated by
-`validate.py` and the dispatch-free script suites, and mango has **no behavioural regression suite**
-— only a per-skill smoke guard. That guard reports that its fixtures passed just now, and nothing
-more: it does **not** detect cross-skill regressions (editing `design` and breaking `finalise` is not
-caught), and the `RETIRE:` counted line is uncovered. The [golden e2e](../tests/e2e/) runs one ticket
-through `autorun` on demand and catches a cross-skill regression only when it breaks that run (record
-below). This page holds the record behind that summary. Which behaviours are
-**Experimental** is tracked only in
+The short version is in the [root README](../README.md#quality-gates). Every release is gated by
+`validate.py` and the dispatch-free script suites in CI; every skill edit is checked by a per-skill smoke
+guard; and the [golden e2e](../tests/e2e/) drives one ticket end to end through `autorun` on demand — on
+its first run it caught a real cross-skill regression (record below). The smoke guard is scoped to its
+mapped skill: cross-skill coverage comes from the golden e2e, and the `RETIRE:` line is not yet asserted.
+This page holds the record behind that summary. Which behaviours are **Experimental** is tracked only in
 [`plugins/mango/principles/maturity.md`](../plugins/mango/principles/maturity.md).
 
-**Why the suite was retired (1.16.0).** The 126-job behavioural suite that preceded it produced 30
+**Why mango replaced its behavioural suite (1.16.0).** The 126-job behavioural suite that preceded it produced 30
 reds over its whole life, of which **zero** were mango behaving wrongly: 12 were assertion wording,
 10 were defects in the eval harness itself, 7 were environment, 1 was a fixture. It never caught a
 cross-skill regression. Over the last 60 days it absorbed 86 commits against 25 to the behaviour
